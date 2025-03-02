@@ -1,0 +1,42 @@
+{
+	"name": "@brandup/ui-input",
+	"description": "Input control type and styles.",
+	"keywords": [
+		"brandup",
+		"javascript",
+		"typescript",
+		"ui"
+	],
+	"author": {
+		"name": "Dmitry Kovyazin",
+		"email": "it@brandup.online"
+	},
+	"homepage": "https://github.com/brandup-online/brandup-ui/npm/brandup-ui-input",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/brandup-online/brandup-ui.git"
+	},
+	"bugs": {
+		"url": "https://github.com/brandup-online/brandup-ui/issues",
+		"email": "it@brandup.online"
+	},
+	"license": "Apache-2.0",
+	"version": "1.0.0",
+	"main": "source/index.ts",
+	"types": "source/index.ts",
+	"dependencies": {
+		"@brandup/ui": "^1.0.30"
+	},
+	"devDependencies": {
+		"less": "^4.2.2",
+		"typescript": "^5.8.2"
+	},
+	"files": [
+		"source",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsc",
+		"watch": "tsc -w"
+	}
+}
