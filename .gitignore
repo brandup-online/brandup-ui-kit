@@ -399,3 +399,9 @@ FodyWeavers.xsd
 *.sln.iml
 
 package-lock.json
+npm/*/src/**/*.js
+npm/*/src/**/*.js.map
+npm/*/source/**/*.js
+npm/*/source/**/*.js.map
+npm/*/out
+npm/*/**/dist/*

@@ -13,7 +13,8 @@
 	},
 	"less.validate": true,
 	"[less]": {
-		"editor.defaultFormatter": null
+		"editor.defaultFormatter": null,
+		"editor.formatOnSave": false
 	},
 	"html.suggest.html5": true,
 	"html.autoClosingTags": true,
