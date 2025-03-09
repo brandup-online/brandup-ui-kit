@@ -37,7 +37,7 @@ const builder = new ApplicationBuilder<ExampleApplicationModel>({});
 
 builder
 	.useApp(ExampleApplication)
-	.useMiddleware(uiKitMiddlewareFactory.default)
+	.useMiddleware(uiKitMiddlewareFactory)
 	.useMiddleware(pages, {
 		routes: {
 			'/': { page: () => import("./pages/index"), preload: true },

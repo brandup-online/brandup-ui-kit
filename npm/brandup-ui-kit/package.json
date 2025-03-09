@@ -20,6 +20,7 @@
 		"url": "https://github.com/brandup-online/brandup-ui/issues",
 		"email": "it@brandup.online"
 	},
+	"type": "module",
 	"license": "Apache-2.0",
 	"version": "1.0.0",
 	"main": "source/index.ts",
