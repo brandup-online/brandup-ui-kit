@@ -1,13 +1,15 @@
+@import "reset.less";
+
 :root {
-	--font-size: 15px;
+	--font-size: 14px;
 	--font-family: system-ui, 'Segoe UI', Helvetica, 'Gill Sans', 'Verdana', 'Arial', sans-serif;
 	--line-height: 130%;
 	--text-color: #222;
 	--main-background: #fff;
 
-	--content-max-width: 1660px; // максимальная ширина контентной области
+	--content-max-width: 1280px; // максимальная ширина контентной области
 	--content-min-width: 320px;  // минимальная ширина контентной области
-	--content-padding-lr: 80px;  // отступы контентной области слева и справа до краёв браузера
+	--content-padding-lr: 40px;  // отступы контентной области слева и справа до краёв браузера
 
 	--adaptive-desktop-small: 1650px;
 	--adaptive-notebook: 1550px;
@@ -16,68 +18,30 @@
 	--adaptive-tablet-small: 850px;
 	--adaptive-mobile: 500px;
 	--adaptive-mobile-small: 370px;
-}
 
-.adaptive-desktop-small(@rules) {
-	@media all and (max-width: var(--adaptive-desktop-small)) {
-		@rules();
-	}
-}
-
-.adaptive-notebook(@rules) {
-	@media all and (max-width: var(--adaptive-notebook)) {
-		@rules();
-	}
-}
-
-.adaptive-notebook-small(@rules) {
-	@media all and (max-width: var(--adaptive-notebook-small)) {
-		@rules();
-	}
-}
-
-.adaptive-tablet(@rules) {
-	@media all and (max-width: var(--adaptive-tablet)) {
-		@rules();
-	}
-}
-
-.adaptive-tablet-landscape(@rules) {
-	@media all and (max-width: var(--adaptive-tablet)) and (orientation: landscape) {
-		@rules();
-	}
-}
-
-.adaptive-tablet-small(@rules) {
-	@media all and (max-width: var(--adaptive-tablet-small)) {
-		@rules();
-	}
-}
-
-.adaptive-mobile(@rules) {
-	@media all and (max-width: var(--adaptive-mobile)) {
-		@rules();
-	}
-}
-
-.adaptive-mobile-landscape(@rules) {
-	@media all and (max-width: var(--adaptive-mobile)) and (orientation: landscape) {
-		@rules();
-	}
-}
-
-.adaptive-mobile-small(@rules) {
-	@media all and (max-width: var(-adaptive-mobile-small)) {
-		@rules();
-	}
+	--h-line-height: 130%;
+	--h1-font-size: 56px;
+	--h1-font-weidth: 600;
+	--h2-font-size: 50px;
+	--h2-font-weidth: 600;
+	--h3-font-size: 28px;
+	--h3-font-weidth: 600;
+	--h4-font-size: 22px;
+	--h4-font-weidth: 600;
+	--h5-font-size: 18px;
+	--h5-font-weidth: 600;
 }
 
 body {
-	font-family: var(--font-family);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+	-webkit-tap-highlight-color: transparent;
+	overflow: auto;
 	font-size: var(--font-size);
+	font-family: var(--font-family);
 	line-height: var(--line-height);
 	color: var(--text-color);
-	background: var(--main-background);
 }
 
 .content-width {
@@ -87,4 +51,33 @@ body {
 	padding-left: var(--content-padding-lr);
 	padding-right: var(--content-padding-lr);
 	box-sizing: border-box;
+}
+
+h1, h2, h3, h4, h5 {
+	line-height: var(--h-line-height);
+}
+
+h1 {
+	font-size: var(--h1-font-size);
+	font-weight: var(--h1-font-weidth);
+}
+
+h2 {
+	font-size: var(--h2-font-size);
+	font-weight: var(--h2-font-weidth);
+}
+
+h3 {
+	font-size: var(--h3-font-size);
+	font-weight: var(--h3-font-weidth);
+}
+
+h4 {
+	font-size: var(--h4-font-size);
+	font-weight: var(--h4-font-weidth);
+}
+
+h5 {
+	font-size: var(--h5-font-size);
+	font-weight: var(--h5-font-weidth);
 }

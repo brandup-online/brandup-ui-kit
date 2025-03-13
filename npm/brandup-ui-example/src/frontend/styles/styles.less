@@ -1,17 +1,6 @@
 ﻿@import "vars.less";
-@import "reset.less";
-
-body {
-	font-size: @Font-Size;
-	font-family: @Font-Family;
-	line-height: @LineHeight;
-	background: @Main-Color;
-	-webkit-tap-highlight-color: transparent;
-
-	@media all and (max-width: @Adaptive-1-Width) {
-		font-size: 14px;
-	}
-}
+//@import "reset.less";
+@import "@brandup/ui-kit/source/adaptive.less";
 
 a {
 	color: @Primary-Color;
@@ -19,11 +8,6 @@ a {
 	&:hover {
 		color: @Primary-Color-Hovered;
 	}
-}
-
-input {
-	height: 36px;
-	padding: 0 10px;
 }
 
 button {
@@ -48,26 +32,6 @@ button {
 			margin-left: -10px;
 			margin-top: -10px;
 		}
-	}
-}
-
-.content-width {
-	max-width: @Content-MaxWidth;
-	margin: 0 auto;
-	padding: 0 @Content-Padding;
-	box-sizing: border-box;
-	width: 100%;
-
-	@media all and (max-width: @Adaptive-4-Width) {
-		padding: 0 @Content-Padding / 2;
-	}
-
-	@media all and (max-width: @Adaptive-5-Width) {
-		padding: 0 18px;
-	}
-
-	@media all and (max-width: @Adaptive-6-Width) {
-		padding: 0 12px;
 	}
 }
 

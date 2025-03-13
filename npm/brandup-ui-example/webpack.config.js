@@ -9,7 +9,12 @@ const HtmlWebpackPlugin = require("html-webpack-plugin");
 let bundleOutputDir = './wwwroot/dist';
 const frontDir = path.resolve(__dirname, "src", "frontend");
 
-const lessLoaderOptions = { webpackImporter: true, lessOptions: { math: 'always', plugins: [new CleanCSSPlugin({ advanced: false })] } };
+const lessLoaderOptions = {
+	webpackImporter: true,
+	implementation: require.resolve("less"),
+	lessOptions: { math: 'always', plugins: [new CleanCSSPlugin({ advanced: false })] }
+};
+
 var splitChunks = {
 	cacheGroups: {
 		vendors: {
