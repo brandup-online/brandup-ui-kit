@@ -1,3 +1,40 @@
+:root {
+	// placeholder
+	--placeholder-font-weidth: inherit;
+	--placeholder-font-style: inherit;
+	--placeholder-color: inherit;
+
+	// border
+	--input-border-width: 1px;
+	--input-border-color: #aaa;
+	--input-border-type: solid;
+	--input-border-radius: 0;
+	--input-fill: #fff;
+
+	// size
+	--input-width: auto;
+	--input-height: 42px;
+	--input-padding-lr: 13px;
+
+	// font
+	--input-color: var(--text-color);
+	--input-font-size: inherit;
+	--input-font-weidth: inherit;
+	--input-font-style: inherit;
+
+	--hover--input-border-color: #555;
+	--hover--input-fill: var(--input-fill);
+	--hover--input-color: var(--input-color);
+
+	--disabled--input-border-color: #aaa;
+	--disabled--input-fill: #eee;
+	--disabled--input-color: var(--input-color);
+
+	--invalid--input-border-color: red;
+	--invalid--input-fill: var(--input-fill);
+	--invalid--input-color: var(--input-color);
+}
+
 input[type=text], textarea {
 	outline: none;
 	border-style: var(--input-border-type);
@@ -15,10 +52,20 @@ input[type=text], textarea {
 	font-style: var(--input-font-style);
 	color: var(--input-color);
 
+	&::placeholder {
+		font-weight: var(--placeholder-font-weidth);
+		font-style: var(--placeholder-font-style);
+		color: var(--placeholder-color);
+	}
+
 	&:hover, &:focus {
 		border-color: var(--hover--input-border-color);
 		background: var(--hover--input-fill);
 		color: var(--hover--input-color);
+	}
+
+	&:read-only {
+		cursor: default;
 	}
 
 	&:disabled {
@@ -27,7 +74,7 @@ input[type=text], textarea {
 		color: var(--disabled--input-color);
 	}
 
-	&:invalid {
+	&:user-invalid {
 		border-color: var(--invalid--input-border-color);
 		background: var(--invalid--input-fill);
 		color: var(--invalid--input-color);
@@ -35,6 +82,6 @@ input[type=text], textarea {
 }
 
 textarea {
-	padding-top: calc(var(--input-font-size) / 2);
-	padding-bottom: calc(var(--input-font-size) / 2);
+	padding-top: calc(1em / 2);
+	padding-bottom: calc(1em / 2);
 }

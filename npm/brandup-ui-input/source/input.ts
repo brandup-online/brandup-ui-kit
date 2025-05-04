@@ -1,17 +1,17 @@
 import { UIElement } from "@brandup/ui";
 import "./input.less";
 
-type allowedTypes = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
-type formInput<T> = T extends allowedTypes ? T : never;
+type InputType = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+type FormInput<T> = T extends InputType ? T : never;
 
 export const INPUT_CSS_CLASS = "ui-input";
 
 export abstract class InputUIElement<T> extends UIElement implements IInputControl {
 	protected __form: HTMLFormElement;
 	protected __submitEvent: (e: SubmitEvent) => void;
-	protected __valueElem: formInput<T>;
+	protected __valueElem: FormInput<T>;
 
-	constructor(valueElem: formInput<T>) {
+	constructor(valueElem: FormInput<T>) {
 		super();
 
 		if (!valueElem.form)
@@ -46,7 +46,7 @@ export abstract class InputUIElement<T> extends UIElement implements IInputContr
 	get form(): HTMLFormElement { return this.__form; }
 	get disabled(): boolean { return this.__valueElem.disabled; }
 	get required(): boolean { return this.__valueElem.required; }
-	get readonly(): boolean { return this.__valueElem.hasAttribute("readonly") || this.__valueElem.hasAttribute("data-readonly"); }
+	get readonly(): boolean { return this.__valueElem.hasAttribute("readonly"); }
 
 	protected __submitForm() {
 		if (!this.readonly && !this.disabled && this.__form && this.__form.dispatchEvent(new SubmitEvent("submit", { submitter: this.__form, cancelable: true })))
