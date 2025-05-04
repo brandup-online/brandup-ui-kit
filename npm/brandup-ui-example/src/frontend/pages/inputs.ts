@@ -1,10 +1,11 @@
 ﻿import { Page } from "./base";
+import html from "./inputs.html";
 
 export default class NavigationPage extends Page {
-	get typeName(): string { return "AboutModel" }
-	get header(): string { return "Commands" }
+	get typeName(): string { return "InputsModel" }
+	get header(): string { return "Input controls" }
 
-	protected onRenderContent(container: HTMLElement): Promise<void> {
-		return Promise.resolve();
+	protected async onRenderContent(container: HTMLElement) {
+		container.insertAdjacentHTML("beforeend", html);
 	}
 }

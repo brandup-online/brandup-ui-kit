@@ -1,0 +1,40 @@
+input[type=text], textarea {
+	outline: none;
+	border-style: var(--input-border-type);
+	border-width: var(--input-border-width);
+	border-color: var(--input-border-color);
+	border-radius: var(--input-border-radius);
+	background: var(--input-fill);
+	width: var(--input-width);
+	min-height: var(--input-height);
+	padding-left: var(--input-padding-lr);
+	padding-right: var(--input-padding-lr);
+
+	font-size: var(--input-font-size);
+	font-weight: var(--input-font-weidth);
+	font-style: var(--input-font-style);
+	color: var(--input-color);
+
+	&:hover, &:focus {
+		border-color: var(--hover--input-border-color);
+		background: var(--hover--input-fill);
+		color: var(--hover--input-color);
+	}
+
+	&:disabled {
+		border-color: var(--disabled--input-border-color);
+		background: var(--disabled--input-fill);
+		color: var(--disabled--input-color);
+	}
+
+	&:invalid {
+		border-color: var(--invalid--input-border-color);
+		background: var(--invalid--input-fill);
+		color: var(--invalid--input-color);
+	}
+}
+
+textarea {
+	padding-top: calc(var(--input-font-size) / 2);
+	padding-bottom: calc(var(--input-font-size) / 2);
+}

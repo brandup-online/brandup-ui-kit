@@ -1,12 +1,61 @@
-﻿@import "vars.less";
-//@import "reset.less";
-@import "@brandup/ui-kit/source/adaptive.less";
+﻿@import (reference) "@brandup/ui-kit/source/adaptive.less";
+
+:root {
+	// overide ui kit vars
+	--font-size: 14px;
+	--line-height: 140%;
+	--h-line-height: 140%;
+	--h1-font-size: 40px;
+	--h2-font-size: 32px;
+	--h3-font-size: 26px;
+	--h4-font-size: 22px;
+	--h5-font-size: 18px;
+	--input-border-radius: 5px;
+	--input-width: 100%;
+
+	// define new vars
+	--link-color: var(--text-color);
+	--link-decoration: underline;
+	--link-weight: var(--font-weight);
+	--hover--link-color: var(--link-color);
+	--hover--link-decoration: underline;
+	--content-padding-lr: 50px;
+
+	.adaptive-notebook({
+		--content-padding-lr: 40px;
+	});
+
+	.adaptive-tablet({
+		--content-padding-lr: 30px;
+
+		--h1-font-size: 30px;
+		--h2-font-size: 28px;
+		--h3-font-size: 24px;
+		--h4-font-size: 20px;
+		--h5-font-size: 17px;
+	});
+
+	.adaptive-mobile({
+		--content-padding-lr: 20px;
+		
+		--h1-font-size: 24px;
+		--h2-font-size: 22px;
+		--h3-font-size: 20px;
+		--h4-font-size: 18px;
+		--h5-font-size: 16px;
+	});
+}
 
 a {
-	color: @Primary-Color;
+	color: var(--link-color);
+	text-decoration: var(--link-decoration);
+	font-weight: var(--link-weight);
+	text-underline-offset: 4px;
 
-	&:hover {
-		color: @Primary-Color-Hovered;
+	&:hover,
+	&:focus {
+		color: var(--hover--link-color);
+		text-decoration: var(--hover--link-decoration);
 	}
 }
 
@@ -24,7 +73,7 @@ button {
 			width: 20px;
 			height: 20px;
 			border: 2px solid rgba(255, 255, 255, 0.2);
-			border-top-color: @Text-Color;
+			border-top-color: var(--text-color);
 			animation: spin 0.5s infinite steps(100);
 			position: absolute;
 			left: 50%;
@@ -63,16 +112,22 @@ button {
 	background: #000;
 	color: #fff;
 
+	--nav-height: 80px;
+	--text-color: #fff;
+	--link-color: #fff;
+	--link-decoration: none;
+	--hover--link-color: #fff;
+
 	& .content-width {
-		height: 80px;
+		height: var(--nav-height);
 		display: flex;
 		flex-flow: row nowrap;
 		align-items: center;
+		column-gap: calc(var(--content-padding-lr) * 2);
 	}
 
 	& a.logo {
 		flex: 0 0 auto;
-		color: #fff;
 		font-size: 28px;
 		line-height: 40px;
 		text-decoration: none;
@@ -93,88 +148,30 @@ button {
 
 	& ul {
 		flex: 1 1 auto;
-		margin: 0 0 0 @Content-Padding;
 		display: flex;
 		flex-flow: row nowrap;
-		justify-content: flex-end;
+		column-gap: 40px;
 
-		& li {
-			margin: 0 0 0 @Content-Padding / 1.5;
-		}
-
-		& a {
-			color: #fff;
-			text-decoration: none;
-
-			&:hover {
-				text-decoration: underline;
-			}
-		}
+		--hover--link-decoration: underline;
 	}
+
+	.adaptive-tablet({
+		& ul {
+			column-gap: 30px;
+		}
+	});
+
+	.adaptive-tablet-small({
+		& ul {
+			display: none;
+		}
+	});
 }
 
 .app-content {
 	flex: 1 1 auto;
 	box-sizing: border-box;
-	padding-bottom: @Content-Padding;
-
-	@media all and (max-width: @Adaptive-3-Width) {
-		padding-bottom: 30px;
-	}
-}
-
-.page-header {
-	padding: @Content-Padding 0;
-
-	& h1 {
-		font-weight: 600;
-		font-size: 30px;
-		line-height: 36px;
-		padding: 0;
-		margin: 0;
-	}
-}
-
-.features {
-	display: grid;
-	grid-template-columns: 1fr 1fr 1fr;
-	gap: 20px;
-
-	& a {
-		display: block;
-		text-decoration: none;
-		border: solid 1px #cdcdcd;
-		border-radius: 5px;
-		box-sizing: border-box;
-		padding: 15px;
-		color: @Text-Color;
-		font-weight: 500;
-
-		&:hover {
-			color: @Primary-Color-Hovered;
-		}
-	}
-}
-
-.page-text {
-	& p {
-		padding: 15px 0;
-		margin: 0;
-
-		&:first-child {
-			padding-top: 0;
-		}
-
-		&:last-child {
-			padding-bottom: 0;
-		}
-	}
-}
-
-.list {
-	& .item {
-		padding: 5px 0;
-	}
+	padding-bottom: var(--content-padding-lr);
 }
 
 body.bp-state {

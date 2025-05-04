@@ -1,0 +1,71 @@
+@import (reference) "@brandup/ui-kit/source/adaptive.less";
+
+.page-header {
+	padding: 40px 0 30px;
+
+	.adaptive-tablet({
+		padding: 20px 0 15px;
+	});
+}
+
+.page-block {
+	&.features {
+		display: flex;
+		flex-flow: column nowrap;
+		row-gap: 20px;
+
+		& p {
+			margin: 0;
+		}
+
+		& menu {
+			display: grid;
+			grid-template-columns: 1fr 1fr 1fr;
+			gap: 20px;
+
+			--link-decoration: none;
+			--hover--link-decoration: none;
+
+			& a {
+				display: flex;
+				flex-flow: row nowrap;
+				align-items: center;
+				column-gap: 15px;
+				border: solid 1px #cdcdcd;
+				border-radius: 5px;
+				box-sizing: border-box;
+				padding: 15px 20px;
+				font-weight: 500;
+
+				& span {
+					display: block;
+					flex: 1 1 auto;
+				}
+
+				& svg {
+					flex: 0 0 auto;
+					width: 20px;
+					height: 20px;
+				}
+
+				&:hover {
+					border-color: var(--text-color);
+				}
+			}
+		}
+
+		.adaptive-tablet({
+			& menu {
+				grid-template-columns: 1fr 1fr;
+				gap: 15px;
+			}
+		});
+
+		.adaptive-mobile({
+			& menu {
+				grid-template-columns: 1fr;
+				gap: 10px;
+			}
+		});
+	}
+}

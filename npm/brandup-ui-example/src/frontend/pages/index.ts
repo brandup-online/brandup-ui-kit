@@ -1,11 +1,11 @@
 import { Page } from "./base";
+import html from "./index.html";
 
 export default class IndexModel extends Page {
 	get typeName(): string { return "IndexModel" }
-	get header(): string { return "User interface framework" }
+	get header(): string { return "Web interface UI kit" }
 
 	protected async onRenderContent(container: HTMLElement) {
-		const html = await import("./templates/index.html");
-		container.insertAdjacentHTML("beforeend", html.default);
+		container.insertAdjacentHTML("beforeend", html);
 	}
 }

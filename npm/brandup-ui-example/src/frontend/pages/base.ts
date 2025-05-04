@@ -4,6 +4,7 @@ import { DOM } from "@brandup/ui-dom";
 import { ExampleApplication } from "../app";
 import { PageNavigationData, PageSubmitData } from "frontend/typings/app";
 import { NavigateContext, SubmitContext } from "@brandup/ui-app";
+import "./base.less";
 
 export abstract class Page extends UIElement {
 	readonly app: ExampleApplication;

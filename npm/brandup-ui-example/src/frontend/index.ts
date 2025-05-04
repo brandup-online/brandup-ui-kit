@@ -2,6 +2,7 @@
 import { uiKitMiddlewareFactory } from "@brandup/ui-kit";
 import { ExampleApplicationModel } from "./typings/app";
 import { ExampleApplication } from "./app";
+import "./pages/base";
 import "./styles/styles.less";
 
 import pages from "./middlewares/pages";
@@ -40,11 +41,9 @@ builder
 	.useMiddleware(uiKitMiddlewareFactory)
 	.useMiddleware(pages, {
 		routes: {
-			'/': { page: () => import("./pages/index"), preload: true },
-			'/inputs': { page: () => import("./pages/inputs") },
-			'/navigation': { page: () => import("./pages/navigation") },
-			'/forms': { page: () => import("./pages/forms"), preload: true },
-			'/ajax': { page: () => import("./pages/ajax") }
+			'/': { page: () => import("./pages/index") },
+			'/styles': { page: () => import("./pages/styles") },
+			'/inputs': { page: () => import("./pages/inputs") }
 		},
 		notfound: { page: () => import("./pages/error/notfound") },
 		error: { page: () => import("./pages/error/exception") }

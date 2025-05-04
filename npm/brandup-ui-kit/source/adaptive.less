@@ -1,47 +1,55 @@
+@adaptive-desktop-small: 1650px;
+@adaptive-notebook: 1550px;
+@adaptive-notebook-small: 1370px;
+@adaptive-tablet: 1030px;
+@adaptive-tablet-small: 850px;
+@adaptive-mobile: 500px;
+@adaptive-mobile-small: 370px;
+
 .adaptive-desktop-small(@rules) {
-	@media all and (max-width: var(--adaptive-desktop-small)) {
+	@media all and (max-width: @adaptive-desktop-small) {
 		@rules();
 	}
 }
 
 .adaptive-notebook(@rules) {
-	@media all and (max-width: var(--adaptive-notebook)) {
+	@media all and (max-width: @adaptive-notebook) {
 		@rules();
 	}
 }
 
 .adaptive-notebook-small(@rules) {
-	@media all and (max-width: var(--adaptive-notebook-small)) {
+	@media all and (max-width: @adaptive-notebook-small) {
 		@rules();
 	}
 }
 
 .adaptive-tablet(@rules) {
-	@media all and (max-width: var(--adaptive-tablet)) {
+	@media all and (max-width: @adaptive-tablet) {
 		@rules();
 	}
 }
 
 .adaptive-tablet-landscape(@rules) {
-	@media all and (max-width: var(--adaptive-tablet)) and (orientation: landscape) {
+	@media all and (max-width: @adaptive-tablet) and (orientation: landscape) {
 		@rules();
 	}
 }
 
 .adaptive-tablet-small(@rules) {
-	@media all and (max-width: var(--adaptive-tablet-small)) {
+	@media all and (max-width: @adaptive-tablet-small) {
 		@rules();
 	}
 }
 
 .adaptive-mobile(@rules) {
-	@media all and (max-width: var(--adaptive-mobile)) {
+	@media all and (max-width: @adaptive-mobile) {
 		@rules();
 	}
 }
 
 .adaptive-mobile-landscape(@rules) {
-	@media all and (max-width: var(--adaptive-mobile)) and (orientation: landscape) {
+	@media all and (max-width: @adaptive-mobile) and (orientation: landscape) {
 		@rules();
 	}
 }
