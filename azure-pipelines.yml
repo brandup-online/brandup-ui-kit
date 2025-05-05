@@ -36,17 +36,17 @@ stages:
                 - script: |
                       echo "Begin build $(Build.BuildNumber)!"
                   displayName: "print variables"
-				  
+
                 - checkout: self
-            	  fetchDepth: 1
+                  fetchDepth: "1"
                   clean: "true"
                   persistCredentials: "true"
 
-				- task: NodeTool@0
+                - task: NodeTool@0
                   displayName: use node 22.x
-				  inputs:
-					  versionSpec: 22.x
-				  	  checkLatest: true
+                  inputs:
+                      versionSpec: 22.x
+                      checkLatest: true
 
                 - task: "Npm@1"
                   displayName: "npm install"
