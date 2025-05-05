@@ -1,13 +1,13 @@
 {
 	"compilerOptions": {
-		"module": "ES2020",
-		"moduleResolution": "node",
+		"module": "NodeNext",
+		"moduleResolution": "nodenext",
 		"target": "ESNext",
 		"sourceMap": false,
 		"strict": true,
 		"lib": [
-			"DOM",
-			"ES2020"
+			"ESNext",
+			"DOM"
 		],
 		"esModuleInterop": true,
 		"noImplicitAny": true,

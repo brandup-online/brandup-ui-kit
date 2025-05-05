@@ -26,5 +26,11 @@
 	"html.format.templating": true,
 	"html.format.indentHandlebars": true,
 	"html.format.unformatted": "svg,path",
-	"html.format.contentUnformatted": "svg,path"
+	"html.format.contentUnformatted": "svg,path",
+	"[yaml]": {
+		"editor.defaultFormatter": "redhat.vscode-yaml",
+		"editor.formatOnSave": true,
+		"editor.tabSize": 4,
+		"editor.indentSize": "tabSize"
+	}
 }
