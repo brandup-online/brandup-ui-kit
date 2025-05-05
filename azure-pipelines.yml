@@ -1,0 +1,134 @@
+trigger:
+    - master
+
+pr: none
+
+resources:
+    - repo: self
+
+variables:
+    - group: public-npm
+    - name: vmImageName
+      value: "ubuntu-latest"
+    - name: envName
+      value: "brandup-ui-kit"
+    - name: version-major
+      value: "1"
+    - name: version-minor
+      value: "0"
+
+name: $(version-major).$(version-minor).$(rev:r)
+
+pool:
+    vmImage: $(vmImageName)
+
+stages:
+    - stage: "Build"
+      displayName: "Build"
+      jobs:
+          - job: "BuildNpm"
+            displayName: "Build, test and pack"
+            pool:
+                vmImage: $(vmImageName)
+                workspace:
+                    clean: all
+            steps:
+                - script: |
+                      echo "Begin build $(Build.BuildNumber)!"
+                  displayName: "print variables"
+
+                - checkout: self
+                  clean: "true"
+                  persistCredentials: "true"
+
+                - task: "Npm@1"
+                  displayName: "npm install"
+                  inputs:
+                      command: "custom"
+                      customCommand: "run i"
+
+                - task: "Npm@1"
+                  displayName: "packages npm build"
+                  inputs:
+                      command: "custom"
+                      customCommand: "run build"
+
+                - task: "Npm@1"
+                  displayName: "packages npm test"
+                  inputs:
+                      command: "custom"
+                      customCommand: "run test"
+
+                - task: "Npm@1"
+                  displayName: "packages npm version"
+                  inputs:
+                      command: "custom"
+                      customCommand: "run npm:version $(Build.BuildNumber)"
+
+                - task: "Npm@1"
+                  displayName: "packages npm cleanup"
+                  inputs:
+                      command: "custom"
+                      customCommand: "run npm:cleanup"
+
+                - task: "Npm@1"
+                  displayName: "packages npm pack"
+                  inputs:
+                      command: custom
+                      customCommand: "run npm:pack --pack-destination $(Build.ArtifactStagingDirectory)"
+
+                - publish: $(Build.ArtifactStagingDirectory)
+                  displayName: publish artifact
+                  condition: succeededOrFailed()
+                  artifact: npm
+
+          - job: GitTag
+            displayName: "Add git tag"
+            dependsOn: [BuildNpm]
+            condition: succeeded()
+            steps:
+                - checkout: self
+                  clean: "true"
+                  persistCredentials: "true"
+
+                - pwsh: |
+                      git config --global user.name "AzureDevOps Agent"
+                      git tag "$(Build.BuildNumber)" --force
+                      git push origin "$(Build.BuildNumber)" --force
+                      Write-Output "Tagging $(Build.Repository.Name) with $(Build.BuildNumber)"
+                  displayName: set git tag
+
+    - stage: Production
+      displayName: Deploy stage
+      dependsOn: Build
+      jobs:
+          - deployment: Production
+            condition: succeeded()
+            displayName: "NPM"
+            pool:
+                vmImage: $(vmImageName)
+            environment: $(envName)
+            strategy:
+                runOnce:
+                    deploy:
+                        steps:
+                            - download: current
+                              displayName: "download artifacts"
+                              artifact: npm
+
+                            - task: ExtractFiles@1
+                              displayName: "unzip brandup-ui-kit"
+                              inputs:
+                                  archiveFilePatterns: "$(Pipeline.Workspace)/npm/brandup-ui-kit-$(Build.BuildNumber).tgz"
+                                  destinationFolder: "$(Pipeline.Workspace)/npmout/brandup-ui-kit"
+                                  cleanDestinationFolder: true
+                                  overwriteExistingFiles: true
+
+                            # brandup-ui-kit
+
+                            - task: Npm@1
+                              displayName: "publish brandup-ui-kit"
+                              inputs:
+                                  command: publish
+                                  workingDir: "$(Pipeline.Workspace)/npmout/brandup-ui-kit/package"
+                                  publishEndpoint: "$(publish-npm-credentials)"
