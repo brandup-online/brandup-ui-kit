@@ -40,11 +40,41 @@
 	--invalid--input-border-color: red;
 	--invalid--input-fill: var(--input-fill);
 	--invalid--input-color: var(--input-color);
+
+	// toggler size
+	--toggler-height: 30px;
+	--toggler-width: 60px;
+	--toggler-round-size: 24px;
+
+	// toggler border
+	--toggler-border-radius: 20px;
+	--toggler-border-fill: #aaa;
+	--toggler-round-border-radius: 50%;
+	--toggler-fill: #fff;
+	
+	// toggler round
+	--toggler-round-fill: #656565;
+
+	// toggler state
+	--hover--toggler-border-color: #555;
+	--hover--toggler-fill: var(--toggler-border-fill);
+	
+	--disabled--toggler-fill: #eee;
+	--disabled--toggler-border-color: #aaa;
+	--disabled--toggler-round-fill: #D9D9D9;
+
+	--checked--toggler-fill: #fff;
+	--checked--toggler-round-fill: #656565;
+	
+	--active-checked--toggler-fill: #fff;
+	--disabled-checked--toggle-fill: #fff;
+	--disabled-checked--toggler-round-fill: #656565;
 }
 
 input,
 textarea,
-button {
+button,
+select {
 	appearance: none;
 	font-family: inherit;
 	font-size: unset;
@@ -55,7 +85,7 @@ button {
 	margin: 0;
 }
 
-input[type=text], textarea {
+input[type=text], textarea, select {
 	outline: none;
 	border-style: var(--input-border-type);
 	border-width: var(--input-border-width);
@@ -104,4 +134,72 @@ input[type=text], textarea {
 textarea {
 	padding-top: calc(1em / 2);
 	padding-bottom: calc(1em / 2);
+}
+
+input[type=checkbox] {
+	width: var(--toggler-width);
+	height: var(--toggler-height);
+	border-radius: var(--input-border-radius);
+	background-color: var(--toggler-fill);
+	border-width: var(--input-border-width);
+	border-radius: var(--toggler-border-radius);
+	border-color: var(--toggler-border-fill);
+	border-style: var(--input-border-type);
+	position: relative;
+	cursor: pointer;
+
+	&:after {
+		content: '';
+		position: absolute;
+		background-color: var(--toggler-round-fill);
+		width: var(--toggler-round-size);
+		height: var(--toggler-round-size);
+		border-radius: var(--toggler-round-border-radius);
+		left: 4px;
+		margin-top: auto;
+		margin-bottom: auto;
+		top: 0;
+		bottom: 0;
+	}
+
+	&:hover, &:focus {
+		border-color: var(--hover--toggler-border-color);
+		background-color: var(--hover--toggler-fill);
+	}
+
+	&:active:enabled {
+		background-color: var(--active-enable--toggler-fill);
+	}
+
+	&:disabled {
+		&:after {
+			background-color: var(--disabled--toggler-round-fill);
+		}
+	}
+
+	&[readonly] {
+		pointer-events: none;
+	}
+
+	&:checked {
+		background-color: var(--checked--toggler-fill);
+
+		&:after {
+			background-color: var(--checked--toggler-round-fill);
+			right: 4px;
+			left: auto;
+		}
+
+		&:active:enabled {
+			background-color: var(--active-checked--toggler-fill);
+		}
+
+		&:disabled {
+			background-color:var(--disabled-checked--toggle-fill);
+
+			&:after {
+				background-color: var(--disabled-checked--toggler-round-fill);
+			}
+		}
+	}
 }

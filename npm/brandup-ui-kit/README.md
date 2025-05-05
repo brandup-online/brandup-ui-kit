@@ -101,8 +101,11 @@ See [common.less](source/common.less) file.
 ### Input styles
 
 Styles for:
-- reset for input, textarea, button
-- input[type=text]
-- textarea
+
+-   reset for input, textarea, button
+-   input[type=text]
+-   textarea
+-   select
+-   checkbox
 
 See [inputs.less](source/inputs.less) file.
