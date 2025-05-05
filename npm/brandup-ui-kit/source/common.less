@@ -31,6 +31,15 @@
 	--svg-height: var(--svg-size);
 	--svg-fill: var(--text-color);
 	--svg-stroke: var(--text-color);
+
+	// popup
+
+	--popup-fill: var(--main-background);
+	--popup-border-style: solid;
+	--popup-border-width: 1px;
+	--popup-border-color: #aaa;
+	--popup-border-radius: 5px;
+	--popup-box-shadow: 0px 4px 8px 2px rgba(0, 0, 0, 0.12);
 }
 
 // Body styles
@@ -105,4 +114,29 @@ svg {
 	padding-left: var(--content-padding-lr);
 	padding-right: var(--content-padding-lr);
 	box-sizing: border-box;
+}
+
+// Popup styles
+
+.ui-popup {
+	position: absolute;
+	box-sizing: border-box;
+	z-index: 1000;
+	background: var(--popup-fill);
+	border-style: var(--popup-border-style);
+	border-color: var(--popup-border-color);
+	border-width: var(--popup-border-width);
+	border-radius: var(--popup-border-radius);
+	box-shadow: var(--popup-box-shadow);
+	visibility: collapse;
+
+	&.opened {
+		visibility: visible;
+	}
+}
+
+.ui-popup-expanded {
+	& ~ .ui-popup {
+		visibility: visible;
+	}
 }

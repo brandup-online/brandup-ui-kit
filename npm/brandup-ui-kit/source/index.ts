@@ -1,8 +1,5 @@
-import { Middleware } from "@brandup/ui-app";
+import { UiKitMiddleware } from "./middleware";
+export * from "./popup"
 import "./styles.less";
 
-export const uiKitMiddlewareFactory = (): Middleware => {
-	return {
-		name: "uikit"
-	};
-};
+export const uiKitMiddlewareFactory = () => new UiKitMiddleware();
