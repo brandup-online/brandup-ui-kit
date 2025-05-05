@@ -1,6 +1,7 @@
 {
 	"name": "@brandup/ui-input",
 	"description": "Input control type and styles.",
+	"private": true,
 	"keywords": [
 		"brandup",
 		"javascript",

@@ -28,19 +28,16 @@ app.run();
 
 ### Reset styles
 
-Reset styles for ul, ol, menu, svg,  input, textarea, button, headers, img and others.
+Reset styles for `<ul>`, `<ol>`, `<menu>`, `<img>` and others.
+
+See [reset.less](source/reset.less) file.
 
 ### Body styles
 
+Default root styles for `<body>` tag.
+
 ```
 --main-background
-```
-
-### Text styles
-
-Default root font styles.
-
-```
 --font-size
 --font-family
 --font-weight
@@ -48,9 +45,11 @@ Default root font styles.
 --text-color
 ```
 
+See [common.less](source/common.less) file.
+
 ### Header styles
 
-Default root header styles.
+Default root styles for `<h1>`, `<h2>`, `<h3>`, `<h4>`, `<h5>`.
 
 ```
 --h-line-height
@@ -71,10 +70,39 @@ Default root header styles.
 --h5-font-weidth
 ```
 
-### content-width
+See [common.less](source/common.less) file.
+
+### SVG styles
+
+Default root styles for `<svg>` tag.
+
+```
+-svg-size: 20px;
+--svg-width: var(--svg-size);
+--svg-height: var(--svg-size);
+--svg-fill: var(--text-color);
+--svg-stroke: var(--text-color);
+```
+
+See [common.less](source/common.less) file.
+
+### Content width
+
+Add `content-width` class.
 
 ```
 --content-max-width
 --content-min-width
 --content-padding-lr
 ```
+
+See [common.less](source/common.less) file.
+
+### Input styles
+
+Styles for:
+- reset for input, textarea, button
+- input[type=text]
+- textarea
+
+See [inputs.less](source/inputs.less) file.
