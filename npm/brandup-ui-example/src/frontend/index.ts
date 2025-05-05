@@ -43,7 +43,8 @@ builder
 		routes: {
 			'/': { page: () => import("./pages/index") },
 			'/styles': { page: () => import("./pages/styles") },
-			'/inputs': { page: () => import("./pages/inputs") }
+			'/inputs': { page: () => import("./pages/inputs") },
+			'/popups': { page: () => import("./pages/popups") }
 		},
 		notfound: { page: () => import("./pages/error/notfound") },
 		error: { page: () => import("./pages/error/exception") }

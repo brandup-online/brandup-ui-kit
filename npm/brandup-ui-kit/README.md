@@ -10,7 +10,7 @@ npm i @brandup/ui-kit@latest
 
 Add `@brandup/ui-kit` middleware to your application.
 
-```
+```TypeScript
 import { ApplicationBuilder } from "@brandup/ui-app";
 import { uiKitMiddlewareFactory } from "@brandup/ui-kit";
 
@@ -109,3 +109,32 @@ Styles for:
 -   checkbox
 
 See [inputs.less](source/inputs.less) file.
+
+### Popups
+
+Popups work with class `ui-popup`.
+
+```HTML
+<button data-command="ui-popup-toggle">Menu1</button>
+<div class="ui-popup"></div>
+
+<button id="menu2">Menu2</button>
+<div id="popup2" class="ui-popup"></div>
+
+<button>Menu3</button>
+<div id="popup2" class="ui-popup"></div>
+```
+
+Open popup by popup and initiator element:
+
+```TypeScript
+PopupManager.open(DOM.getById("popup2"), { initiator: DOM.getById("menu2") });
+```
+
+Open popup by only popup element:
+
+```TypeScript
+PopupManager.open(DOM.getById("popup3"));
+```
+
+If the initiator is specified, then when the popup is opened again, it will be closed.

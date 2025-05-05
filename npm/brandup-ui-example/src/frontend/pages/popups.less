@@ -1,0 +1,31 @@
+.page-block.popups {
+	& .example {
+		display: flex;
+		flex-flow: column nowrap;
+		align-items: flex-start;
+
+		& .menu {
+			position: relative;
+			
+			& .ui-popup {
+					left: calc( 100% + 10px);
+					top: 0;
+					width: 150px;
+			
+					& menu {
+						padding: 10px 20px;
+
+						& a {
+							text-decoration: none;
+							display: block;
+							padding: 5px 0;
+
+							&:hover {
+								text-decoration: underline;
+							}
+						}
+					}
+				}
+		}
+	}
+}
