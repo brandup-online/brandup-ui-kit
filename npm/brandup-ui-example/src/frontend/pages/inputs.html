@@ -34,10 +34,7 @@
 			<div class="example">
 				<h5>Default style</h5>
 				<div class="control">
-					<textarea
-						rows="3"
-						placeholder="Input description"
-					></textarea>
+					<textarea rows="3" placeholder="Input description"></textarea>
 				</div>
 			</div>
 			<div class="example">
@@ -67,14 +64,25 @@
 				<h5>Default style</h5>
 				<div class="control">
 					<select>
-						<option value="Select value">Select value</option>
+						<option value="0">item1</option>
 					</select>
 				</div>
 			</div>
 			<div class="example">
 				<h5>Disabled style</h5>
 				<div class="control">
-					<select disabled></select>
+					<select disabled>
+						<option value="0">item1</option>
+					</select>
+				</div>
+			</div>
+			<div class="example">
+				<h5>Invalid style</h5>
+				<div class="control">
+					<select required>
+						<option></option>
+						<option>item1</option>
+					</select>
 				</div>
 			</div>
 		</div>
@@ -91,7 +99,19 @@
 			<div class="example">
 				<h5>Disabled style</h5>
 				<div class="control">
-					<input type="checkbox" disabled />
+					<input type="checkbox" disabled checked />
+				</div>
+			</div>
+			<div class="example">
+				<h5>Read only style</h5>
+				<div class="control">
+					<input type="checkbox" readonly />
+				</div>
+			</div>
+			<div class="example">
+				<h5>Invalid style</h5>
+				<div class="control">
+					<input type="checkbox" required />
 				</div>
 			</div>
 		</div>

@@ -41,51 +41,29 @@
 	--invalid--input-fill: var(--input-fill);
 	--invalid--input-color: var(--input-color);
 
-	// toggler size
+	// toggler
 	--toggler-height: 30px;
-	--toggler-width: 60px;
-	--toggler-round-size: 24px;
-
-	// toggler border
-	--toggler-border-radius: 20px;
-	--toggler-border-fill: #aaa;
-	--toggler-round-border-radius: 50%;
-	--toggler-fill: #fff;
-	
-	// toggler round
-	--toggler-round-fill: #656565;
-
-	// toggler state
-	--hover--toggler-border-color: #555;
-	--hover--toggler-fill: var(--toggler-border-fill);
-	
-	--disabled--toggler-fill: #eee;
-	--disabled--toggler-border-color: #aaa;
-	--disabled--toggler-round-fill: #D9D9D9;
-
-	--checked--toggler-fill: #fff;
-	--checked--toggler-round-fill: #656565;
-	
-	--active-checked--toggler-fill: #fff;
-	--disabled-checked--toggle-fill: #fff;
-	--disabled-checked--toggler-round-fill: #656565;
+	--toggler-padding: 3px;
+	--toggler-round-fill: var(--hover--input-border-color); // цвет круглешка
 }
 
 input,
 textarea,
 button,
 select {
-	appearance: none;
 	font-family: inherit;
-	font-size: unset;
+	font-size: var(--input-font-size);
+	font-weight: var(--input-font-weidth);
+	font-style: var(--input-font-style);
+	color: var(--input-color);
 	line-height: unset;
-	color: unset;
 	box-sizing: border-box;
 	padding: 0;
 	margin: 0;
 }
 
 input[type=text], textarea, select {
+	appearance: none;
 	outline: none;
 	border-style: var(--input-border-type);
 	border-width: var(--input-border-width);
@@ -96,11 +74,6 @@ input[type=text], textarea, select {
 	min-height: var(--input-height);
 	padding-left: var(--input-padding-lr);
 	padding-right: var(--input-padding-lr);
-
-	font-size: var(--input-font-size);
-	font-weight: var(--input-font-weidth);
-	font-style: var(--input-font-style);
-	color: var(--input-color);
 
 	&::placeholder {
 		font-weight: var(--placeholder-font-weidth);
@@ -137,25 +110,29 @@ textarea {
 }
 
 input[type=checkbox] {
-	width: var(--toggler-width);
-	height: var(--toggler-height);
-	border-radius: var(--input-border-radius);
-	background-color: var(--toggler-fill);
-	border-width: var(--input-border-width);
-	border-radius: var(--toggler-border-radius);
-	border-color: var(--toggler-border-fill);
-	border-style: var(--input-border-type);
+	appearance: none;
 	position: relative;
 	cursor: pointer;
+
+	background-color: var(--input-fill);
+	border-style: var(--input-border-type);
+	border-width: var(--input-border-width);
+	border-color: var(--input-border-color);
+	border-radius: calc(var(--toggler-height) / 2);
+
+	height: var(--toggler-height);
+	width: calc(var(--toggler-height) * 2);
+
+	--round-size: calc(var(--toggler-height) - var(--toggler-padding) * 2 - var(--input-border-width) * 2);
 
 	&:after {
 		content: '';
 		position: absolute;
 		background-color: var(--toggler-round-fill);
-		width: var(--toggler-round-size);
-		height: var(--toggler-round-size);
-		border-radius: var(--toggler-round-border-radius);
-		left: 4px;
+		width: var(--round-size);
+		height: var(--round-size);
+		border-radius: 50%;
+		left: var(--toggler-padding);
 		margin-top: auto;
 		margin-bottom: auto;
 		top: 0;
@@ -163,18 +140,9 @@ input[type=checkbox] {
 	}
 
 	&:hover, &:focus {
-		border-color: var(--hover--toggler-border-color);
-		background-color: var(--hover--toggler-fill);
-	}
-
-	&:active:enabled {
-		background-color: var(--active-enable--toggler-fill);
-	}
-
-	&:disabled {
-		&:after {
-			background-color: var(--disabled--toggler-round-fill);
-		}
+		border-color: var(--hover--input-border-color);
+		background: var(--hover--input-fill);
+		color: var(--hover--input-color);
 	}
 
 	&[readonly] {
@@ -182,24 +150,30 @@ input[type=checkbox] {
 	}
 
 	&:checked {
-		background-color: var(--checked--toggler-fill);
+		background-color: var(--toggler-round-fill);
 
 		&:after {
-			background-color: var(--checked--toggler-round-fill);
-			right: 4px;
+			background-color: var(--input-fill);
+			right: var(--toggler-padding);
 			left: auto;
 		}
+	}
 
-		&:active:enabled {
-			background-color: var(--active-checked--toggler-fill);
+	&:disabled {
+		border-color: var(--disabled--input-border-color);
+		background: var(--disabled--input-fill);
+		color: var(--disabled--input-color);
+		cursor: default;
+
+		&:after {
+			background-color: var(--toggler-round-fill);
+			opacity: 0.4;
 		}
+	}
 
-		&:disabled {
-			background-color:var(--disabled-checked--toggle-fill);
-
-			&:after {
-				background-color: var(--disabled-checked--toggler-round-fill);
-			}
-		}
+	&:user-invalid {
+		border-color: var(--invalid--input-border-color);
+		background: var(--invalid--input-fill);
+		color: var(--invalid--input-color);
 	}
 }
