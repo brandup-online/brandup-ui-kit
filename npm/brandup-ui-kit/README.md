@@ -104,9 +104,9 @@ Styles for:
 
 -   reset for input, textarea, button
 -   input[type=text]
+-   input[type=checkbox]
 -   textarea
 -   select
--   checkbox
 
 See [inputs.less](source/inputs.less) file.
 
