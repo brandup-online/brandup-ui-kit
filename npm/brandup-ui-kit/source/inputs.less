@@ -22,6 +22,7 @@
 	--input-width: auto;
 	--input-height: 42px;
 	--input-padding-lr: 13px;
+	--textarea-size: 100px;
 
 	// font
 	--input-color: var(--text-color);
@@ -29,9 +30,13 @@
 	--input-font-weidth: inherit;
 	--input-font-style: inherit;
 
-	--hover--input-border-color: #555;
+	--hover--input-border-color: #666;
 	--hover--input-fill: var(--input-fill);
 	--hover--input-color: var(--input-color);
+
+	--focus--input-border-color: #222;
+	--focus--input-fill: var(--hover--input-fill);
+	--focus--input-color: var(--hover--input-color);
 
 	--disabled--input-border-color: #aaa;
 	--disabled--input-fill: #eee;
@@ -51,6 +56,7 @@ input,
 textarea,
 button,
 select {
+	display: block;
 	font-family: inherit;
 	font-size: var(--input-font-size);
 	font-weight: var(--input-font-weidth);
@@ -60,6 +66,7 @@ select {
 	box-sizing: border-box;
 	padding: 0;
 	margin: 0;
+	outline: none;
 }
 
 input[type=text], textarea, select {
@@ -81,10 +88,16 @@ input[type=text], textarea, select {
 		color: var(--placeholder-color);
 	}
 
-	&:hover, &:focus {
+	&:hover {
 		border-color: var(--hover--input-border-color);
 		background: var(--hover--input-fill);
 		color: var(--hover--input-color);
+	}
+
+	&:focus {
+		border-color: var(--focus--input-border-color);
+		background: var(--focus--input-fill);
+		color: var(--focus--input-color);
 	}
 
 	&:read-only {
@@ -111,6 +124,7 @@ select {
 textarea {
 	padding-top: calc(1em / 2);
 	padding-bottom: calc(1em / 2);
+	min-height: var(--textarea-size);
 }
 
 input[type=checkbox] {
@@ -143,10 +157,16 @@ input[type=checkbox] {
 		bottom: 0;
 	}
 
-	&:hover, &:focus {
+	&:hover {
 		border-color: var(--hover--input-border-color);
 		background: var(--hover--input-fill);
 		color: var(--hover--input-color);
+	}
+
+	&:focus {
+		border-color: var(--focus--input-border-color);
+		background: var(--focus--input-fill);
+		color: var(--focus--input-color);
 	}
 
 	&[readonly] {

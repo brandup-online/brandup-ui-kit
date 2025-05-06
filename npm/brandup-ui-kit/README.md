@@ -81,7 +81,7 @@ Default root styles for `<svg>` tag.
 --svg-width: var(--svg-size);
 --svg-height: var(--svg-size);
 --svg-fill: var(--text-color);
---svg-stroke: var(--text-color);
+--svg-stroke: none;
 ```
 
 See [common.less](source/common.less) file.
