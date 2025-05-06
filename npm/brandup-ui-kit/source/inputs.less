@@ -40,22 +40,30 @@
 	--invalid--input-border-color: red;
 	--invalid--input-fill: var(--input-fill);
 	--invalid--input-color: var(--input-color);
+
+	// toggler
+	--toggler-height: 30px;
+	--toggler-padding: 3px;
+	--toggler-round-fill: var(--hover--input-border-color); // цвет круглешка
 }
 
 input,
 textarea,
-button {
-	appearance: none;
+button,
+select {
 	font-family: inherit;
-	font-size: unset;
+	font-size: var(--input-font-size);
+	font-weight: var(--input-font-weidth);
+	font-style: var(--input-font-style);
+	color: var(--input-color);
 	line-height: unset;
-	color: unset;
 	box-sizing: border-box;
 	padding: 0;
 	margin: 0;
 }
 
-input[type=text], textarea {
+input[type=text], textarea, select {
+	appearance: none;
 	outline: none;
 	border-style: var(--input-border-type);
 	border-width: var(--input-border-width);
@@ -66,11 +74,6 @@ input[type=text], textarea {
 	min-height: var(--input-height);
 	padding-left: var(--input-padding-lr);
 	padding-right: var(--input-padding-lr);
-
-	font-size: var(--input-font-size);
-	font-weight: var(--input-font-weidth);
-	font-style: var(--input-font-style);
-	color: var(--input-color);
 
 	&::placeholder {
 		font-weight: var(--placeholder-font-weidth);
@@ -101,7 +104,80 @@ input[type=text], textarea {
 	}
 }
 
+select {
+	appearance: auto;
+}
+
 textarea {
 	padding-top: calc(1em / 2);
 	padding-bottom: calc(1em / 2);
+}
+
+input[type=checkbox] {
+	appearance: none;
+	position: relative;
+	cursor: pointer;
+
+	background-color: var(--input-fill);
+	border-style: var(--input-border-type);
+	border-width: var(--input-border-width);
+	border-color: var(--input-border-color);
+	border-radius: calc(var(--toggler-height) / 2);
+
+	height: var(--toggler-height);
+	width: calc(var(--toggler-height) * 2);
+
+	--round-size: calc(var(--toggler-height) - var(--toggler-padding) * 2 - var(--input-border-width) * 2);
+
+	&:after {
+		content: '';
+		position: absolute;
+		background-color: var(--toggler-round-fill);
+		width: var(--round-size);
+		height: var(--round-size);
+		border-radius: 50%;
+		left: var(--toggler-padding);
+		margin-top: auto;
+		margin-bottom: auto;
+		top: 0;
+		bottom: 0;
+	}
+
+	&:hover, &:focus {
+		border-color: var(--hover--input-border-color);
+		background: var(--hover--input-fill);
+		color: var(--hover--input-color);
+	}
+
+	&[readonly] {
+		pointer-events: none;
+	}
+
+	&:checked {
+		background-color: var(--toggler-round-fill);
+
+		&:after {
+			background-color: var(--input-fill);
+			right: var(--toggler-padding);
+			left: auto;
+		}
+	}
+
+	&:disabled {
+		border-color: var(--disabled--input-border-color);
+		background: var(--disabled--input-fill);
+		color: var(--disabled--input-color);
+		cursor: default;
+
+		&:after {
+			background-color: var(--toggler-round-fill);
+			opacity: 0.4;
+		}
+	}
+
+	&:user-invalid {
+		border-color: var(--invalid--input-border-color);
+		background: var(--invalid--input-fill);
+		color: var(--invalid--input-color);
+	}
 }
