@@ -113,6 +113,7 @@ Styles for:
 -   input[type=datetime]
 -   input[type=time]
 -   input[type=file]
+-   input[type=number]
 -   input[type=checkbox]
 -   textarea
 -   select
