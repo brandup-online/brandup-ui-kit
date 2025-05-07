@@ -104,6 +104,15 @@ Styles for:
 
 -   reset for input, textarea, button
 -   input[type=text]
+-   input[type=tel]
+-   input[type=email]
+-   input[type=password]
+-   input[type=search]
+-   input[type=url]
+-   input[type=date]
+-   input[type=datetime]
+-   input[type=time]
+-   input[type=file]
 -   input[type=checkbox]
 -   textarea
 -   select

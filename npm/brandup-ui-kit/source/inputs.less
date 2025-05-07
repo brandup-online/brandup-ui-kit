@@ -7,7 +7,7 @@
 
 :root {
 	// placeholder
-	--placeholder-font-weidth: inherit;
+	--placeholder-font-weight: inherit;
 	--placeholder-font-style: inherit;
 	--placeholder-color: inherit;
 
@@ -27,7 +27,7 @@
 	// font
 	--input-color: var(--text-color);
 	--input-font-size: inherit;
-	--input-font-weidth: inherit;
+	--input-font-weight: inherit;
 	--input-font-style: inherit;
 
 	--hover--input-border-color: #666;
@@ -59,7 +59,7 @@ select {
 	display: block;
 	font-family: inherit;
 	font-size: var(--input-font-size);
-	font-weight: var(--input-font-weidth);
+	font-weight: var(--input-font-weight);
 	font-style: var(--input-font-style);
 	color: var(--input-color);
 	line-height: unset;
@@ -69,7 +69,18 @@ select {
 	outline: none;
 }
 
-input[type=text], textarea, select {
+input[type=text], 
+input[type=tel], 
+input[type=email], 
+input[type=password], 
+input[type=search], 
+input[type=url], 
+input[type=date], 
+input[type=datetime], 
+input[type=time], 
+input[type=file], 
+textarea, 
+select {
 	appearance: none;
 	outline: none;
 	border-style: var(--input-border-type);
@@ -83,7 +94,7 @@ input[type=text], textarea, select {
 	padding-right: var(--input-padding-lr);
 
 	&::placeholder {
-		font-weight: var(--placeholder-font-weidth);
+		font-weight: var(--placeholder-font-weight);
 		font-style: var(--placeholder-font-style);
 		color: var(--placeholder-color);
 	}
@@ -114,6 +125,21 @@ input[type=text], textarea, select {
 		border-color: var(--invalid--input-border-color);
 		background: var(--invalid--input-fill);
 		color: var(--invalid--input-color);
+	}
+}
+
+input[type=file] {
+	display: flex;
+	flex-flow: row nowrap;
+	align-items: center;
+
+	&::file-selector-button {
+		height: calc(var(--input-height) - 14px);
+		margin-top: 6px;
+		margin-right: calc(var(--input-padding-lr) / 1.5);
+		font-family: var(--font-family);
+		font-weight: var(--font-weight);
+		font-size: var(--font-size);
 	}
 }
 
