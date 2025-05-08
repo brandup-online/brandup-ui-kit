@@ -111,6 +111,7 @@ Styles for:
 -   input[type=url]
 -   input[type=date]
 -   input[type=datetime]
+-   input[type=datetime-local]
 -   input[type=time]
 -   input[type=file]
 -   input[type=number]
