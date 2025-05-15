@@ -5,14 +5,23 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const CleanCSSPlugin = require("less-plugin-clean-css");
 const TerserPlugin = require("terser-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const parseLessVars = require('./parse-vars');
+
 
 let bundleOutputDir = './wwwroot/dist';
 const frontDir = path.resolve(__dirname, "src", "frontend");
 
+const variables = parseLessVars(`${frontDir}/styles/vars.less`);
+
 const lessLoaderOptions = {
 	webpackImporter: true,
 	implementation: require.resolve("less"),
-	lessOptions: { math: 'always', plugins: [new CleanCSSPlugin({ advanced: false })] }
+	lessOptions: {
+		math: 'always', plugins: [new CleanCSSPlugin({ advanced: false })], modifyVars: {
+			...variables,
+			'MainBackground': 'yellow'
+		}
+	}
 };
 
 var splitChunks = {
@@ -40,6 +49,8 @@ module.exports = (env) => {
 
 	console.log(`NODE_ENV: "${process.env.NODE_ENV}"`);
 	console.log(`isDevBuild: ${isDevBuild}`);
+	console.log(variables);
+
 
 	const getFilePath = (relativePath) => relativePath;
 
