@@ -19,7 +19,7 @@ const lessLoaderOptions = {
 	lessOptions: {
 		math: 'always', plugins: [new CleanCSSPlugin({ advanced: false })], modifyVars: {
 			...variables,
-			'MainBackground': 'yellow'
+			'MainBackground': 'red',
 		}
 	}
 };
@@ -49,8 +49,6 @@ module.exports = (env) => {
 
 	console.log(`NODE_ENV: "${process.env.NODE_ENV}"`);
 	console.log(`isDevBuild: ${isDevBuild}`);
-	console.log(variables);
-
 
 	const getFilePath = (relativePath) => relativePath;
 
