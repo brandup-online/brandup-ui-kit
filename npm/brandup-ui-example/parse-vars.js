@@ -1,17 +1,12 @@
 const fs = require('fs');
-const less = require('less');
 
-module.exports = async function parseLessVariables(url) {
+module.exports = function parseLessVariablesSync(url) {
     const content = fs.readFileSync(url, 'utf8');
-    const parsed = await less.parse(content, { filename: url });
+    let variables = {};
 
-    const variables = {};
-
-    parsed.rules.forEach(rule => {
-        if (rule.variable) {
-            const varName = rule.name.replace('@', '');
-            variables[varName] = rule.value.toCSS().trim();
-        }
+    content.split('\n').forEach(line => {
+        const match = line.match(/@(\w+):\s*(.+);/);
+        if (match) variables[`@${match[1]}`] = match[2].trim();
     });
 
     return variables;
