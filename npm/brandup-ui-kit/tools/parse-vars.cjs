@@ -1,7 +1,7 @@
 const fs = require("fs");
 
-function parseLessVars() {
-    const content = fs.readFileSync('./node_modules/@brandup/ui-kit/source/uikit.vars.less', 'utf8');
+function parseLessVars(url) {
+    const content = fs.readFileSync(url, 'utf-8');
     let variables = {};
 
     content.split('\n').forEach(line => {

@@ -34,6 +34,7 @@
 	},
 	"files": [
 		"source",
+		"tools",
 		"README.md"
 	],
 	"scripts": {

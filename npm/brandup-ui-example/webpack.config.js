@@ -5,12 +5,12 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const CleanCSSPlugin = require("less-plugin-clean-css");
 const TerserPlugin = require("terser-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
-const parseLessVars = require("@brandup/ui-kit/source/tools/parse-vars.cjs");
+const parseLessVars = require("@brandup/ui-kit/tools/parse-vars.cjs");
 
 let bundleOutputDir = './wwwroot/dist';
 const frontDir = path.resolve(__dirname, "src", "frontend");
 
-const variables = parseLessVars();
+const variables = parseLessVars('src/frontend/styles/uikit.vars.less');
 
 const lessLoaderOptions = {
 	webpackImporter: true,
@@ -18,7 +18,7 @@ const lessLoaderOptions = {
 	lessOptions: {
 		math: 'always', plugins: [new CleanCSSPlugin({ advanced: false })], modifyVars: {
 			...variables,
-			'MainBackground': "red"
+			'@MainBackground': "red"
 		}
 	}
 };
@@ -48,6 +48,7 @@ module.exports = (env) => {
 
 	console.log(`NODE_ENV: "${process.env.NODE_ENV}"`);
 	console.log(`isDevBuild: ${isDevBuild}`);
+	console.log(variables);
 
 
 	const getFilePath = (relativePath) => relativePath;

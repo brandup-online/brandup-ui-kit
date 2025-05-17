@@ -150,23 +150,23 @@ If the initiator is specified, then when the popup is opened again, it will be c
 
 ### Style variables
 
-Connecting less variables to webpack
+Connecting script to webpack:
 
 ```JS
-const parseLessVars = require("@brandup/ui-kit/source/tools/parse-vars.cjs");
+const parseLessVars = require("@brandup/ui-kit/tools/parse-vars.cjs");
 ```
 
-The result of the function is a key-value variable object
+Function for getting variables as an object. The parameter takes the path to the less file:
 
 ```JS
-const variables = parseLessVars();
+const variables = parseLessVars(url);
 ```
 
-Use modifyVars to change variables before build
+Connect variables in less-loader via modifyVars:
 
 ```JS
 modifyVars: {
 			...variables,
-			'MainBackground': "red"
+			'@MainBackground': "red"
 		}
 ```
