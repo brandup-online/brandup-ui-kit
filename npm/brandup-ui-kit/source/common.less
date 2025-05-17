@@ -1,43 +1,78 @@
+@MainBackground: #fff;
+
+@FontSize: 14px;
+@FontFamily: system-ui, 'Segoe UI', Helvetica, 'Gill Sans', 'Verdana', 'Arial', sans-serif;
+@FontWeight: 400;
+@LineHeight: 130%;
+@TextColor: #222;
+
+@HLineHeight: 130%;
+@H1FontSize: 56px;
+@H1FontWeight: 600;
+@H2FontSize: 50px;
+@H2FontWeight: 600;
+@H3FontSize: 28px;
+@H3FontWeight: 600;
+@H4FontSize: 22px;
+@H4FontWeight: 600;
+@H5FontSize: 18px;
+@H5FontWeight: 600;
+
+@ContentMaxWidth: 1280px;
+@ContentMinWidth: 320px;
+@ContentPaddingLr: 40px;
+
+@SvgSize: 20px;
+@SvgFill: @TextColor;
+@SvgStroke: none;
+
+@PopupFill: @MainBackground;
+@PopupBorderStyle: solid;
+@PopupBorderWidth: 1px;
+@PopupBorderColor: #aaa;
+@PopupBorderRadius: 5px;
+@PopupBoxShadow: 0px 4px 8px 2px rgba(0, 0, 0, 0.12);
+
 :root {
 	// body
-	--main-background: #fff;
-	--font-size: 14px;
-	--font-family: system-ui, 'Segoe UI', Helvetica, 'Gill Sans', 'Verdana', 'Arial', sans-serif;
-	--font-weight: 400;
-	--line-height: 130%;
-	--text-color: #222;
+	--main-background: @MainBackground;
+	--font-size: @FontSize;
+	--font-family:@FontFamily;
+	--font-weight: @FontWeight;
+	--line-height: @LineHeight;
+	--text-color: @TextColor;
 
 	// headers
-	--h-line-height: 130%;
-	--h1-font-size: 56px;
-	--h1-font-weight: 600;
-	--h2-font-size: 50px;
-	--h2-font-weight: 600;
-	--h3-font-size: 28px;
-	--h3-font-weight: 600;
-	--h4-font-size: 22px;
-	--h4-font-weight: 600;
-	--h5-font-size: 18px;
-	--h5-font-weight: 600;
+	--h-line-height: @HLineHeight;
+	--h1-font-size: @H1FontSize;
+	--h1-font-weight: @H1FontWeight;
+	--h2-font-size: @H2FontSize;
+	--h2-font-weight: @H2FontWeight;
+	--h3-font-size: @H3FontSize;
+	--h3-font-weight: @H3FontWeight;
+	--h4-font-size: @H4FontSize;
+	--h4-font-weight: @H4FontWeight;
+	--h5-font-size: @H5FontSize;
+	--h5-font-weight: @H5FontWeight;
 
 	// content-width
-	--content-max-width: 1280px; // максимальная ширина контентной области
-	--content-min-width: 320px; // минимальная ширина контентной области
-	--content-padding-lr: 40px; // отступы контентной области слева и справа до краёв браузера
+	--content-max-width: @ContentMaxWidth; // максимальная ширина контентной области
+	--content-min-width: @ContentMinWidth; // минимальная ширина контентной области
+	--content-padding-lr: @ContentPaddingLr; // отступы контентной области слева и справа до краёв браузера
 
 	// svg
-	--svg-size: 20px;
-	--svg-fill: var(--text-color);
-	--svg-stroke: none;
+	--svg-size: @SvgSize;
+	--svg-fill: @SvgFill;
+	--svg-stroke: @SvgStroke;
 
 	// popup
 
-	--popup-fill: var(--main-background);
-	--popup-border-style: solid;
-	--popup-border-width: 1px;
-	--popup-border-color: #aaa;
-	--popup-border-radius: 5px;
-	--popup-box-shadow: 0px 4px 8px 2px rgba(0, 0, 0, 0.12);
+	--popup-fill: @PopupFill;
+	--popup-border-style: @PopupBorderStyle;
+	--popup-border-width: @PopupBorderWidth;
+	--popup-border-color: @PopupBorderColor;
+	--popup-border-radius: @PopupBorderRadius;
+	--popup-box-shadow: @PopupBoxShadow;
 }
 
 // Body styles

@@ -147,3 +147,26 @@ PopupManager.open(DOM.getById("popup3"));
 ```
 
 If the initiator is specified, then when the popup is opened again, it will be closed.
+
+### Style variables
+
+Connecting script to webpack:
+
+```JS
+const parseLessVars = require("@brandup/ui-kit/tools/parse-vars.cjs");
+```
+
+Function for getting variables as an object. The parameter takes the path to the less file:
+
+```JS
+const variables = parseLessVars(url);
+```
+
+Connect variables in less-loader via modifyVars:
+
+```JS
+modifyVars: {
+			...variables,
+			'@MainBackground': "red"
+		}
+```
