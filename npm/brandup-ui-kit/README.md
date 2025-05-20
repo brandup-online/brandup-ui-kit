@@ -156,17 +156,38 @@ Connecting script to webpack:
 const parseLessVars = require("@brandup/ui-kit/tools/parse-vars.cjs");
 ```
 
-Function for getting variables as an object. The parameter takes the path to the less file:
+Getting variables from a Less file
+
+The function takes the path to the Less file (string) and returns an object with variables in the format:
+
+The key is the name of a variable with the @ symbol (for example, @MainColor)
+Value — a string with the value of a variable from a file (for example, #ff0000)
+
+Example of a Less file:
+
+@MainColor: #ff0000;
+@Secondary-Color: rgba(0,0,0,0.5);
+@FontSize: 16px;
+
+Result of parseLessVars:
+
+{
+'@MainColor': '#ff0000',
+'@Secondary-Color': 'rgba(0,0,0,0.5)',
+'@FontSize': '16px'
+}
 
 ```JS
-const variables = parseLessVars(url);
+const variables = parseLessVars('path/to/your/variables.less');
 ```
 
-Connect variables in less-loader via modifyVars:
+Usage in the less-loader configuration
+
+Pass the received variables to the modifyVars option:
 
 ```JS
 modifyVars: {
 			...variables,
-			'@MainBackground': "red"
+			'@MainBackground': "red" // if you want to change the variable before the build
 		}
 ```

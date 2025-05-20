@@ -20,30 +20,30 @@
 @InputPaddingLr: 13px;
 @TextareaSize: 100px;
 
-@InputColor: var(--text-color);
+@InputColor: @TextColor;
 @InputFontSize: inherit;
 @InputFontWeight: inherit;
 @InputFontStyle: inherit;
 
 @Hover-InputBorderColor: #666;
-@Hover-InputFill: var(--input-fill);
-@Hover-InputColor: var(--input-color);
+@Hover-InputFill: @InputFill;
+@Hover-InputColor: @InputColor;
 
 @Focus-InputBorderColor: #222;
-@Focus-InputFill: var(--hover--input-fill);
-@Focus-InputColor: var(--hover--input-color);
+@Focus-InputFill: @InputFill;
+@Focus-InputColor: @InputColor;
 
 @Disabled-InputBorderColor: #aaa;
 @Disabled-InputFill: #eee;
-@Disabled-InputColor: var(--input-color);
+@Disabled-InputColor: @InputColor;
 
 @Invalid-InputBorderColor: red;
-@Invalid-InputFill: var(--input-fill);
-@Invalid-InputColor: var(--input-color);
+@Invalid-InputFill: @InputFill;
+@Invalid-InputColor: @InputColor;
 
 @TogglerHeight: 30px;
 @TogglerPadding: 3px;
-@TogglerRoundFill: var(--focus--input-border-color);
+@TogglerRoundFill: @Focus-InputBorderColor;
 
 :root {
 	// placeholder

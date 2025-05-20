@@ -34,7 +34,7 @@
 	},
 	"files": [
 		"source",
-		"tools",
+		"build",
 		"README.md"
 	],
 	"scripts": {
