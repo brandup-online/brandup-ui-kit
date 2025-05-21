@@ -10,15 +10,13 @@ const parseLessVars = require("@brandup/ui-kit/build/parse-less-vars.cjs");
 let bundleOutputDir = './wwwroot/dist';
 const frontDir = path.resolve(__dirname, "src", "frontend");
 
-const variables = parseLessVars();
-
 const lessLoaderOptions = {
 	webpackImporter: true,
 	implementation: require.resolve("less"),
 	lessOptions: {
-		math: 'always', plugins: [new CleanCSSPlugin({ advanced: false })], modifyVars: {
-			...variables
-		}
+		math: 'always',
+		plugins: [new CleanCSSPlugin({ advanced: false })],
+		modifyVars: parseLessVars()
 	}
 };
 
