@@ -150,24 +150,24 @@ If the initiator is specified, then when the popup is opened again, it will be c
 
 ### Style variables
 
-Сreate uikit.vars.less in the root of the project
+Сreate uikit.vars.less in the root of the project.
 
 Connecting script to webpack:
 
 ```JS
-const parseLessVars = require("@brandup/ui-kit/build/parse-vars.cjs");
+const parseLessVars = require("@brandup/ui-kit/build/parse-less-vars.cjs");
 ```
 
-Getting variables from a Less file
+Getting variables from a Less file.
 
 The function takes the path to the Less file (string) and returns an object with variables in the format:
 
-The key is the name of a variable with the @ symbol (for example, @MainColor)
-Value — a string with the value of a variable from a file (for example, #ff0000)
+The key is the name of a variable with the @ symbol (for example, @MainColor).
+Value — a string with the value of a variable from a file (for example, #ff0000).
 
 Example of a Less file:
 
-```less
+```Less
 @main-color: #ff0000;
 @secondary-color: rgba(0, 0, 0, 0.5);
 @font-size: 16px;
@@ -187,15 +187,14 @@ Result of parseLessVars:
 const variables = parseLessVars('path/to/your/variables.less');
 ```
 
-if no parameter has been set, the function will refer to the uikit.vars.less into root directory
+if no parameter has been set, the function will refer to the uikit.vars.less into root directory.
 
-Usage in the less-loader configuration
-
-Pass the received variables to the modifyVars option:
+Usage in the less-loader configuration.
 
 ```JS
-modifyVars: {
-	...variables,
-	'@MainBackground': "red" // if you want to change the variable before the build
+{
+	lessOption: {
+		modifyVars: parseLessVars()
+	}
 }
 ```
