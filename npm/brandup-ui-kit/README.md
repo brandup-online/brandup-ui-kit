@@ -155,7 +155,7 @@ If the initiator is specified, then when the popup is opened again, it will be c
 Connecting script to webpack:
 
 ```JS
-const parseLessVars = require("@brandup/ui-kit/tools/parse-vars.cjs");
+const parseLessVars = require("@brandup/ui-kit/build/parse-vars.cjs");
 ```
 
 Getting variables from a Less file
@@ -167,23 +167,27 @@ Value — a string with the value of a variable from a file (for example, #ff000
 
 Example of a Less file:
 
-@MainColor: #ff0000;
-@Secondary-Color: rgba(0,0,0,0.5);
-@FontSize: 16px;
+```less
+@main-color: #ff0000;
+@secondary-color: rgba(0, 0, 0, 0.5);
+@font-size: 16px;
+```
 
 Result of parseLessVars:
 
+```JS
 {
-'@MainColor': '#ff0000',
-'@Secondary-Color': 'rgba(0,0,0,0.5)',
-'@FontSize': '16px'
+	'@main-color': '#ff0000',
+	'@secondary-color': 'rgba(0,0,0,0.5)',
+	'@font-size': '16px'
 }
+```
 
 ```JS
 const variables = parseLessVars('path/to/your/variables.less');
 ```
 
-if no parameter has been set, the function will refer to the uikit.vars.less
+if no parameter has been set, the function will refer to the uikit.vars.less into root directory
 
 Usage in the less-loader configuration
 
@@ -191,7 +195,7 @@ Pass the received variables to the modifyVars option:
 
 ```JS
 modifyVars: {
-			...variables,
-			'@MainBackground': "red" // if you want to change the variable before the build
-		}
+	...variables,
+	'@MainBackground': "red" // if you want to change the variable before the build
+}
 ```

@@ -1,3 +1,4 @@
+@import "../vars.less";
 /*
 
 1. Набор переменных для контролов пользовательских ввода данных.
@@ -5,91 +6,51 @@
 
 */
 
-@PlaceholderFontWeight: inherit;
-@PlaceholderFontStyle: inherit;
-@PlaceholderColor: inherit;
-
-@InputBorderWidth: 1px;
-@InputBorderColor: #aaa;
-@InputBorderType: solid;
-@InputBorderRadius: 0;
-@InputFill: #fff;
-
-@InputWidth: auto;
-@InputHeight: 42px;
-@InputPaddingLr: 13px;
-@TextareaSize: 100px;
-
-@InputColor: @TextColor;
-@InputFontSize: inherit;
-@InputFontWeight: inherit;
-@InputFontStyle: inherit;
-
-@Hover-InputBorderColor: #666;
-@Hover-InputFill: @InputFill;
-@Hover-InputColor: @InputColor;
-
-@Focus-InputBorderColor: #222;
-@Focus-InputFill: @InputFill;
-@Focus-InputColor: @InputColor;
-
-@Disabled-InputBorderColor: #aaa;
-@Disabled-InputFill: #eee;
-@Disabled-InputColor: @InputColor;
-
-@Invalid-InputBorderColor: red;
-@Invalid-InputFill: @InputFill;
-@Invalid-InputColor: @InputColor;
-
-@TogglerHeight: 30px;
-@TogglerPadding: 3px;
-@TogglerRoundFill: @Focus-InputBorderColor;
-
 :root {
 	// placeholder
-	--placeholder-font-weight: @PlaceholderFontWeight;
-	--placeholder-font-style: @PlaceholderFontStyle;
-	--placeholder-color: @PlaceholderColor;
+	--placeholder-font-weight: @placeholder-font-weight;
+	--placeholder-font-style: @placeholder-font-style;
+	--placeholder-color: @placeholder-color;
 
 	// border
-	--input-border-width: @InputBorderWidth;
-	--input-border-color: @InputBorderColor;
-	--input-border-type: @InputBorderType;
-	--input-border-radius: @InputBorderRadius;
-	--input-fill: @InputFill;
+	--input-border-width: @input-border-width;
+	--input-border-color: @input-border-color;
+	--input-border-type: @input-border-type;
+	--input-border-radius: @input-border-radius;
+	--input-fill: @input-fill;
 
 	// size
-	--input-width: @InputWidth;
-	--input-height: @InputHeight;
-	--input-padding-lr: @InputPaddingLr;
-	--textarea-size: @TextareaSize;
+	--input-width: @input-width;
+	--input-height: @input-height;
+	--input-padding-lr: @input-padding-lr;
+	--textarea-size: @textarea-size;
 
 	// font
-	--input-color: @InputColor;
-	--input-font-size: @InputFontSize;
-	--input-font-weight: @InputFontWeight;
-	--input-font-style: @InputFontStyle;
+	--input-color: @input-color;
+	--input-font-size: @input-font-size;
+	--input-font-weight: @input-font-weight;
+	--input-font-style: @input-font-style;
 
-	--hover--input-border-color: @Hover-InputBorderColor;
-	--hover--input-fill: @Hover-InputFill;
-	--hover--input-color: @Hover-InputColor;
+	--hover--input-border-color: @hover-input-border-color;
+	--hover--input-fill: @hover-input-fill;
+	--hover--input-color: @hover-input-color;
 
-	--focus--input-border-color: @Focus-InputBorderColor;
-	--focus--input-fill: @Focus-InputFill;
-	--focus--input-color: @Focus-InputColor;
+	--focus--input-border-color: @focus-input-border-color;
+	--focus--input-fill: @focus-input-fill;
+	--focus--input-color: @focus-input-color;
 
-	--disabled--input-border-color: @Disabled-InputBorderColor;
-	--disabled--input-fill: @Disabled-InputFill;
-	--disabled--input-color: @Disabled-InputColor;
+	--disabled--input-border-color: @disabled-input-border-color;
+	--disabled--input-fill: @disabled-input-fill;
+	--disabled--input-color: @disabled-input-color;
 
-	--invalid--input-border-color: @Invalid-InputBorderColor;
-	--invalid--input-fill: @Invalid-InputFill;
-	--invalid--input-color: @Invalid-InputColor;
+	--invalid--input-border-color: @invalid-input-border-color;
+	--invalid--input-fill: @invalid-input-fill;
+	--invalid--input-color: @invalid-input-color;
 
 	// toggler
-	--toggler-height: @TogglerHeight;
-	--toggler-padding: @TogglerPadding;
-	--toggler-round-fill: @TogglerRoundFill; // цвет круглешка
+	--toggler-height: @toggler-height;
+	--toggler-padding: @toggler-padding;
+	--toggler-round-fill: @toggler-round-fill; // цвет круглешка
 }
 
 input,
