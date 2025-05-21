@@ -34,6 +34,8 @@
 	},
 	"files": [
 		"source",
+		"build",
+		"vars.less",
 		"README.md"
 	],
 	"scripts": {

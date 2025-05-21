@@ -147,3 +147,54 @@ PopupManager.open(DOM.getById("popup3"));
 ```
 
 If the initiator is specified, then when the popup is opened again, it will be closed.
+
+### Style variables
+
+Сreate uikit.vars.less in the root of the project.
+
+Connecting script to webpack:
+
+```JS
+const parseLessVars = require("@brandup/ui-kit/build/parse-less-vars.cjs");
+```
+
+Getting variables from a Less file.
+
+The function takes the path to the Less file (string) and returns an object with variables in the format:
+
+The key is the name of a variable with the @ symbol (for example, @MainColor).
+Value — a string with the value of a variable from a file (for example, #ff0000).
+
+Example of a Less file:
+
+```Less
+@main-color: #ff0000;
+@secondary-color: rgba(0, 0, 0, 0.5);
+@font-size: 16px;
+```
+
+Result of parseLessVars:
+
+```JS
+{
+	'@main-color': '#ff0000',
+	'@secondary-color': 'rgba(0,0,0,0.5)',
+	'@font-size': '16px'
+}
+```
+
+```JS
+const variables = parseLessVars('path/to/your/variables.less');
+```
+
+if no parameter has been set, the function will refer to the uikit.vars.less into root directory.
+
+Usage in the less-loader configuration.
+
+```JS
+{
+	lessOption: {
+		modifyVars: parseLessVars()
+	}
+}
+```

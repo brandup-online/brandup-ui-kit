@@ -1,10 +1,4 @@
-@adaptive-desktop-small: 1650px;
-@adaptive-notebook: 1550px;
-@adaptive-notebook-small: 1370px;
-@adaptive-tablet: 1030px;
-@adaptive-tablet-small: 850px;
-@adaptive-mobile: 500px;
-@adaptive-mobile-small: 370px;
+@import "../vars.less";
 
 .adaptive-desktop-small(@rules) {
 	@media all and (max-width: @adaptive-desktop-small) {
@@ -55,7 +49,7 @@
 }
 
 .adaptive-mobile-small(@rules) {
-	@media all and (max-width: var(-adaptive-mobile-small)) {
+	@media all and (max-width: @adaptive-mobile-small) {
 		@rules();
 	}
 }
