@@ -150,6 +150,8 @@ If the initiator is specified, then when the popup is opened again, it will be c
 
 ### Style variables
 
+Сreate uikit.vars.less in the root of the project
+
 Connecting script to webpack:
 
 ```JS
@@ -180,6 +182,8 @@ Result of parseLessVars:
 ```JS
 const variables = parseLessVars('path/to/your/variables.less');
 ```
+
+if no parameter has been set, the function will refer to the uikit.vars.less
 
 Usage in the less-loader configuration
 
