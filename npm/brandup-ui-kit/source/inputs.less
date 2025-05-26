@@ -7,49 +7,49 @@
 
 :root {
 	// placeholder
-	--placeholder-font-weight: inherit;
-	--placeholder-font-style: inherit;
-	--placeholder-color: inherit;
+	--placeholder-font-weight: @placeholder-font-weight;
+	--placeholder-font-style: @placeholder-font-style;
+	--placeholder-color: @placeholder-color;
 
 	// border
-	--input-border-width: 1px;
-	--input-border-color: #aaa;
-	--input-border-type: solid;
-	--input-border-radius: 0;
-	--input-fill: #fff;
+	--input-border-width: @input-border-width;
+	--input-border-color: @input-border-color;
+	--input-border-type: @input-border-type;
+	--input-border-radius: @input-border-radius;
+	--input-fill: @input-fill;
 
 	// size
-	--input-width: auto;
-	--input-height: 42px;
-	--input-padding-lr: 13px;
-	--textarea-size: 100px;
+	--input-width: @input-width;
+	--input-height: @input-height;
+	--input-padding-lr: @input-padding-lr;
+	--textarea-size: @textarea-size;
 
 	// font
-	--input-color: var(--text-color);
-	--input-font-size: inherit;
-	--input-font-weight: inherit;
-	--input-font-style: inherit;
+	--input-color: @input-color;
+	--input-font-size: @input-font-size;
+	--input-font-weight: @input-font-weight;
+	--input-font-style: @input-font-style;
 
-	--hover--input-border-color: #666;
-	--hover--input-fill: var(--input-fill);
-	--hover--input-color: var(--input-color);
+	--hover--input-border-color: @hover-input-border-color;
+	--hover--input-fill: @hover-input-fill;
+	--hover--input-color: @hover-input-color;
 
-	--focus--input-border-color: #222;
-	--focus--input-fill: var(--hover--input-fill);
-	--focus--input-color: var(--hover--input-color);
+	--focus--input-border-color: @focus-input-border-color;
+	--focus--input-fill: @focus-input-fill;
+	--focus--input-color: @focus-input-color;
 
-	--disabled--input-border-color: #aaa;
-	--disabled--input-fill: #eee;
-	--disabled--input-color: var(--input-color);
+	--disabled--input-border-color: @disabled-input-border-color;
+	--disabled--input-fill: @disabled-input-fill;
+	--disabled--input-color: @disabled-input-color;
 
-	--invalid--input-border-color: red;
-	--invalid--input-fill: var(--input-fill);
-	--invalid--input-color: var(--input-color);
+	--invalid--input-border-color: @invalid-input-border-color;
+	--invalid--input-fill: @invalid-input-fill;
+	--invalid--input-color: @invalid-input-color;
 
 	// toggler
-	--toggler-height: 30px;
-	--toggler-padding: 3px;
-	--toggler-round-fill: var(--focus--input-border-color); // цвет круглешка
+	--toggler-height: @toggler-height;
+	--toggler-padding: @toggler-padding;
+	--toggler-round-fill: @toggler-round-fill; // цвет круглешка
 }
 
 input,

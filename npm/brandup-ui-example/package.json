@@ -14,11 +14,11 @@
 	},
 	"devDependencies": {
 		"@babel/plugin-transform-runtime": "^7.27.1",
-		"@babel/preset-env": "^7.27.1",
+		"@babel/preset-env": "^7.27.2",
 		"@babel/preset-typescript": "^7.27.1",
-		"@types/cors": "^2.8.17",
-		"@types/express": "^4.17.21",
-		"@types/node": "^20.17.32",
+		"@types/cors": "^2.8.18",
+		"@types/express": "^4.17.22",
+		"@types/node": "^20.17.50",
 		"babel-loader": "^9.2.1",
 		"core-js": "^3.42.0",
 		"cross-env": "^7.0.3",
@@ -36,7 +36,7 @@
 		"ts-node": "^10.9.2",
 		"typescript": "^5.8.3",
 		"url-loader": "^4.1.1",
-		"webpack": "^5.99.7",
+		"webpack": "^5.99.9",
 		"webpack-cli": "^5.1.4"
 	},
 	"scripts": {

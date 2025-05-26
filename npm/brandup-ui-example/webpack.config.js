@@ -5,6 +5,7 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const CleanCSSPlugin = require("less-plugin-clean-css");
 const TerserPlugin = require("terser-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const parseLessVars = require("@brandup/ui-kit/build/parse-less-vars.cjs");
 
 let bundleOutputDir = './wwwroot/dist';
 const frontDir = path.resolve(__dirname, "src", "frontend");
@@ -12,7 +13,11 @@ const frontDir = path.resolve(__dirname, "src", "frontend");
 const lessLoaderOptions = {
 	webpackImporter: true,
 	implementation: require.resolve("less"),
-	lessOptions: { math: 'always', plugins: [new CleanCSSPlugin({ advanced: false })] }
+	lessOptions: {
+		math: 'always',
+		plugins: [new CleanCSSPlugin({ advanced: false })],
+		modifyVars: parseLessVars()
+	}
 };
 
 var splitChunks = {
@@ -37,11 +42,10 @@ var splitChunks = {
 
 module.exports = (env) => {
 	const isDevBuild = process.env.NODE_ENV !== "production";
+	const getFilePath = (relativePath) => relativePath;
 
 	console.log(`NODE_ENV: "${process.env.NODE_ENV}"`);
 	console.log(`isDevBuild: ${isDevBuild}`);
-
-	const getFilePath = (relativePath) => relativePath;
 
 	return [{
 		mode: isDevBuild ? "development" : "production",
