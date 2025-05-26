@@ -42,12 +42,10 @@ var splitChunks = {
 
 module.exports = (env) => {
 	const isDevBuild = process.env.NODE_ENV !== "production";
+	const getFilePath = (relativePath) => relativePath;
 
 	console.log(`NODE_ENV: "${process.env.NODE_ENV}"`);
 	console.log(`isDevBuild: ${isDevBuild}`);
-
-
-	const getFilePath = (relativePath) => relativePath;
 
 	return [{
 		mode: isDevBuild ? "development" : "production",
