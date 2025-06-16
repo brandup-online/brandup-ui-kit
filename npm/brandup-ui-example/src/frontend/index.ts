@@ -44,7 +44,8 @@ builder
 			'/': { page: () => import("./pages/index") },
 			'/styles': { page: () => import("./pages/styles") },
 			'/inputs': { page: () => import("./pages/inputs") },
-			'/popups': { page: () => import("./pages/popups") }
+			'/popups': { page: () => import("./pages/popups") },
+			'/textbox': { page: () => import("./pages/textbox") }
 		},
 		notfound: { page: () => import("./pages/error/notfound") },
 		error: { page: () => import("./pages/error/exception") }

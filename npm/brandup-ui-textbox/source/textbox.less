@@ -1,0 +1,282 @@
+@input-line-height: 130;
+
+.textbox {
+	height: var(--input-height);
+    width: var(--input-width);
+	display: flex;
+	flex-flow: row nowrap;
+	align-items: stretch;
+	position: relative;
+	background-color: var(--input-fill);
+	box-sizing: border-box;
+	outline: none;
+	transition: background-color ease 60ms;
+
+	& .decorator {
+		display: block;
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 100%;
+		height: 100%;
+		border: solid var(--input-border-width) var(--input-border-color);
+		border-radius: var(--input-border-radius);
+		z-index: 1;
+		box-sizing: border-box;
+		transition: border-color ease 120ms;
+	}
+
+	& .editor {
+		flex: 1 1 auto;
+		display: flex;
+		flex-flow: row nowrap;
+		gap: 15px;
+		padding: (((var(--input-height)) - @input-line-height)/2) var(input-padding-lr); //TODO: input-line-height пока поставил заглушку
+		box-sizing: border-box;
+		cursor: text;
+		position: relative;
+		overflow-y: auto;
+		z-index: 2;
+		margin-right: 5px;
+		padding-right: 7px;
+		scrollbar-width: 6px;
+
+		&::-webkit-scrollbar {
+			width: 6px;
+			background: none;
+		}
+
+		&::-webkit-scrollbar-track {
+			border-radius: 3px;
+			background-color: transparent;
+			margin: 6px 0;
+			cursor: default;
+		}
+
+		&::-webkit-scrollbar-thumb {
+			background-color: #8696a0;
+			border-radius: 3px;
+			cursor: default;
+		}
+	}
+
+	& .input {
+		appearance: none;
+		position: relative;
+		flex: 1 1 auto;
+		box-sizing: border-box;
+		color: var(--input-color);
+		word-wrap: anywhere;
+		outline: none;
+
+		&:empty {
+			&:after {
+				content: attr(data-placeholder);
+				display: block;
+				position: absolute;
+				left: 0;
+				top: 0;
+				right: 0;
+				color: var(--placeholder-color);
+				box-sizing: border-box;
+				overflow: hidden;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+			}
+
+			& ~ .symbols-counter {
+				display: none;
+			}
+		}
+	}
+
+	& .symbols-counter {
+		flex: 0 0 auto;
+		display: none;
+		font-size: 13px;
+		font-weight: 400;
+		line-height: @input-line-height;// TODO: стоит заглушка
+		z-index: 5;
+		user-select: none;
+		color: #656565;
+
+		&.invalid {
+			color: var(--invalid-input-color);
+		}
+	}
+
+	& .actions {
+		flex: 0 0 auto;
+		position: relative;
+		z-index: 4;
+		display: flex;
+		flex-flow: row nowrap;
+		align-items: center;
+		height: var(--input-height);
+
+		& button {
+			display: flex;
+			flex-flow: row nowrap;
+			justify-content: center;
+			align-items: center;
+			width: 42px;
+			height: 34px;
+			transition: all ease 100ms;
+
+			& svg {
+				fill: #656565;
+				width: 18px;
+				height: 18px;
+			}
+
+			&:hover,
+			&:focus {
+				& svg {
+					fill: #525252;// цвета взял с wsender
+				}
+			}
+
+			&:active {
+				& svg {
+					fill: #848484;// цвета взял с wsender
+				}
+			}
+
+			&.success {
+				& svg {
+					fill: #525252;// цвета взял с wsender
+				}
+			}
+		}
+
+		&:empty {
+			display: none;
+		}
+	}
+
+	&:hover {
+		& .decorator {
+			border-color: var(--hover-input-border-color);
+		}
+	}
+
+	&.focused {
+		& .decorator {
+			border-color: var(--focus-input-border-color);
+		}
+	}
+
+	&.multyline {
+		// data-multyline == true
+		min-height: 100px;
+
+		& .editor {
+			flex-direction: column;
+			gap: 2px;
+		}
+
+		& .input {
+			flex: 1 10 auto;
+
+			&:empty {
+				&:after {
+					white-space: normal;
+					text-overflow: unset;
+				}
+			}
+		}
+	}
+
+	&.counter {
+		// data-symbolcounter == true
+
+		& .symbols-counter {
+			display: block;
+		}
+
+		& .actions {
+			margin-left: -10px;
+		}
+	}
+
+	&.readonly {
+		&.focused {
+			& .decorator {
+				border-color: var(--focus-input-border-color);
+			}
+		}
+	}
+
+	&.disabled {
+		background-color: var(--disabled-input-fill);
+
+		& .editor {
+			user-select: none;
+			cursor: default;
+		}
+
+		& .input {
+			color: var(--disabled-input-color);
+		}
+
+		& .symbols-counter {
+			color: var(--disabled-input-color);
+		}
+
+		& .actions {
+			& button {
+				cursor: default;
+
+				& svg {
+					fill: #7c7c7c;
+				}
+			}
+		}
+
+		&:hover {
+			& .decorator {
+				border-color: var(--input-border-color);
+			}
+		}
+	}
+
+	&.invalid {
+		& .decorator {
+			transition-delay: 0;
+			border-color: var(--invalid-input-border-color) !important;
+		}
+
+		& .input {
+			&:empty {
+				&:after {
+					color: var(--invalid--input-color);
+				}
+			}
+		}
+	}
+
+	&.incorrect {
+		background-color: var(--invalid-input-fill);
+	}
+}
+
+.textbox-input {
+	opacity: 0;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	outline: none;
+	visibility: collapse;
+}
+
+textarea.textbox-input ~ .textbox-miniature {
+	min-height: 100px;
+}
+
+.textbox-miniature {
+	border: solid var(--input-border-width) var(--input-border-color);
+	border-radius: var(--input-border-radius);
+	height: var(--input-height);
+	background: white;
+	box-sizing: border-box;
+}
