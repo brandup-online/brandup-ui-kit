@@ -26,8 +26,10 @@
 	"types": "source/index.ts",
 	"dependencies": {
 		"@brandup/ui": "^1.0.32",
-		"@brandup/ui-kit": "file:../brandup-ui-kit",
-		"@brandup/ui-input": "file:../brandup-ui-input"
+		"@brandup/ui-dom": "^1.0.32",
+		"@brandup/ui-helpers": "^1.0.32",
+		"@brandup/ui-input": "file:../brandup-ui-input",
+		"@brandup/ui-kit": "file:../brandup-ui-kit"
 	},
 	"devDependencies": {
 		"less": "^4.3.0",

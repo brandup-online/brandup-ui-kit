@@ -1,8 +1,8 @@
 @input-line-height: 130;
 
 .textbox {
-	height: var(--input-height);
-    width: var(--input-width);
+	max-height: var(--input-height);
+    min-width: var(--input-width);
 	display: flex;
 	flex-flow: row nowrap;
 	align-items: stretch;
@@ -31,7 +31,7 @@
 		display: flex;
 		flex-flow: row nowrap;
 		gap: 15px;
-		padding: ((var(--input-height) - @input-line-height)/2) var(--input-padding-lr); //TODO: input-line-height пока поставил заглушку
+		padding: var(--input-padding-lr);
 		box-sizing: border-box;
 		cursor: text;
 		position: relative;
@@ -101,7 +101,7 @@
 		color: #656565;
 
 		&.invalid {
-			color: var(--invalid-input-color);
+			color: var(--invalid--input-color);
 		}
 	}
 
@@ -121,6 +121,11 @@
 			align-items: center;
 			width: 42px;
 			height: 34px;
+			background: transparent;
+			border: none;
+			padding: 0;
+			margin: 0;
+			outline: none;
 			transition: all ease 100ms;
 
 			& svg {
@@ -156,13 +161,13 @@
 
 	&:hover {
 		& .decorator {
-			border-color: var(--hover-input-border-color);
+			border-color: var(--hover--input-border-color);
 		}
 	}
 
 	&.focused {
 		& .decorator {
-			border-color: var(--focus-input-border-color);
+			border-color: var(--focus--input-border-color);
 		}
 	}
 
@@ -202,13 +207,13 @@
 	&.readonly {
 		&.focused {
 			& .decorator {
-				border-color: var(--focus-input-border-color);
+				border-color: var(--focus--input-border-color);
 			}
 		}
 	}
 
 	&.disabled {
-		background-color: var(--disabled-input-fill);
+		background-color: var(--disabled--input-fill);
 
 		& .editor {
 			user-select: none;
@@ -216,11 +221,11 @@
 		}
 
 		& .input {
-			color: var(--disabled-input-color);
+			color: var(--disabled--input-color);
 		}
 
 		& .symbols-counter {
-			color: var(--disabled-input-color);
+			color: var(--disabled--input-color);
 		}
 
 		& .actions {
@@ -243,7 +248,7 @@
 	&.invalid {
 		& .decorator {
 			transition-delay: 0;
-			border-color: var(--invalid-input-border-color) !important;
+			border-color: var(--invalid--input-border-color) !important;
 		}
 
 		& .input {
@@ -256,7 +261,7 @@
 	}
 
 	&.incorrect {
-		background-color: var(--invalid-input-fill);
+		background-color: var(--invalid--input-fill);
 	}
 }
 

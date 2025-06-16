@@ -1,6 +1,5 @@
-.page-block.textbox {
+.page-block.textboxs {
 	--input-font-weidth: 500;
-	--input-width: 100%;
 
 	--placeholder-font-weidth: 300;
 	--placeholder-color: #444;
@@ -13,6 +12,12 @@
 	    display: flex;
 		flex-flow: column nowrap;
 		row-gap: 20px;
+
+		& form {
+			& button {
+				margin-top: 10px;
+			} 
+		}
 
 		& .example {
 			display: grid;
@@ -29,9 +34,5 @@
                 }
             }
 		}
-
-        & button {
-            margin-top: 10px;
-        } 
 	}
 }
