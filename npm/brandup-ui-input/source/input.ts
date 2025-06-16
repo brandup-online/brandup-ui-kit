@@ -6,23 +6,35 @@ type FormInput<T> = T extends InputType ? T : never;
 
 export const INPUT_CSS_CLASS = "ui-input";
 
-export abstract class InputUIElement<T> extends UIElement implements IInputControl {
-	protected __form: HTMLFormElement;
-	protected __submitEvent: (e: SubmitEvent) => void;
+export abstract class InputControl<T extends InputType> extends UIElement implements IInputControl {
 	protected __valueElem: FormInput<T>;
+	protected __submitEvent?: (e: SubmitEvent) => void;
+	private __isValidating?: boolean; // true, когда выполняется checkValidity в validate.
 
 	constructor(valueElem: FormInput<T>) {
 		super();
 
-		if (!valueElem.form)
-			throw new Error('Input element is not in form.');
-		this.__form = valueElem.form;
-
 		this.__valueElem = valueElem;
 
-		this.__form.addEventListener("submit", this.__submitEvent = (e: SubmitEvent) => {
+		this.__initForm();
+	}
+
+	get form(): HTMLFormElement | null { return this.__valueElem.form; }
+	get disabled(): boolean { return this.__valueElem.disabled; }
+	get required(): boolean { return this.__valueElem.required; }
+	get readonly(): boolean { return this.__valueElem.hasAttribute("readonly") || this.__valueElem.hasAttribute("data-readonly"); }
+
+	private __initForm() {
+		this.__valueElem.addEventListener("invalid", (e: Event) => {
+			e.preventDefault();
+
+			this.__submitForm();
+		});
+
+		this.__submitEvent = (e: SubmitEvent) => {
 			if ((<HTMLButtonElement>e.submitter).formNoValidate || (<HTMLFormElement>e.target).noValidate)
 				return; // Не делаем валидацию, если она отключена в форме или в инициаторе события submit
+
 			if (this.disabled)
 				return;
 
@@ -31,53 +43,60 @@ export abstract class InputUIElement<T> extends UIElement implements IInputContr
 					e.stopPropagation();
 					this.focus();
 				}
+
 				e.preventDefault();
+
 				return false;
 			}
-		});
+		};
 
-		this.__valueElem.addEventListener("invalid", (e: Event) => {
-			e.preventDefault();
-
-			this.__submitForm();
-		});
+		if (this.form)
+			this.form.addEventListener("submit", this.__submitEvent);
 	}
-
-	get form(): HTMLFormElement { return this.__form; }
-	get disabled(): boolean { return this.__valueElem.disabled; }
-	get required(): boolean { return this.__valueElem.required; }
-	get readonly(): boolean { return this.__valueElem.hasAttribute("readonly"); }
 
 	protected __submitForm() {
-		if (!this.readonly && !this.disabled && this.__form && this.__form.dispatchEvent(new SubmitEvent("submit", { submitter: this.__form, cancelable: true })))
-			this.__form.submit();
+		const form = this.form;
+		if (!this.readonly && !this.disabled && form)
+			form.dispatchEvent(new SubmitEvent("submit", { submitter: form, cancelable: true }));
 	}
 
-	protected __initState() {
-		if (!this.element)
-			throw new Error('Not set element.');
+	protected _onRenderElement(elem: HTMLElement) {
+		elem.classList.add(INPUT_CSS_CLASS);
 
-		if (this.required) this.element.classList.add("required");
-		if (this.readonly) this.element.classList.add("readonly");
-		if (this.disabled) this.element.classList.add("disabled");
+		if (this.required)
+			elem.classList.add("required");
+		if (this.readonly)
+			elem.classList.add("readonly");
+		if (this.disabled)
+			elem.classList.add("disabled");
 	}
 
 	validate(): boolean {
-		return this.__valueElem.checkValidity();
+		if (this.__isValidating)
+			return true;
+
+		this.__isValidating = true;
+		const result = this.__valueElem.checkValidity();
+		this.__isValidating = false;
+
+		return result;
 	}
 
 	focus(): void {
 		this.__valueElem.focus();
+		this.element?.scrollIntoView({ block: "center", inline: "center" });
 	}
 
 	destroy() {
-		this.__form.removeEventListener("submit", this.__submitEvent);
+		if (this.form && this.__submitEvent)
+			this.form.removeEventListener("submit", this.__submitEvent);
 
 		super.destroy();
 	}
 }
 
 export interface IInputControl {
+	get form(): HTMLFormElement | null;
 	get disabled(): boolean;
 	get required(): boolean;
 	get readonly(): boolean;

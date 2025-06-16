@@ -10,6 +10,9 @@ Install NPM package [@brandup/ui](https://www.npmjs.com/package/@brandup/ui-kit)
 npm i @brandup/ui-kit@latest
 ```
 
-## InputUIElement
+## InputControl
 
-`InputUIElement` - это базовый абстрактный класс для элементов пользовательсково ввода в форме.
+`InputControl<InputType>` - это базовый абстрактный класс для элементов пользовательсково ввода в форме. Реализуется 
+относительно `HTMLInputElement`, `HTMLTextAreaElement`, `HTMLSelectElement`.
+
+`InputControl` наследует интерфейс `IInputControl`, чтобы можно было абстрагироваться от реализации.

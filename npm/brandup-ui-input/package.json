@@ -1,7 +1,6 @@
 {
 	"name": "@brandup/ui-input",
 	"description": "Input control type and styles.",
-	"private": true,
 	"keywords": [
 		"brandup",
 		"javascript",
@@ -26,7 +25,8 @@
 	"main": "source/index.ts",
 	"types": "source/index.ts",
 	"dependencies": {
-		"@brandup/ui": "^1.0.32"
+		"@brandup/ui": "^1.0.32",
+		"@brandup/ui-kit": "file:../brandup-ui-kit"
 	},
 	"devDependencies": {
 		"less": "^4.3.0",
