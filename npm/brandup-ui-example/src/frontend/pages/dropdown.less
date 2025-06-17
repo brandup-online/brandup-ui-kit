@@ -1,0 +1,90 @@
+.input-controls {
+	// border
+	--input-border-width: 1px;
+	--input-border-color: #aaa;
+	--input-fill: #fff;
+
+	// font
+	--input-color: #222;
+
+	--focus--input-border-color: rgb(211, 211, 211);
+	--focus--input-fill: #222;
+	--focus--input-color: #fff;
+
+	--hover--input-border-color: rgb(189, 189, 189);
+	--hover--input-fill: rgb(83, 83, 83);
+	--hover--input-color: rgb(196, 196, 196);
+
+	--disabled--input-border-color: #aaa;
+	--disabled--input-fill: #eee;
+	--disabled--input-color: #222;
+
+	--invalid--input-border-color: red;
+	--invalid--input-fill: #fff;
+	--invalid--input-color: #222;
+
+    display: flex;
+    flex-flow: column nowrap;
+    gap: 40px;
+  
+    & .example {
+        display: flex;
+        flex-flow: column nowrap;
+        gap: 22px;
+  
+        & h2 {
+            padding: 0 0 10px;
+        }
+  
+        & form {
+            display: flex;
+            flex-flow: column nowrap;
+            gap: 22px;
+        }
+  
+        & .buttons {
+            padding-top: 10px;
+            display: flex;
+            flex-flow: row wrap;
+        }
+  
+        & .variants {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 25px;
+  
+            & .field {
+                display: flex;
+                flex-flow: column nowrap;
+                row-gap: 10px;
+                
+                & .field-value {
+                    padding-top: 5px;
+                
+                    & mark {
+                        white-space: pre-wrap;
+                        font-size: 13px;
+                        word-wrap: anywhere;
+                        background-color: #ffd500;
+                        transition: background-color ease 500ms;
+                    }
+                
+                    &.updated {
+                        & mark {
+                            background-color: #88ff00;
+                            transition: background-color ease 50ms;
+                        }
+                    }
+                }
+        }
+  
+            &.c2 {
+                grid-template-columns: 1fr 1fr;
+            }
+        
+            &.full {
+                grid-template-columns: 1fr;
+            }
+        } 
+    }
+}
