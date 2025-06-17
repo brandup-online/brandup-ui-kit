@@ -1,97 +1,10 @@
 @import "@brandup/ui-kit/source/adaptive.less";
 
-@Accent-Darkest: #043C32;
-@Accent-Dark: #096252;
-@Accent-Medium: #418D7D;
-@Accent-Light: #65B0A1;
-@Accent-Lighest: #EDF8F5;
-
-@Neutral-Darkest: #252424;
-@Neutral-Darker: #656565;
-@Neutral-Dark: #D9D9D9;
-@Neutral-Medium: #EDEDED;
-@Neutral-Light: #F6F7F8;
-@Neutral-Lightest: #FDFDFD;
-
-@Success-Darkest: #0AB81B;
-@Success-Dark: #47CA54;
-@Success-Medium: #84DC8D;
-@Success-Light: #E4F7E6;
-@Main-Color: #fff; // основной цвет фона
-
-@Text-Font: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
-@Text-LineHeight: 160%;
-@Text-Color: @Neutral-Darkest; // цвет текста
-
-@Content-Padding: 40px;
-
-@Input-Height: 46px;
-@Input-LR-Padding: 16px;
-@Input-LineHeight: 22px;
-@Input-Color: @Text-Color;
-@Input-Border-Width: 1px;
-@Input-Border-Radius: 5px;
-@Input-Placeholder-Color: @Neutral-Darkest;
-
-@Input-Border-Color: @Neutral-Dark;
-@Input-Border-Color-Hover: @Neutral-Darkest;
-@Input-Border-Color-Focus: @Accent-Dark;
-
-@Error-Darkest: #F10606;
-@Error-Dark: #F54444;
-@Error-Medium: #F98F8F;
-@Error-Light: #FDD2D2;
-
-@Warning-Darkest: #E49C31;
-@Warning-Dark: #EBB664;
-@Warning-Medium: #F2CE98;
-@Warning-Light: #FCF5EA;
-
-@Header-Color: #0D907C;
-
-@Primary-Color: #096252;
-@Primary-Color-Hovered: #075648;
-@Primary-Color-Pressed: #064a3e;
-
-@Button-Background: #096252;
-@Button-Background-Hovered: #075648;
-@Button-Background-Pressed: #064a3e;
-
-@Button2-Background: #f65b5b;
-@Button2-Background-Hovered: #ee4b4b;
-@Button2-Background-Pressed: #e84949;
-
-@Main-Color: #fff;
-@Text-Color: #2F2F2F;
-@Success-Color: #0AB81B;
-@Warning-Color: #E49C31;
-@Error-Color: #F10606;
-@Input-Height:42px;
-@Font-Size: 14px;
-@LineHeight: 160%;
-
-@Input-Height: 46px;
-@Input-LR-Padding: 16px;
-@Input-FontSize: 16px;
-@Input-LineHeight: 22px;
-@Input-FontWeight: 500;
-@Input-Color: @Text-Color;
-@Input-Border-Width: 1px;
-@Input-Border-Radius: 5px;
-@Input-Border-Color: #DBDBDB;
-@Input-Placeholder-Color: #828282;
-@Input-Placeholder-FontWeight: 300;
-@Input-Border-Color-Separator: #ebebeb;
-
-@Input-Hover-Border-Color: #bebebe;
-@Input-Focus-Border-Color: @Primary-Color;
-
-@Content-Padding: 40px;
 .ui-dropdown {
-	min-height: @Input-Height;
+	min-height: var(--input-height);
 	position: relative;
 	box-sizing: border-box;
-	color: @Input-Color;
+	color: var(--input-color);
 	display: flex;
 	user-select: none;
 
@@ -106,10 +19,10 @@
 		align-items: center;
 		justify-content: flex-start;
 		box-sizing: border-box;
-		color: @Input-Color;
+		color: var(--input-color);
 		white-space: nowrap;
 		border-radius: 5px;
-		padding: 10px @Input-LR-Padding;
+		padding: 10px var(--input-padding-lr);
 		transition: background-color ease 100ms;
 		gap: 10px;
 		line-height: 22px;
@@ -128,19 +41,19 @@
 			display: none;
 			width: 18px;
 			height: 18px;
-			fill: @Input-Color;
+			fill: var(--input-color);
 			transition: fill ease 100ms, transform ease 150ms;
 		}
 
 		&:hover {
-			background: @Neutral-Light;
-			color: @Input-Color;
+			background: var(--hover--input-fill);
+			color: var(--hover--input-color);
 			text-decoration: none;
 		}
 
 		&:focus {
-			background: @Neutral-Medium;
-			color: @Input-Color;
+			background: var(--focus--input-fill);
+			color: var(--hover--input-color);
 			text-decoration: none;
 		}
 	}
@@ -175,8 +88,8 @@
 						top: 0;
 						width: 100%;
 						height: 100%;
-						border: solid @Input-Border-Width @Input-Border-Color;
-						border-radius: @Input-Border-Radius;
+						border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+						border-radius: var(--input-border-radius);
 						box-sizing: border-box;
 						transition: border-color ease 100ms;
 					}
@@ -190,20 +103,21 @@
 			&.selected {
 				& > a {
 					// общие стили, если элемент выбран
-					background: @Accent-Dark;
-					color: @Main-Color;
+					background: var(--hover--input-fill);
+					color: var(--input-color);
 
 					& svg {
-						fill: @Main-Color;
+						fill: var(--input-color);
 					}
 
 					&:hover,
 					&:focus {
-						background: @Accent-Medium;
+						background: var(--hover--input-fill);
+						color: var(--hover--input-color);
 					}
 
 					&:active {
-						background: @Accent-Darkest;
+						background: var(--hover--input-fill);
 					}
 				}
 			}
@@ -225,7 +139,7 @@
 			display: flex;
 			flex-flow: column nowrap;
 			gap: 16px;
-			background: @Main-Color;
+			background: var(--input-fill);
 			box-shadow: 0px 1px 8px 0px rgba(0, 0, 0, 0.12);
 			border-radius: 5px;
 			padding: 16px;
@@ -318,16 +232,17 @@
 				&.selected {
 					& > a {
 						// стили если выбран элемент внутри popup
-						background: @Accent-Lighest;
-						color: @Accent-Dark;
+						background: var(--focus--input-fill);
+						color: var(--focus--input-color);
 
 						& svg {
 							display: block;
-							fill: @Accent-Dark;
+							fill: var(--focus--input-color);
 						}
 
 						&:focus {
-							background: @Accent-Light;
+							background: var(--focus--input-fill);
+							color: var(--focus--input-color);
 						}
 					}
 				}
@@ -386,7 +301,7 @@
 			height: 22px;
 			fill: #656565;
 			position: absolute;
-			left: @Input-LR-Padding;
+			left: var(--input-padding-lr);
 			top: 50%;
 			transform: translateY(-50%);
 		}
@@ -394,12 +309,12 @@
 		& input {
 			display: block;
 			box-sizing: border-box;
-			border: solid 1px @Input-Border-Color;
+			border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
 			border-radius: 5px;
 			background: none;
 			margin: 0;
-			padding: 0 @Input-LR-Padding 0 (@Input-LR-Padding * 2 + 10);
-			height: @Input-Height;
+			padding: 0 var(--input-padding-lr) 0 calc(var(--input-padding-lr) * 2 + 10px);
+			height: var(--input-height);
 			font-size: 16px;
 			font-weight: 400;
 			outline: none;
@@ -430,16 +345,16 @@
 			z-index: 1000;
 
 			& > a {
-				background: @Accent-Darkest;
-				color: #fff;
+				background: var(--input-fill);
+				color: var(--input-color);
 
 				& svg {
-					fill: #fff;
+					fill: var(--input-color);
 					transform: rotate(180deg);
 				}
 
 				&:before {
-					border-color: @Accent-Darkest;
+					border-color: var(--hover--input-fill)est;
 				}
 			}
 		}
@@ -452,7 +367,7 @@
 	&.invalid {
 		& > ul > li {
 			> a {
-				color: @Error-Darkest;
+				color: var(--invalid--input-color);
 			}
 		}
 	}
@@ -509,18 +424,20 @@
 					}
 
 					&:hover {
-						background: @Main-Color;
+						background: var(--hover--input-fill);
+						color: var(--hover--input-color);
 
 						&:before {
-							border-color: @Input-Border-Color-Hover;
+							border-color: var(--hover--input-border-color);
 						}
 					}
 
 					&:focus {
-						background: @Main-Color;
+						background: var(--focus--input-fill);
+						color: var(--focus--input-color);
 
 						&:before {
-							border-color: @Input-Border-Color-Focus;
+							border-color: var(--focus--input-border-color);
 						}
 					}
 				}
@@ -528,11 +445,11 @@
 
 			&.selected {
 				& > a {
-					background: @Main-Color;
-					color: @Neutral-Darkest;
+					background: var(--input-fill);
+					color: var(--input-color);
 
 					& svg {
-						fill: @Neutral-Darkest;
+						fill: var(--input-color);
 					}
 				}
 			}
@@ -547,15 +464,16 @@
 			& > ul > li {
 				&.other {
 					& > a {
-						background: @Main-Color;
-						color: @Neutral-Darkest;
+						background: var(--input-fill);
+						color: var(--input-color);
 
 						& svg {
-							fill: @Neutral-Darkest;
+							fill: var(--input-color);
 						}
 
 						&:before {
-							border-color: @Input-Border-Color-Focus;
+							border-color: var(--hover--input-border-color);
+							color: var(--hover--input-color);
 						}
 					}
 				}
@@ -566,10 +484,10 @@
 			& > ul > li {
 				&.other {
 					& > a {
-						color: @Error-Darkest;
+						color: var(--invalid--input-color);
 
 						&:before {
-							border-color: @Error-Darkest;
+							border-color: var(--invalid--input-border-color);
 						}
 					}
 				}
@@ -588,619 +506,9 @@
 }
 
 .ui-dropdown-miniature {
-	border: solid @Input-Border-Width @Input-Border-Color;
+	border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
 	background: #F6F7F8;
-	border-radius: @Input-Border-Radius;
-	height: @Input-Height;
+	border-radius: var(--input-border-radius);
+	height: var(--input-height);
 	box-sizing: border-box;
 }
-
-// .ui-dropdown {
-// 	min-height: var(--input-height);
-// 	position: relative;
-// 	box-sizing: border-box;
-// 	color: var(--input-color);
-// 	display: flex;
-// 	user-select: none;
-
-// 	& > ul {
-// 		flex: 1 1 auto;
-// 	}
-
-// 	& a {
-// 		flex: 1 1 auto;
-// 		display: flex;
-// 		flex-flow: row nowrap;
-// 		align-items: center;
-// 		justify-content: flex-start;
-// 		box-sizing: border-box;
-// 		color: var(--input-color);
-// 		white-space: nowrap;
-// 		border-radius: 5px;
-// 		padding: 10px var(--input-padding-lr);
-// 		transition: background-color ease 100ms;
-// 		gap: 10px;
-// 		line-height: 22px;
-// 		text-decoration: none !important;
-// 		outline: none;
-
-// 		& span {
-// 			flex: 1 1 auto;
-// 			display: block;
-// 			overflow: hidden;
-// 			white-space: nowrap;
-// 			text-overflow: ellipsis;
-// 		}
-
-// 		& svg {
-// 			display: none;
-// 			width: 18px;
-// 			height: 18px;
-// 			fill: var(--input-color);
-// 			transition: fill ease 100ms, transform ease 150ms;
-// 		}
-
-// 		&:hover {
-// 			background: var(--hover--input-fill);
-// 			color: var(--input-color);
-// 			text-decoration: none;
-// 		}
-
-// 		&:focus {
-// 			background: var(--focus--input-fill);
-// 			color: var(--input-color);
-// 			text-decoration: none;
-// 		}
-// 	}
-
-// 	& ul {
-// 		list-style: none;
-// 		padding: 0;
-// 		margin: 0;
-// 		display: flex;
-// 		flex-flow: row wrap;
-// 		align-items: stretch;
-// 		gap: 1px 0;
-
-// 		& li {
-// 			padding: 0;
-// 			margin: 0;
-// 			display: flex;
-
-// 			&.other {
-// 				flex: 1 1 auto;
-// 				position: relative;
-
-// 				& > a {
-// 					position: relative;
-// 					padding-right: 11px;
-
-// 					&:before {
-// 						display: none;
-// 						content: '';
-// 						position: absolute;
-// 						left: 0;
-// 						top: 0;
-// 						width: 100%;
-// 						height: 100%;
-// 						border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
-// 						border-radius: var(--input-border-radius);
-// 						box-sizing: border-box;
-// 						transition: border-color ease 100ms;
-// 					}
-
-// 					& svg {
-// 						display: block;
-// 					}
-// 				}
-// 			}
-
-// 			&.selected {
-// 				& > a {
-// 					// общие стили, если элемент выбран
-// 					background: var(--focus--input-fill);
-// 					color: var(--focus--input-color);
-
-// 					& svg {
-// 						fill: var(--focus--input-color);
-// 					}
-
-// 					&:hover,
-// 					&:focus {
-// 						background: var(--hover--input-color);
-// 					}
-
-// 					&:active {
-// 						background: #043C32;
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	& .popup {
-// 		display: none;
-// 		position: absolute;
-// 		top: 100%;
-// 		width: 100%;
-// 		transform: translateY(8px);
-// 		font-weight: 400;
-// 		z-index: 1000;
-// 		outline: none;
-// 		min-width: 200px;
-
-// 		& .content {
-// 			display: flex;
-// 			flex-flow: column nowrap;
-// 			gap: 16px;
-// 			background: var(--focus--input-color);
-// 			box-shadow: 0px 1px 8px 0px rgba(0, 0, 0, 0.12);
-// 			border-radius: 5px;
-// 			padding: 16px;
-// 			box-sizing: border-box;
-// 			max-height: 370px;
-// 		}
-
-// 		& .header {
-// 			padding: 0;
-// 			display: none;
-// 			flex-flow: row nowrap;
-// 			align-items: center;
-
-// 			& h3 {
-// 				flex: 1 1 auto;
-// 			}
-
-// 			& button {
-// 				display: flex;
-// 				align-items: center;
-// 				justify-content: center;
-
-// 				&:after {
-// 					// для увеличения области клика
-// 					content: '';
-// 					display: block;
-// 					position: absolute;
-// 					left: -10px;
-// 					top: -10px;
-// 					right: -10px;
-// 					bottom: -10px;
-// 				}
-
-// 				& svg {
-// 					width: 18px;
-// 					height: 18px;
-// 				}
-// 			}
-// 		}
-
-// 		& a {
-// 			padding: 12px;
-// 			min-height: unset;
-// 			width: 100%;
-
-// 			& svg {
-// 				display: none;
-// 			}
-// 		}
-
-// 		& ul {
-// 			flex: 1 1 100%;
-// 			height: 100%;
-// 			position: relative;
-// 			overflow-y: scroll;
-// 			flex-flow: column nowrap;
-// 			box-sizing: border-box;
-// 			margin-right: -11px;
-// 			padding-right: 5px;
-// 			scrollbar-width: 6px;
-// 			gap: 0;
-
-// 			&::-webkit-scrollbar {
-// 				width: 6px;
-// 				height: 5px;
-// 				background: none;
-// 			}
-
-// 			&::-webkit-scrollbar-track {
-// 				border-radius: 3px;
-// 				background-color: transparent;
-// 				cursor: default;
-// 			}
-
-// 			&::-webkit-scrollbar-thumb {
-// 				background-color: #8696a0;
-// 				border-radius: 3px;
-// 				cursor: default;
-// 			}
-
-// 			& li {
-// 				&.fasted {
-// 					display: none;
-
-// 					&.ok {
-// 						display: block;
-// 					}
-// 				}
-
-// 				&.selected {
-// 					& > a {
-// 						// стили если выбран элемент внутри popup
-// 						background: var(--hover--input-fill);
-// 						color: var(--hover--input-color);
-
-// 						& svg {
-// 							display: block;
-// 							fill: var(--hover--input-color);
-// 						}
-
-// 						&:focus {
-// 							background: var(--focus--input-fill);
-// 						}
-// 					}
-// 				}
-// 			}
-
-// 			&.result {
-// 				& li {
-// 					display: none;
-
-// 					&.ok {
-// 						display: flex;
-// 					}
-// 				}
-// 			}
-
-// 			&.notfound {
-// 				display: none;
-
-// 				& ~ .empty {
-// 					flex: 1 1 auto;
-// 					display: block;
-// 				}
-// 			}
-// 		}
-
-// 		& .empty {
-// 			display: none;
-// 			font-weight: 400;
-// 		}
-
-// 		& .cancel {
-// 			display: none;
-// 		}
-
-// 		&.top {
-// 			top: auto;
-// 			bottom: 100%;
-// 			transform: translateY(-8px);
-// 		}
-
-// 		&.right {
-// 			left: 0;
-// 			right: auto;
-// 		}
-// 	}
-
-// 	& .search {
-// 		flex: 0 0 auto;
-// 		display: none;
-// 		flex-flow: row nowrap;
-// 		position: relative;
-
-// 		& svg {
-// 			display: block;
-// 			width: 22px;
-// 			height: 22px;
-// 			fill: var(--input-color);
-// 			position: absolute;
-// 			left: var(--input-padding-lr);
-// 			top: 50%;
-// 			transform: translateY(-50%);
-// 		}
-
-// 		& input {
-// 			display: block;
-// 			box-sizing: border-box;
-// 			border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
-// 			border-radius: 5px;
-// 			background: none;
-// 			margin: 0;
-// 			padding: 0 var(--input-padding-lr) 0 calc(var(--input-padding-lr) * 2 + 10px);
-// 			height: var(--input-height);
-// 			font-size: 16px;
-// 			font-weight: 400;
-// 			outline: none;
-// 			width: 100%;
-
-// 			&:hover,
-// 			&:focus {
-// 				border-color: var(--hover-border-color);
-// 			}
-// 		}
-// 	}
-
-// 	&.searchable {
-// 		& .search {
-// 			display: flex;
-// 		}
-// 	}
-
-// 	&.noother {
-// 		& ul li.other {
-// 			display: none;
-// 		}
-// 	}
-
-// 	&.expanded {
-// 		& ul li.other {
-// 			z-index: 1000;
-
-// 			& > a {
-// 				background: #646464;
-// 				color: #fff;
-
-// 				& svg {
-// 					fill: #fff;
-// 					transform: rotate(180deg);
-// 				}
-
-// 				&:before {
-// 					border-color: #043C32;
-// 				}
-// 			}
-// 		}
-
-// 		& .popup {
-// 			display: block;
-// 		}
-// 	}
-
-// 	&.invalid {
-// 		& > ul > li {
-// 			> a {
-// 				color: var(--invalid--input-color);
-// 			}
-// 		}
-// 	}
-
-// 	&.empty {
-// 		& .popup {
-// 			right: auto;
-// 			left: 0;
-
-// 			& ul {
-// 				display: none;
-// 			}
-
-// 			& .empty {
-// 				display: block;
-// 				flex: 1 1 auto;
-// 			}
-// 		}
-
-// 		& .search {
-// 			display: none;
-// 		}
-// 	}
-
-// 	&.fast {
-// 		& ul li.other {
-// 			flex: 0 1 auto;
-
-// 			& > a {
-// 				&:before {
-// 					display: none;
-// 				}
-// 			}
-// 		}
-
-// 		& > ul > li > a span {
-// 			max-width: 130px;
-// 		}
-
-// 		& .popup {
-// 			right: 0;
-// 			width: 288px;
-// 		}
-// 	}
-
-// 	&.select {
-// 		& > ul > li {
-// 			&.other {
-// 				flex: 1 1 auto;
-
-// 				& > a {
-// 					&:before {
-// 						display: block;
-// 					}
-
-// 					&:hover {
-// 						background: var(--focus--input-color);
-
-// 						&:before {
-// 							border-color: var(--hover--input-border-color);
-// 						}
-// 					}
-
-// 					&:focus {
-// 						background: var(--focus--input-color);
-
-// 						&:before {
-// 							border-color: var(--focus--input-border-color);
-// 						}
-// 					}
-// 				}
-// 			}
-
-// 			&.selected {
-// 				& > a {
-// 					background: var(--focus--input-color);
-// 					color: var(--input-color);
-
-// 					& svg {
-// 						fill: var(--input-color);
-// 					}
-// 				}
-// 			}
-// 		}
-
-// 		& .popup {
-// 			left: 0;
-// 			right: auto;
-// 		}
-
-// 		&.expanded {
-// 			& > ul > li {
-// 				&.other {
-// 					& > a {
-// 						background: var(--focus--input-color);
-// 						color:var(--input-color);
-
-// 						& svg {
-// 							fill: var(--input-color);
-// 						}
-
-// 						&:before {
-// 							border-color: var(--focus--input-border-color);
-// 						}
-// 					}
-// 				}
-// 			}
-// 		}
-
-// 		&.invalid {
-// 			& > ul > li {
-// 				&.other {
-// 					& > a {
-// 						color: var(--invalid--input-color);
-
-// 						&:before {
-// 							border-color: var(--invalid--input-border-color);
-// 						}
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// }
-
-// .ui-dropdown-input {
-// 	opacity: 0;
-// 	position: absolute;
-// 	width: 1px;
-// 	height: 1px;
-// 	outline: none;
-// 	visibility: collapse;
-// }
-
-// .ui-dropdown-miniature {
-// 	border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
-// 	background: #F6F7F8;
-// 	border-radius: var(--input-border-radius);
-// 	height: var(--input-height);
-// 	box-sizing: border-box;
-// }
-
-// .adaptive-notebook({
-// 	& .ui-dropdown {
-// 		& .popup .content {
-// 			max-height: 340px;
-// 		}
-// 	}
-// });
-
-// .adaptive-notebook-small({
-// 	& .ui-dropdown {
-// 		& .popup .content {
-// 			max-height: 320px;
-// 		}
-// 	}
-// });
-
-// .adaptive-tablet({
-// 	& .ui-dropdown {
-// 		& .popup {
-// 			position: fixed;
-// 			background: rgba(0, 0, 0, 0.5);
-// 			top: 0;
-// 			left: 0;
-// 			right: 0;
-// 			bottom: 0;
-// 			transform: none;
-
-// 			& .content {
-// 				padding: 32px;
-// 				border-radius: 10px;
-// 				max-width: 540px;
-// 				max-height: 550px;
-// 				width: 100%;
-// 				height: 100%;
-// 			}
-
-// 			& .header {
-// 				display: flex;
-// 			}
-
-// 			&.top {
-// 				top: 0;
-// 				bottom: 0;
-// 				transform: none;
-// 			}
-
-// 			&.right {
-// 				left: 0;
-// 				right: 0;
-// 			}
-// 		}
-
-// 		&.fast {
-// 			& .popup {
-// 				width: 100%;
-// 			}
-// 		}
-
-// 		&.expanded {
-// 			& .popup {
-// 				display: flex;
-// 				align-items: center;
-// 				justify-content: center;
-
-// 				& .content {
-// 					flex: 1 1 auto;
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	& body.ui-dropdown-opened {
-// 		overflow: hidden;
-// 	}
-// });
-
-// .adaptive-mobile({
-// 	& .ui-dropdown {
-// 		& .popup {
-// 			& .content {
-// 				padding: 28px;
-// 				border-radius: 0;
-// 				max-width: none;
-// 				max-height: none;
-// 			}
-
-// 			& .cancel {
-// 				display: block;
-// 			}
-// 		}
-// 	}
-// });
-
-// .adaptive-mobile-small({
-// 	& .ui-dropdown {
-// 		& .popup {
-// 			& .content {
-// 				padding: 20px;
-// 			}
-// 		}
-// 	}
-// });

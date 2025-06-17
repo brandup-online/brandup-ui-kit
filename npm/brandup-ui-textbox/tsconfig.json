@@ -23,7 +23,7 @@
 	"include": [
 		"source",
 		"test"
-, "../brandup-ui-kit/source/utils"	],
+	],
 	"exclude": [
 		"node_modules",
 		"dist",
