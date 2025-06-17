@@ -1,13 +1,13 @@
 import "./textbox.less"; // стили компонента
 
 import { InputControl } from "@brandup/ui-input";
-import { IS_TOUCH_DEVICE } from '@brandup/ui-kit';
+import { IS_TOUCH_DEVICE } from "@brandup/ui-kit";
 import { DOM } from "@brandup/ui-dom";
 import { FuncHelper } from "@brandup/ui-helpers";
 import copyIcon from "./svg/copy.svg";
 import doneIcon from "./svg/tick.svg";
 
-export const ROOT_CLASS = "textbox";
+export const ROOT_CLASS = "ui-textbox";
 export const INPUT_CLASS = "textbox-input";
 export const MINIATURE_CLASS = "textbox-miniature";
 export const CHANGE_EVENT = "textbox-change";

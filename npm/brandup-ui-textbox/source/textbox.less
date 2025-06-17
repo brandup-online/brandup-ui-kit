@@ -1,8 +1,6 @@
-@input-line-height: 130;
-
-.textbox {
-	max-height: var(--input-height);
-    min-width: var(--input-width);
+.ui-textbox {
+	min-height: var(--input-height);
+	max-height: 200px;
 	display: flex;
 	flex-flow: row nowrap;
 	align-items: stretch;
@@ -19,7 +17,7 @@
 		top: 0;
 		width: 100%;
 		height: 100%;
-		border: solid var(--input-border-width) var(--input-border-color);
+		border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
 		border-radius: var(--input-border-radius);
 		z-index: 1;
 		box-sizing: border-box;
@@ -78,6 +76,7 @@
 				top: 0;
 				right: 0;
 				color: var(--placeholder-color);
+				font-weight: var(--placeholder-font-weight);
 				box-sizing: border-box;
 				overflow: hidden;
 				white-space: nowrap;
@@ -95,7 +94,7 @@
 		display: none;
 		font-size: 13px;
 		font-weight: 400;
-		line-height: @input-line-height;// TODO: стоит заглушка
+		line-height: 130%;
 		z-index: 5;
 		user-select: none;
 		color: #656565;
@@ -137,19 +136,19 @@
 			&:hover,
 			&:focus {
 				& svg {
-					fill: #525252;// цвета взял с wsender
+					fill: #043C32;
 				}
 			}
 
 			&:active {
 				& svg {
-					fill: #848484;// цвета взял с wsender
+					fill: #043C32;
 				}
 			}
 
 			&.success {
 				& svg {
-					fill: #525252;// цвета взял с wsender
+					fill: #043C32;
 				}
 			}
 		}
@@ -207,13 +206,13 @@
 	&.readonly {
 		&.focused {
 			& .decorator {
-				border-color: var(--focus--input-border-color);
+				border-color: #656565;
 			}
 		}
 	}
 
 	&.disabled {
-		background-color: var(--disabled--input-fill);
+		background-color: #f6f7f8;
 
 		& .editor {
 			user-select: none;
@@ -221,11 +220,11 @@
 		}
 
 		& .input {
-			color: var(--disabled--input-color);
+			color: #7c7c7c;
 		}
 
 		& .symbols-counter {
-			color: var(--disabled--input-color);
+			color: #7c7c7c;
 		}
 
 		& .actions {
@@ -254,14 +253,14 @@
 		& .input {
 			&:empty {
 				&:after {
-					color: var(--invalid--input-color);
+					color: var(--invalid--input-border-color);
 				}
 			}
 		}
 	}
 
 	&.incorrect {
-		background-color: var(--invalid--input-fill);
+		background-color: #F98F8F;
 	}
 }
 
@@ -279,7 +278,7 @@ textarea.textbox-input ~ .textbox-miniature {
 }
 
 .textbox-miniature {
-	border: solid var(--input-border-width) var(--input-border-color);
+	border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
 	border-radius: var(--input-border-radius);
 	height: var(--input-height);
 	background: white;
