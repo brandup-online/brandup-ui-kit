@@ -1,4 +1,34 @@
-@import "@brandup/ui-kit/source/adaptive.less";
+// Временные переменные для кнопок
+:root {
+	--dropdown-button-color: #ffffff;
+	--dropdown-button-fill: #797979;
+	--dropdown-button-border-color: #525252;
+
+	--dropdown-button-border-type: solid;
+	--dropdown-button-border-width: 1px;
+	--dropdown-button-border-color: none;
+	--dropdown-button-border-radius: 5px;
+
+	--hover--dropdown-button-color: #fff;
+	--hover--dropdown-button-fill: #222;
+	--hover--dropdown-button-border-color: none;
+
+	--focus--dropdown-button-color: #fff;
+	--focus--dropdown-button-fill: #222;
+	--focus--dropdown-button-border-color: none;
+
+	--active--dropdown-button-color: #b1b1b1;
+	--active--dropdown-button-fill: #333333;
+	--active--dropdown-button-border-color: none;
+
+	--invalid--dropdown-button-color: #ff0000;
+	--invalid--dropdown-button-fill: #ff0000;
+	--invalid--dropdown-button-border-color: none;
+
+	--disabled--dropdown-button-color: #fff;
+	--disabled--dropdown-button-fill: #444;
+	--disabled--dropdown-button-border-color: none;
+}
 
 .ui-dropdown {
 	min-height: var(--input-height);
@@ -21,7 +51,7 @@
 		box-sizing: border-box;
 		color: var(--input-color);
 		white-space: nowrap;
-		border-radius: 5px;
+		border-radius: var(--input-border-radius);
 		padding: 10px var(--input-padding-lr);
 		transition: background-color ease 100ms;
 		gap: 10px;
@@ -53,7 +83,7 @@
 
 		&:focus {
 			background: var(--focus--input-fill);
-			color: var(--hover--input-color);
+			color: var(--focus--input-color);
 			text-decoration: none;
 		}
 	}
@@ -65,7 +95,7 @@
 		display: flex;
 		flex-flow: row wrap;
 		align-items: stretch;
-		gap: 1px 0;
+		gap: 1px 5px;
 
 		& li {
 			padding: 0;
@@ -103,21 +133,22 @@
 			&.selected {
 				& > a {
 					// общие стили, если элемент выбран
-					background: var(--hover--input-fill);
-					color: var(--input-color);
+					background: var(--dropdown-button-fill);
+					color: var(--dropdown-button-color);
 
 					& svg {
-						fill: var(--input-color);
+						fill: var(--dropdown-button-color);
 					}
 
 					&:hover,
 					&:focus {
-						background: var(--hover--input-fill);
-						color: var(--hover--input-color);
+						background: var(--hover--dropdown-button-fill);
+						color: var(--hover--dropdown-button-color);
 					}
 
 					&:active {
-						background: var(--hover--input-fill);
+						background: var(--active--dropdown-button-fill);
+						color: var(--active--dropdown-button-color);
 					}
 				}
 			}
@@ -141,7 +172,7 @@
 			gap: 16px;
 			background: var(--input-fill);
 			box-shadow: 0px 1px 8px 0px rgba(0, 0, 0, 0.12);
-			border-radius: 5px;
+			border-radius: var(--input-border-radius);
 			padding: 16px;
 			box-sizing: border-box;
 			max-height: 370px;
@@ -232,12 +263,12 @@
 				&.selected {
 					& > a {
 						// стили если выбран элемент внутри popup
-						background: var(--focus--input-fill);
-						color: var(--focus--input-color);
+						background: var(--input-fill);
+						color: var(--input-color);
 
 						& svg {
 							display: block;
-							fill: var(--focus--input-color);
+							fill: var(--input-color);
 						}
 
 						&:focus {
@@ -299,7 +330,7 @@
 			display: block;
 			width: 22px;
 			height: 22px;
-			fill: #656565;
+			fill: var(--input-color);
 			position: absolute;
 			left: var(--input-padding-lr);
 			top: 50%;
@@ -310,7 +341,7 @@
 			display: block;
 			box-sizing: border-box;
 			border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
-			border-radius: 5px;
+			border-radius: var(--input-border-radius);
 			background: none;
 			margin: 0;
 			padding: 0 var(--input-padding-lr) 0 calc(var(--input-padding-lr) * 2 + 10px);
@@ -322,8 +353,8 @@
 
 			&:hover,
 			&:focus {
-				border-color: #656565;
-				color: #656565;
+				border-color: var(--focus--input-border-color);
+				color: var(--focus--input-color);
 			}
 		}
 	}
@@ -354,7 +385,7 @@
 				}
 
 				&:before {
-					border-color: var(--hover--input-fill)est;
+					border-color: var(--input-fill);
 				}
 			}
 		}
@@ -367,7 +398,20 @@
 	&.invalid {
 		& > ul > li {
 			> a {
-				color: var(--invalid--input-color);
+				color: var(--invalid--dropdown-button-color);
+			}
+		}
+	}
+
+	&.disabled { // класс для кнопок
+		& > ul > li {
+			> a {
+				background: var(--disabled--dropdown-button-fill);
+				color: var(--disabled--dropdown-button-color);
+
+				& svg {
+					fill: var(--disabled--dropdown-button-color);
+				}
 			}
 		}
 	}
