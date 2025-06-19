@@ -25,11 +25,13 @@
 	}
 
 	& .editor {
+		--line-height: 1.4em; // в процентах не просчитывал вертикальный padding
+
 		flex: 1 1 auto;
 		display: flex;
 		flex-flow: row nowrap;
 		gap: 15px;
-		padding: var(--input-padding-lr);
+		padding: calc((var(--input-height) - var(--line-height)) / 2) var(--input-padding-lr);
 		box-sizing: border-box;
 		cursor: text;
 		position: relative;
