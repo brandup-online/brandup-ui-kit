@@ -11,3 +11,6 @@ npm i @brandup/ui-kit@latest
 ```
 
 ## Dropdown
+
+`Dropdown` - это классовый компонент, который расширяет возможности стандартных элементов `select`.
+Наследуется от `InputControl`.
