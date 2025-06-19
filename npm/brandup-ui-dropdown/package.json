@@ -1,0 +1,46 @@
+{
+	"name": "@brandup/ui-dropdown",
+	"description": "Dropdown control type and styles.",
+	"keywords": [
+		"brandup",
+		"javascript",
+		"typescript",
+		"ui"
+	],
+	"author": {
+		"name": "Dmitry Kovyazin",
+		"email": "it@brandup.online"
+	},
+	"homepage": "https://github.com/brandup-online/brandup-ui/npm/brandup-ui-dropdown",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/brandup-online/brandup-ui.git"
+	},
+	"bugs": {
+		"url": "https://github.com/brandup-online/brandup-ui/issues",
+		"email": "it@brandup.online"
+	},
+	"license": "Apache-2.0",
+	"version": "1.0.0",
+	"main": "source/index.ts",
+	"types": "source/index.ts",
+	"dependencies": {
+		"@brandup/ui": "^1.0.32",
+		"@brandup/ui-dom": "^1.0.32",
+		"@brandup/ui-helpers": "^1.0.32",
+		"@brandup/ui-input": "file:../brandup-ui-input",
+		"@brandup/ui-kit": "file:../brandup-ui-kit"
+	},
+	"devDependencies": {
+		"less": "^4.3.0",
+		"typescript": "^5.8.3"
+	},
+	"files": [
+		"source",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsc",
+		"watch": "tsc -w"
+	}
+}

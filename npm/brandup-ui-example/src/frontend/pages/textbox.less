@@ -1,0 +1,38 @@
+.page-block.textboxs {
+	--input-font-weidth: 500;
+
+	--placeholder-font-weidth: 300;
+	--placeholder-color: #444;
+
+	display: flex;
+	flex-flow:  column nowrap;
+	row-gap: 30px;
+
+	& .part {
+	    display: flex;
+		flex-flow: column nowrap;
+		row-gap: 20px;
+
+		& form {
+			& button {
+				margin-top: 10px;
+			} 
+		}
+
+		& .example {
+			display: grid;
+			grid-template-columns: 1fr 1fr 1fr 1fr;
+			gap: 20px 30px;
+
+            & .field {
+                display: flex;
+                flex-flow: column nowrap;
+                row-gap: 10px;
+
+                & h5 {
+                    white-space: nowrap;
+                }
+            }
+		}
+	}
+}

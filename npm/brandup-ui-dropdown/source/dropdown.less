@@ -1,0 +1,558 @@
+// Временные переменные для кнопок
+:root {
+	--dropdown-button-color: #ffffff;
+	--dropdown-button-fill: #797979;
+	--dropdown-button-border-color: #525252;
+
+	--dropdown-button-border-type: solid;
+	--dropdown-button-border-width: 1px;
+	--dropdown-button-border-color: none;
+	--dropdown-button-border-radius: 5px;
+
+	--hover--dropdown-button-color: #fff;
+	--hover--dropdown-button-fill: #222;
+	--hover--dropdown-button-border-color: none;
+
+	--focus--dropdown-button-color: #fff;
+	--focus--dropdown-button-fill: #222;
+	--focus--dropdown-button-border-color: none;
+
+	--active--dropdown-button-color: #b1b1b1;
+	--active--dropdown-button-fill: #333333;
+	--active--dropdown-button-border-color: none;
+
+	--invalid--dropdown-button-color: #ff0000;
+	--invalid--dropdown-button-fill: #ff0000;
+	--invalid--dropdown-button-border-color: none;
+
+	--disabled--dropdown-button-color: #fff;
+	--disabled--dropdown-button-fill: #444;
+	--disabled--dropdown-button-border-color: none;
+}
+
+.ui-dropdown {
+	min-height: var(--input-height);
+	position: relative;
+	box-sizing: border-box;
+	color: var(--input-color);
+	display: flex;
+	user-select: none;
+
+	& > ul {
+		flex: 1 1 auto;
+	}
+
+	& a {
+		flex: 1 1 auto;
+		display: flex;
+		flex-flow: row nowrap;
+		align-items: center;
+		justify-content: flex-start;
+		box-sizing: border-box;
+		color: var(--input-color);
+		white-space: nowrap;
+		border-radius: var(--input-border-radius);
+		padding: 10px var(--input-padding-lr);
+		transition: background-color ease 100ms;
+		gap: 10px;
+		line-height: 22px;
+		text-decoration: none !important;
+		outline: none;
+
+		& span {
+			flex: 1 1 auto;
+			display: block;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+
+		& svg {
+			display: none;
+			width: 18px;
+			height: 18px;
+			fill: var(--input-color);
+			transition: fill ease 100ms, transform ease 150ms;
+		}
+
+		&:hover {
+			background: var(--hover--input-fill);
+			color: var(--hover--input-color);
+			text-decoration: none;
+		}
+
+		&:focus {
+			background: var(--focus--input-fill);
+			color: var(--focus--input-color);
+			text-decoration: none;
+		}
+	}
+
+	& ul {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-flow: row wrap;
+		align-items: stretch;
+		gap: 1px 5px;
+
+		& li {
+			padding: 0;
+			margin: 0;
+			display: flex;
+
+			&.other {
+				flex: 1 1 auto;
+				position: relative;
+
+				& > a {
+					position: relative;
+					padding-right: 11px;
+
+					&:before {
+						display: none;
+						content: '';
+						position: absolute;
+						left: 0;
+						top: 0;
+						width: 100%;
+						height: 100%;
+						border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+						border-radius: var(--input-border-radius);
+						box-sizing: border-box;
+						transition: border-color ease 100ms;
+					}
+
+					& svg {
+						display: block;
+					}
+				}
+			}
+
+			&.selected {
+				& > a {
+					// общие стили, если элемент выбран
+					background: var(--dropdown-button-fill);
+					color: var(--dropdown-button-color);
+
+					& svg {
+						fill: var(--dropdown-button-color);
+					}
+
+					&:hover,
+					&:focus {
+						background: var(--hover--dropdown-button-fill);
+						color: var(--hover--dropdown-button-color);
+					}
+
+					&:active {
+						background: var(--active--dropdown-button-fill);
+						color: var(--active--dropdown-button-color);
+					}
+				}
+			}
+		}
+	}
+
+	& .popup {
+		display: none;
+		position: absolute;
+		top: 100%;
+		width: 100%;
+		transform: translateY(8px);
+		font-weight: 400;
+		z-index: 1000;
+		outline: none;
+		min-width: 200px;
+
+		& .content {
+			display: flex;
+			flex-flow: column nowrap;
+			gap: 16px;
+			background: var(--input-fill);
+			box-shadow: 0px 1px 8px 0px rgba(0, 0, 0, 0.12);
+			border-radius: var(--input-border-radius);
+			padding: 16px;
+			box-sizing: border-box;
+			max-height: 370px;
+		}
+
+		& .header {
+			padding: 0;
+			display: none;
+			flex-flow: row nowrap;
+			align-items: center;
+
+			& h3 {
+				flex: 1 1 auto;
+			}
+
+			& button {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+
+				&:after {
+					// для увеличения области клика
+					content: '';
+					display: block;
+					position: absolute;
+					left: -10px;
+					top: -10px;
+					right: -10px;
+					bottom: -10px;
+				}
+
+				& svg {
+					width: 18px;
+					height: 18px;
+				}
+			}
+		}
+
+		& a {
+			padding: 12px;
+			min-height: unset;
+			width: 100%;
+
+			& svg {
+				display: none;
+			}
+		}
+
+		& ul {
+			flex: 1 1 100%;
+			height: 100%;
+			position: relative;
+			overflow-y: scroll;
+			flex-flow: column nowrap;
+			box-sizing: border-box;
+			margin-right: -11px;
+			padding-right: 5px;
+			scrollbar-width: 6px;
+			gap: 0;
+
+			&::-webkit-scrollbar {
+				width: 6px;
+				height: 5px;
+				background: none;
+			}
+
+			&::-webkit-scrollbar-track {
+				border-radius: 3px;
+				background-color: transparent;
+				cursor: default;
+			}
+
+			&::-webkit-scrollbar-thumb {
+				background-color: #8696a0;
+				border-radius: 3px;
+				cursor: default;
+			}
+
+			& li {
+				&.fasted {
+					display: none;
+
+					&.ok {
+						display: block;
+					}
+				}
+
+				&.selected {
+					& > a {
+						// стили если выбран элемент внутри popup
+						background: var(--input-fill);
+						color: var(--input-color);
+
+						& svg {
+							display: block;
+							fill: var(--input-color);
+						}
+
+						&:focus {
+							background: var(--focus--input-fill);
+							color: var(--focus--input-color);
+						}
+					}
+				}
+			}
+
+			&.result {
+				& li {
+					display: none;
+
+					&.ok {
+						display: flex;
+					}
+				}
+			}
+
+			&.notfound {
+				display: none;
+
+				& ~ .empty {
+					flex: 1 1 auto;
+					display: block;
+				}
+			}
+		}
+
+		& .empty {
+			display: none;
+			font-weight: 400;
+		}
+
+		& .cancel {
+			display: none;
+		}
+
+		&.top {
+			top: auto;
+			bottom: 100%;
+			transform: translateY(-8px);
+		}
+
+		&.right {
+			left: 0;
+			right: auto;
+		}
+	}
+
+	& .search {
+		flex: 0 0 auto;
+		display: none;
+		flex-flow: row nowrap;
+		position: relative;
+
+		& svg {
+			display: block;
+			width: 22px;
+			height: 22px;
+			fill: var(--input-color);
+			position: absolute;
+			left: var(--input-padding-lr);
+			top: 50%;
+			transform: translateY(-50%);
+		}
+
+		& input {
+			display: block;
+			box-sizing: border-box;
+			border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+			border-radius: var(--input-border-radius);
+			background: none;
+			margin: 0;
+			padding: 0 var(--input-padding-lr) 0 calc(var(--input-padding-lr) * 2 + 10px);
+			height: var(--input-height);
+			font-size: 16px;
+			font-weight: 400;
+			outline: none;
+			width: 100%;
+
+			&:hover,
+			&:focus {
+				border-color: var(--focus--input-border-color);
+				color: var(--focus--input-color);
+			}
+		}
+	}
+
+	&.searchable {
+		& .search {
+			display: flex;
+		}
+	}
+
+	&.noother {
+		& ul li.other {
+			display: none;
+		}
+	}
+
+	&.expanded {
+		& ul li.other {
+			z-index: 1000;
+
+			& > a {
+				background: var(--input-fill);
+				color: var(--input-color);
+
+				& svg {
+					fill: var(--input-color);
+					transform: rotate(180deg);
+				}
+
+				&:before {
+					border-color: var(--input-fill);
+				}
+			}
+		}
+
+		& .popup {
+			display: block;
+		}
+	}
+
+	&.invalid {
+		& > ul > li {
+			> a {
+				color: var(--invalid--dropdown-button-color);
+			}
+		}
+	}
+
+	&.disabled { // класс для кнопок
+		& > ul > li {
+			> a {
+				background: var(--disabled--dropdown-button-fill);
+				color: var(--disabled--dropdown-button-color);
+
+				& svg {
+					fill: var(--disabled--dropdown-button-color);
+				}
+			}
+		}
+	}
+
+	&.empty {
+		& .popup {
+			right: auto;
+			left: 0;
+
+			& ul {
+				display: none;
+			}
+
+			& .empty {
+				display: block;
+				flex: 1 1 auto;
+			}
+		}
+
+		& .search {
+			display: none;
+		}
+	}
+
+	&.fast {
+		& ul li.other {
+			flex: 0 1 auto;
+
+			& > a {
+				&:before {
+					display: none;
+				}
+			}
+		}
+
+		& > ul > li > a span {
+			max-width: 130px;
+		}
+
+		& .popup {
+			right: 0;
+			width: 288px;
+		}
+	}
+
+	&.select {
+		& > ul > li {
+			&.other {
+				flex: 1 1 auto;
+
+				& > a {
+					&:before {
+						display: block;
+					}
+
+					&:hover {
+						background: var(--hover--input-fill);
+						color: var(--hover--input-color);
+
+						&:before {
+							border-color: var(--hover--input-border-color);
+						}
+					}
+
+					&:focus {
+						background: var(--focus--input-fill);
+						color: var(--focus--input-color);
+
+						&:before {
+							border-color: var(--focus--input-border-color);
+						}
+					}
+				}
+			}
+
+			&.selected {
+				& > a {
+					background: var(--input-fill);
+					color: var(--input-color);
+
+					& svg {
+						fill: var(--input-color);
+					}
+				}
+			}
+		}
+
+		& .popup {
+			left: 0;
+			right: auto;
+		}
+
+		&.expanded {
+			& > ul > li {
+				&.other {
+					& > a {
+						background: var(--input-fill);
+						color: var(--input-color);
+
+						& svg {
+							fill: var(--input-color);
+						}
+
+						&:before {
+							border-color: var(--hover--input-border-color);
+							color: var(--hover--input-color);
+						}
+					}
+				}
+			}
+		}
+
+		&.invalid {
+			& > ul > li {
+				&.other {
+					& > a {
+						color: var(--invalid--input-color);
+
+						&:before {
+							border-color: var(--invalid--input-border-color);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+.ui-dropdown-input {
+	opacity: 0;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	outline: none;
+	visibility: collapse;
+}
+
+.ui-dropdown-miniature {
+	border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+	background: #F6F7F8;
+	border-radius: var(--input-border-radius);
+	height: var(--input-height);
+	box-sizing: border-box;
+}
