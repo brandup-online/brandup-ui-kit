@@ -9,6 +9,7 @@
 		"@brandup/ui-dom": "^1.0.32",
 		"@brandup/ui-helpers": "^1.0.32",
 		"@brandup/ui-kit": "file:../brandup-ui-kit",
+		"@brandup/ui-textbox": "file:../brandup-ui-textbox",
 		"cors": "^2.8.5",
 		"express": "^4.21.2"
 	},
