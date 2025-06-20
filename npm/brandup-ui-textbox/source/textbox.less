@@ -1,3 +1,7 @@
+:root {
+	--input-line-height: 18.2px; //временно, после добавить в inputs.less --input-line-height и в vars.less @input-line-height в ui-kit
+}
+
 .ui-textbox {
 	min-height: var(--input-height);
 	max-height: 200px;
@@ -25,13 +29,11 @@
 	}
 
 	& .editor {
-		--line-height: 1.4em; // в процентах не просчитывал вертикальный padding
-
 		flex: 1 1 auto;
 		display: flex;
 		flex-flow: row nowrap;
 		gap: 15px;
-		padding: calc((var(--input-height) - var(--line-height)) / 2) var(--input-padding-lr);
+		padding: calc((var(--input-height) - calc(var(--input-line-height))) / 2) var(--input-padding-lr);
 		box-sizing: border-box;
 		cursor: text;
 		position: relative;
@@ -96,7 +98,7 @@
 		display: none;
 		font-size: 13px;
 		font-weight: 400;
-		line-height: 130%;
+		line-height: var(--input-line-height); // чтобы счетчик тоже был по центру
 		z-index: 5;
 		user-select: none;
 		color: #656565;
