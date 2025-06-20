@@ -36,7 +36,7 @@
 		overflow-y: auto;
 		z-index: 2;
 		margin-right: 5px;
-		padding-right: 7px;
+		padding-right: calc(var(--input-padding-lr) - 5px);
 		scrollbar-width: 6px;
 
 		&::-webkit-scrollbar {
@@ -63,6 +63,10 @@
 		position: relative;
 		flex: 1 1 auto;
 		box-sizing: border-box;
+		font-size: var(--input-font-size);
+		font-weight: var(--input-font-weight);
+		font-size: var(--input-font-style);
+		line-height: var(--input-line-height);
 		color: var(--input-color);
 		word-wrap: anywhere;
 		outline: none;
@@ -118,8 +122,8 @@
 			flex-flow: row nowrap;
 			justify-content: center;
 			align-items: center;
-			width: 42px;
-			height: 34px;
+			width: var(--input-height);
+			height: var(--input-height);
 			background: transparent;
 			border: none;
 			padding: 0;
