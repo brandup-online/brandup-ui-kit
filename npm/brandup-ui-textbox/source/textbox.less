@@ -1,3 +1,9 @@
+:root {
+	--active--textbox-button-color: #444; // для кнопок action 
+	--active--textbox-button-fill: #444;
+	--active--textbox-button-border-color: #444;
+}
+
 .ui-textbox {
 	min-height: var(--input-height);
 	max-height: 200px;
@@ -6,6 +12,7 @@
 	align-items: stretch;
 	position: relative;
 	background-color: var(--input-fill);
+	border-radius: var(--input-border-radius); // чтобы заливка при состояниях не выходила за пределы импута
 	box-sizing: border-box;
 	outline: none;
 	transition: background-color ease 60ms;
@@ -132,7 +139,7 @@
 			transition: all ease 100ms;
 
 			& svg {
-				fill: #656565;
+				fill: var(--input-color);
 				width: 18px;
 				height: 18px;
 			}
@@ -140,19 +147,19 @@
 			&:hover,
 			&:focus {
 				& svg {
-					fill: #043C32;
+					fill: var(--hover--input-color);
 				}
 			}
 
 			&:active {
 				& svg {
-					fill: #043C32;
+					fill: var(--active--textbox-button-color);
 				}
 			}
 
 			&.success {
 				& svg {
-					fill: #043C32;
+					fill: var(--input-color);
 				}
 			}
 		}
@@ -165,12 +172,16 @@
 	&:hover {
 		& .decorator {
 			border-color: var(--hover--input-border-color);
+			background: var(--hover--input-fill);
+			color: var(--hover--input-color);
 		}
 	}
 
 	&.focused {
 		& .decorator {
 			border-color: var(--focus--input-border-color);
+			background: var(--focus--input-fill);
+			color: var(--focus--input-color);
 		}
 	}
 
@@ -210,13 +221,17 @@
 	&.readonly {
 		&.focused {
 			& .decorator {
-				border-color: #656565;
+				border-color: var(--focus--input-border-color);
+				background: var(--focus--input-fill);
+				color: var(--focus--input-color);
 			}
 		}
 	}
 
 	&.disabled {
-		background-color: #f6f7f8;
+		background: var(--disabled--input-fill);
+		color: var(--disabled--input-color);
+		border-color: var(--disabled--input-border-color);
 
 		& .editor {
 			user-select: none;
@@ -224,11 +239,11 @@
 		}
 
 		& .input {
-			color: #7c7c7c;
+			color: var(--disabled--input-color);
 		}
 
 		& .symbols-counter {
-			color: #7c7c7c;
+			color: var(--disabled--input-color);
 		}
 
 		& .actions {
@@ -236,14 +251,14 @@
 				cursor: default;
 
 				& svg {
-					fill: #7c7c7c;
+					fill: var(--disabled--input-color);
 				}
 			}
 		}
 
 		&:hover {
 			& .decorator {
-				border-color: var(--input-border-color);
+				border-color: var(--disabled--input-border-color);
 			}
 		}
 	}
@@ -251,20 +266,27 @@
 	&.invalid {
 		& .decorator {
 			transition-delay: 0;
+			color: var(--invalid--input-color);
+			background: var(--invalid--input-fill);
 			border-color: var(--invalid--input-border-color) !important;
+
 		}
 
 		& .input {
 			&:empty {
 				&:after {
-					color: var(--invalid--input-border-color);
+					color: var(--invalid--input-color);
 				}
 			}
 		}
 	}
 
 	&.incorrect {
-		background-color: #F98F8F;
+		& .decorator {
+			border-color: var(--incorrect--input-border-color); // сделал по аналогии с focused так как заливка перекрывалась инпутом
+			color: var(--incorrect--input-color);
+			background: var(--incorrect--input-fill);
+		}
 	}
 }
 
