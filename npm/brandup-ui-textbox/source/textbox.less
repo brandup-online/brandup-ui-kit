@@ -1,14 +1,27 @@
+:root {
+	--textbox-maxheight: 200px;
+	--textbox-multyline-height: 100px;
+}
+
 .ui-textbox {
 	min-height: var(--input-height);
-	max-height: 200px;
+	max-height: var(--textbox-maxheight);
 	display: flex;
 	flex-flow: row nowrap;
 	align-items: stretch;
 	position: relative;
 	background-color: var(--input-fill);
+	border-radius: var(--input-border-radius); // чтобы заливка при состояниях не выходила за пределы импута
 	box-sizing: border-box;
 	outline: none;
 	transition: background-color ease 60ms;
+	line-height: var(--input-line-height);
+	font-size: var(--input-font-size);
+	font-weight: var(--input-font-weight);
+	color: var(--input-color);
+
+	--svg-fill: var(--input-color);
+	--svg-size: 18px;
 
 	& .decorator {
 		display: block;
@@ -29,14 +42,14 @@
 		display: flex;
 		flex-flow: row nowrap;
 		gap: 15px;
-		padding: var(--input-padding-lr);
+		padding: calc((var(--input-height) - var(--input-line-height)) / 2) var(--input-padding-lr);
 		box-sizing: border-box;
 		cursor: text;
 		position: relative;
 		overflow-y: auto;
 		z-index: 2;
 		margin-right: 5px;
-		padding-right: 7px;
+		padding-right: calc(var(--input-padding-lr) - 5px);
 		scrollbar-width: 6px;
 
 		&::-webkit-scrollbar {
@@ -63,7 +76,6 @@
 		position: relative;
 		flex: 1 1 auto;
 		box-sizing: border-box;
-		color: var(--input-color);
 		word-wrap: anywhere;
 		outline: none;
 
@@ -77,31 +89,28 @@
 				right: 0;
 				color: var(--placeholder-color);
 				font-weight: var(--placeholder-font-weight);
+				font-style: var(--placeholder-font-style);
 				box-sizing: border-box;
 				overflow: hidden;
 				white-space: nowrap;
 				text-overflow: ellipsis;
 			}
 
-			& ~ .symbols-counter {
+			& ~ .symbols {
 				display: none;
 			}
 		}
 	}
 
-	& .symbols-counter {
+	& .symbols {
 		flex: 0 0 auto;
 		display: none;
 		font-size: 13px;
 		font-weight: 400;
-		line-height: 130%;
 		z-index: 5;
 		user-select: none;
 		color: #656565;
-
-		&.invalid {
-			color: var(--invalid--input-color);
-		}
+		opacity: 0.8;
 	}
 
 	& .actions {
@@ -118,39 +127,14 @@
 			flex-flow: row nowrap;
 			justify-content: center;
 			align-items: center;
-			width: 42px;
-			height: 34px;
+			width: var(--input-height);
+			height: var(--input-height);
 			background: transparent;
 			border: none;
 			padding: 0;
 			margin: 0;
 			outline: none;
 			transition: all ease 100ms;
-
-			& svg {
-				fill: #656565;
-				width: 18px;
-				height: 18px;
-			}
-
-			&:hover,
-			&:focus {
-				& svg {
-					fill: #043C32;
-				}
-			}
-
-			&:active {
-				& svg {
-					fill: #043C32;
-				}
-			}
-
-			&.success {
-				& svg {
-					fill: #043C32;
-				}
-			}
 		}
 
 		&:empty {
@@ -158,21 +142,10 @@
 		}
 	}
 
-	&:hover {
-		& .decorator {
-			border-color: var(--hover--input-border-color);
-		}
-	}
-
-	&.focused {
-		& .decorator {
-			border-color: var(--focus--input-border-color);
-		}
-	}
-
+	// мультистроковый режим
 	&.multyline {
 		// data-multyline == true
-		min-height: 100px;
+		min-height: var(--textbox-multyline-height);
 
 		& .editor {
 			flex-direction: column;
@@ -191,10 +164,11 @@
 		}
 	}
 
+	// включен счётчик символов
 	&.counter {
 		// data-symbolcounter == true
 
-		& .symbols-counter {
+		& .symbols {
 			display: block;
 		}
 
@@ -203,28 +177,35 @@
 		}
 	}
 
+	&:hover {
+		--input-border-color: var(--hover--input-border-color);
+		--input-fill: var(--hover--input-fill);
+		--input-color: var(--hover--input-color);
+		--svg-fill: var(--hover--input-color);
+	}
+
+	&.focused {
+		--input-border-color: var(--focus--input-border-color);
+		--input-fill: var(--focus--input-fill);
+		--input-color: var(--focus--input-color);
+		--svg-fill: var(--focus--input-color);
+	}
+
 	&.readonly {
-		&.focused {
-			& .decorator {
-				border-color: #656565;
-			}
-		}
+		--input-fill: var(--readonly--input-fill);
+		--input-color: var(--readonly--input-color);
+		--svg-fill: var(--readonly--input-color);
 	}
 
 	&.disabled {
-		background-color: #f6f7f8;
+		--input-border-color: var(--disabled--input-border-color);
+		--input-fill: var(--disabled--input-fill);
+		--input-color: var(--disabled--input-color);
+		--svg-fill: var(--disabled--input-color);
 
 		& .editor {
 			user-select: none;
 			cursor: default;
-		}
-
-		& .input {
-			color: #7c7c7c;
-		}
-
-		& .symbols-counter {
-			color: #7c7c7c;
 		}
 
 		& .actions {
@@ -232,35 +213,32 @@
 				cursor: default;
 
 				& svg {
-					fill: #7c7c7c;
+					fill: var(--disabled--input-color);
 				}
-			}
-		}
-
-		&:hover {
-			& .decorator {
-				border-color: var(--input-border-color);
 			}
 		}
 	}
 
 	&.invalid {
+		--input-border-color: var(--invalid--input-border-color);
+		--input-fill: var(--invalid--input-fill);
+		--input-color: var(--invalid--input-color);
+		--placeholder-color: var(--invalid--input-color);
+		--svg-fill: var(--invalid--input-color);
+
 		& .decorator {
 			transition-delay: 0;
-			border-color: var(--invalid--input-border-color) !important;
-		}
-
-		& .input {
-			&:empty {
-				&:after {
-					color: var(--invalid--input-border-color);
-				}
-			}
 		}
 	}
 
 	&.incorrect {
-		background-color: #F98F8F;
+		--input-fill: var(--incorrect--input-fill);
+		--input-color: var(--incorrect--input-color);
+		--svg-fill: var(--incorrect--input-color);
+
+		& .decorator {
+			transition-delay: 0;
+		}
 	}
 }
 

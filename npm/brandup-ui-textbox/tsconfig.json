@@ -22,7 +22,7 @@
 	},
 	"include": [
 		"source",
-		"test"
+		"test"	
 	],
 	"exclude": [
 		"node_modules",

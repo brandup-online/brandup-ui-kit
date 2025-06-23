@@ -29,22 +29,29 @@
 	--input-font-size: @input-font-size;
 	--input-font-weight: @input-font-weight;
 	--input-font-style: @input-font-style;
+	--input-line-height: @input-line-height;
 
-	--hover--input-border-color: @hover-input-border-color;
-	--hover--input-fill: @hover-input-fill;
-	--hover--input-color: @hover-input-color;
+	--hover--input-border-color: @hover--input-border-color;
+	--hover--input-fill: @hover--input-fill;
+	--hover--input-color: @hover--input-color;
 
-	--focus--input-border-color: @focus-input-border-color;
-	--focus--input-fill: @focus-input-fill;
-	--focus--input-color: @focus-input-color;
+	--focus--input-border-color: @focus--input-border-color;
+	--focus--input-fill: @focus--input-fill;
+	--focus--input-color: @focus--input-color;
 
-	--disabled--input-border-color: @disabled-input-border-color;
-	--disabled--input-fill: @disabled-input-fill;
-	--disabled--input-color: @disabled-input-color;
+	--readonly--input-fill: @readonly--input-fill;
+	--readonly--input-color: @readonly--input-color;
 
-	--invalid--input-border-color: @invalid-input-border-color;
-	--invalid--input-fill: @invalid-input-fill;
-	--invalid--input-color: @invalid-input-color;
+	--disabled--input-border-color: @disabled--input-border-color;
+	--disabled--input-fill: @disabled--input-fill;
+	--disabled--input-color: @disabled--input-color;
+
+	--invalid--input-border-color: @invalid--input-border-color;
+	--invalid--input-fill: @invalid--input-fill;
+	--invalid--input-color: @invalid--input-color;
+
+	--incorrect--input-fill: @incorrect--input-fill;
+	--incorrect--input-color: @input-color;
 
 	--expanded--dropdown-select-color: @expanded--dropdown-select-color ; // переменные для select в fast 
 	--expanded--dropdown-select-fill: @expanded--dropdown-select-fill;
@@ -68,7 +75,7 @@ select {
 	font-weight: var(--input-font-weight);
 	font-style: var(--input-font-style);
 	color: var(--input-color);
-	line-height: unset;
+	line-height: var(--input-line-height);
 	box-sizing: border-box;
 	padding: 0;
 	margin: 0;
@@ -122,6 +129,8 @@ select {
 
 	&:read-only {
 		cursor: default;
+		background: var(--readonly--input-fill);
+		color: var(--readonly--input-color);
 	}
 
 	&:disabled {
@@ -194,18 +203,20 @@ input[type=checkbox] {
 
 	&:hover {
 		border-color: var(--hover--input-border-color);
-		background: var(--hover--input-fill);
+		background-color: var(--hover--input-fill);
 		color: var(--hover--input-color);
 	}
 
 	&:focus {
 		border-color: var(--focus--input-border-color);
-		background: var(--focus--input-fill);
+		background-color: var(--focus--input-fill);
 		color: var(--focus--input-color);
 	}
 
 	&[readonly] {
 		pointer-events: none;
+		touch-action: none;
+		background-color: var(--readonly--input-fill);
 	}
 
 	&:checked {
@@ -220,7 +231,7 @@ input[type=checkbox] {
 
 	&:disabled {
 		border-color: var(--disabled--input-border-color);
-		background: var(--disabled--input-fill);
+		background-color: var(--disabled--input-fill);
 		color: var(--disabled--input-color);
 		cursor: default;
 
@@ -232,7 +243,7 @@ input[type=checkbox] {
 
 	&:user-invalid {
 		border-color: var(--invalid--input-border-color);
-		background: var(--invalid--input-fill);
+		background-color: var(--invalid--input-fill);
 		color: var(--invalid--input-color);
 	}
 }
