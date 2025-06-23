@@ -197,18 +197,20 @@ input[type=checkbox] {
 
 	&:hover {
 		border-color: var(--hover--input-border-color);
-		background: var(--hover--input-fill);
+		background-color: var(--hover--input-fill);
 		color: var(--hover--input-color);
 	}
 
 	&:focus {
 		border-color: var(--focus--input-border-color);
-		background: var(--focus--input-fill);
+		background-color: var(--focus--input-fill);
 		color: var(--focus--input-color);
 	}
 
 	&[readonly] {
 		pointer-events: none;
+		touch-action: none;
+		background-color: var(--readonly--input-fill);
 	}
 
 	&:checked {
@@ -223,7 +225,7 @@ input[type=checkbox] {
 
 	&:disabled {
 		border-color: var(--disabled--input-border-color);
-		background: var(--disabled--input-fill);
+		background-color: var(--disabled--input-fill);
 		color: var(--disabled--input-color);
 		cursor: default;
 
@@ -235,7 +237,7 @@ input[type=checkbox] {
 
 	&:user-invalid {
 		border-color: var(--invalid--input-border-color);
-		background: var(--invalid--input-fill);
+		background-color: var(--invalid--input-fill);
 		color: var(--invalid--input-color);
 	}
 }
