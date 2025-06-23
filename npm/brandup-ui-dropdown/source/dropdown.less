@@ -22,7 +22,7 @@
 	--active--dropdown-button-border-color: none;
 
 	--invalid--dropdown-button-color: #ff0000;
-	--invalid--dropdown-button-fill: #ff0000;
+	--invalid--dropdown-button-fill: #ffffff;
 	--invalid--dropdown-button-border-color: none;
 
 	--disabled--dropdown-button-color: #fff;
@@ -78,12 +78,14 @@
 		&:hover {
 			background: var(--hover--input-fill);
 			color: var(--hover--input-color);
+			border-color: var(--hover--dropdown-button-border-color);
 			text-decoration: none;
 		}
 
 		&:focus {
 			background: var(--focus--input-fill);
 			color: var(--focus--input-color);
+			border-color: var(--focus--dropdown-button-border-color);
 			text-decoration: none;
 		}
 	}
@@ -135,6 +137,7 @@
 					// общие стили, если элемент выбран
 					background: var(--dropdown-button-fill);
 					color: var(--dropdown-button-color);
+					border-color: var(--dropdown-button-border-color);
 
 					& svg {
 						fill: var(--dropdown-button-color);
@@ -144,11 +147,13 @@
 					&:focus {
 						background: var(--hover--dropdown-button-fill);
 						color: var(--hover--dropdown-button-color);
+						border-color: var(--hover--dropdown-button-border-color);
 					}
 
 					&:active {
 						background: var(--active--dropdown-button-fill);
 						color: var(--active--dropdown-button-color);
+						border-color: var(--active--dropdown-button-border-color);
 					}
 				}
 			}
@@ -265,6 +270,7 @@
 						// стили если выбран элемент внутри popup
 						background: var(--input-fill);
 						color: var(--input-color);
+						border-color: var(--input-border-color);
 
 						& svg {
 							display: block;
@@ -274,6 +280,7 @@
 						&:focus {
 							background: var(--focus--input-fill);
 							color: var(--focus--input-color);
+							border-color: var(--focus--input-border-color);
 						}
 					}
 				}
@@ -353,8 +360,9 @@
 
 			&:hover,
 			&:focus {
-				border-color: var(--focus--input-border-color);
-				color: var(--focus--input-color);
+				border-color: var(--hover--input-border-color);
+				color: var(--hover--input-color);
+				background: var(--hover--input-fill);
 			}
 		}
 	}
@@ -378,6 +386,7 @@
 			& > a {
 				background: var(--input-fill);
 				color: var(--input-color);
+				border-color: var(--input-border-color);
 
 				& svg {
 					fill: var(--input-color);
@@ -399,6 +408,8 @@
 		& > ul > li {
 			> a {
 				color: var(--invalid--dropdown-button-color);
+				border-color: var(--invalid--dropdown-button-border-color);
+				background: var(--invalid--dropdown-button-fill);
 			}
 		}
 	}
@@ -406,8 +417,9 @@
 	&.disabled { // класс для кнопок
 		& > ul > li {
 			> a {
-				background: var(--disabled--dropdown-button-fill);
 				color: var(--disabled--dropdown-button-color);
+				border-color: var(--disabled--dropdown-button-border-color);
+				background: var(--disabled--dropdown-button-fill);
 
 				& svg {
 					fill: var(--disabled--dropdown-button-color);
@@ -468,8 +480,9 @@
 					}
 
 					&:hover {
-						background: var(--hover--input-fill);
 						color: var(--hover--input-color);
+						border-color: var(--hover--input-border-color);
+						background: var(--hover--input-fill);
 
 						&:before {
 							border-color: var(--hover--input-border-color);
@@ -477,8 +490,9 @@
 					}
 
 					&:focus {
-						background: var(--focus--input-fill);
 						color: var(--focus--input-color);
+						border-color:var(--focus--input-border-color) ;
+						background: var(--focus--input-fill);
 
 						&:before {
 							border-color: var(--focus--input-border-color);
@@ -489,8 +503,9 @@
 
 			&.selected {
 				& > a {
-					background: var(--input-fill);
 					color: var(--input-color);
+					border-color: var(--input-color);
+					background: var(--input-fill);
 
 					& svg {
 						fill: var(--input-color);
@@ -508,16 +523,18 @@
 			& > ul > li {
 				&.other {
 					& > a {
-						background: var(--input-fill);
 						color: var(--input-color);
+						border-color: var(--input-border-color);
+						background: var(--input-fill);
 
 						& svg {
 							fill: var(--input-color);
 						}
 
 						&:before {
-							border-color: var(--hover--input-border-color);
 							color: var(--hover--input-color);
+							background: var(--hover--input-fill);
+							border-color: var(--hover--input-border-color);
 						}
 					}
 				}
@@ -529,6 +546,8 @@
 				&.other {
 					& > a {
 						color: var(--invalid--input-color);
+						border-color: var(--invalid--input-border-color);
+						background: var(--invalid--input-fill);
 
 						&:before {
 							border-color: var(--invalid--input-border-color);
@@ -551,7 +570,7 @@
 
 .ui-dropdown-miniature {
 	border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
-	background: #F6F7F8;
+	background: var(--input-fill);
 	border-radius: var(--input-border-radius);
 	height: var(--input-height);
 	box-sizing: border-box;
