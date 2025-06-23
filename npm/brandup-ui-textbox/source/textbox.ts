@@ -171,6 +171,11 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 				return;
 
 			this.element?.classList.remove("focused");
+
+			// когда удаляем весь текст, то браузер оставляет один BR, что означает что текста нет
+			// удалить BR нужно, чтобы появился placeholder
+			if (this.__inputElem.firstChild?.nodeName === "BR")
+				DOM.empty(this.__inputElem);
 		});
 
 		this.__inputElem.addEventListener("dblclick", () => {
