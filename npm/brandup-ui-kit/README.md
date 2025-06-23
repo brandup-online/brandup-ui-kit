@@ -2,7 +2,7 @@
 
 ## Installation and use
 
-Install NPM package [@brandup/ui](https://www.npmjs.com/package/@brandup/ui-kit).
+Install NPM package [@brandup/ui-kit](https://www.npmjs.com/package/@brandup/ui-kit).
 
 ```
 npm i @brandup/ui-kit@latest

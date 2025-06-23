@@ -423,10 +423,13 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	}
 
 	private __onChange() {
-		this.trigger(CHANGE_EVENT, { textbox: this, value: this.getValue() });
+		this.trigger(CHANGE_EVENT, <ChangeEventData>{
+			textbox: this,
+			value: this.getValue()
+		});
 	}
 
-	onChange(handler: (e: { textbox: TextBox, value: string }) => void) {
+	onChange(handler: (e: ChangeEventData) => void) {
 		this.on(CHANGE_EVENT, handler);
 	}
 

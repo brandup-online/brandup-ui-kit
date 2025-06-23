@@ -4,13 +4,24 @@
 
 ## Installation
 
-Install NPM package [@brandup/ui](https://www.npmjs.com/package/@brandup/ui-kit).
+Install NPM package [@brandup/ui-textbox](https://www.npmjs.com/package/@brandup/ui-textbox).
 
 ```
-npm i @brandup/ui-kit@latest
+npm i @brandup/ui-textbox@latest
 ```
 
 ## TextBox
 
-`Textbox` - это класс определяющий компонент для ввода текста, который расширяет возможности стандартных элементов `input` и `textarea`.
+`Textbox` - это класс компонента для ввода текста, который расширяет возможности стандартных элементов `input` и `textarea`.
 Наследуется от `InputControl`.
+
+```html
+<input id="name" type="text" />
+```
+
+```TypeScript
+const inputElem = document.getElementById("name");
+const textbox = new Textbox(inputElem);
+
+textbox.on(CHANGE_EVENT, (e: ChangeEventData) => { });
+```
