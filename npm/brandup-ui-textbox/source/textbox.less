@@ -2,11 +2,14 @@
 	--active--textbox-button-color: #444; // для кнопок action 
 	--active--textbox-button-fill: #444;
 	--active--textbox-button-border-color: #444;
+
+	--textbox-maxheight: 200px;
+	--textbox-multyline-height: 100px;
 }
 
 .ui-textbox {
 	min-height: var(--input-height);
-	max-height: 200px;
+	max-height: var(--textbox-maxheight);
 	display: flex;
 	flex-flow: row nowrap;
 	align-items: stretch;
@@ -97,13 +100,13 @@
 				text-overflow: ellipsis;
 			}
 
-			& ~ .symbols-counter {
+			& ~ .symbols {
 				display: none;
 			}
 		}
 	}
 
-	& .symbols-counter {
+	& .symbols {
 		flex: 0 0 auto;
 		display: none;
 		font-size: 13px;
@@ -146,7 +149,7 @@
 	// мультистроковый режим
 	&.multyline {
 		// data-multyline == true
-		min-height: 100px;
+		min-height: var(--textbox-multyline-height);
 
 		& .editor {
 			flex-direction: column;
@@ -169,7 +172,7 @@
 	&.counter {
 		// data-symbolcounter == true
 
-		& .symbols-counter {
+		& .symbols {
 			display: block;
 		}
 
