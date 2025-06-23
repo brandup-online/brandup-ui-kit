@@ -336,6 +336,9 @@ class DropDown extends InputControl<HTMLSelectElement> {
     }
 
     private __toggleOther() {
+        if (this.element?.classList.contains("disabled")) // проверка чтобы не открывался select если disabled
+            return;
+
         if (!this.element?.classList.toggle("expanded"))
             return;
 
