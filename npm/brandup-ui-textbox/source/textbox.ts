@@ -260,6 +260,8 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 				if (currentTextLength >= this.maxlength) {
 					e.preventDefault();
 					e.stopPropagation();
+
+					this.__toIncorrect();
 					return false;
 				}
 			}
@@ -282,8 +284,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 					e.preventDefault();
 					e.stopPropagation();
 
-					this.element.classList.add("incorrect");
-					window.setTimeout(() => this.element?.classList.remove("incorrect"), 300);
+					this.__toIncorrect();
 					return;
 				}
 			}
@@ -365,6 +366,14 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 
 		this.__refreshSymbolsCount();
 		this.__onChange();
+	}
+
+	private __toIncorrect() {
+		if (!this.element)
+			return;
+
+		this.element.classList.add("incorrect");
+		window.setTimeout(() => this.element?.classList.remove("incorrect"), 200);
 	}
 
 	private __refreshSymbolsCount() {

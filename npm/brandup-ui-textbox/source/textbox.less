@@ -236,10 +236,13 @@
 	}
 
 	&.incorrect {
-		--input-border-color: var(--incorrect--input-border-color);
 		--input-fill: var(--incorrect--input-fill);
 		--input-color: var(--incorrect--input-color);
 		--svg-fill: var(--incorrect--input-color);
+
+		& .decorator {
+			transition-delay: 0;
+		}
 	}
 }
 
