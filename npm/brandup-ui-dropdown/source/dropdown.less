@@ -21,6 +21,7 @@
 		white-space: nowrap;
 		border-radius: var(--input-border-radius);
 		padding: 10px var(--input-padding-lr);
+		background: var(--input-fill); // --input-fill: var(--hover--input-fill) Не всегда обновляло фон
 		transition: background ease 100ms;
 		gap: 10px;
 		line-height: 22px;
@@ -45,13 +46,13 @@
 
 		&:hover {
 			--input-color: var(--hover--input-color);
-			background: var(--hover--input-fill);
+			--input-fill: var(--hover--input-fill);
 			text-decoration: none;
 		}
 
 		&:focus {
 			--input-color: var(--focus--input-color);
-			background: var(--focus--input-fill);
+			--input-fill: var(--focus--input-fill);
 			text-decoration: none;
 		}
 	}
@@ -102,7 +103,7 @@
 				& > a {
 					// общие стили, если элемент выбран
 					--input-color: var(--selected--dropdown-button-color);
-					background: var(--selected--dropdown-button-fill);
+					--input-fill: var(--selected--dropdown-button-fill);
 
 					& svg {
 						fill: var(--selected--dropdown-button-color);
@@ -111,7 +112,7 @@
 					&:hover,
 					&:focus {
 						--input-color: var(--hover--input-color);
-						background: var(--hover--input-fill);
+						--input-fill: var(--hover--input-fill);
 						
 						& svg {
 							fill: var(--hover--input-color);
@@ -231,7 +232,7 @@
 					& > a {
 						// стили если выбран элемент внутри popup
 						--input-color: var(--selected--dropdown-button-color);
-						background: var(--selected--dropdown-button-fill);
+						--input-fill: var(--selected--dropdown-button-fill);
 
 						& svg {
 							display: block;
@@ -240,7 +241,7 @@
 
 						&:focus {
 							--input-color: var(--focus--input-color);
-							background: var(--focus--input-fill);
+							--input-fill: var(--focus--input-fill);
 						}
 					}
 				}
@@ -343,8 +344,8 @@
 			z-index: 1000;
 
 			& > a {
-				background: var(--expanded--dropdown-select-fill);
-				color: var(--expanded--dropdown-select-color);
+				--input-fill: var(--expanded--dropdown-select-fill);
+				--input-color: var(--expanded--dropdown-select-color);
 
 				& svg {
 					fill: var(--expanded--dropdown-select-color);
@@ -352,7 +353,7 @@
 				}
 
 				&:before {
-					border-color: var(--input-border-color);
+					--input--border-color: var(--input-border-color);
 				}
 			}
 		}
@@ -374,14 +375,20 @@
 		& > ul > li {
 			> a {
 				cursor: default;
-				color: var(--disabled--input-color);
-				border-color: var(--disabled--input-border-color);
-				background: var(--disabled--input-fill);
+				--input-color: var(--disabled--input-color);
+				--input-border-color: var(--disabled--input-border-color);
+				--input-fill: var(--disabled--input-fill);
 
 				& svg {
 					fill: var(--disabled--input-color);
 				}
 
+				&:focus,
+				&:hover {
+				--input-color: var(--disabled--input-color);
+				--input-border-color: var(--disabled--input-border-color);
+				--input-fill: var(--disabled--input-fill);
+				}
 			}
 		}
 	}
@@ -439,7 +446,7 @@
 
 					&:hover {
 						--input-color: var(--hover--input-color);
-						background: var(--hover--input-fill);
+						--input-fill: var(--hover--input-fill);
 
 						&:before {
 							--input-border-color: var(--hover--input-border-color);
@@ -448,7 +455,7 @@
 
 					&:focus {
 						--input-color: var(--focus--input-color);
-						background: var(--focus--input-fill);
+						--input-fill: var(--focus--input-fill);
 
 						&:before {
 							--input-border-color: var(--focus--input-border-color);
@@ -460,7 +467,7 @@
 			&.selected {
 				& > a {
 					--input-color: var(--selected--dropdown-button-color);
-					background: var(--selected--dropdown-button-fill);
+					--input-fill: var(--selected--dropdown-button-fill);
 
 					& svg {
 						fill: var(--selected--dropdown-button-color);
@@ -478,8 +485,8 @@
 			& > ul > li {
 				&.other {
 					& > a {
-						color: var(--expanded--dropdown-select-color);
-						background: var(--input-fill);
+						--input-color: var(--expanded--dropdown-select-color);
+						--input-fill: var(--input-fill);
 
 						& svg {
 							fill: var(--input-color);
