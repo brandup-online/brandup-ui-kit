@@ -1,0 +1,1 @@
+export const IS_TOUCH_DEVICE = window.document.documentElement ? "ontouchstart" in window.document.documentElement : false;
