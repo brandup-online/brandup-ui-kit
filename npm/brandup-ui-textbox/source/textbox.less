@@ -16,6 +16,13 @@
 	box-sizing: border-box;
 	outline: none;
 	transition: background-color ease 60ms;
+	line-height: var(--input-line-height);
+	font-size: var(--input-font-size);
+	font-weight: var(--input-font-weight);
+	color: var(--input-color);
+
+	--svg-fill: var(--input-color);
+	--svg-size: 18px;
 
 	& .decorator {
 		display: block;
@@ -70,11 +77,6 @@
 		position: relative;
 		flex: 1 1 auto;
 		box-sizing: border-box;
-		font-size: var(--input-font-size);
-		font-weight: var(--input-font-weight);
-		font-size: var(--input-font-style);
-		line-height: var(--input-line-height);
-		color: var(--input-color);
 		word-wrap: anywhere;
 		outline: none;
 
@@ -105,14 +107,10 @@
 		display: none;
 		font-size: 13px;
 		font-weight: 400;
-		line-height: var(--input-line-height); // чтобы счетчик тоже был по центру
 		z-index: 5;
 		user-select: none;
 		color: #656565;
-
-		&.invalid {
-			color: var(--invalid--input-color);
-		}
+		opacity: 0.8;
 	}
 
 	& .actions {
@@ -137,31 +135,6 @@
 			margin: 0;
 			outline: none;
 			transition: all ease 100ms;
-
-			& svg {
-				fill: var(--input-color);
-				width: 18px;
-				height: 18px;
-			}
-
-			&:hover,
-			&:focus {
-				& svg {
-					fill: var(--hover--input-color);
-				}
-			}
-
-			&:active {
-				& svg {
-					fill: var(--active--textbox-button-color);
-				}
-			}
-
-			&.success {
-				& svg {
-					fill: var(--input-color);
-				}
-			}
 		}
 
 		&:empty {
@@ -169,22 +142,7 @@
 		}
 	}
 
-	&:hover {
-		& .decorator {
-			border-color: var(--hover--input-border-color);
-			background: var(--hover--input-fill);
-			color: var(--hover--input-color);
-		}
-	}
-
-	&.focused {
-		& .decorator {
-			border-color: var(--focus--input-border-color);
-			background: var(--focus--input-fill);
-			color: var(--focus--input-color);
-		}
-	}
-
+	// мультистроковый режим
 	&.multyline {
 		// data-multyline == true
 		min-height: 100px;
@@ -206,6 +164,7 @@
 		}
 	}
 
+	// включен счётчик символов
 	&.counter {
 		// data-symbolcounter == true
 
@@ -218,32 +177,36 @@
 		}
 	}
 
+	&:hover {
+		--input-border-color: var(--hover--input-border-color);
+		--input-fill: var(--hover--input-fill);
+		--input-color: var(--hover--input-color);
+		--svg-fill: var(--hover--input-color);
+		
+	}
+
+	&.focused {
+		--input-border-color: var(--focus--input-border-color);
+		--input-fill: var(--focus--input-fill);
+		--input-color: var(--focus--input-color);
+		--svg-fill: var(--focus--input-color);
+	}
+
 	&.readonly {
-		&.focused {
-			& .decorator {
-				border-color: var(--focus--input-border-color);
-				background: var(--focus--input-fill);
-				color: var(--focus--input-color);
-			}
-		}
+		--input-fill: var(--readonly--input-fill);
+		--input-color: var(--readonly--input-color);
+		--svg-fill: var(--readonly--input-color);
 	}
 
 	&.disabled {
-		background: var(--disabled--input-fill);
-		color: var(--disabled--input-color);
-		border-color: var(--disabled--input-border-color);
+		--input-border-color: var(--disabled--input-border-color);
+		--input-fill: var(--disabled--input-fill);
+		--input-color: var(--disabled--input-color);
+		--svg-fill: var(--disabled--input-color);
 
 		& .editor {
 			user-select: none;
 			cursor: default;
-		}
-
-		& .input {
-			color: var(--disabled--input-color);
-		}
-
-		& .symbols-counter {
-			color: var(--disabled--input-color);
 		}
 
 		& .actions {
@@ -255,38 +218,25 @@
 				}
 			}
 		}
-
-		&:hover {
-			& .decorator {
-				border-color: var(--disabled--input-border-color);
-			}
-		}
 	}
 
 	&.invalid {
+		--input-border-color: var(--invalid--input-border-color);
+		--input-fill: var(--invalid--input-fill);
+		--input-color: var(--invalid--input-color);
+		--placeholder-color: var(--invalid--input-color);
+		--svg-fill: var(--invalid--input-color);
+
 		& .decorator {
 			transition-delay: 0;
-			color: var(--invalid--input-color);
-			background: var(--invalid--input-fill);
-			border-color: var(--invalid--input-border-color) !important;
-
-		}
-
-		& .input {
-			&:empty {
-				&:after {
-					color: var(--invalid--input-color);
-				}
-			}
 		}
 	}
 
 	&.incorrect {
-		& .decorator {
-			border-color: var(--incorrect--input-border-color); // сделал по аналогии с focused так как заливка перекрывалась инпутом
-			color: var(--incorrect--input-color);
-			background: var(--incorrect--input-fill);
-		}
+		--input-border-color: var(--incorrect--input-border-color);
+		--input-fill: var(--incorrect--input-fill);
+		--input-color: var(--incorrect--input-color);
+		--svg-fill: var(--incorrect--input-color);
 	}
 }
 
