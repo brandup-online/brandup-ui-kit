@@ -3,6 +3,7 @@
 	position: relative;
 	box-sizing: border-box;
 	color: var(--input-color);
+	background: var(--input-fill);
 	display: flex;
 	user-select: none;
 
@@ -104,11 +105,11 @@
 			&.has-value {
 				& > a {
 					// общие стили, если элемент выбран
-					--input-color: var(--has-value-input-color);
-					--input-fill: var(--has-value-input-fill);
+					--input-color: var(--has-value--input-color);
+					--input-fill: var(--has-value--input-fill);
 
 					& svg {
-						fill: var(--has-value-input-color);
+						fill: var(--has-value--input-color);
 					}
 
 					&:hover,
@@ -233,12 +234,12 @@
 				&.has-value {
 					& > a {
 						// стили если выбран элемент внутри popup
-						--input-color: var(--has-value-input-color);
-						--input-fill: var(--has-value-input-fill);
+						--input-color: var(--has-value--input-color);
+						--input-fill: var(--has-value--input-fill);
 
 						& svg {
 							display: block;
-							fill: var(--has-value-input-color);
+							fill: var(--has-value--input-color);
 						}
 
 						&:focus {
@@ -346,11 +347,11 @@
 			z-index: 1000;
 
 			& > a {
-				--input-fill: var(--expanded-input-fill);
-				--input-color: var(--expanded-input-color);
+				--input-color: var(--expanded--input-color);
+				--input-fill: var(--expanded--input-fill);
 
 				& svg {
-					fill: var(--expanded-input-color);
+					fill: var(--expanded--input-color);
 					transform: rotate(180deg);
 				}
 
@@ -469,11 +470,11 @@
 
 			&.has-value {
 				& > a {
-					--input-color: var(--has-value-input-color);
-					--input-fill: var(--has-value-input-fill);
+					--input-color: var(--has-value--input-color);
+					--input-fill: var(--has-value--input-fill);
 
 					& svg {
-						fill: var(--has-value-input-color);
+						fill: var(--has-value--input-color);
 					}
 				}
 			}
@@ -488,8 +489,8 @@
 			& > ul > li {
 				&.other {
 					& > a {
-						--input-color: var(--expanded-input-color);
-						--input-fill: var(--input-fill);
+						--input-color: var(--expanded--input-color);
+						--input-fill: var(--expanded--input-fill);
 
 						& svg {
 							fill: var(--input-color);
