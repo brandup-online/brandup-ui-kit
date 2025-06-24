@@ -10,12 +10,12 @@ Install NPM package [@brandup/ui](https://www.npmjs.com/package/@brandup/ui-kit)
 npm i @brandup/ui-kit@latest
 ```
 
-## Dropdown
+## DropDown
 
-`Dropdown` - это классовый компонент, который расширяет возможности стандартных элементов `select`.
+`DropDown` - это классовый компонент, который расширяет возможности стандартных элементов `select`.
 Наследуется от `InputControl`.
 
 ```JS
 const dropDownElem = document.getElementById("name");
-const dropdown = new Dropdown(dropDownElem);
+const dropdown = new DropDown(dropDownElem);
 ```

@@ -5,7 +5,7 @@ import { DropDown } from '@brandup/ui-dropdown';
 
 export default class DropDownPage extends Page {
     get typeName(): string { return "DropDownPage" }
-    get header(): string { return "Dropdown" }
+    get header(): string { return "DropDown" }
 
     protected async onRenderContent(container: HTMLElement) {
         container.insertAdjacentHTML("beforeend", html);
