@@ -123,8 +123,6 @@ stages:
                               displayName: "download artifacts"
                               artifact: npm
 
-                            # brandup-ui-kit
-
                             - task: ExtractFiles@1
                               displayName: "unzip brandup-ui-kit"
                               inputs:
@@ -132,6 +130,16 @@ stages:
                                   destinationFolder: "$(Pipeline.Workspace)/npmout/brandup-ui-kit"
                                   cleanDestinationFolder: true
                                   overwriteExistingFiles: true
+
+                            - task: ExtractFiles@1
+                              displayName: "unzip brandup-ui-textbox"
+                              inputs:
+                                  archiveFilePatterns: "$(Pipeline.Workspace)/npm/brandup-ui-textbox-$(Build.BuildNumber).tgz"
+                                  destinationFolder: "$(Pipeline.Workspace)/npmout/brandup-ui-textbox"
+                                  cleanDestinationFolder: true
+                                  overwriteExistingFiles: true
+
+                            # brandup-ui-kit
 
                             - task: Npm@1
                               displayName: "publish brandup-ui-kit"
@@ -141,14 +149,6 @@ stages:
                                   publishEndpoint: "$(publish-npm-credentials)"
 
                             # brandup-ui-textbox
-
-                            - task: ExtractFiles@1
-                              displayName: "unzip brandup-ui-textbox"
-                              inputs:
-                                  archiveFilePatterns: "$(Pipeline.Workspace)/npm/brandup-ui-textbox-$(Build.BuildNumber).tgz"
-                                  destinationFolder: "$(Pipeline.Workspace)/npmout/brandup-ui-textbox"
-                                  cleanDestinationFolder: true
-                                  overwriteExistingFiles: true
 
                             - task: Npm@1
                               displayName: "publish brandup-ui-textbox"
