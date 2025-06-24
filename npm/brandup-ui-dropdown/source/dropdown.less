@@ -21,7 +21,7 @@
 		white-space: nowrap;
 		border-radius: var(--input-border-radius);
 		padding: 10px var(--input-padding-lr);
-		background: var(--input-fill); // --input-fill: var(--hover--input-fill) Не всегда обновляло фон
+		background: var(--input-fill);
 		transition: background ease 100ms;
 		gap: 10px;
 		line-height: 22px;
@@ -47,12 +47,14 @@
 		&:hover {
 			--input-color: var(--hover--input-color);
 			--input-fill: var(--hover--input-fill);
+
 			text-decoration: none;
 		}
 
 		&:focus {
 			--input-color: var(--focus--input-color);
 			--input-fill: var(--focus--input-fill);
+
 			text-decoration: none;
 		}
 	}
@@ -99,14 +101,14 @@
 				}
 			}
 
-			&.selected {
+			&.has-value {
 				& > a {
 					// общие стили, если элемент выбран
-					--input-color: var(--selected--dropdown-button-color);
-					--input-fill: var(--selected--dropdown-button-fill);
+					--input-color: var(--has-value-input-color);
+					--input-fill: var(--has-value-input-fill);
 
 					& svg {
-						fill: var(--selected--dropdown-button-color);
+						fill: var(--has-value-input-color);
 					}
 
 					&:hover,
@@ -228,15 +230,15 @@
 					}
 				}
 
-				&.selected {
+				&.has-value {
 					& > a {
 						// стили если выбран элемент внутри popup
-						--input-color: var(--selected--dropdown-button-color);
-						--input-fill: var(--selected--dropdown-button-fill);
+						--input-color: var(--has-value-input-color);
+						--input-fill: var(--has-value-input-fill);
 
 						& svg {
 							display: block;
-							fill: var(--selected--dropdown-button-color);
+							fill: var(--has-value-input-color);
 						}
 
 						&:focus {
@@ -344,11 +346,11 @@
 			z-index: 1000;
 
 			& > a {
-				--input-fill: var(--expanded--dropdown-select-fill);
-				--input-color: var(--expanded--dropdown-select-color);
+				--input-fill: var(--expanded-input-fill);
+				--input-color: var(--expanded-input-color);
 
 				& svg {
-					fill: var(--expanded--dropdown-select-color);
+					fill: var(--expanded-input-color);
 					transform: rotate(180deg);
 				}
 
@@ -374,10 +376,11 @@
 	&.disabled { // класс для кнопок
 		& > ul > li {
 			> a {
-				cursor: default;
 				--input-color: var(--disabled--input-color);
 				--input-border-color: var(--disabled--input-border-color);
 				--input-fill: var(--disabled--input-fill);
+				
+				cursor: default;
 
 				& svg {
 					fill: var(--disabled--input-color);
@@ -385,9 +388,9 @@
 
 				&:focus,
 				&:hover {
-				--input-color: var(--disabled--input-color);
-				--input-border-color: var(--disabled--input-border-color);
-				--input-fill: var(--disabled--input-fill);
+					--input-color: var(--disabled--input-color);
+					--input-border-color: var(--disabled--input-border-color);
+					--input-fill: var(--disabled--input-fill);
 				}
 			}
 		}
@@ -464,13 +467,13 @@
 				}
 			}
 
-			&.selected {
+			&.has-value {
 				& > a {
-					--input-color: var(--selected--dropdown-button-color);
-					--input-fill: var(--selected--dropdown-button-fill);
+					--input-color: var(--has-value-input-color);
+					--input-fill: var(--has-value-input-fill);
 
 					& svg {
-						fill: var(--selected--dropdown-button-color);
+						fill: var(--has-value-input-color);
 					}
 				}
 			}
@@ -485,7 +488,7 @@
 			& > ul > li {
 				&.other {
 					& > a {
-						--input-color: var(--expanded--dropdown-select-color);
+						--input-color: var(--expanded-input-color);
 						--input-fill: var(--input-fill);
 
 						& svg {

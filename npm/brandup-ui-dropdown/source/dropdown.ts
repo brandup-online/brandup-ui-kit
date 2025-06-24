@@ -183,7 +183,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
 
             const isSelected = selectedIndex === i;
             if (isSelected)
-                itemElem.classList.add("selected");
+                itemElem.classList.add("has-value");
 
             if (i < fastMax) {
                 this.__otherItemElem.insertAdjacentElement("beforebegin", itemElem);
@@ -203,7 +203,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
                 otherItemsFragment.append(itemElem);
 
                 if (isSelected) {
-                    this.__otherItemElem.classList.add("selected");
+                    this.__otherItemElem.classList.add("has-value");
                     this.__otherTextElem.innerText = itemText;
                 }
 
@@ -235,7 +235,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
             if (currentSelect && newIndex === currentSelect.own.dataset.index)
                 return; // если выбор остался таким же
 
-            DOM.removeClass(this.element, '.selected', 'selected');
+            DOM.removeClass(this.element, '.has-value', 'has-value');
 
             if (currentSelect && currentSelect.own.closest(".other")) {
                 // если предыдущий выбор ТОЛЬКО в дополнительном списке
@@ -247,8 +247,8 @@ class DropDown extends InputControl<HTMLSelectElement> {
 
             const newSelected = this.__getElemsByIndex(Number(newIndex));
             if (newSelected) {
-                newSelected.own.classList.add("selected");
-                newSelected.fasted?.classList.add("selected");
+                newSelected.own.classList.add("has-value");
+                newSelected.fasted?.classList.add("has-value");
 
                 const newOther = newSelected.own.closest(".other");
 
@@ -256,7 +256,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
                     // если новый выбор в дополнительном списке
 
                     this.__otherTextElem.innerText = newSelected.own.innerText.trim();
-                    newOther.classList.add("selected");
+                    newOther.classList.add("has-value");
 
                     this.__closeOther();
 
@@ -319,7 +319,6 @@ class DropDown extends InputControl<HTMLSelectElement> {
                     break;
             }
         });
-
     }
 
     private __focusOther() {
@@ -473,7 +472,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
     }
 
     private __getSelectedElem() {
-        return this.__getElems(".selected[data-index]");
+        return this.__getElems(".has-value[data-index]");
     }
 
     getValue(): string | null {
