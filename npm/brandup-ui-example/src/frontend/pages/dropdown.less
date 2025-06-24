@@ -1,0 +1,80 @@
+.input-controls {
+
+	--hover--input-color: #000000;
+	--hover--input-fill: #8d8d8d;
+
+	--focus--input-color: #000000;
+	--focus--input-fill: #696969;
+
+	--invalid--input-color: #ff0000;
+	--invalid--input-fill: #fff;
+	--invalid--input-border-color: #ff0000;
+
+	--disabled--input-color: #fff;
+	--disabled--input-fill: #2c2c2c;
+
+    display: flex;
+    flex-flow: column nowrap;
+    gap: 40px;
+  
+    & .example {
+        display: flex;
+        flex-flow: column nowrap;
+        gap: 22px;
+  
+        & h2 {
+            padding: 0 0 10px;
+        }
+  
+        & form {
+            display: flex;
+            flex-flow: column nowrap;
+            gap: 22px;
+        }
+  
+        & .buttons {
+            padding-top: 10px;
+            display: flex;
+            flex-flow: row wrap;
+        }
+  
+        & .variants {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 25px;
+  
+            & .field {
+                display: flex;
+                flex-flow: column nowrap;
+                row-gap: 10px;
+                
+                & .field-value {
+                    padding-top: 5px;
+                
+                    & mark {
+                        white-space: pre-wrap;
+                        font-size: 13px;
+                        word-wrap: anywhere;
+                        background-color: #ffd500;
+                        transition: background-color ease 500ms;
+                    }
+                
+                    &.updated {
+                        & mark {
+                            background-color: #88ff00;
+                            transition: background-color ease 50ms;
+                        }
+                    }
+                }
+        }
+  
+            &.c2 {
+                grid-template-columns: 1fr 1fr;
+            }
+        
+            &.full {
+                grid-template-columns: 1fr;
+            }
+        } 
+    }
+}
