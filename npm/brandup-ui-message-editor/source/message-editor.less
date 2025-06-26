@@ -1,0 +1,353 @@
+.message-editor {
+    position: relative;
+    border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+    border-radius: var(--input-border-radius);
+    box-sizing: border-box;
+    width: 100%;
+
+    & .toolbar {
+        order: 3;
+        flex: 0 0 100%;
+        display: flex;
+        flex-flow: row wrap;
+        align-items: center;
+        border-top: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+        width: 100%;
+        min-height: 45px;
+        box-sizing: border-box;
+        font-size: 14px;
+        font-weight: 300;
+        user-select: none;
+
+        & button {
+            height: 100%;
+            display: flex;
+            flex-flow: row nowrap;
+            align-items: center;
+            justify-content: center;
+            padding: 9px;
+            outline: none;
+            background: none;
+            border: none;
+
+            & svg {
+                --svg-fill: #848484;
+
+                fill: var(--svg-fill);
+                width: 16px;
+                height: 16px;
+            }
+
+            & span {
+                display: block;
+                margin-left: 5px;
+                margin-bottom: 2px;
+                text-transform: lowercase;
+                font-size: 14px;
+                font-weight: 300;
+                line-height: 14px;
+            }
+
+            &:hover,
+            &:focus {
+                & svg {
+                    --svg-fill: #525252;
+                }
+            }
+
+            &[data-command=open-emodji] {
+                & svg {
+                    width: 20px;
+                    height: 20px;
+                }
+            }
+
+            &[data-command=close-emodji] {
+                display: none;
+
+                & svg {
+                    width: 20px;
+                    height: 20px;
+                }
+            }
+
+            &[disabled] {
+                cursor: default;
+                & svg {
+                    --svg-fill: #84848447;
+                }
+
+                &:hover {
+                    & svg {
+                        --svg-fill: #84848447;
+                    }
+                }
+            }
+
+            &.non-randomizer { // класс для скрытия кнопки рандомизации если api не указан
+                display: none;
+            }
+        }
+
+        & .split {
+            width: 1px;
+            height: 16px;
+            overflow: hidden;
+            background: var(--input-border-color); // посчитал что как бордер покрасить
+            margin: 0 5px;
+        }
+    }
+
+    & .output {
+        height: 1px;
+        width: 1px;
+        position: absolute;
+        left: 5000px;
+		outline: none;
+		visibility: collapse;
+    }
+
+    & .scroll-content {
+        min-height: 200px;
+        /*max-height: 300px;*/
+        position: relative;
+        z-index: 1;
+        /*overflow-y: auto;
+        overflow-x: hidden;*/
+        display: flex;
+        flex-flow: row wrap;
+
+        &::-webkit-scrollbar {
+            height: 5px;
+            background-color: #dbdbdb;
+            width: 8px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+            background-color: #8696a0;
+            border-radius: 4px;
+        }
+    }
+
+    & .editor {
+        order: 1;
+        flex: 0 0 50%;
+        position: relative;
+        display: block;
+        justify-content: stretch;
+        align-items: stretch;
+        box-sizing: border-box;
+
+        & .writer {
+            display: block;
+            padding: 8px 15px 30px;
+            box-sizing: border-box;
+            outline: none;
+            overflow: hidden;
+            color: var(--input-color);
+            word-wrap: anywhere;
+            min-height: 200px;
+
+            & span.f {
+                color: #667781; // не нашел что это
+            }
+
+            & b {
+                font-weight: 800;
+            }
+
+            & p {
+                padding: 0;
+                margin: 0;
+            }
+
+            &:empty {
+                & ~ .placeholder {
+                    display: block;
+                }
+            }
+
+            &:focus {
+                & ~ .placeholder {
+                    display: none;
+                }
+            }
+        }
+
+        & .placeholder {
+           color: var(--placeholder-color);
+           font-style: var(--placeholder-font-style);
+           font-weight: var(--placeholder-font-weight);
+        }
+
+        & .counter {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            font-size: 12px;
+            line-height: 12px;
+            box-sizing: border-box;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            padding: 0 15px;
+            color: var(--placeholder-color);
+            user-select: none;
+
+            &.error {
+                --input-color: var(--incorrect--input-color);
+            }
+        }
+    }
+
+    & .preview {
+        order: 2;
+        flex: 0 0 50%;
+        background: var(--preview--input-fill);
+        padding: 8px 15px;
+        box-sizing: border-box;
+        overflow: hidden;
+        word-wrap: anywhere;
+        position: relative;
+        min-height: 70px;
+        border-top-right-radius: 5px;
+
+        & .variable {
+            background: var(--variable--input-text-fill);
+            text-transform: uppercase;
+            padding: 0 1px;
+            border-radius: 1px;
+        }
+
+        & .spintax {
+            background: var(--spintax--input-text-fill);
+            padding: 0 1px;
+            border-radius: 1px;
+        }
+
+        & a {
+            color: var(--link--input-text-fill);
+            text-decoration: none;
+            outline: none;
+        }
+
+        & .empty {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 300;
+            font-size: 16px;
+            padding: 30px;
+            box-sizing: border-box;
+            user-select: none;
+        }
+    }
+
+    & .modal-emoji {
+        position: absolute;
+        top: 0;
+        bottom: 45px;
+        right: 0;
+        background: var(--input-fill);
+        display: none;
+        z-index: 2;
+        flex-flow: column nowrap;
+
+        & ul {
+            flex: 1 1 auto;
+            overflow-y: scroll;
+            width: 100%;
+            height: 100%;
+            padding: 5px;
+            box-sizing: border-box;
+            display: flex;
+            flex-flow: row wrap;
+            outline: none;
+
+            li {
+                cursor: pointer;
+                width: 40px;
+                font-size: 25px;
+                text-align: center;
+                padding: 5px 0;
+                display: block;
+                font-style: normal;
+
+                &.header {
+                    display: none;
+                    width: 100%;
+                    font-size: var(--input-font-size);
+                    padding: 10px;
+                    text-align: left;
+                }
+            }
+
+            &::-webkit-scrollbar {
+                height: 5px;
+                background-color: #dbdbdb;
+                width: 8px;
+            }
+
+            &::-webkit-scrollbar-thumb {
+                background-color: #8696a0;
+                border-radius: 4px;
+            }
+        }
+
+        & .close {
+            display: none;
+            flex: 0 0 auto;
+            border-top: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+
+            & button {
+                height: 50px;
+                width: 100%;
+                font-weight: 500;
+            }
+        }
+    }
+
+    &.open-emoji {
+        & .toolbar {
+            & button {
+                display: none;
+
+                &[data-command=close-emodji] {
+                    display: flex !important;
+                }
+            }
+
+            & .split {
+                display: none;
+            }
+        }
+
+        & .modal-emoji {
+            display: flex;
+        }
+    }
+
+    &:hover {
+        border-color: var(--hover--input-border-color);
+    }
+
+    &.focused {
+        border-color: var(--focus--input-border-color);
+
+    }
+
+    &.invalid {
+        border-color: var(--invalid--input-border-color);
+
+        & .placeholder {
+            color: var(--invalid--input-color);
+        }
+    }
+}
