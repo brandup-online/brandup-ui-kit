@@ -81,7 +81,7 @@ class MessageEditor extends InputControl<HTMLTextAreaElement | HTMLInputElement>
         const randomizerButton = DOM.tag("button", { type: "button", command: "randomize", title: "Рандомизация текста" }, [randomizationIcon, DOM.tag("span", null, "рандомизация")]);
 
         if (!this._apiForRandomizer) {
-            randomizerButton.classList.add("non-randomizer");
+            randomizerButton.classList.add("randomizer-hidden");
         }
 
         const container = DOM.tag("div", { class: "message-editor" }, [
