@@ -9,6 +9,7 @@
 
     position: relative;
     border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+    background: var(--input-fill);
     border-radius: var(--input-border-radius);
     box-sizing: border-box;
     width: 100%;
@@ -383,5 +384,17 @@
 
             color: var(--invalid--input-color);
         }
+    }
+
+    &.disabled {
+        --input-border-color: var(--disabled--input-border-color);
+	    --input-fill: var(--disabled--input-fill);
+	    --input-color: var(--disabled--input-color);
+		--svg-fill: var(--disabled--input-color);
+    }
+
+    &.readonly {
+        --input-color:var(--readonly--input-color);
+	    --input-fill: var(--readonly--input-fill);
     }
 }

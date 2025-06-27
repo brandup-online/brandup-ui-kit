@@ -7,18 +7,19 @@
 Install NPM package [@brandup/ui-message-editor](https://www.npmjs.com/package/@brandup/ui-message-editor).
 
 ```
-npm i @brandup/ui-textbox@latest
+npm i @brandup/ui-message-editor@latest
 ```
 
 ## MessageEditor
 
-`MessageEditor` - это класс компонента для ввода текста. // TODO : заполнить до конца
+`MessageEditor` - кастомный редактор текста с поддержкой форматирования, вставки эмодзи и рандомизации.
 Наследуется от `InputControl`.
 
 ```html
-
+<textarea id="message" data-content-script="message-editor"></textarea>
 ```
 
 ```TypeScript
-
+let inputElem = document.getElementById("message");
+new MessageEditor(inputElem);
 ```
