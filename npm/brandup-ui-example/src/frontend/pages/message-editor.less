@@ -1,38 +1,33 @@
-page-block.message-editor {
-	--input-color: green;
-
+.page-block.editors {
 	display: flex;
 	flex-flow:  column nowrap;
 	row-gap: 30px;
 
-	--input-font-weidth: 500;
-	--input-width: 100%;
-
-	--placeholder-font-weidth: 300;
-	--placeholder-color: #444;
-
 	& .part {
-		display: flex;
+	    display: flex;
 		flex-flow: column nowrap;
 		row-gap: 20px;
 
-		& .examples {
-			display: grid;
-			grid-template-columns: 1fr 1fr 1fr 1fr;
-			gap: 20px 30px;
+		& form {
+			display: flex;
+			flex-direction: column;
+			row-gap: 10px;
+		}
 
-			& .example {
-				display: flex;
-				flex-flow: column nowrap;
-				row-gap: 10px;
+		& .example {
+			display: flex;
+			flex-flow: column nowrap;
+			row-gap: 10px;
 
-				& .html {
-					font-size: 10px;
-					background: rgb(233, 233, 129);
-					padding: 5px 10px;
-					white-space: wrap;
-				}
-			}
+            & .field {
+                display: flex;
+                flex-flow: column nowrap;
+                row-gap: 10px;
+
+                & h5 {
+                    white-space: nowrap;
+                }
+            }
 		}
 	}
 }

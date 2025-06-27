@@ -1,10 +1,56 @@
 <section class="page-block editors">
-	<div class="example">
-		<form>
+	<div class="part">
+		<h2>Стили</h2>
+		<div class="example">
+			<h5>Default style</h5>
 			<textarea id="message" data-content-script="message-editor" data-randomizer-api="/api/randomize"></textarea>
-			<div class="buttons">
-				<button type="submit" class="app-button">Отправить</button>
-			</div>
-		</form>
-	</div>
+		</div>
+		<div class="example">
+			<h5>Placeholder</h5>
+			<textarea id="message" placeholder="Начните вводить текст сообщения" data-content-script="message-editor" data-randomizer-api="/api/randomize"></textarea>
+		</div>
+		<div class="example">
+			<h5>With value</h5>
+			<textarea id="message" data-content-script="message-editor" data-randomizer-api="/api/randomize">test</textarea>
+		</div>
+		<div class="example">
+			<h5>Without randomizer</h5>
+			<textarea id="message" data-content-script="message-editor" data-randomizer-api=""></textarea>
+		</div>
+		<div class="example">
+			<h5>Symbol counter</h5>
+			<textarea id="message" data-content-script="message-editor" data-randomizer-api="/api/randomize">test test test test test test test test test</textarea>
+		</div>
+		<div class="example">
+			<h5>Symbol counter with over maxlength</h5>
+			<textarea id="message" maxlength="5" data-content-script="message-editor" data-randomizer-api="/api/randomize">test test</textarea>
+		</div>
+		<div class="example">
+			<h5>With vars</h5>
+			<textarea id="message" data-content-script="message-editor" data-randomizer-api="/api/randomize">{test}</textarea>
+		</div>
+		<div class="example">
+			<h5>With spintax</h5>
+			<textarea id="message" data-content-script="message-editor" data-randomizer-api="/api/randomize">[test]</textarea>
+		</div>
+		<div class="example">
+			<h5>With link</h5>
+			<textarea id="message" data-content-script="message-editor" data-randomizer-api="/api/randomize">test.com</textarea>
+		</div>
+		<div class="part">
+			<h2>Валидация в форме</h2>
+			<form>
+				<div class="example">
+					<h5>Valid</h5>
+					<textarea id="message" placeholder="Начните вводить текст сообщения" data-content-script="message-editor" data-randomizer-api="/api/randomize"></textarea>
+				</div>
+				<div class="example">
+					<h5>Required</h5>
+					<textarea id="message" placeholder="Начните вводить текст сообщения" required data-content-script="message-editor" data-randomizer-api="/api/randomize"></textarea>
+				</div>
+				<div class="buttons">
+					<button type="submit" class="app-button">Отправить</button>
+				</div>
+			</form>
+		</div>
 </section>

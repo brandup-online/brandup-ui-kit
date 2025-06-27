@@ -20,9 +20,9 @@
         min-height: 440px;
         max-height: 700px;
         padding: 25px 30px;
-        background: #fff;
-        border: 1px solid #DBDBDB;
-        border-radius: 10px;
+        background: var(--input-fill);
+        border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+        border-radius: var(--input-border-radius);
         display: flex;
         flex-flow: column nowrap;
         box-sizing: border-box;
@@ -103,6 +103,8 @@
                     }
 
                     & button {
+                        --input-border-radius: 2px;
+
                         z-index: 2;
                         position: absolute;
                         right: 1px;
@@ -116,14 +118,13 @@
                         background: none;
                         border: none;
                         outline: none;
-                        border-radius: 2px;
+                        border-radius: var(--input-border-radius);
                         padding: 0;
 
                         & svg {
                             --svg-fill:#d93a3a;
+                            --svg-size: 10px;
 
-                            width: 10px;
-                            height: 10px;
                             opacity: 0.5;
                         }
 
@@ -162,15 +163,18 @@
                         margin: 5px -3px -3px -3px;
 
                         & li {
+                            --input-border-radius: 2px;
+
                             flex: 0 1 auto;
                             background: var(--input-fill);
                             padding: 4px 7px;
                             margin: 3px;
                             cursor: pointer;
-                            border-radius: 2px;
+                            border-radius: var(--input-border-radius);
 
                             &:hover {
                                 background: var(--hover--input-fill);
+                                border-color: var(--hover--input-border-color);
                             }
                         }
                     }
@@ -203,12 +207,13 @@
     & .editable {
         --input-border-type: dotted;
         --input-border-color: #fff;
+        --input-border-radius: 2px;
 
         outline: none;
         position: relative;
         cursor: text;
         padding: 5px 5px 5px 15px;
-        border-radius: 2px;
+        border-radius: var(--input-border-radius);
         border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
         word-wrap: anywhere;
 
@@ -250,6 +255,7 @@
 
         &:hover {
             background: var(--hover--input-fill);
+            border-color: var(--hover--input-border-color);
         }
 
         &:focus {
