@@ -68,7 +68,10 @@ module.exports = (env) => {
 			rules: [
 				{
 					test: /\.(?:ts|js|mjs|cjs)$/,
-					exclude: /node_modules/,
+					exclude: {
+						and: [/node_modules/],
+						not: [/@brandup/]
+					},
 					use: {
 						loader: 'babel-loader'
 					}
