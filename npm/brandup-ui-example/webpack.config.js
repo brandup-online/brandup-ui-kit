@@ -91,8 +91,8 @@ module.exports = (env) => {
 				},
 				{
 					test: /\.svg$/,
+					type: 'asset/source', // заменил raw-loader
 					use: [
-						{ loader: "raw-loader" },
 						{
 							loader: "svgo-loader",
 							options: {
