@@ -1,2 +1,2 @@
-export { default as MessageEditor } from './message-editor';
+export { default } from './message-editor';
 import "./randomizer";

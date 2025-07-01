@@ -1,7 +1,7 @@
 import { Page } from "./base";
 import html from "./message-editor.html";
 import "./message-editor.less";
-import { MessageEditor } from "@brandup/ui-message-editor";
+import MessageEditor from "@brandup/ui-message-editor";
 
 export default class NavigationPage extends Page {
     get typeName(): string { return "MessageEditorModel" }
