@@ -1,7 +1,7 @@
 import { Page } from "./base";
 import html from "./textbox.html";
 import "./textbox.less";
-import TextBox from "@brandup/ui-textbox/source/textbox";
+import TextBox from "@brandup/ui-textbox";
 
 export default class TextboxPage extends Page {
     get typeName(): string { return "TextboxPage" }
