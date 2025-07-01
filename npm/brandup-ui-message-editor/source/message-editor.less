@@ -6,15 +6,19 @@
 
 .message-editor {
     --invalid--input-border-color: #e66c6c;
+    --invalid--input-color: #e66c6c;
 
     position: relative;
     border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
     background: var(--input-fill);
+    color: var(--input-color);
     border-radius: var(--input-border-radius);
     box-sizing: border-box;
     width: 100%;
 
     & .toolbar {
+        --svg-fill: #848484;
+
         order: 3;
         flex: 0 0 100%;
         display: flex;
@@ -25,7 +29,6 @@
         min-height: 45px;
         box-sizing: border-box;
 
-        --svg-fill: #848484;
         
         & button {
             height: 100%;
@@ -40,6 +43,7 @@
             
             & svg {
                 --svg-size: 16px;
+                
                 fill: var(--svg-fill);
             }
 
@@ -62,7 +66,7 @@
 
             &[data-command=open-emodji] {
                 & svg {
-                --svg-size: 20px;
+                    --svg-size: 20px;
                 }
             }
 
@@ -76,6 +80,7 @@
 
             &[disabled] {
                 cursor: default;
+
                 & svg {
                     --svg-fill: #84848447;
                 }
@@ -382,7 +387,7 @@
         & .placeholder {
             --invalid--input-border-color: #e66c6c;
 
-            color: var(--invalid--input-color);
+            --placeholder-color: var(--invalid--input-color);
         }
     }
 
