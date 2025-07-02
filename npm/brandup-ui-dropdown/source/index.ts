@@ -1,3 +1,2 @@
-export { default as DropDown } from './dropdown';
-export type { ChangeEventData } from './dropdown';
+export { default } from './dropdown';
 export * from './utils/utilities';
