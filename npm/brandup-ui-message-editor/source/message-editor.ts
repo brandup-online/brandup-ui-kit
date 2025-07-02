@@ -810,7 +810,6 @@ class MessageEditor extends InputControl<HTMLTextAreaElement | HTMLInputElement>
         if (!this._counterElem) return;
         var textLength = this._calculateSymbolsCount(text);
         var countText = textLength ? `${textLength} ${WordHelper.getWordEnd(textLength, "символ", "", "а", "ов")}` : "";
-        console.log(textLength);
 
         if (this.maxLength > 0) {
             if (textLength > this.maxLength) {
