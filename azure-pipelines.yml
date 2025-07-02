@@ -131,6 +131,22 @@ stages:
                                   cleanDestinationFolder: true
                                   overwriteExistingFiles: true
 
+                            - task: ExtractFiles@1
+                              displayName: "unzip brandup-ui-input"
+                              inputs:
+                                  archiveFilePatterns: "$(Pipeline.Workspace)/npm/brandup-ui-input-$(Build.BuildNumber).tgz"
+                                  destinationFolder: "$(Pipeline.Workspace)/npmout/brandup-ui-input"
+                                  cleanDestinationFolder: true
+                                  overwriteExistingFiles: true
+
+                            - task: ExtractFiles@1
+                              displayName: "unzip brandup-ui-textbox"
+                              inputs:
+                                  archiveFilePatterns: "$(Pipeline.Workspace)/npm/brandup-ui-textbox-$(Build.BuildNumber).tgz"
+                                  destinationFolder: "$(Pipeline.Workspace)/npmout/brandup-ui-textbox"
+                                  cleanDestinationFolder: true
+                                  overwriteExistingFiles: true
+
                             # brandup-ui-kit
 
                             - task: Npm@1
@@ -138,4 +154,22 @@ stages:
                               inputs:
                                   command: publish
                                   workingDir: "$(Pipeline.Workspace)/npmout/brandup-ui-kit/package"
+                                  publishEndpoint: "$(publish-npm-credentials)"
+
+                            # brandup-ui-input
+
+                            - task: Npm@1
+                              displayName: "publish brandup-ui-input"
+                              inputs:
+                                  command: publish
+                                  workingDir: "$(Pipeline.Workspace)/npmout/brandup-ui-input/package"
+                                  publishEndpoint: "$(publish-npm-credentials)"
+
+                            # brandup-ui-textbox
+
+                            - task: Npm@1
+                              displayName: "publish brandup-ui-textbox"
+                              inputs:
+                                  command: publish
+                                  workingDir: "$(Pipeline.Workspace)/npmout/brandup-ui-textbox/package"
                                   publishEndpoint: "$(publish-npm-credentials)"
