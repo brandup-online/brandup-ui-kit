@@ -38,9 +38,9 @@
 		}
 
 		& svg {
+			--svg-size: 18px;
+
 			display: none;
-			width: 18px;
-			height: 18px;
 			fill: var(--input-color);
 			transition: fill ease 100ms, transform ease 150ms;
 		}
@@ -298,9 +298,9 @@
 		position: relative;
 
 		& svg {
-			display: block;
-			width: 22px;
-			height: 22px;
+			--svg-size: 22px;
+
+			display: block;			
 			fill: var(--input-color);
 			position: absolute;
 			left: var(--input-padding-lr);
@@ -309,6 +309,9 @@
 		}
 
 		& input {
+			--input-font-size: 16px;
+			--input-font-weight: 400;
+
 			display: block;
 			box-sizing: border-box;
 			border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
@@ -317,10 +320,8 @@
 			margin: 0;
 			padding: 0 var(--input-padding-lr) 0 calc(var(--input-padding-lr) * 2 + 10px);
 			height: var(--input-height);
-			font-size: 16px;
-			font-weight: 400;
 			outline: none;
-			width: 100%;
+			width: var(--input-width);
 
 			&:hover,
 			&:focus {
