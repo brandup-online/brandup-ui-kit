@@ -39,9 +39,9 @@
 
 		& svg {
 			--svg-size: 18px;
+			--svg-fill: var(--input-color);
 
 			display: none;
-			fill: var(--input-color);
 			transition: fill ease 100ms, transform ease 150ms;
 		}
 
@@ -109,7 +109,7 @@
 					--input-fill: var(--hasvalue--input-fill);
 
 					& svg {
-						fill: var(--hasvalue--input-color);
+						--svg-fill: var(--hasvalue--input-color);
 					}
 
 					&:hover,
@@ -118,7 +118,7 @@
 						--input-fill: var(--hover--input-fill);
 						
 						& svg {
-							fill: var(--hover--input-color);
+							--svg-fill: var(--hover--input-color);
 						}
 					}
 				}
@@ -239,7 +239,7 @@
 
 						& svg {
 							display: block;
-							fill: var(--hasvalue--input-color);
+							--svg-fill: var(--hasvalue--input-color);
 						}
 
 						&:focus {
@@ -300,8 +300,7 @@
 		& svg {
 			--svg-size: 22px;
 
-			display: block;			
-			fill: var(--input-color);
+			display: block;
 			position: absolute;
 			left: var(--input-padding-lr);
 			top: 50%;
@@ -311,6 +310,7 @@
 		& input {
 			--input-font-size: 16px;
 			--input-font-weight: 400;
+			--input-width: 100%;
 
 			display: block;
 			box-sizing: border-box;
@@ -385,7 +385,7 @@
 				cursor: default;
 
 				& svg {
-					fill: var(--disabled--input-color);
+					--svg-fill: var(--disabled--input-color);
 				}
 
 				&:focus,
@@ -475,7 +475,7 @@
 					--input-fill: var(--hasvalue--input-fill);
 
 					& svg {
-						fill: var(--hasvalue--input-color);
+						--svg-fill: var(--hasvalue--input-color);
 					}
 				}
 			}
@@ -494,7 +494,7 @@
 						--input-fill: var(--expanded--input-fill);
 
 						& svg {
-							fill: var(--input-color);
+							--svg-fill: var(--input-color);
 						}
 
 						&:before {
