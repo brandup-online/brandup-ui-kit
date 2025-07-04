@@ -1,19 +1,14 @@
+@import "@brandup/ui-kit/source/adaptive.less";
+
 .ui-dropdown {
-	min-height: var(--input-height);
 	position: relative;
 	box-sizing: border-box;
-	color: var(--input-color);
-	background: var(--input-fill);
-	display: flex;
 	user-select: none;
-
-	& > ul {
-		flex: 1 1 auto;
-	}
-
-	& a {
-		flex: 1 1 auto;
+  
+	& .select-button,
+	& .option-button {
 		display: flex;
+		min-height: var(--input-height);
 		flex-flow: row nowrap;
 		align-items: center;
 		justify-content: flex-start;
@@ -25,119 +20,100 @@
 		background: var(--input-fill);
 		transition: background ease 100ms;
 		gap: 10px;
-		line-height: 22px;
+		line-height: var(--line-height);
 		text-decoration: none !important;
 		outline: none;
-
-		& span {
+		border: none;
+		cursor: pointer;
+		width: 100%;
+		text-align: left;
+  
+	  	& span {
 			flex: 1 1 auto;
 			display: block;
 			overflow: hidden;
 			white-space: nowrap;
 			text-overflow: ellipsis;
-		}
-
-		& svg {
+	  	}
+  
+	  	& svg {
 			--svg-size: 18px;
 			--svg-fill: var(--input-color);
 
-			display: none;
 			transition: fill ease 100ms, transform ease 150ms;
-		}
-
-		&:hover {
+	  	}
+  
+	  	&:hover {
 			--input-color: var(--hover--input-color);
 			--input-fill: var(--hover--input-fill);
-
-			text-decoration: none;
-		}
-
-		&:focus {
+	  	}
+  
+	  	&:focus {
 			--input-color: var(--focus--input-color);
 			--input-fill: var(--focus--input-fill);
-
-			text-decoration: none;
-		}
+	  	}
 	}
-
-	& ul {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: flex;
-		flex-flow: row wrap;
-		align-items: stretch;
-		gap: 1px 5px;
-
-		& li {
-			padding: 0;
-			margin: 0;
-			display: flex;
-
-			&.other {
-				flex: 1 1 auto;
-				position: relative;
-
-				& > a {
-					position: relative;
-					padding-right: 11px;
-
-					&:before {
-						display: none;
-						content: '';
-						position: absolute;
-						left: 0;
-						top: 0;
-						width: 100%;
-						height: 100%;
-						border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
-						border-radius: var(--input-border-radius);
-						box-sizing: border-box;
-						transition: border-color ease 100ms;
-					}
-
-					& svg {
-						display: block;
-					}
-				}
+  
+	& .other {
+	  	flex: 1 1 auto;
+	  	position: relative;
+  
+	  	& .select-button {
+			position: relative;
+			padding-right: 11px;
+  
+			&:before {
+		  		content: '';
+		  		position: absolute;
+		  		left: 0;
+		  		top: 0;
+		  		width: 100%;
+		  		height: 100%;
+		  		border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+		  		border-radius: var(--input-border-radius);
+		  		box-sizing: border-box;
+		  		transition: border-color ease 100ms;
 			}
-
-			&.hasvalue {
-				& > a {
-					// общие стили, если элемент выбран
-					--input-color: var(--hasvalue--input-color);
-					--input-fill: var(--hasvalue--input-fill);
-
+  
+			& svg {
+		  		display: block;
+			}
+	  	}	
+  
+	  	&.hasvalue {
+			& .select-button {
+		  		--input-color: var(--hasvalue--input-color);
+		  		--input-fill: var(--hasvalue--input-fill);
+  
+			  	& svg {
+					--svg-fill: var(--hasvalue--input-color);
+			  	}
+			
+			  	&:hover,
+			  	&:focus {
+					--input-color: var(--hover--input-color);
+					--input-fill: var(--hover--input-fill);
+					
 					& svg {
-						--svg-fill: var(--hasvalue--input-color);
+						--svg-fill: var(--hover--input-color);
 					}
-
-					&:hover,
-					&:focus {
-						--input-color: var(--hover--input-color);
-						--input-fill: var(--hover--input-fill);
-						
-						& svg {
-							--svg-fill: var(--hover--input-color);
-						}
-					}
-				}
+			  	}
 			}
 		}
 	}
-
+  
 	& .popup {
-		display: none;
-		position: absolute;
-		top: 100%;
-		width: 100%;
-		transform: translateY(8px);
-		font-weight: 400;
-		z-index: 1000;
-		outline: none;
-		min-width: 200px;
-
-		& .content {
+	  	display: none;
+	  	position: absolute;
+	  	top: 100%;
+	  	width: 100%;
+	  	transform: translateY(8px);
+	  	font-weight: 400;
+	  	z-index: 1000;
+	  	outline: none;
+	  	min-width: 200px;
+  
+	  	& .content {
 			display: flex;
 			flex-flow: column nowrap;
 			gap: 16px;
@@ -147,25 +123,28 @@
 			padding: 16px;
 			box-sizing: border-box;
 			max-height: 370px;
-		}
-
-		& .header {
+	  	}
+  
+	  	& .header {
 			padding: 0;
-			display: none;
+			display: flex;
 			flex-flow: row nowrap;
 			align-items: center;
-
+  
 			& h3 {
-				flex: 1 1 auto;
+				color: var(--input-color);
+		  		flex: 1 1 auto;
 			}
-
+  
 			& button {
-				display: flex;
-				align-items: center;
-				justify-content: center;
+		  		display: flex;
+		  		align-items: center;
+		  		justify-content: center;
+		  		background: none;
+		  		border: none;
+		  		cursor: pointer;
 
-				&:after {
-					// для увеличения области клика
+		  		&:after {
 					content: '';
 					display: block;
 					position: absolute;
@@ -173,131 +152,123 @@
 					top: -10px;
 					right: -10px;
 					bottom: -10px;
-				}
-
-				& svg {
-					width: 18px;
-					height: 18px;
-				}
+		  		}
+  
+		  		& svg {
+					--svg-size: 18px;
+		  		}
 			}
-		}
-
-		& a {
+	  	}
+  
+	  	& .option-button {
 			padding: 12px;
 			min-height: unset;
 			width: 100%;
-
+  
 			& svg {
 				display: none;
 			}
-		}
-
-		& ul {
+	  	}
+  
+	  	& ul {
 			flex: 1 1 100%;
 			height: 100%;
 			position: relative;
 			overflow-y: scroll;
-			flex-flow: column nowrap;
-			box-sizing: border-box;
-			margin-right: -11px;
+			list-style: none;
+			padding: 0;
+			margin: 0 0 0 -5px;
 			padding-right: 5px;
 			scrollbar-width: 6px;
-			gap: 0;
-
+  
 			&::-webkit-scrollbar {
-				width: 6px;
-				height: 5px;
-				background: none;
+			  	width: 6px;
+			  	height: 5px;
+			  	background: none;
 			}
-
+  
 			&::-webkit-scrollbar-track {
-				border-radius: 3px;
-				background-color: transparent;
-				cursor: default;
+			  	border-radius: 3px;
+			  	background-color: transparent;
 			}
-
+		
 			&::-webkit-scrollbar-thumb {
-				background-color: #8696a0;
-				border-radius: 3px;
-				cursor: default;
+			  	background-color: #8696a0;
+			  	border-radius: 3px;
 			}
-
+  
 			& li {
-				&.fasted {
-					display: none;
-
-					&.ok {
-						display: block;
-					}
-				}
-
-				&.hasvalue {
-					& > a {
-						// стили если выбран элемент внутри popup
-						--input-color: var(--hasvalue--input-color);
-						--input-fill: var(--hasvalue--input-fill);
-
-						& svg {
+		  		padding: 0;
+		  		margin: 0;
+		  		display: flex;
+  
+		  		&.hasvalue {
+					& .option-button {
+			  			--input-color: var(--hasvalue--input-color);
+			  			--input-fill: var(--hasvalue--input-fill);
+  
+			  			& svg {
 							display: block;
-							--svg-fill: var(--hasvalue--input-color);
-						}
 
-						&:focus {
+							--svg-fill: var(--hasvalue--input-color);
+			  			}
+  
+			  			&:focus {
 							--input-color: var(--focus--input-color);
 							--input-fill: var(--focus--input-fill);
-						}
+				  		}
 					}
-				}
+			  	}
 			}
-
+  
 			&.result {
 				& li {
 					display: none;
-
+  
 					&.ok {
-						display: flex;
+			  			display: flex;
 					}
-				}
+		  		}
 			}
-
+  
 			&.notfound {
-				display: none;
-
-				& ~ .empty {
+		  		display: none;
+  
+		  		& ~ .empty {
 					flex: 1 1 auto;
 					display: block;
-				}
+		  		}
 			}
-		}
-
-		& .empty {
+	  	}
+  
+	  	& .empty {
 			display: none;
 			font-weight: 400;
-		}
-
-		& .cancel {
+	  	}
+  
+	  	& .cancel {
 			display: none;
-		}
-
-		&.top {
+	  	}
+  
+	  	&.top {
 			top: auto;
 			bottom: 100%;
 			transform: translateY(-8px);
-		}
-
-		&.right {
+	  	}
+  
+	  	&.right {
 			left: 0;
 			right: auto;
-		}
+	  	}
 	}
-
+  
 	& .search {
-		flex: 0 0 auto;
-		display: none;
-		flex-flow: row nowrap;
-		position: relative;
-
-		& svg {
+	  	flex: 0 0 auto;
+	  	display: none;
+	  	flex-flow: row nowrap;
+	  	position: relative;
+  
+	  	& svg {
 			--svg-size: 22px;
 
 			display: block;
@@ -305,13 +276,13 @@
 			left: var(--input-padding-lr);
 			top: 50%;
 			transform: translateY(-50%);
-		}
-
-		& input {
+	  	}
+  
+	  	& input {
 			--input-font-size: 16px;
 			--input-font-weight: 400;
 			--input-width: 100%;
-
+			
 			display: block;
 			box-sizing: border-box;
 			border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
@@ -322,204 +293,118 @@
 			height: var(--input-height);
 			outline: none;
 			width: var(--input-width);
-
+  
 			&:hover,
 			&:focus {
-				color: var( --input-color);
 				--input-border-color: var(--hover--input-border-color);
-			}
-		}
-	}
-
-	&.searchable {
-		& .search {
-			display: flex;
-		}
-	}
-
-	&.noother {
-		& ul li.other {
-			display: none;
-		}
-	}
-
-	&.expanded {
-		& ul li.other {
-			z-index: 1000;
-
-			& > a {
-				--input-color: var(--expanded--input-color);
-				--input-fill: var(--expanded--input-fill);
-
-				& svg {
-					fill: var(--expanded--input-color);
-					transform: rotate(180deg);
-				}
-
-				&:before {
-					--input--border-color: var(--input-border-color);
-				}
-			}
-		}
-
-		& .popup {
-			display: block;
-		}
-	}
-
-	&.invalid {
-		& > ul > li {
-			> a {
-				--input-color: var(--invalid--input-color);
-			}
-		}
-	}
-
-	&.disabled { // класс для кнопок
-		& > ul > li {
-			> a {
-				--input-color: var(--disabled--input-color);
-				--input-border-color: var(--disabled--input-border-color);
-				--input-fill: var(--disabled--input-fill);
 				
-				cursor: default;
-
-				& svg {
-					--svg-fill: var(--disabled--input-color);
-				}
-
-				&:focus,
-				&:hover {
-					--input-color: var(--disabled--input-color);
-					--input-border-color: var(--disabled--input-border-color);
-					--input-fill: var(--disabled--input-fill);
-				}
+		  		color: var(--input-color);
 			}
-		}
+	  	}
 	}
-
+  
+	&.searchable {
+	  	& .search {
+			display: flex;
+	  	}
+	}
+  
+	&.expanded {
+		& .other {
+			z-index: 1000;
+  
+			& .select-button {
+			  	--input-color: var(--expanded--input-color);
+			  	--input-fill: var(--expanded--input-fill);
+  
+		  		& svg {
+					--svg-fill: var(--expanded--input-color);
+					
+					transform: rotate(180deg);
+		  		}
+  
+		  		&:before {
+					--input-border-color: var(--input-border-color);
+		  		}
+			}
+	  	}
+  
+	  	& .popup {
+			display: block;
+	  	}
+	}
+  
+	&.invalid {
+		& .other {
+			& .select-button {
+		  		--input-color: var(--invalid--input-color);
+		  		--input-fill: var(--invalid--input-fill);
+		  
+		  		&:before {
+					--input-border-color: var(--invalid--input-border-color);
+		  		}
+			}
+	  	}
+	}
+  
+	&.disabled {
+	  	& .select-button,
+	  	& .option-button {
+			--input-color: var(--disabled--input-color);
+			--input-fill: var(--disabled--input-fill);
+			--input-border-color: var(--disabled--input-border-color);
+			
+			cursor: default;
+  
+			& svg {
+			  --svg-fill: var(--disabled--input-color);
+			}
+  
+			&:focus,
+			&:hover {
+		  		--input-color: var(--disabled--input-color);
+		  		--input-fill: var(--disabled--input-fill);
+		  		--input-border-color: var(--disabled--input-border-color);
+			}
+	  	}
+	}
+  
 	&.empty {
-		& .popup {
+	  	& .popup {
 			right: auto;
 			left: 0;
-
+  
 			& ul {
 				display: none;
 			}
-
+  
 			& .empty {
-				display: block;
-				flex: 1 1 auto;
+			  	display: block;
+			  	flex: 1 1 auto;
 			}
-		}
-
-		& .search {
+	  	}
+  
+	  	& .search {
 			display: none;
-		}
+	  	}
 	}
-
-	&.fast {
-		& ul li.other {
-			flex: 0 1 auto;
-
-			& > a {
-				&:before {
-					display: none;
-				}
-			}
-		}
-
-		& > ul > li > a span {
-			max-width: 130px;
-		}
-
-		& .popup {
-			right: 0;
-			width: 288px;
-		}
-	}
-
-	&.select {
-		& > ul > li {
-			&.other {
-				flex: 1 1 auto;
-
-				& > a {
-					&:before {
-						display: block;
-					}
-
-					&:hover {
-						--input-color: var(--hover--input-color);
-						--input-fill: var(--hover--input-fill);
-
-						&:before {
-							--input-border-color: var(--hover--input-border-color);
-						}
-					}
-
-					&:focus {
-						--input-color: var(--focus--input-color);
-						--input-fill: var(--focus--input-fill);
-
-						&:before {
-							--input-border-color: var(--focus--input-border-color);
-						}
-					}
-				}
-			}
-
-			&.hasvalue {
-				& > a {
-					--input-color: var(--hasvalue--input-color);
-					--input-fill: var(--hasvalue--input-fill);
-
-					& svg {
-						--svg-fill: var(--hasvalue--input-color);
-					}
-				}
-			}
-		}
-
-		& .popup {
-			left: 0;
-			right: auto;
-		}
-
-		&.expanded {
-			& > ul > li {
-				&.other {
-					& > a {
-						--input-color: var(--expanded--input-color);
-						--input-fill: var(--expanded--input-fill);
-
-						& svg {
-							--svg-fill: var(--input-color);
-						}
-
-						&:before {
-							--input-border-color: var(--focus--input-border-color);
-						}
-					}
-				}
-			}
-		}
-
-		&.invalid {
-			& > ul > li {
-				&.other {
-					& > a {
-						--input-color: var(--invalid--input-color);
-						--input-border-color: var(--invalid--input-border-color);
-
-						&:before {
-							--input-border-color: var(--invalid--input-border-color);
-						}
-					}
-				}
-			}
-		}
-	}
+}
+  
+.ui-dropdown-input {
+	opacity: 0;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	outline: none;
+	visibility: collapse;
+}
+  
+.ui-dropdown-miniature {
+	border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+	background: var(--input-fill);
+	border-radius: var(--input-border-radius);
+	height: var(--input-height);
+	box-sizing: border-box;
 }
 
 .ui-dropdown-input {
@@ -532,9 +417,108 @@
 }
 
 .ui-dropdown-miniature {
-	border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
-	background: var(--input-fill);
+	border: solid var(--input-border-width) var(--input-border-color);
+	background: #F6F7F8;
 	border-radius: var(--input-border-radius);
 	height: var(--input-height);
 	box-sizing: border-box;
 }
+
+.adaptive-notebook({
+	& .ui-dropdown {
+		& .popup .content {
+			max-height: 340px;
+		}
+	}
+});
+
+.adaptive-notebook-small({
+	& .ui-dropdown {
+		& .popup .content {
+			max-height: 320px;
+		}
+	}
+});
+
+.adaptive-tablet({
+	& .ui-dropdown {
+		& .popup {
+			position: fixed;
+			background: rgba(0, 0, 0, 0.5);
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			transform: none;
+
+			& .content {
+				--input-border-radius: 10px;
+
+				padding: 32px;
+				max-width: 540px;
+				max-height: 550px;
+				width: 100%;
+				height: 100%;
+			}
+
+			& .header {
+				display: flex;
+			}
+
+			&.top {
+				top: 0;
+				bottom: 0;
+				transform: none;
+			}
+
+			&.right {
+				left: 0;
+				right: 0;
+			}
+		}
+
+		&.expanded {
+			& .popup {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+
+				& .content {
+					flex: 1 1 auto;
+				}
+			}
+		}
+	}
+
+	& body.ui-dropdown-opened {
+		overflow: hidden;
+	}
+});
+
+.adaptive-mobile({
+	& .ui-dropdown {
+		& .popup {
+			& .content {
+				--input-border-radius: 0;
+				
+				padding: 28px;
+				max-width: none;
+				max-height: none;
+			}
+
+			& .cancel {
+				display: block;
+			}
+		}
+	}
+});
+
+.adaptive-mobile-small({
+	& .ui-dropdown {
+		& .popup {
+			& .content {
+				padding: 20px;
+			}
+		}
+	}
+});

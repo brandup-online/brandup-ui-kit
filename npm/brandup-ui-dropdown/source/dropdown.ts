@@ -1,12 +1,13 @@
-import "./dropdown.less"; // стили компонента
-
 import { InputControl } from "@brandup/ui-input";
 import { DOM } from "@brandup/ui-dom";
+import { detectLanguage, transcriptText } from "./utils/utilities";
+
+import "./dropdown.less"; // стили компонента
+
 import arrowBottomIcon from "./svg/arrow-down.svg";
 import checkIcon from "./svg/tick.svg";
 import searchIcon from "./svg/search.svg";
 import closeIcon from "./svg/cancel.svg";
-import { detectLanguage, transcriptText } from "./utils/utilities";
 
 export const ROOT_CLASS = "ui-dropdown";
 export const INPUT_CLASS = "ui-dropdown-input";
@@ -38,7 +39,6 @@ class DropDown extends InputControl<HTMLSelectElement> {
     private __invalidTimeout?: number;
     private __hasEmptyValue: boolean = false;
 
-    readonly fastCount: number = 0;
     readonly placeholder: string;
     readonly moreText: string;
     readonly emptyText: string;
@@ -53,8 +53,6 @@ class DropDown extends InputControl<HTMLSelectElement> {
 
         this.__valueElem.classList.add(INPUT_CLASS);
 
-        if (this.__valueElem.hasAttribute("data-fast"))
-            this.fastCount = parseInt(this.__valueElem.getAttribute("data-fast") || "0");
         this.placeholder = this.__valueElem.getAttribute("data-placeholder") || "Select";
         this.moreText = this.__valueElem.getAttribute("data-moretext") || "Other";
         this.emptyText = this.__valueElem.getAttribute("data-emptytext") || "Empty list";
@@ -77,34 +75,28 @@ class DropDown extends InputControl<HTMLSelectElement> {
 
         // __renderUI
         const container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(this.__valueElem.classList)) }, [
-            DOM.tag("ul", null, [
-                this.__otherItemElem = DOM.tag("li", { class: "other" }, [
-                    DOM.tag("a", { href: "", command: "open-other" }, [this.__otherTextElem = DOM.tag("span", null, [this.moreText.trim()]), arrowBottomIcon]),
-                    this.__popupElem = DOM.tag("div", { class: "popup", tabindex: 0 }, [
-                        DOM.tag("div", "content", [
-                            DOM.tag("div", "header", [
-                                DOM.tag("h3", null, this.placeholder),
-                                DOM.tag("button", { command: "close-other" }, closeIcon)]
-                            ),
-                            DOM.tag("div", { class: "search" }, [
-                                searchIcon,
-                                this.__searchInput = <HTMLInputElement>DOM.tag("input", { type: "search", maxlength: 50, placeholder: this.searchPlaceholder })
-                            ]),
-                            this.__otherListElem = DOM.tag("ul"),
-                            this.__otherEmptyElem = DOM.tag("div", { class: "empty" }, this.emptyText),
-                            DOM.tag("button", { class: ["cancel", "app-button", "secondary"], command: "close-other" }, "Отмена")
-                        ])
+            this.__otherItemElem = DOM.tag("div", { class: "other" }, [
+                DOM.tag("button", { class: "select-button", href: "", command: "open-other" }, [this.__otherTextElem = DOM.tag("span", null, [this.moreText.trim()]), arrowBottomIcon]),
+                this.__popupElem = DOM.tag("div", { class: "popup", tabindex: 0 }, [
+                    DOM.tag("div", "content", [
+                        DOM.tag("div", "header", [
+                            DOM.tag("h3", null, this.placeholder),
+                            DOM.tag("button", { command: "close-other" }, closeIcon)]
+                        ),
+                        DOM.tag("div", { class: "search" }, [
+                            searchIcon,
+                            this.__searchInput = <HTMLInputElement>DOM.tag("input", { type: "search", maxlength: 50, placeholder: this.searchPlaceholder })
+                        ]),
+                        this.__otherListElem = DOM.tag("ul"),
+                        this.__otherEmptyElem = DOM.tag("div", { class: "empty" }, this.emptyText),
+                        DOM.tag("button", { class: ["cancel", "app-button", "secondary"], command: "close-other" }, "Отмена")
                     ])
                 ])
             ])
         ]);
 
         container.classList.remove(INPUT_CLASS);
-
-        if (this.fastCount > 0)
-            container.classList.add("fast");
-        else
-            container.classList.add("select");
+        container.classList.add("select");
 
         this.setElement(container);
 
@@ -120,7 +112,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
         this.__closeOtherFunc = (e: MouseEvent) => {
             const t = <HTMLElement>e.target;
             const dd = t.closest(".other");
-            if (!dd || dd != this.__otherItemElem || (dd == this.__otherItemElem && (t.closest("li[data-index]") || t.closest("button")))) {
+            if (!dd || dd != container || (dd == container && (t.closest("li[data-index]") || t.closest("button")))) {
                 this.__closeOther();
                 this.__clearSearch();
             }
@@ -134,9 +126,8 @@ class DropDown extends InputControl<HTMLSelectElement> {
     private __renderItems() {
         const optionsCount = this.__valueElem.options.length;
         const selectedIndex = this.__valueElem.selectedIndex;
-        let fastMax = this.fastCount;
 
-        if (!optionsCount || !this.fastCount)
+        if (!optionsCount)
             this.__otherTextElem.innerText = this.placeholder;
 
         if (!optionsCount) {
@@ -146,7 +137,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
 
         // определяем можно ли делать поиск по элементам в списке
         let isSearchable = false;
-        if (this.searchOn === true || (optionsCount - fastMax) >= <number>this.searchOn) {
+        if (this.searchOn === true || optionsCount >= <number>this.searchOn) {
             this.element?.classList.add("searchable");
             isSearchable = true;
         }
@@ -165,18 +156,12 @@ class DropDown extends InputControl<HTMLSelectElement> {
             const itemValue = optionElem.value;
 
             if (i === 0 && !itemValue) {
-                // Если первый элемент, это пустое значение
-
-                if (fastMax)
-                    fastMax++;
-
                 this.__hasEmptyValue = true;
-
                 continue;
             }
 
             let itemElem = DOM.tag("li", { dataset: { value: itemValue, index: i.toString() } },
-                DOM.tag("a", { href: "", command: "select" }, [DOM.tag("span", null, itemText), checkIcon])
+                DOM.tag("button", { class: "option-button", href: "", command: "select" }, [DOM.tag("span", null, itemText), checkIcon])
             );
 
             const transcript = (<any>itemElem)['wsdd_transcript'] = transcriptText(itemText);
@@ -185,30 +170,22 @@ class DropDown extends InputControl<HTMLSelectElement> {
             if (isSelected)
                 itemElem.classList.add("hasvalue");
 
-            if (i < fastMax) {
-                this.__otherItemElem.insertAdjacentElement("beforebegin", itemElem);
-
-                if (i == optionsCount - 1)
-                    this.element?.classList.add("noother");
-
-                if (isSearchable) {
-                    // дублируем быстрый элемент в общем списке, чтобы находить его при поиске
-                    itemElem = itemElem.cloneNode(true) as HTMLLIElement;
-                    (<any>itemElem)['wsdd_transcript'] = transcript;
-                    itemElem.classList.add('fasted')
-                    otherItemsFragment.append(itemElem);
-                }
-            }
-            else {
+            if (isSearchable) {
+                // дублируем быстрый элемент в общем списке, чтобы находить его при поиске
+                itemElem = itemElem.cloneNode(true) as HTMLLIElement;
+                (<any>itemElem)['wsdd_transcript'] = transcript;
+                itemElem.classList.add('fasted')
                 otherItemsFragment.append(itemElem);
-
-                if (isSelected) {
-                    this.__otherItemElem.classList.add("hasvalue");
-                    this.__otherTextElem.innerText = itemText;
-                }
-
-                otherCount++;
             }
+
+            otherItemsFragment.append(itemElem);
+
+            if (isSelected) {
+                this.__otherItemElem.classList.add("hasvalue");
+                this.__otherTextElem.innerText = itemText;
+            }
+
+            otherCount++;
         }
 
         if (this.__hasEmptyValue && !otherCount)
@@ -233,7 +210,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
 
             const currentSelect = this.__getSelectedElem();
             if (currentSelect && newIndex === currentSelect.own.dataset.index)
-                return; // если выбор остался таким же
+                return;// если выбор остался таким же
 
             DOM.removeClass(this.element, '.hasvalue', 'hasvalue');
 
@@ -248,18 +225,14 @@ class DropDown extends InputControl<HTMLSelectElement> {
             const newSelected = this.__getElemsByIndex(Number(newIndex));
             if (newSelected) {
                 newSelected.own.classList.add("hasvalue");
-                newSelected.fasted?.classList.add("hasvalue");
 
                 const newOther = newSelected.own.closest(".other");
 
                 if (newOther) {
                     // если новый выбор в дополнительном списке
-
                     this.__otherTextElem.innerText = newSelected.own.innerText.trim();
                     newOther.classList.add("hasvalue");
-
                     this.__closeOther();
-
                     // возвращаем фокус на other
                     this.__focusOther();
                 }
@@ -372,7 +345,6 @@ class DropDown extends InputControl<HTMLSelectElement> {
 
         if (popupRect.y + popupRect.height > bodyHeight) {
             // если popup заходит за нижнюю границу экрана
-
             this.__popupElem.classList.add("top");
         }
 
@@ -398,7 +370,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
         query = query.toLowerCase();
 
         this.__otherListElem.classList.add("result");
-        const items = DOM.queryElements(this.__otherListElem, "a span");
+        const items = DOM.queryElements(this.__otherListElem, "button span");
 
         let findedCount = 0;
         items.forEach(it => {
@@ -501,9 +473,6 @@ class DropDown extends InputControl<HTMLSelectElement> {
 
         if (isInvalid) {
             this.element?.classList.add("invalid");
-
-            if (this.fastCount > 0)
-                this.__invalidTimeout = window.setTimeout(clearInvalid, 200);
         }
         else
             clearInvalid();
