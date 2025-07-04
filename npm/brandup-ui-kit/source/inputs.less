@@ -55,6 +55,12 @@
 	--incorrect--input-fill: @incorrect--input-fill;
 	--incorrect--input-color: @input-color;
 
+	--expanded--input-color: @expanded--input-color;
+	--expanded--input-fill: @expanded--input-fill;
+	
+	--hasvalue--input-color: @hasvalue--input-color;
+	--hasvalue--input-fill: @hasvalue--input-fill;
+
 	// toggler
 	--toggler-height: @toggler-height;
 	--toggler-padding: @toggler-padding;
@@ -242,4 +248,20 @@ input[type=checkbox] {
 		background-color: var(--invalid--input-fill);
 		color: var(--invalid--input-color);
 	}
+}
+
+// состояние для выбранного значения
+
+&.hasvalue {
+	background: var(--hasvalue--input-fill);
+	color: var(--hasvalue--input-color);
+	border-radius: var(--input-border-radius);
+}
+
+// состояние при открытии выпадашки
+
+&.expanded {
+	background: var(--expanded--input-fill);
+	color: var(--expanded--input-color);
+	border-radius: var(--input-border-radius);
 }
