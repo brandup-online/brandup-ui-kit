@@ -101,7 +101,6 @@ class DropDown extends InputControl<HTMLSelectElement> {
         this.setElement(container);
 
         if (this.__valueElem.nextElementSibling) {
-            // Если следующий элемент это миниатюра пока combobox не отрисован
             const nextElem = <HTMLElement>this.__valueElem.nextElementSibling;
             if (nextElem.classList.contains(MINIATURE_CLASS)) nextElem.remove();
         }
@@ -112,7 +111,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
         this.__closeOtherFunc = (e: MouseEvent) => {
             const t = <HTMLElement>e.target;
             const dd = t.closest(".other");
-            if (!dd || dd != container || (dd == container && (t.closest("li[data-index]") || t.closest("button")))) {
+            if (!dd || (dd === this.__otherItemElem && !t.closest("li[data-index]") && t !== this.__searchInput && !t.closest(".search"))) {
                 this.__closeOther();
                 this.__clearSearch();
             }
@@ -122,7 +121,6 @@ class DropDown extends InputControl<HTMLSelectElement> {
         this.__initLogic();
     }
 
-    // рендер элементов и выбор текущего
     private __renderItems() {
         const optionsCount = this.__valueElem.options.length;
         const selectedIndex = this.__valueElem.selectedIndex;
@@ -135,18 +133,15 @@ class DropDown extends InputControl<HTMLSelectElement> {
             return;
         }
 
-        // определяем можно ли делать поиск по элементам в списке
         let isSearchable = false;
         if (this.searchOn === true || optionsCount >= <number>this.searchOn) {
             this.element?.classList.add("searchable");
             isSearchable = true;
         }
 
-        // вставляем элементы меню в фрагмент, чтобы не нагружать процессор
         const otherItemsFragment = document.createDocumentFragment();
 
         let otherCount = 0;
-        //const createFasted = optionsCount > fastMax && isSearchable;
         for (let i = 0; i < optionsCount; i++) {
             const optionElem = this.__valueElem.options.item(i);
             if (!optionElem)
@@ -174,7 +169,6 @@ class DropDown extends InputControl<HTMLSelectElement> {
                 // дублируем быстрый элемент в общем списке, чтобы находить его при поиске
                 itemElem = itemElem.cloneNode(true) as HTMLLIElement;
                 (<any>itemElem)['wsdd_transcript'] = transcript;
-                itemElem.classList.add('fasted')
                 otherItemsFragment.append(itemElem);
             }
 
@@ -210,16 +204,14 @@ class DropDown extends InputControl<HTMLSelectElement> {
 
             const currentSelect = this.__getSelectedElem();
             if (currentSelect && newIndex === currentSelect.own.dataset.index)
-                return;// если выбор остался таким же
+                return;
 
             DOM.removeClass(this.element, '.hasvalue', 'hasvalue');
 
             if (currentSelect && currentSelect.own.closest(".other")) {
-                // если предыдущий выбор ТОЛЬКО в дополнительном списке
                 this.__otherTextElem.innerText = this.moreText.trim();
             }
 
-            // делаем новый выбор
             this.__valueElem.value = context.target.parentElement?.dataset.value || "";
 
             const newSelected = this.__getElemsByIndex(Number(newIndex));
@@ -229,11 +221,9 @@ class DropDown extends InputControl<HTMLSelectElement> {
                 const newOther = newSelected.own.closest(".other");
 
                 if (newOther) {
-                    // если новый выбор в дополнительном списке
                     this.__otherTextElem.innerText = newSelected.own.innerText.trim();
                     newOther.classList.add("hasvalue");
                     this.__closeOther();
-                    // возвращаем фокус на other
                     this.__focusOther();
                 }
             }
@@ -253,7 +243,6 @@ class DropDown extends InputControl<HTMLSelectElement> {
             switch (e.key) {
                 case "ArrowUp":
                     if (isA) {
-                        // Если есть предыдущий элемент, то переводим фокус на него
                         const prevItemElem = target.parentElement?.previousElementSibling;
                         if (prevItemElem)
                             (<HTMLElement>prevItemElem.firstElementChild).focus();
@@ -263,7 +252,6 @@ class DropDown extends InputControl<HTMLSelectElement> {
                     break;
                 case "ArrowDown":
                     if (isA) {
-                        // Если есть следующий элемент, то переводим фокус на него
                         const nextItemElem = target.parentElement?.nextElementSibling;
                         if (nextItemElem)
                             (<HTMLElement>nextItemElem.firstElementChild).focus();
@@ -278,15 +266,12 @@ class DropDown extends InputControl<HTMLSelectElement> {
                     break;
                 case "Tab":
                     if (target == this.__popupElem && this.element?.classList.contains("empty")) {
-                        // если список пустой, то фокус уйдёт от компанента на следующий и нужно закрыть popup
                         this.__closeOther();
                     }
                     else if (target == this.__searchInput && this.__otherListElem.classList.contains("notfound")) {
-                        // если не найдено, то фокус уйдёт от компанента на следующий и нужно закрыть popup
                         this.__closeOther();
                     }
                     else if (isA && !target.parentElement?.nextElementSibling) {
-                        // если фокус на последнем элементе списка, то фокус уйдёт от компанента на следующий и нужно закрыть popup
                         this.__closeOther();
                     }
                     break;
@@ -308,7 +293,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
     }
 
     private __toggleOther() {
-        if (this.element?.classList.contains("disabled")) // проверка чтобы не открывался select если disabled
+        if (this.element?.classList.contains("disabled"))
             return;
 
         if (!this.element?.classList.toggle("expanded"))
@@ -320,7 +305,6 @@ class DropDown extends InputControl<HTMLSelectElement> {
 
         document.body.classList.add(BODY_EXPANDED);
 
-        // скролл до выбранного элемента или в начало
         let top = 0;
         const selectedElem = this.__getSelectedElem();
         const itemHeight = selectedElem?.own?.clientHeight || 0;
@@ -338,19 +322,16 @@ class DropDown extends InputControl<HTMLSelectElement> {
         this.__popupElem.classList.remove("top", "right");
 
         if (document.body.clientWidth <= TABLET_WIDTH)
-            return; // если попап на весь экран, то не нужно определять позицию.
+            return;
 
         const bodyHeight = document.body.clientHeight;
         const popupRect = this.__popupElem.getBoundingClientRect();
 
         if (popupRect.y + popupRect.height > bodyHeight) {
-            // если popup заходит за нижнюю границу экрана
             this.__popupElem.classList.add("top");
         }
 
         if (popupRect.x < 0) {
-            // если popup заходит за левую границу экрана
-
             this.__popupElem.classList.add("right");
         }
     }
@@ -390,6 +371,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
             // если ничего не найдено по оригинальному тексту, то ищем в других раскладках клавиатуры
 
             const queryLang = detectLanguage(query);
+
             if (queryLang) {
                 for (let i = 0; i < this.__otherListElem.children.length; i++) {
                     const item = this.__otherListElem.children.item(i);
@@ -397,7 +379,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
                         continue;
 
                     const transcript = (<any>item)['wsdd_transcript'];
-                    if (transcript && transcript[queryLang].startsWith(query)) {
+                    if (transcript && typeof transcript[queryLang] === 'string' && transcript[queryLang].startsWith(query)) {
                         item.classList.add("ok");
                         findedCount++;
                     }
