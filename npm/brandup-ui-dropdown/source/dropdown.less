@@ -9,6 +9,7 @@
 	& .option-button {
 		display: flex;
 		min-height: var(--input-height);
+		width: var(--input-width);
 		flex-flow: row nowrap;
 		align-items: center;
 		justify-content: flex-start;
@@ -161,9 +162,10 @@
 	  	}
   
 	  	& .option-button {
+			--input-width: 100%;
+
 			padding: 12px;
 			min-height: unset;
-			width: 100%;
   
 			& svg {
 				display: none;
@@ -291,8 +293,8 @@
 			margin: 0;
 			padding: 0 var(--input-padding-lr) 0 calc(var(--input-padding-lr) * 2 + 10px);
 			height: var(--input-height);
-			outline: none;
 			width: var(--input-width);
+			outline: none;
   
 			&:hover,
 			&:focus {
