@@ -26,7 +26,7 @@
 	"main": "source/index.ts",
 	"types": "source/index.ts",
 	"dependencies": {
-		"@brandup/ui-app": "^1.0.32"
+		"@brandup/ui-app": "^1.0.33"
 	},
 	"devDependencies": {
 		"less": "^4.3.0",
