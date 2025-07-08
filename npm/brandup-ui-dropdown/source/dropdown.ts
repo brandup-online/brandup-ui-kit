@@ -73,12 +73,12 @@ class DropDown extends InputControl<HTMLSelectElement> {
 
         // __renderUI
         this.__container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(this.__valueElem.classList)) }, [
-            DOM.tag("button", { class: "view", command: "open-dropdown" }, [this.__textElem = DOM.tag("span", null, [this.moreText!.trim()]), arrowBottomIcon]),
+            DOM.tag("button", { class: "view", command: "open-popup" }, [this.__textElem = DOM.tag("span", null, [this.moreText!.trim()]), arrowBottomIcon]),
             this.__popupElem = DOM.tag("div", { class: "popup", tabindex: 0 }, [
                 DOM.tag("div", "content", [
                     DOM.tag("div", "header", [
                         DOM.tag("h3", null, this.placeholder),
-                        DOM.tag("button", { command: "close-dropdown" }, closeIcon)]
+                        DOM.tag("button", { command: "close-popup" }, closeIcon)]
                     ),
                     DOM.tag("div", { class: "search" }, [
                         searchIcon,
@@ -86,7 +86,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
                     ]),
                     this.__listElem = DOM.tag("ul"),
                     this.__emptyElem = DOM.tag("div", { class: "empty" }, this.emptyText),
-                    DOM.tag("button", { class: ["cancel", "app-button", "secondary"], command: "close-dropdown" }, "Отмена")
+                    DOM.tag("button", { class: ["cancel", "app-button", "secondary"], command: "close-popup" }, "Отмена")
                 ])
             ])
         ]);
@@ -156,12 +156,10 @@ class DropDown extends InputControl<HTMLSelectElement> {
             }
 
             let itemElem = DOM.tag("li", { command: "select", dataset: { value: itemValue, index: i.toString() } }, [
-                DOM.tag("span", null, itemText),
+                DOM.tag("span", { tabindex: "0" }, itemText),
                 checkIcon
             ]
             );
-
-            itemElem.setAttribute("tabindex", "0"); // для управления с клавиатуры
 
             const transcript = (<any>itemElem)['wsdd_transcript'] = transcriptText(itemText);
 
@@ -194,8 +192,8 @@ class DropDown extends InputControl<HTMLSelectElement> {
     }
 
     private __initLogic() {
-        this.registerCommand("open-dropdown", () => this.__togglePopup());
-        this.registerCommand("close-dropdown", () => this.__closePopup());
+        this.registerCommand("open-popup", () => this.__togglePopup());
+        this.registerCommand("close-popup", () => this.__closePopup());
 
         this.registerCommand("select", context => {
             if (!this.element)
@@ -245,22 +243,28 @@ class DropDown extends InputControl<HTMLSelectElement> {
         });
 
         this.__popupElem.addEventListener("keydown", (e: KeyboardEvent) => {
-            const target = e.target as HTMLElement;
-            if (target.tagName !== "LI") return; // обрабатываем только li с tabindex
+            const target = <HTMLElement>e.target;
+            const isSpan = target.tagName == "SPAN";
 
             switch (e.key) {
                 case "ArrowUp": {
-                    const prevLi = target.previousElementSibling as HTMLElement | null;
-                    if (prevLi) {
-                        prevLi.focus();
+                    if (isSpan) {
+                        // Если есть предыдущий элемент, то переводим фокус на него
+                        const prevItemElem = target.parentElement?.previousElementSibling;
+                        if (prevItemElem)
+                            (<HTMLElement>prevItemElem.firstElementChild).focus();
+
                         e.preventDefault();
                     }
                     break;
                 }
                 case "ArrowDown": {
-                    const nextLi = target.nextElementSibling as HTMLElement | null;
-                    if (nextLi) {
-                        nextLi.focus();
+                    if (isSpan) {
+                        // Если есть следующий элемент, то переводим фокус на него
+                        const nextItemElem = target.parentElement?.nextElementSibling;
+                        if (nextItemElem)
+                            (<HTMLElement>nextItemElem.firstElementChild).focus();
+
                         e.preventDefault();
                     }
                     break;
@@ -273,12 +277,15 @@ class DropDown extends InputControl<HTMLSelectElement> {
                 }
                 case "Tab": {
                     if (target == this.__popupElem && this.element?.classList.contains("empty")) {
+                        // если список пустой, то фокус уйдёт от компанента на следующий и нужно закрыть popup
                         this.__closePopup();
                     }
                     else if (target == this.__searchInput && this.__listElem.classList.contains("notfound")) {
+                        // если не найдено, то фокус уйдёт от компанента на следующий и нужно закрыть popup
                         this.__closePopup();
                     }
-                    else if (!target.parentElement?.nextElementSibling) {
+                    else if (isSpan && !target.parentElement?.nextElementSibling) {
+                        // если фокус на последнем элементе списка, то фокус уйдёт от компанента на следующий и нужно закрыть popup
                         this.__closePopup();
                     }
                     break;
