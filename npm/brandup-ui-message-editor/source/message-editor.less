@@ -1,8 +1,9 @@
+@import "@brandup/ui-kit/source/adaptive.less";
+
 :root {
 	--editor-text-variables-fill: #be6cce;
 	--editor-text-spintax-fill: #87c671;
 }
-
 
 .message-editor {
     --invalid--input-border-color: #e66c6c;
@@ -82,12 +83,6 @@
                 & svg {
                     --svg-fill: #84848447;
                 }
-
-                &:hover {
-                    & svg {
-                        --svg-fill: #84848447;
-                    }
-                }
             }
 
             &.randomizer-hidden { // класс для скрытия кнопки рандомизации если api не указан
@@ -114,12 +109,9 @@
     }
 
     & .scroll-content {
-        min-height: 200px;
-        /*max-height: 300px;*/
+        min-height: 200px; 
         position: relative;
         z-index: 1;
-        /*overflow-y: auto;
-        overflow-x: hidden;*/
         display: flex;
         flex-flow: row wrap;
 
@@ -153,10 +145,6 @@
             color: var(--input-color);
             word-wrap: anywhere;
             min-height: 200px;
-
-            & span.f {
-                color: #667781; // не нашел что это
-            }
 
             & b {
                 font-weight: 800;
@@ -393,10 +381,84 @@
 	    --input-fill: var(--disabled--input-fill);
 	    --input-color: var(--disabled--input-color);
 		--svg-fill: var(--disabled--input-color);
+
+        & .scroll-content {
+            flex-direction: row-reverse;
+
+            & .editor {
+                display: none;
+            }
+    
+            & .toolbar {
+                display: none;
+            }
+        }
+        
     }
 
     &.readonly {
-        --input-color:var(--readonly--input-color);
+        --input-color: var(--readonly--input-color);
 	    --input-fill: var(--readonly--input-fill);
+
+        & .placeholder {
+            cursor: default;
+        }
     }
+
+    .adaptive-tablet({
+        & .scroll-content {
+            overflow: auto;
+            display: block;
+        }
+
+        & .modal-emoji {
+            position: fixed;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 500;
+
+            & ul {
+                padding: 10px;
+
+                & li {
+                    &.header {
+                        display: block;
+                    }
+                }
+            }
+
+            & .close {
+                display: block;
+            }
+        }
+
+        & .editor {
+            & .writer {
+                min-height: 100px;
+            }
+        }
+    });
+
+    .adaptive-mobile({
+        & .toolbar {
+            margin-top: 5px;
+
+            & button {
+                padding: 6px;
+				height: 50%;
+
+                &[data-command=randomize] {
+                    & span {
+                        display: none;
+                    }
+                }
+            }
+
+            & .split {
+                margin: 0 3px;
+            }
+        }
+    });
 }

@@ -116,6 +116,11 @@ class MessageEditor extends InputControl<HTMLTextAreaElement | HTMLInputElement>
 			])
 		]);
 
+		// если readonly, то отключаем conteditable
+		if (this.__valueElem.hasAttribute("readonly")) {
+			this._editorElem?.setAttribute("contenteditable", "false");
+		}
+
 		this._uiRenderEmojis();
 		this.setElement(container);
 

@@ -51,15 +51,23 @@
 			<form>
 				<div class="example">
 					<h5>Valid</h5>
-					<textarea id="message" placeholder="Начните вводить текст сообщения" data-content-script="message-editor" data-randomizer-api="/api/randomize"></textarea>
+					<textarea id="message" placeholder="Начните вводить текст сообщения" required data-content-script="message-editor" data-randomizer-api="/api/randomize"></textarea>
 				</div>
 				<div class="example">
 					<h5>Required</h5>
 					<textarea id="message" placeholder="Начните вводить текст сообщения" required data-content-script="message-editor" data-randomizer-api="/api/randomize"></textarea>
 				</div>
 				<div class="buttons">
-					<button type="submit" class="app-button">Отправить</button>
 				</div>
+				<div class="example">
+					<h5>Readonly</h5>
+					<textarea id="message" readonly data-content-script="message-editor" required data-randomizer-api="/api/randomize"></textarea>
+				</div>
+				<div class="example">
+					<h5>Disabled</h5>
+					<textarea id="message" disabled data-content-script="message-editor" required data-randomizer-api="/api/randomize"></textarea>
+				</div>
+				<button type="submit" class="app-button">Отправить</button>
 			</form>
 		</div>
 </section>

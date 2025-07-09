@@ -1,3 +1,5 @@
+@import "@brandup/ui-kit/source/adaptive.less";
+
 .text-randomizer {
     --input-fill: #ffffffe6;
     --hover--input-fill: #f7f7f7;
@@ -295,4 +297,50 @@
             }
         }
     }
+
+    .adaptive-tablet({
+        & .dialog {
+            max-width: none;
+            min-height: 0;
+            max-height: none;
+            height: 100%;
+            padding: 20px;
+            border-radius: 0;
+        }
+    });
+
+    .adaptive-mobile({
+        & .dialog {
+            & .dialog-header {
+                font-size: 20px;
+                line-height: 24px;
+
+                & span:after {
+                    font-size: 13px;
+                }
+            }
+
+            & .word-variants {
+                margin: 0;
+                display: block;
+
+                & .variants {
+                    padding: 0;
+
+                    &:last-child {
+                        margin-top: 20px;
+                    }
+                }
+            }
+        }
+    });
+
+    .adaptive-tablet({
+        body {
+            &.opened-randomizing-dialog {
+                overflow: hidden;
+            }
+        }
+    });
+    
 }
