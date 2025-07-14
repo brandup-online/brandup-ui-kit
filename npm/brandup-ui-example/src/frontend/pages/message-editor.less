@@ -1,0 +1,33 @@
+.page-block.editors {
+	display: flex;
+	flex-flow:  column nowrap;
+	row-gap: 30px;
+
+	& .part {
+	    display: flex;
+		flex-flow: column nowrap;
+		row-gap: 20px;
+
+		& form {
+			display: flex;
+			flex-direction: column;
+			row-gap: 10px;
+		}
+
+		& .example {
+			display: flex;
+			flex-flow: column nowrap;
+			row-gap: 10px;
+
+            & .field {
+                display: flex;
+                flex-flow: column nowrap;
+                row-gap: 10px;
+
+                & h5 {
+                    white-space: nowrap;
+                }
+            }
+		}
+	}
+}

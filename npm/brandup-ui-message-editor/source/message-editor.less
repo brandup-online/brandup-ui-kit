@@ -1,0 +1,469 @@
+@import "@brandup/ui-kit/source/adaptive.less";
+
+:root {
+	--editor-text-variables-fill: #be6cce;
+	--editor-text-spintax-fill: #87c671;
+}
+
+.message-editor {
+    --invalid--input-border-color: #e66c6c;
+    --invalid--input-color: #e66c6c;
+    --svg-size: 16px;
+
+    position: relative;
+    border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+    background: var(--input-fill);
+    color: var(--input-color);
+    border-radius: var(--input-border-radius);
+    box-sizing: border-box;
+    width: var(--input-width);
+
+    & .toolbar {
+        --svg-fill: #848484;
+
+        order: 3;
+        flex: 0 0 100%;
+        display: flex;
+        flex-flow: row wrap;
+        align-items: center;
+        border-top: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+        width: var(--input-width);
+        min-height: 45px;
+        box-sizing: border-box;
+
+        
+        & button {
+            height: 100%;
+            display: flex;
+            flex-flow: row nowrap;
+            align-items: center;
+            justify-content: center;
+            padding: 9px;
+            outline: none;
+            background: none;
+            border: none;
+
+            & span {
+                --input-font-weight: 300;
+
+                display: block;
+                margin-left: 5px;
+                margin-bottom: 2px;
+                text-transform: lowercase;
+                font-weight: var(--input-font-weight);
+            }
+
+            &:hover,
+            &:focus {
+                & svg {
+                    --svg-fill: #525252;
+                }
+            }
+
+            &[data-command=open-emodji] {
+                & svg {
+                    --svg-size: 20px;
+                }
+            }
+
+            &[data-command=close-emodji] {
+                display: none;
+
+                & svg {
+                    --svg-size: 20px;
+                }
+            }
+
+            &[disabled] {
+                cursor: default;
+
+                & svg {
+                    --svg-fill: #84848447;
+                }
+            }
+
+            &.randomizer-hidden { // класс для скрытия кнопки рандомизации если api не указан
+                display: none;
+            }
+        }
+
+        & .split {
+            width: 1px;
+            height: 16px;
+            overflow: hidden;
+            background: var(--input-border-color); // посчитал как бордер покрасить
+            margin: 0 5px;
+        }
+    }
+
+    & .output {
+        height: 1px;
+        width: 1px;
+        position: absolute;
+        left: 5000px;
+		outline: none;
+		visibility: collapse;
+    }
+
+    & .scroll-content {
+        min-height: 200px; 
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-flow: row wrap;
+
+        &::-webkit-scrollbar {
+            height: 5px;
+            background-color: #dbdbdb;
+            width: 8px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+            background-color: #8696a0;
+            border-radius: 4px;
+        }
+    }
+
+    & .editor {
+        order: 1;
+        flex: 0 0 50%;
+        position: relative;
+        display: flex;
+        justify-content: stretch;
+        align-items: stretch;
+        box-sizing: border-box;
+
+        & .writer {
+            display: block;
+            padding: 8px 15px 30px;
+            box-sizing: border-box;
+            outline: none;
+            overflow: hidden;
+            color: var(--input-color);
+            word-wrap: anywhere;
+            min-height: 200px;
+
+            & b {
+                font-weight: 800;
+            }
+
+            & p {
+                padding: 0;
+                margin: 0;
+            }
+
+            &:empty {
+                & ~ .placeholder {
+                    display: block;
+                }
+            }
+
+            &:focus {
+                & ~ .placeholder {
+                    display: none;
+                }
+            }
+        }
+
+        & .placeholder {
+            display: none;
+            position: absolute;
+            box-sizing: border-box;
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            padding: 10px 15px;
+            user-select: none;
+            font-size: var(--input-font-size);
+            color: var(--placeholder-color);
+			font-weight: var(--placeholder-font-weight);
+			font-style: var(--placeholder-font-style);
+            cursor: text;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            box-sizing: border-box;
+        }
+
+        & .counter {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            font-size: 12px;
+            line-height: 12px;
+            box-sizing: border-box;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            padding: 0 15px;
+            color: var(--placeholder-color);
+            user-select: none;
+
+            &.error {
+               color: var(--invalid--input-color)
+            }
+        }
+    }
+
+    & .preview {
+        --input-fill: #D9FDD3;
+        --input-border-radius: 1px;
+
+        order: 2;
+        flex: 0 0 50%;
+        background: var(--input-fill);
+        padding: 8px 15px;
+        box-sizing: border-box;
+        overflow: hidden;
+        word-wrap: anywhere;
+        position: relative;
+        min-height: 70px;
+        border-top-right-radius: 5px;
+
+        & .variable {
+            background: var(--editor-text-variables-fill);
+            text-transform: uppercase;
+            padding: 0 1px;
+            border-radius: var(--input-border-radius);
+        }
+
+        & .spintax {
+            background: var(--editor-text-spintax-fill);
+            padding: 0 1px;
+            border-radius: var(--input-border-radius);
+        }
+
+        & a {
+            --input-color: #45aedc;
+            
+            color: var(--input-color);
+            text-decoration: none;
+            outline: none;
+        }
+
+        & .empty {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 300;
+            font-size: 16px;
+            padding: 30px;
+            box-sizing: border-box;
+            user-select: none;
+        }
+    }
+
+    & .modal-emoji {
+        position: absolute;
+        top: 0;
+        bottom: 45px;
+        right: 0;
+        background: var(--input-fill);
+        display: none;
+        z-index: 2;
+        flex-flow: column nowrap;
+
+        & ul {
+            flex: 1 1 auto;
+            overflow-y: scroll;
+            width: var(--input-width);
+            height: var(--input-height);
+            padding: 5px;
+            box-sizing: border-box;
+            display: flex;
+            flex-flow: row wrap;
+            outline: none;
+
+            li {
+                cursor: pointer;
+                width: 40px;
+                font-size: 25px;
+                text-align: center;
+                padding: 5px 0;
+                display: block;
+                font-style: normal;
+
+                &.header {
+                    display: none;
+                    width: var(--input-width);
+                    font-size: var(--input-font-size);
+                    padding: 10px;
+                    text-align: left;
+                }
+            }
+
+            &::-webkit-scrollbar {
+                height: 5px;
+                background-color: #dbdbdb;
+                width: 8px;
+            }
+
+            &::-webkit-scrollbar-thumb {
+                background-color: #8696a0;
+                border-radius: 4px;
+            }
+        }
+
+        & .close {
+            display: none;
+            flex: 0 0 auto;
+            border-top: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+
+            & button {
+                height: 50px;
+                width: 100%;
+                font-weight: 500;
+            }
+        }
+    }
+
+    &.open-emoji {
+        & .toolbar {
+            & button {
+                display: none;
+
+                &[data-command=close-emodji] {
+                    display: flex !important;
+                }
+            }
+
+            & .split {
+                display: none;
+            }
+        }
+
+        & .modal-emoji {
+            display: flex;
+        }
+    }
+
+    &:hover {
+        --input-border-color: var(--hover--input-border-color);
+		--input-fill: var(--hover--input-fill);
+		--input-color: var(--hover--input-color);
+		--svg-fill: var(--hover--input-color);
+    }
+
+    &.focused {
+        --input-border-color: var(--focus--input-border-color);
+		--input-fill: var(--focus--input-fill);
+		--input-color: var(--focus--input-color);
+		--svg-fill: var(--focus--input-color);
+
+    }
+
+    &.invalid {
+        --input-border-color: var(--invalid--input-border-color);
+		--input-fill: var(--invalid--input-fill);
+		--input-color: var(--invalid--input-color);
+		--placeholder-color: var(--invalid--input-color);
+		--svg-fill: var(--invalid--input-color);
+
+        & .placeholder {
+            --input-border-color: var(--invalid--input-border-color);
+            --placeholder-color: var(--invalid--input-color);
+        }
+    }
+
+    &.disabled {
+        --input-border-color: var(--disabled--input-border-color);
+	    --input-fill: var(--disabled--input-fill);
+	    --input-color: var(--disabled--input-color);
+		--svg-fill: var(--disabled--input-color);
+
+        & .scroll-content {
+            flex-direction: row-reverse;
+
+            & .editor {
+                display: none;
+            }
+    
+            & .toolbar {
+                display: none;
+            }
+        }
+        
+    }
+
+    &.readonly {
+        --input-color: var(--readonly--input-color);
+	    --input-fill: var(--readonly--input-fill);
+
+        & .placeholder {
+            cursor: default;
+        }
+    }
+
+    .adaptive-tablet({
+        & .scroll-content {
+            overflow: auto;
+            display: block;
+        }
+
+        & .modal-emoji {
+            position: fixed;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 500;
+
+            & ul {
+                padding: 10px;
+
+                & li {
+                    &.header {
+                        display: block;
+                    }
+                }
+            }
+
+            & .close {
+                display: block;
+            }
+        }
+
+        & .editor {
+            & .writer {
+                min-height: 100px;
+            }
+        }
+
+        &.disabled {
+            & .scroll-content {
+                overflow: auto;
+                display: flex;
+                flex-flow: column-reverse nowrap;
+            }
+        }
+    });
+
+    .adaptive-mobile({
+        & .toolbar {
+            margin-top: 5px;
+
+            & button {
+                padding: 6px;
+				height: 50%;
+
+                &[data-command=randomize] {
+                    & span {
+                        display: none;
+                    }
+                }
+            }
+
+            & .split {
+                margin: 0 3px;
+            }
+        }
+    });
+}
