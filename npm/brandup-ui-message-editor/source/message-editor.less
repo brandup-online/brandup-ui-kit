@@ -8,6 +8,7 @@
 .message-editor {
     --invalid--input-border-color: #e66c6c;
     --invalid--input-color: #e66c6c;
+    --svg-size: 16px;
 
     position: relative;
     border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
@@ -41,10 +42,6 @@
             outline: none;
             background: none;
             border: none;
-            
-            & svg {
-                --svg-size: 16px;
-            }
 
             & span {
                 --input-font-weight: 300;
@@ -437,6 +434,14 @@
         & .editor {
             & .writer {
                 min-height: 100px;
+            }
+        }
+
+        &.disabled {
+            & .scroll-content {
+                overflow: auto;
+                display: flex;
+                flex-flow: column-reverse nowrap;
             }
         }
     });
