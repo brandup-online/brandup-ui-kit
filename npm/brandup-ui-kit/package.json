@@ -26,10 +26,10 @@
 	"main": "source/index.ts",
 	"types": "source/index.ts",
 	"dependencies": {
-		"@brandup/ui-app": "^1.0.33"
+		"@brandup/ui-app": "^1.0.36"
 	},
 	"devDependencies": {
-		"less": "^4.3.0",
+		"less": "^4.4.0",
 		"typescript": "^5.8.3"
 	},
 	"files": [
