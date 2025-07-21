@@ -68,32 +68,32 @@
 @input-font-weight: inherit;
 @input-font-style: inherit;
 
-@hover--input-border-color: #666;
-@hover--input-fill: @input-fill;
-@hover--input-color: @input-color;
+@hover--input-border-color: #666666;
+@hover--input-fill: #fff;
+@hover--input-color: inherit;
 
-@focus--input-border-color: #222;
+@focus--input-border-color: #222222;
 @focus--input-fill: @input-fill;
-@focus--input-color: @input-color;
+@focus--input-color: inherit;
 
 @readonly--input-fill: #f7f7f7;
 @readonly--input-color: @input-color;
 
 @disabled--input-border-color: #aaa;
 @disabled--input-fill: #eee;
-@disabled--input-color: @input-color;
+@disabled--input-color: lighten(@input-color, 50%);
 
 @invalid--input-border-color: red;
 @invalid--input-fill: rgb(255, 220, 220);
-@invalid--input-color: @input-color;
+@invalid--input-color: inherit;
 
 @incorrect--input-fill: rgb(255, 220, 220);
 @incorrect--input-color: inherit;
 
-@expanded--input-fill: #445; // переменные для выпадашки
-@expanded--input-color: #fff;
+@expanded--input-fill: #fff; // переменные для выпадашки
+@expanded--input-color: inherit;
 
-@hasvalue--input-fill: #a8a8a8; // переменные для выбранного значения
+@hasvalue--input-fill: #fff; // переменные для выбранного значения
 @hasvalue--input-color: @input-color;
 
 @toggler-height: 30px;

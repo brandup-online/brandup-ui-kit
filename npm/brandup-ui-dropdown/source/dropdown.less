@@ -4,12 +4,16 @@
 	position: relative;
 	box-sizing: border-box;
 	user-select: none;
-	flex: 1 1 auto;
 
+	& svg {
+		--svg-size: 18px;
+		--svg-fill: var(--input-color);
+	}
+  
 	& .view {
 		display: flex;
-		min-height: var(--input-height);
 		width: var(--input-width);
+		height: var(--input-height);
 		flex-flow: row nowrap;
 		align-items: center;
 		justify-content: flex-start;
@@ -18,8 +22,8 @@
 		white-space: nowrap;
 		border-radius: var(--input-border-radius);
 		padding: 10px var(--input-padding-lr);
-		background: var(--input-fill);
-		transition: background ease 100ms;
+		background-color: var(--input-fill);
+		transition: background-color ease 100ms;
 		gap: 10px;
 		line-height: var(--line-height);
 		text-decoration: none !important;
@@ -51,24 +55,24 @@
 	  	}
   
 	  	& svg {
-			display: block;
 			transition: fill ease 100ms, transform ease 150ms;
 	  	}
   
 	  	&:hover {
 			--input-color: var(--hover--input-color);
-			--input-border-color: var(--hover--input-border-color);
 			--input-fill: var(--hover--input-fill);
+			--input-border-color: var(--hover--input-border-color);
 	  	}
   
 	  	&:focus {
 			--input-color: var(--focus--input-color);
-			--input-border-color: var(--focus--input-border-color);
 			--input-fill: var(--focus--input-fill);
+			--input-border-color: var(--focus--input-border-color);
 	  	}
 	}
   
 	& .popup {
+		z-index: 1000;
 	  	display: none;
 	  	position: absolute;
 	  	top: 100%;
@@ -271,11 +275,6 @@
 	  	}
 	}
 
-	& svg {
-		--svg-size: 18px;
-		--svg-fill: var(--input-color);
-	}
-  
 	&.searchable {
 	  	& .search {
 			display: flex;
@@ -283,70 +282,51 @@
 	}
 
 	&.hasvalue {
-		& .view {
-	  		--input-color: var(--hasvalue--input-color);
-	  		--input-fill: var(--hasvalue--input-fill);
+		--input-color: var(--hasvalue--input-color);
+		--input-fill: var(--hasvalue--input-fill);
+		--svg-fill: var(--hasvalue--input-color);
 
-		  	& svg {
-				--svg-fill: var(--hasvalue--input-color);
-		  	}
-		
+		& .view {
 		  	&:hover,
 		  	&:focus {
 				--input-color: var(--hover--input-color);
 				--input-fill: var(--hover--input-fill);
-				
-				& svg {
-					--svg-fill: var(--hover--input-color);
-				}
+				--svg-fill: var(--hover--input-color);
 		  	}
 		}
 	}
 
 	&.expanded {
+		--input-color: var(--expanded--input-color);
+		--input-fill: var(--expanded--input-fill);
+		--svg-fill: var(--expanded--input-color);
+
 		& .view {
-		  	--input-color: var(--expanded--input-color);
-		  	--input-fill: var(--expanded--input-fill);
-
 	  		& svg {
-				--svg-fill: var(--expanded--input-color);
-				
 				transform: rotate(180deg);
-	  		}
-
-	  		&:before {
-				border-color: var(--input-border-color);
 	  		}
 		}
 
 		& .popup {
-			z-index: 1000;
 			display: block;
 		}
 	}
   
 	&.invalid {
-		& .view {
-			--input-color: var(--invalid--input-color);
-			--input-fill: var(--invalid--input-fill);
-			
-			&:before {
-				--input-border-color: var(--invalid--input-border-color);
-			}
-		}
+		--input-color: var(--invalid--input-color);
+		--input-fill: var(--invalid--input-fill);
+		--input-border-color: var(--invalid--input-border-color);
+		--svg-fill: var(--invalid--input-color);
 	}
   
 	&.disabled {
+		--input-color: var(--disabled--input-color);
+		--input-fill: var(--disabled--input-fill);
+		--svg-fill: var(--disabled--input-color);
+		--input-border-color: var(--disabled--input-border-color);
+
 	  	& .view {
-			--input-color: var(--disabled--input-color);
-			--input-fill: var(--disabled--input-fill);
-			--input-border-color: var(--disabled--input-border-color);
-			
 			cursor: default;
-  
-			& svg {
-			  --svg-fill: var(--disabled--input-color);
-			}
   
 			&:focus,
 			&:hover {
