@@ -4,15 +4,13 @@
 	position: relative;
 	box-sizing: border-box;
 	user-select: none;
+	width: var(--input-width);
 
-	& svg {
-		--svg-size: 18px;
-		--svg-fill: var(--input-color);
-	}
-  
 	& .view {
+		--svg-size: 12px;
+		--svg-fill: var(--input-color);
+			
 		display: flex;
-		width: var(--input-width);
 		height: var(--input-height);
 		flex-flow: row nowrap;
 		align-items: center;
@@ -81,36 +79,49 @@
 	  	font-weight: 400;
 	  	outline: none;
 	  	min-width: 200px;
+		box-sizing: border-box;
   
 	  	& .content {
+			--svg-fill: var(--popup-color);
+
 			display: flex;
 			flex-flow: column nowrap;
-			gap: 16px;
-			background: var(--input-fill);
-			box-shadow: 0px 1px 8px 0px rgba(0, 0, 0, 0.12);
-			border-radius: var(--input-border-radius);
-			padding: 16px;
+			gap: var(--input-padding-lr);
+			background: var(--popup-fill);
+			color: var(--popup-color);
+			border-style: var(--popup-border-style);
+			border-color: var(--popup-border-color);
+			border-width: var(--popup-border-width);
+			border-radius: var(--popup-border-radius);
+			box-shadow: var(--popup-box-shadow);
+			padding: var(--input-padding-lr);
 			box-sizing: border-box;
 			max-height: 370px;
   
 		  	& .header {
 				padding: 0;
-				display: flex;
+				display: none;
 				flex-flow: row nowrap;
 				align-items: center;
-			
-				& h3 {
-					color: var(--input-color);
-			  		flex: 1 1 auto;
+
+				& span {
+					flex: 1 1 auto;
+					display: block;
+					font-weight: 500;
+					font-size: var(--svg-size);
 				}
 			
 				& button {
+					flex: 0 0 auto;
+					appearance: none;
 			  		display: flex;
 			  		align-items: center;
 			  		justify-content: center;
 			  		background: none;
 			  		border: none;
 			  		cursor: pointer;
+					position: relative;
+					padding: 0;
 				
 			  		&:after {
 						content: '';
@@ -129,9 +140,6 @@
 				height: 100%;
 				position: relative;
 				overflow-y: scroll;
-				list-style: none;
-				padding: 0;
-				margin: 0 0 0 -5px;
 				padding-right: 5px;
 				scrollbar-width: 6px;
 			
@@ -152,12 +160,10 @@
 				}
 			
 				& li {
-					padding: var(--input-padding-lr);
+					padding: calc(var(--input-padding-lr) / 2) var(--input-padding-lr);
 			  		display: flex;
 					justify-content: space-between;
 					align-items: center;
-					color: var(--input-color);
-					background: var(--input-fill);
 					border-radius: var(--input-border-radius);
 					min-height: unset;
 					cursor: pointer;
@@ -214,9 +220,7 @@
 		  	}
 		
 		  	& .empty {
-				color: var(--input-color);
 				display: none;
-				font-weight: 400;
 		  	}
 		
 		  	& .cancel {
@@ -241,10 +245,8 @@
 	  	display: none;
 	  	flex-flow: row nowrap;
 	  	position: relative;
-  
+		
 	  	& svg {
-			--svg-size: 22px;
-
 			display: block;
 			position: absolute;
 			left: var(--input-padding-lr);
@@ -253,25 +255,8 @@
 	  	}
   
 	  	& input {
-			--input-font-size: 16px;
-			--input-font-weight: 400;
 			--input-width: 100%;
-			
-			display: block;
-			box-sizing: border-box;
-			padding: 0 var(--input-padding-lr) 0 calc(var(--input-padding-lr) * 2 + 10px);
-			width: var(--input-width);
-			height: var(--input-height);
-			background: none;
-			border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
-			border-radius: var(--input-border-radius);
-			outline: none;
-  
-			&:hover,
-			&:focus {
-				--input-border-color: var(--hover--input-border-color);
-				--input-color: var(--hover--input-color);
-			}
+			padding-left: calc(var(--input-padding-lr) + var(--svg-size) + var(--input-padding-lr) / 2);
 	  	}
 	}
 
@@ -279,6 +264,20 @@
 	  	& .search {
 			display: flex;
 	  	}
+	}
+
+	&.empty {
+		& .popup {
+			& .content {
+				& ul {
+					display: none;
+				}
+
+				& .empty {
+					display: block;
+				}
+			}
+		}
 	}
 
 	&.hasvalue {
@@ -358,6 +357,8 @@
 			right: 0;
 			bottom: 0;
 			transform: none;
+			padding: var(--content-padding-lr);
+			min-width: auto;
 
 			& .content {
 				padding: 32px;
@@ -365,10 +366,10 @@
 				max-height: 550px;
 				width: 100%;
 				height: 100%;
-			}
 
-			& .header {
-				display: flex;
+				& .header {
+					display: flex;
+				}
 			}
 
 			&.top {
@@ -402,14 +403,16 @@
 	
 	.adaptive-mobile({
 		& .popup {
+			padding: 0;
+
 			& .content {
 				padding: 28px;
 				max-width: none;
 				max-height: none;
-			}
 
-			& .cancel {
-				display: block;
+				& .cancel {
+					display: block;
+				}
 			}
 		}
 	});
@@ -422,7 +425,7 @@
 		}
 	});
 }
-  
+
 .ui-dropdown-input {
 	opacity: 0;
 	position: absolute;
