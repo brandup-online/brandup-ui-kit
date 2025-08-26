@@ -1,28 +1,39 @@
 const express = require("express");
+const cors = require("cors");
+const path = require("path");
+const https = require("https");
+const fs = require("fs");
+
 import { Application } from "express";
-import Server from "./src/index";
+import { CorsOptions } from "cors";
+import { Server } from "https";
+import Routes from "./routes";
 
-const app: Application = express();
-const server: Server = new Server(app);
+export default class ExampleServer {
+	private __server: Server | undefined;
+	get server() { return this.__server };
 
-const PORT_ARG_PREFIX = "--port=";
-const PORT_DEFAULT = 443;
+	constructor(app: Application, staticDir: string, ssl: { keyFile: string, certFile: string }) {
+		this.config(app, staticDir, ssl);
 
-let port: number = PORT_DEFAULT;
-process.argv.map(value => {
-	if (value.indexOf(PORT_ARG_PREFIX) !== 0)
-		return;
+		Routes(app);
+	}
 
-	port = parseInt(value.substring(PORT_ARG_PREFIX.length)) ?? PORT_DEFAULT;
-});
-console.log(`run on port ${port}`);
+	private config(app: Application, staticDir: string, ssl: { keyFile: string, certFile: string }): void {
+		app.set("wwwroot", staticDir);
 
-if (!server.server) throw new Error("server creation error");
+		const corsOptions: CorsOptions = {
+			origin: "*"
+		};
 
-server.server.listen(port, () => { console.log(`Server start https://localhost:${port}`); })
-	.on("error", (err: any) => {
-		if (err.code === "EADDRINUSE")
-			console.log("Error: address already in use");
-		else
-			console.log(err);
-	});
+		app.use(cors(corsOptions));
+		app.use(express.json());
+		app.use(express.urlencoded({ extended: true }));
+		app.use(express.static(staticDir));
+
+		const privateKey = fs.readFileSync(ssl.keyFile, "utf8");
+		const certificate = fs.readFileSync(ssl.certFile, "utf8");
+		const credentials = { key: privateKey, cert: certificate };
+		this.__server = https.createServer(credentials, app);
+	}
+}

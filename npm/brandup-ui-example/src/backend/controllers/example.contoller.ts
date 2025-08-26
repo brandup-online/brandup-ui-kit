@@ -1,10 +1,9 @@
 const path = require("path");
 import { Request, Response } from "express";
-import { distDir } from "..";
 
 export default class ExampleContoller {
-	spa(_req: Request, res: Response): void {
-		return res.sendFile(path.join("index.html"), { root: distDir });
+	spa(req: Request, res: Response): void {
+		return res.sendFile(path.join("index.html"), { root: req.app.get("wwwroot") });
 	}
 
 	formSend(_req: Request, res: Response): void {

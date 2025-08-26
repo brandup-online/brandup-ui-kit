@@ -7,6 +7,7 @@
 		"@brandup/ui-ajax": "^1.0.37",
 		"@brandup/ui-app": "^1.0.37",
 		"@brandup/ui-dom": "^1.0.37",
+		"@brandup/ui-dropdown": "file:../brandup-ui-dropdown",
 		"@brandup/ui-helpers": "^1.0.37",
 		"@brandup/ui-kit": "file:../brandup-ui-kit",
 		"@brandup/ui-textbox": "file:../brandup-ui-textbox",
@@ -43,10 +44,9 @@
 		"webpack-cli": "^5.1.4"
 	},
 	"scripts": {
-		"build": "cross-env NODE_ENV=production webpack --config webpack.config.js",
+		"build": "tsc ./src/backend/program.ts --outDir ./server && cross-env NODE_ENV=production webpack --config webpack.config.js",
 		"dev-build": "cross-env NODE_ENV=development webpack --config webpack.config.js",
 		"watch": "cross-env NODE_ENV=development webpack --config webpack.config.js --watch",
-		"start": "npm run build && tsc ./src/backend/server.ts && node ./src/backend/server.js --port=8316",
-		"start-dev": "tsc ./src/backend/server.ts && node ./src/backend/server.js --port=8316"
+		"start": "node ./server/program.js --port=8316"
 	}
 }

@@ -404,4 +404,5 @@ npm/*/src/**/*.js.map
 npm/*/source/**/*.js
 npm/*/source/**/*.js.map
 npm/*/out
+npm/*/server
 npm/*/**/dist/*

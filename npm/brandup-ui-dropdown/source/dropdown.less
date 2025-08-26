@@ -1,0 +1,444 @@
+@import "@brandup/ui-kit/source/adaptive.less";
+
+.ui-dropdown {
+	position: relative;
+	box-sizing: border-box;
+	user-select: none;
+	width: var(--input-width);
+
+	& .view {
+		--svg-size: 12px;
+		--svg-fill: var(--input-color);
+			
+		display: flex;
+		height: var(--input-height);
+		flex-flow: row nowrap;
+		align-items: center;
+		justify-content: flex-start;
+		box-sizing: border-box;
+		color: var(--input-color);
+		white-space: nowrap;
+		border-radius: var(--input-border-radius);
+		padding: 10px var(--input-padding-lr);
+		background-color: var(--input-fill);
+		transition: background-color ease 100ms;
+		gap: 10px;
+		line-height: var(--line-height);
+		text-decoration: none !important;
+		outline: none;
+		border: none;
+		cursor: pointer;
+		width: 100%;
+		text-align: left;
+
+		&:before {
+			content: '';
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: 100%;
+			height: 100%;
+			border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+			border-radius: var(--input-border-radius);
+			box-sizing: border-box;
+			transition: border-color ease 100ms;
+	  	}
+  
+	  	& span {
+			flex: 1 1 auto;
+			display: block;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+	  	}
+  
+	  	& svg {
+			transition: fill ease 100ms, transform ease 150ms;
+	  	}
+  
+	  	&:hover {
+			--input-color: var(--hover--input-color);
+			--input-fill: var(--hover--input-fill);
+			--input-border-color: var(--hover--input-border-color);
+	  	}
+  
+	  	&:focus {
+			--input-color: var(--focus--input-color);
+			--input-fill: var(--focus--input-fill);
+			--input-border-color: var(--focus--input-border-color);
+	  	}
+	}
+  
+	& .popup {
+		z-index: 1000;
+	  	display: none;
+	  	position: absolute;
+	  	top: 100%;
+	  	width: 100%;
+	  	transform: translateY(8px);
+	  	font-weight: 400;
+	  	outline: none;
+	  	min-width: 200px;
+		box-sizing: border-box;
+  
+	  	& .content {
+			--svg-fill: var(--popup-color);
+
+			display: flex;
+			flex-flow: column nowrap;
+			gap: var(--input-padding-lr);
+			background: var(--popup-fill);
+			color: var(--popup-color);
+			border-style: var(--popup-border-style);
+			border-color: var(--popup-border-color);
+			border-width: var(--popup-border-width);
+			border-radius: var(--popup-border-radius);
+			box-shadow: var(--popup-box-shadow);
+			padding: var(--input-padding-lr);
+			box-sizing: border-box;
+			max-height: 370px;
+  
+		  	& .header {
+				padding: 0;
+				display: none;
+				flex-flow: row nowrap;
+				align-items: center;
+
+				& span {
+					flex: 1 1 auto;
+					display: block;
+					font-weight: 500;
+					font-size: var(--svg-size);
+				}
+			
+				& button {
+					flex: 0 0 auto;
+					appearance: none;
+			  		display: flex;
+			  		align-items: center;
+			  		justify-content: center;
+			  		background: none;
+			  		border: none;
+			  		cursor: pointer;
+					position: relative;
+					padding: 0;
+				
+			  		&:after {
+						content: '';
+						display: block;
+						position: absolute;
+						left: -10px;
+						top: -10px;
+						right: -10px;
+						bottom: -10px;
+			  		}
+				}
+		  	}
+		
+		  	& ul {
+				flex: 1 1 100%;
+				height: 100%;
+				position: relative;
+				overflow-y: scroll;
+				padding-right: 5px;
+				scrollbar-width: 6px;
+			
+				&::-webkit-scrollbar {
+				  	width: 6px;
+				  	height: 5px;
+				  	background: none;
+				}
+			
+				&::-webkit-scrollbar-track {
+				  	border-radius: 3px;
+				  	background-color: transparent;
+				}
+			
+				&::-webkit-scrollbar-thumb {
+				  	background-color: #8696a0;
+				  	border-radius: 3px;
+				}
+			
+				& li {
+					padding: calc(var(--input-padding-lr) / 2) var(--input-padding-lr);
+			  		display: flex;
+					justify-content: space-between;
+					align-items: center;
+					border-radius: var(--input-border-radius);
+					min-height: unset;
+					cursor: pointer;
+				
+					& svg {
+						display: none;
+					}
+				
+					&:hover {
+						--input-color: var(--hover--input-color);
+						--input-fill: var(--hover--input-fill);
+					}
+				
+					&:focus {
+						--input-color: var(--focus--input-color);
+						--input-fill: var(--focus--input-fill);
+					}
+				
+					&.hasvalue {
+						--input-color: var(--hasvalue--input-color);
+						--input-fill: var(--hasvalue--input-fill);
+						
+						& svg {
+							display: block;
+						
+						  	--svg-fill: var(--hasvalue--input-color);
+					  	}
+					
+						&:focus {
+						  --input-color: var(--focus--input-color);
+						  --input-fill: var(--focus--input-fill);
+						}
+					}
+				}
+			
+				&.result {
+					& li {
+						display: none;
+					
+						&.ok {
+				  			display: flex;
+						}
+			  		}
+				}
+			
+				&.notfound {
+			  		display: none;
+				
+			  		& ~ .empty {
+						flex: 1 1 auto;
+						display: block;
+			  		}
+				}
+		  	}
+		
+		  	& .empty {
+				display: none;
+		  	}
+		
+		  	& .cancel {
+				display: none;
+		  	}
+		
+		  	&.top {
+				top: auto;
+				bottom: 100%;
+				transform: translateY(-8px);
+		  	}
+		
+		  	&.right {
+				left: 0;
+				right: auto;
+		  	}
+		}
+	}
+  
+	& .search {
+	  	flex: 0 0 auto;
+	  	display: none;
+	  	flex-flow: row nowrap;
+	  	position: relative;
+		
+	  	& svg {
+			display: block;
+			position: absolute;
+			left: var(--input-padding-lr);
+			top: 50%;
+			transform: translateY(-50%);
+	  	}
+  
+	  	& input {
+			--input-width: 100%;
+			padding-left: calc(var(--input-padding-lr) + var(--svg-size) + var(--input-padding-lr) / 2);
+	  	}
+	}
+
+	&.searchable {
+	  	& .search {
+			display: flex;
+	  	}
+	}
+
+	&.empty {
+		& .popup {
+			& .content {
+				& ul {
+					display: none;
+				}
+
+				& .empty {
+					display: block;
+				}
+			}
+		}
+	}
+
+	&.hasvalue {
+		--input-color: var(--hasvalue--input-color);
+		--input-fill: var(--hasvalue--input-fill);
+		--svg-fill: var(--hasvalue--input-color);
+
+		& .view {
+		  	&:hover,
+		  	&:focus {
+				--input-color: var(--hover--input-color);
+				--input-fill: var(--hover--input-fill);
+				--svg-fill: var(--hover--input-color);
+		  	}
+		}
+	}
+
+	&.expanded {
+		--input-color: var(--expanded--input-color);
+		--input-fill: var(--expanded--input-fill);
+		--svg-fill: var(--expanded--input-color);
+
+		& .view {
+	  		& svg {
+				transform: rotate(180deg);
+	  		}
+		}
+
+		& .popup {
+			display: block;
+		}
+	}
+  
+	&.invalid {
+		--input-color: var(--invalid--input-color);
+		--input-fill: var(--invalid--input-fill);
+		--input-border-color: var(--invalid--input-border-color);
+		--svg-fill: var(--invalid--input-color);
+	}
+  
+	&.disabled {
+		--input-color: var(--disabled--input-color);
+		--input-fill: var(--disabled--input-fill);
+		--svg-fill: var(--disabled--input-color);
+		--input-border-color: var(--disabled--input-border-color);
+
+	  	& .view {
+			cursor: default;
+  
+			&:focus,
+			&:hover {
+		  		--input-color: var(--disabled--input-color);
+		  		--input-fill: var(--disabled--input-fill);
+		  		--input-border-color: var(--disabled--input-border-color);
+			}
+	  	}
+	}
+
+	.adaptive-notebook({
+		& .popup .content {
+			max-height: 340px;
+		}
+	});
+	
+	.adaptive-notebook-small({
+		& .popup .content {
+			max-height: 320px;
+		}
+	});
+	
+	.adaptive-tablet({
+		& .popup {
+			position: fixed;
+			background: rgba(0, 0, 0, 0.5);
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			transform: none;
+			padding: var(--content-padding-lr);
+			min-width: auto;
+
+			& .content {
+				padding: 32px;
+				max-width: 540px;
+				max-height: 550px;
+				width: 100%;
+				height: 100%;
+
+				& .header {
+					display: flex;
+				}
+			}
+
+			&.top {
+				top: 0;
+				bottom: 0;
+				transform: none;
+			}
+
+			&.right {
+				left: 0;
+				right: 0;
+			}
+		}
+
+		&.expanded {
+			& .popup {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+
+				& .content {
+					flex: 1 1 auto;
+				}
+			}
+		}
+	
+		& body.ui-dropdown-opened {
+			overflow: hidden;
+		}
+	});
+	
+	.adaptive-mobile({
+		& .popup {
+			padding: 0;
+
+			& .content {
+				padding: 28px;
+				max-width: none;
+				max-height: none;
+
+				& .cancel {
+					display: block;
+				}
+			}
+		}
+	});
+	
+	.adaptive-mobile-small({
+		& .popup {
+			& .content {
+				padding: 20px;
+			}
+		}
+	});
+}
+
+.ui-dropdown-input {
+	opacity: 0;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	outline: none;
+	visibility: collapse;
+}
+
+.ui-dropdown-miniature {
+	border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+	background: #F6F7F8;
+	border-radius: var(--input-border-radius);
+	height: var(--input-height);
+	box-sizing: border-box;
+}
