@@ -17,16 +17,7 @@ export const CHANGE_EVENT = "dropdown-change";
 const TABLET_WIDTH = 1030;
 const BODY_EXPANDED = "ui-dropdown-opened";
 
-interface Structure {
-	popup: HTMLElement;
-	list: HTMLElement;
-	text: HTMLElement;
-	empty: HTMLElement;
-	searchInput: HTMLInputElement;
-}
-
 class DropDown extends InputControl<HTMLSelectElement> {
-	private __structure?: Structure;
 	private __container: HTMLElement;
 	private __popupElem: HTMLElement;
 	private __listElem: HTMLElement;
@@ -467,7 +458,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
 		return (selected && selected.own.firstElementChild?.textContent?.trim()) || null;
 	}
 
-	validate(): boolean {
+	override validate(): boolean {
 		window.clearTimeout(this.__invalidTimeout);
 
 		let value = this.getValue();
@@ -487,7 +478,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
 		return !isInvalid;
 	}
 
-	destroy(): void {
+	override destroy(): void {
 		this.__closePopup();
 
 		this.element?.insertAdjacentElement("afterend", this.__valueElem);

@@ -45,8 +45,7 @@ export abstract class InputControl<T extends InputType> extends UIElement implem
 				}
 
 				e.preventDefault();
-
-				return false;
+				return;
 			}
 		};
 
@@ -60,7 +59,7 @@ export abstract class InputControl<T extends InputType> extends UIElement implem
 			form.dispatchEvent(new SubmitEvent("submit", { submitter: form, cancelable: true }));
 	}
 
-	protected _onRenderElement(elem: HTMLElement) {
+	protected override _onRenderElement(elem: HTMLElement) {
 		elem.classList.add(INPUT_CSS_CLASS);
 
 		if (this.required)
@@ -87,7 +86,7 @@ export abstract class InputControl<T extends InputType> extends UIElement implem
 		this.element?.scrollIntoView({ block: "center", inline: "center" });
 	}
 
-	destroy() {
+	override destroy() {
 		if (this.form && this.__submitEvent)
 			this.form.removeEventListener("submit", this.__submitEvent);
 
