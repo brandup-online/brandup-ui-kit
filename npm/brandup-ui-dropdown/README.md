@@ -4,10 +4,10 @@
 
 ## Installation
 
-Install NPM package [@brandup/ui](https://www.npmjs.com/package/@brandup/ui-kit).
+Install NPM package [@brandup/ui](https://www.npmjs.com/package/@brandup/ui-dropdown).
 
 ```
-npm i @brandup/ui-kit@latest
+npm i @brandup/ui-dropdown@latest
 ```
 
 ## DropDown
