@@ -163,7 +163,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
 
 			const isSelected = selectedIndex === i;
 			if (isSelected)
-				itemElem.classList.add("hasvalue");
+				itemElem.classList.add("selected");
 
 			if (isSearchable) {
 				// дублируем быстрый элемент в общем списке, чтобы находить его при поиске
@@ -207,6 +207,11 @@ class DropDown extends InputControl<HTMLSelectElement> {
 			if (currentSelect && newIndex === currentSelect.own.dataset.index)
 				return; // если выбор остался таким же
 
+			// Удаляем класс selected с предыдущего выбранного элемента
+			if (currentSelect) {
+				currentSelect.own.classList.remove("selected");
+			}
+
 			DOM.removeClass(this.element, '.hasvalue', 'hasvalue');
 
 			if (currentSelect && currentSelect.own.closest(`.${ROOT_CLASS}`))
@@ -218,7 +223,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
 			const newSelected = this.__getElemsByIndex(Number(newIndex));
 
 			if (newSelected) {
-				newSelected.own.classList.add("hasvalue");
+				newSelected.own.classList.add("selected");
 
 				const newDropDown = newSelected.own.closest(`.${ROOT_CLASS}`);
 
@@ -451,7 +456,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
 	}
 
 	private __getSelectedElem() {
-		return this.__getElems(".hasvalue[data-index]");
+		return this.__getElems(".selected[data-index]");
 	}
 
 	getValue(): string | null {

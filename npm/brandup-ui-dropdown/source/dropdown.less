@@ -1,5 +1,20 @@
 @import "@brandup/ui-kit/source/adaptive.less";
 
+:root {
+	--dropdown-option-fill: #ffffff;
+	--dropdown-option-color: var(--input-color);
+	--dropdown-border-radius: var(--input-border-radius);
+
+	--hover--dropdown-option-color: var(--dropdown-option-color);
+	--hover--dropdown-option-fill: #ff0000ee;
+
+	--focus--dropdown-option-color: var(--dropdown-option-color);
+	--focus--dropdown-option-fill: #00fd4cee;
+
+	--selected--focus--dropdown-option-color: var(--hasvalue-input-color);
+	--selected--dropdown-option-fill: var(--hasvalue-input-color);
+}
+
 .ui-dropdown {
 	position: relative;
 	box-sizing: border-box;
@@ -164,10 +179,9 @@
 					display: flex;
 					justify-content: space-between;
 					align-items: center;
-					color: var(--input-color);
-					background: var(--input-fill);
-					border-radius: var(--input-border-radius);
-					border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
+					color: var(--dropdown-option-color);
+					background: var(--dropdown-option-fill);
+					border-radius: var(--dropdown-border-radius);
 					min-height: unset;
 					cursor: pointer;
 				
@@ -176,31 +190,28 @@
 					}
 				
 					&:hover {
-						--input-color: var(--hover--input-color);
-						--input-fill: var(--hover--input-fill);
-						--input-border-color: var(--hover--input-border-color);
+						--dropdown-option-color: var(--hover--dropdown-option-color);
+						--dropdown-option-fill: var(--hover--dropdown-option-fill);
 					}
 				
 					&:focus {
-						--input-color: var(--focus--input-color);
-						--input-fill: var(--focus--input-fill);
-						--input-border-color: var(--focus--input-border-color);
+						--dropdown-option-color: var(--focus--dropdown-option-color);
+						--dropdown-option-fill: var(--focus--dropdown-option-fill);
 					}
 				
-					&.hasvalue {
-						--input-color: var(--hasvalue--input-color);
-						--input-fill: var(--hasvalue--input-fill);
+					&.selected {
+						--dropdown-option-color: var(--selected--dropdown-option-color);
+						--dropdown-option-fill: var(--selected--dropdown-option-fill);
 						
 						& svg {
 							display: block;
 						
-						  	--svg-fill: var(--hasvalue--input-color);
+						  	--svg-fill: var(--selected--dropdown-option-color);
 					  	}
 					
 						&:focus {
-							--input-color: var(--focus--input-color);
-							--input-fill: var(--focus--input-fill);
-							--input-border-color: var(--focus--input-border-color);
+							--dropdown-option-color: var(--focus--dropdown-option-color);
+							--dropdown-option-fill: var(--focus--dropdown-option-fill);
 						}
 					}
 				}
