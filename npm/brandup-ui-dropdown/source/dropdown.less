@@ -161,10 +161,13 @@
 			
 				& li {
 					padding: calc(var(--input-padding-lr) / 2) var(--input-padding-lr);
-			  		display: flex;
+					display: flex;
 					justify-content: space-between;
 					align-items: center;
+					color: var(--input-color);
+					background: var(--input-fill);
 					border-radius: var(--input-border-radius);
+					border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
 					min-height: unset;
 					cursor: pointer;
 				
@@ -175,11 +178,13 @@
 					&:hover {
 						--input-color: var(--hover--input-color);
 						--input-fill: var(--hover--input-fill);
+						--input-border-color: var(--hover--input-border-color);
 					}
 				
 					&:focus {
 						--input-color: var(--focus--input-color);
 						--input-fill: var(--focus--input-fill);
+						--input-border-color: var(--focus--input-border-color);
 					}
 				
 					&.hasvalue {
@@ -193,8 +198,9 @@
 					  	}
 					
 						&:focus {
-						  --input-color: var(--focus--input-color);
-						  --input-fill: var(--focus--input-fill);
+							--input-color: var(--focus--input-color);
+							--input-fill: var(--focus--input-fill);
+							--input-border-color: var(--focus--input-border-color);
 						}
 					}
 				}
@@ -256,6 +262,7 @@
   
 	  	& input {
 			--input-width: 100%;
+
 			padding-left: calc(var(--input-padding-lr) + var(--svg-size) + var(--input-padding-lr) / 2);
 	  	}
 	}
