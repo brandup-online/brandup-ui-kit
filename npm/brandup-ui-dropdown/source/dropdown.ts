@@ -153,8 +153,8 @@ class DropDown extends InputControl<HTMLSelectElement> {
 				continue;
 			}
 
-			let itemElem = DOM.tag("li", { command: "select", dataset: { value: itemValue, index: i.toString() } }, [
-				DOM.tag("span", { tabindex: "0" }, itemText),
+			let itemElem = DOM.tag("li", { command: "select", dataset: { value: itemValue, index: i.toString() }, tabindex: "0" }, [
+				DOM.tag("span", {}, itemText),
 				checkIcon
 			]
 			);

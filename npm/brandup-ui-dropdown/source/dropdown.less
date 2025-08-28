@@ -5,14 +5,14 @@
 	--dropdown-option-color: var(--input-color);
 	--dropdown-border-radius: var(--input-border-radius);
 
+	--hover--dropdown-option-fill: #fff;
 	--hover--dropdown-option-color: var(--dropdown-option-color);
-	--hover--dropdown-option-fill: #ff0000ee;
 
+	--focus--dropdown-option-fill: #fff;
 	--focus--dropdown-option-color: var(--dropdown-option-color);
-	--focus--dropdown-option-fill: #00fd4cee;
 
-	--selected--focus--dropdown-option-color: var(--hasvalue-input-color);
-	--selected--dropdown-option-fill: var(--hasvalue-input-color);
+	--selected--dropdown-option-color: var(--dropdown-option-color);
+	--selected--dropdown-option-fill: #fff;
 }
 
 .ui-dropdown {
@@ -208,6 +208,11 @@
 						
 						  	--svg-fill: var(--selected--dropdown-option-color);
 					  	}
+
+						&:hover {
+							--dropdown-option-color: var(--hover--dropdown-option-color);
+							--dropdown-option-fill: var(--hover--dropdown-option-fill);
+						}
 					
 						&:focus {
 							--dropdown-option-color: var(--focus--dropdown-option-color);
