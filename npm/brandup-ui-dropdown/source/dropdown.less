@@ -1,5 +1,20 @@
 @import "@brandup/ui-kit/source/adaptive.less";
 
+:root {
+	--dropdown-option-color: var(--input-color);
+	--dropdown-option-fill: #ffffff;
+	--dropdown-border-radius: var(--input-border-radius);
+
+	--hover--dropdown-option-color: var(--dropdown-option-color);
+	--hover--dropdown-option-fill: #fff;
+
+	--focus--dropdown-option-color: var(--dropdown-option-color);
+	--focus--dropdown-option-fill: #fff;
+
+	--selected--dropdown-option-color: var(--dropdown-option-color);
+	--selected--dropdown-option-fill: #fff;
+}
+
 .ui-dropdown {
 	position: relative;
 	box-sizing: border-box;
@@ -161,10 +176,12 @@
 			
 				& li {
 					padding: calc(var(--input-padding-lr) / 2) var(--input-padding-lr);
-			  		display: flex;
+					display: flex;
 					justify-content: space-between;
 					align-items: center;
-					border-radius: var(--input-border-radius);
+					color: var(--dropdown-option-color);
+					background: var(--dropdown-option-fill);
+					border-radius: var(--dropdown-border-radius);
 					min-height: unset;
 					cursor: pointer;
 				
@@ -173,28 +190,33 @@
 					}
 				
 					&:hover {
-						--input-color: var(--hover--input-color);
-						--input-fill: var(--hover--input-fill);
+						--dropdown-option-color: var(--hover--dropdown-option-color);
+						--dropdown-option-fill: var(--hover--dropdown-option-fill);
 					}
 				
 					&:focus {
-						--input-color: var(--focus--input-color);
-						--input-fill: var(--focus--input-fill);
+						--dropdown-option-color: var(--focus--dropdown-option-color);
+						--dropdown-option-fill: var(--focus--dropdown-option-fill);
 					}
 				
-					&.hasvalue {
-						--input-color: var(--hasvalue--input-color);
-						--input-fill: var(--hasvalue--input-fill);
+					&.selected {
+						--dropdown-option-color: var(--selected--dropdown-option-color);
+						--dropdown-option-fill: var(--selected--dropdown-option-fill);
 						
 						& svg {
 							display: block;
 						
-						  	--svg-fill: var(--hasvalue--input-color);
+						  	--svg-fill: var(--selected--dropdown-option-color);
 					  	}
+
+						&:hover {
+							--dropdown-option-color: var(--hover--dropdown-option-color);
+							--dropdown-option-fill: var(--hover--dropdown-option-fill);
+						}
 					
 						&:focus {
-						  --input-color: var(--focus--input-color);
-						  --input-fill: var(--focus--input-fill);
+							--dropdown-option-color: var(--focus--dropdown-option-color);
+							--dropdown-option-fill: var(--focus--dropdown-option-fill);
 						}
 					}
 				}
@@ -256,6 +278,7 @@
   
 	  	& input {
 			--input-width: 100%;
+
 			padding-left: calc(var(--input-padding-lr) + var(--svg-size) + var(--input-padding-lr) / 2);
 	  	}
 	}
