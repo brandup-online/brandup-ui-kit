@@ -1,15 +1,22 @@
 @import "@brandup/ui-kit/source/adaptive.less";
 
 :root {
-	--editor-text-variables-fill: #be6cce;
-	--editor-text-spintax-fill: #87c671;
+    --toolbar-button-text-font-size: 14px;
+    --toolbar-button-text-font-weight: 300;
+    --toolbar-split-fill: var(--input-border-color);
+
+    --writer-counter-color: var(--input-color);
+    --invalid--writer-counter-color: var(--invalid--input-color);
+
+    --preview-fill: #D9FDD3;
+    --preview-text-border-radius: 1px;
+	--preview-text-variables-fill: #be6cce;
+	--preview-text-spintax-fill: #87c671;
+    --preview-text-link-color: #45aedc;
+    
 }
 
 .message-editor {
-    --invalid--input-border-color: #e66c6c;
-    --invalid--input-color: #e66c6c;
-    --svg-size: 16px;
-
     position: relative;
     border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
     background: var(--input-fill);
@@ -19,8 +26,6 @@
     width: var(--input-width);
 
     & .toolbar {
-        --svg-fill: #848484;
-
         order: 3;
         flex: 0 0 100%;
         display: flex;
@@ -44,13 +49,12 @@
             border: none;
 
             & span {
-                --input-font-weight: 300;
-
                 display: block;
                 margin-left: 5px;
                 margin-bottom: 2px;
                 text-transform: lowercase;
-                font-weight: var(--input-font-weight);
+                font-size: var(--toolbar-button-text-font-size);
+                font-weight: var(--toolbar-button-text-font-weight);
             }
 
             &:hover,
@@ -91,7 +95,7 @@
             width: 1px;
             height: 16px;
             overflow: hidden;
-            background: var(--input-border-color); // посчитал как бордер покрасить
+            background: var(--toolbar-split-fill);
             margin: 0 5px;
         }
     }
@@ -198,22 +202,19 @@
             white-space: nowrap;
             text-overflow: ellipsis;
             padding: 0 15px;
-            color: var(--placeholder-color);
+            color: var(--writer-counter-color);
             user-select: none;
 
             &.error {
-               color: var(--invalid--input-color)
+               color: var(--invalid--writer-counter-color);
             }
         }
     }
 
     & .preview {
-        --input-fill: #D9FDD3;
-        --input-border-radius: 1px;
-
         order: 2;
         flex: 0 0 50%;
-        background: var(--input-fill);
+        background: var(--preview-fill);
         padding: 8px 15px;
         box-sizing: border-box;
         overflow: hidden;
@@ -223,22 +224,20 @@
         border-top-right-radius: 5px;
 
         & .variable {
-            background: var(--editor-text-variables-fill);
+            background: var(--preview-text-variables-fill);
             text-transform: uppercase;
             padding: 0 1px;
-            border-radius: var(--input-border-radius);
+            border-radius: var(--preview-text-border-radius);
         }
 
         & .spintax {
-            background: var(--editor-text-spintax-fill);
+            background: var(--preview-text-spintax-fill);
             padding: 0 1px;
-            border-radius: var(--input-border-radius);
+            border-radius: var(--preview-text-border-radius);
         }
 
-        & a {
-            --input-color: #45aedc;
-            
-            color: var(--input-color);
+        & a { 
+            color: var(--preview-text-link-color);
             text-decoration: none;
             outline: none;
         }
@@ -320,7 +319,6 @@
             & button {
                 height: 50px;
                 width: 100%;
-                font-weight: 500;
             }
         }
     }
