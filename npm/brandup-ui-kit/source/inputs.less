@@ -161,6 +161,12 @@ input[type=file] {
 		font-weight: var(--font-weight);
 		font-size: var(--font-size);
 	}
+
+	// нужно отключить пользовательские события, так как атрибут readonly не влияет на input file
+	&[readonly] {
+		pointer-events: none;
+		touch-action: none;
+	}
 }
 
 select {
