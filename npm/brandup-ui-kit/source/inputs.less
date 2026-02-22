@@ -256,18 +256,18 @@ input[type=checkbox] {
 	}
 }
 
-// состояние для выбранного значения
+.ui-input {
+	// состояние для выбранного значения
+	&.hasvalue {
+		background: var(--hasvalue--input-fill);
+		color: var(--hasvalue--input-color);
+		border-radius: var(--input-border-radius);
+	}
 
-&.hasvalue {
-	background: var(--hasvalue--input-fill);
-	color: var(--hasvalue--input-color);
-	border-radius: var(--input-border-radius);
-}
-
-// состояние при открытии выпадашки
-
-&.expanded {
-	background: var(--expanded--input-fill);
-	color: var(--expanded--input-color);
-	border-radius: var(--input-border-radius);
+	// состояние при открытии выпадашки
+	&.expanded {
+		background: var(--expanded--input-fill);
+		color: var(--expanded--input-color);
+		border-radius: var(--input-border-radius);
+	}
 }
