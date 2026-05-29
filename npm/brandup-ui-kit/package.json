@@ -11,13 +11,13 @@
 		"name": "Dmitry Kovyazin",
 		"email": "it@brandup.online"
 	},
-	"homepage": "https://github.com/brandup-online/brandup-ui/npm/brandup-ui-input",
+	"homepage": "https://github.com/brandup-online/brandup-ui-kit/npm/brandup-ui-kit",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/brandup-online/brandup-ui.git"
+		"url": "https://github.com/brandup-online/brandup-ui-kit.git"
 	},
 	"bugs": {
-		"url": "https://github.com/brandup-online/brandup-ui/issues",
+		"url": "https://github.com/brandup-online/brandup-ui-kit/issues",
 		"email": "it@brandup.online"
 	},
 	"type": "module",
