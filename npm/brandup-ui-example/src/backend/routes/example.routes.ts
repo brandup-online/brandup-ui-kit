@@ -1,9 +1,9 @@
 import { Router } from "express";
-import ExampleContoller from "../controllers/example.contoller";
+import ExampleController from "../controllers/example.controller";
 
 class ExampleRoutes {
 	router = Router();
-	controller = new ExampleContoller();
+	controller = new ExampleController();
 
 	constructor() {
 		this.intializeRoutes();

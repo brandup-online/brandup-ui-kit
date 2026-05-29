@@ -1,7 +1,7 @@
 const path = require("path");
 import { Request, Response } from "express";
 
-export default class ExampleContoller {
+export default class ExampleController {
 	spa(req: Request, res: Response): void {
 		return res.sendFile(path.join("index.html"), { root: req.app.get("wwwroot") });
 	}
