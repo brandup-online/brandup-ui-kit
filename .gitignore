@@ -406,3 +406,4 @@ npm/*/source/**/*.js.map
 npm/*/out
 npm/*/server
 npm/*/**/dist/*
+.claude/settings.json
