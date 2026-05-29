@@ -200,7 +200,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			if (this.type == "number") {
 				const numberData = /[\d\s]+/.exec(pastedData);
 				if (numberData && numberData.length)
-					pastedData = numberData[0].replace(' ', '');
+					pastedData = numberData[0].replace(/\s/g, '');
 				else {
 					this.element.classList.add("incorrect");
 					window.setTimeout(() => this.element?.classList.remove("incorrect"), 300);
@@ -347,23 +347,23 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	}
 
 	private __initText() {
-		var html = "";
+		DOM.empty(this.__inputElem);
 
 		const text = this.__valueElem.value;
 		if (text) {
 			const lines = text.split(/\n/);
-			const output = lines.map((line, index) => {
+			lines.forEach((line, index) => {
 				line = line.trim();
 
-				if (index > 0) line = `<div>${line}</div>`;
-
-				return line;
+				if (index === 0)
+					this.__inputElem.append(document.createTextNode(line));
+				else {
+					const lineElem = document.createElement("div");
+					lineElem.textContent = line;
+					this.__inputElem.append(lineElem);
+				}
 			});
-
-			html = output.join("");
 		}
-
-		this.__inputElem.innerHTML = html;
 
 		this.__refreshSymbolsCount();
 

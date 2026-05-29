@@ -15,10 +15,12 @@ const closePopupEventHandler = (e: MouseEvent) => {
 	if (target.closest(`.${POPUP_CLASS}`))
 		return; // если клик внутри popup, то делать ничего не нужно
 
+	const clickedMenuItem = target.closest(`.${POPUP_EXPANDED_CLASS}`);
+	const isInitiator = target == current?.initiator;
+
 	close();
 
-	const clickedMenuItem = target.closest(`.${POPUP_EXPANDED_CLASS}`);
-	if (clickedMenuItem || target == current?.initiator) {
+	if (clickedMenuItem || isInitiator) {
 		// если клик по тому же элементу, который открыл контекстное меню, то останавливаем обработку клика, чтобы оно не отрылось заново
 
 		e.preventDefault();
@@ -33,6 +35,8 @@ const close = () => {
 
 		current.initiator?.classList.remove(POPUP_EXPANDED_CLASS); // закрываем последнее открытое контекстное меню
 		current.popup.classList.remove("opened");
+
+		current = null;
 	}
 
 	document.body.removeEventListener("click", closePopupEventHandler);
