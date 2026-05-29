@@ -22,7 +22,7 @@ class ExampleRoutes {
 		this.router.get("/_ajax/image", this.controller.image);
 		this.router.get("/_ajax/delay", this.controller.delay);
 
-		this.router.get("*", this.controller.spa);
+		this.router.get("/*splat", this.controller.spa);
 	}
 }
 

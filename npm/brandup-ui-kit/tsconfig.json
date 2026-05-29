@@ -9,7 +9,7 @@
 			"DOM",
 			"ESNext"
 		],
-		"baseUrl": "./source",
+		"rootDir": "./source",
 		"outDir": "./out",
 		"experimentalDecorators": true,
 		"emitDecoratorMetadata": true,
