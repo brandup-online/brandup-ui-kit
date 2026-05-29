@@ -9,7 +9,6 @@
 			"ESNext",
 			"DOM"
 		],
-		"baseUrl": "./src",
 		"experimentalDecorators": true,
 		"emitDecoratorMetadata": true,
 		"noImplicitAny": true,
