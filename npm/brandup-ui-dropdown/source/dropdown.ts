@@ -54,6 +54,7 @@ class DropDown extends InputControl<HTMLSelectElement> {
 					break;
 				case "false":
 					this.searchOn = false;
+					break;
 				default:
 					this.searchOn = parseInt(se);
 					break;
