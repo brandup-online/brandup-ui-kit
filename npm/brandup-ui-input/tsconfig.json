@@ -5,10 +5,7 @@
 		"target": "ESNext",
 		"sourceMap": true,
 		"strict": true,
-		"lib": [
-			"DOM",
-			"ESNext"
-		],
+		"lib": ["DOM", "ESNext"],
 		"rootDir": "./source",
 		"outDir": "./out",
 		"experimentalDecorators": true,
@@ -27,15 +24,7 @@
 		"skipLibCheck": true,
 		"allowSyntheticDefaultImports": true
 	},
-	"include": [
-		"source",
-		"test"
-	],
-	"exclude": [
-		"node_modules",
-		"dist",
-		".vs",
-		".vscode"
-	],
+	"include": ["source", "test"],
+	"exclude": ["node_modules", "dist", ".vs", ".vscode"],
 	"compileOnSave": false
 }

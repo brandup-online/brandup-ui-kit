@@ -7,7 +7,7 @@ const ErrorMiddlewareFactory = (): Middleware => {
 		name: "error",
 		navigate: async (context: NavigateContext<ExampleApplication, PageNavigationData>, next: MiddlewareNext) => {
 			await next();
-		}
+		},
 	};
 };
 

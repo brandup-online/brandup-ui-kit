@@ -1,6 +1,14 @@
 ﻿import { DOM } from "@brandup/ui";
-import { AjaxQueue, } from "@brandup/ui-ajax";
-import { Middleware, MiddlewareNext, NAV_OVERIDE_ERROR, NavigateContext, StartContext, StopContext, SubmitContext } from "@brandup/ui-app";
+import { AjaxQueue } from "@brandup/ui-ajax";
+import {
+	Middleware,
+	MiddlewareNext,
+	NAV_OVERIDE_ERROR,
+	NavigateContext,
+	StartContext,
+	StopContext,
+	SubmitContext,
+} from "@brandup/ui-app";
 import { Page } from "../pages/base";
 import { ExampleApplication } from "../app";
 import { PageNavigationData, PageSubmitData } from "../typings/app";
@@ -17,25 +25,25 @@ class PagesMiddlewareImpl implements Middleware, PagesMiddleware {
 	constructor(options: PagesOptions) {
 		this._options = options;
 
-		const appContentElem = document.getElementById("app-content")
-		if (!appContentElem)
-			throw new Error("Not found page content container.");
+		const appContentElem = document.getElementById("app-content");
+		if (!appContentElem) throw new Error("Not found page content container.");
 		this._appContentElem = appContentElem;
 
 		this._ajax = new AjaxQueue();
 	}
 
 	async start(context: StartContext, next: MiddlewareNext) {
-		context.app.element?.insertAdjacentElement("beforeend", this._loaderElem = DOM.tag("div", { class: "app-loader" }));
+		context.app.element?.insertAdjacentElement(
+			"beforeend",
+			(this._loaderElem = DOM.tag("div", { class: "app-loader" }))
+		);
 
-		for (var key in this._options.routes) {
+		for (const key in this._options.routes) {
 			const route = this._options.routes[key];
-			if (route.preload)
-				await route.page();
+			if (route.preload) await route.page();
 		}
 
-		if (this._options.notfound.preload)
-			await this._options.notfound.page();
+		if (this._options.notfound.preload) await this._options.notfound.page();
 
 		await next();
 	}
@@ -60,7 +68,7 @@ class PagesMiddlewareImpl implements Middleware, PagesMiddleware {
 			}
 		}
 
-		const result = await FuncHelper.minWaitAsync<{ page: Page, content: DocumentFragment }>(async () => {
+		const result = await FuncHelper.minWaitAsync<{ page: Page; content: DocumentFragment }>(async () => {
 			// resolve and load new page
 			let pageDef = this._options.routes[context.path.toLowerCase()];
 			if (!pageDef) {
@@ -75,13 +83,11 @@ class PagesMiddlewareImpl implements Middleware, PagesMiddleware {
 			try {
 				// create and render new page
 
-				if (!pageType.default)
-					throw new Error("Page type is not default.");
+				if (!pageType.default) throw new Error("Page type is not default.");
 
 				page = new pageType.default(context) as Page;
 				content = await page.render();
-			}
-			catch (reason) {
+			} catch (reason) {
 				page?.destroy();
 
 				if (reason != NAV_OVERIDE_ERROR) {
@@ -91,9 +97,7 @@ class PagesMiddlewareImpl implements Middleware, PagesMiddleware {
 					pageType = await pageDef.page();
 					page = new pageType.default(context) as Page;
 					content = await page.render();
-				}
-				else
-					throw reason;
+				} else throw reason;
 			}
 
 			return { page, content };
@@ -101,8 +105,7 @@ class PagesMiddlewareImpl implements Middleware, PagesMiddleware {
 
 		try {
 			context.abort.throwIfAborted();
-		}
-		catch (reason) {
+		} catch (reason) {
 			result.page?.destroy();
 			throw reason;
 		}
@@ -119,22 +122,19 @@ class PagesMiddlewareImpl implements Middleware, PagesMiddleware {
 	}
 
 	async submit(context: SubmitContext<ExampleApplication, PageSubmitData>, next: MiddlewareNext) {
-		if (!this._page)
-			throw new Error();
+		if (!this._page) throw new Error();
 
-		const page = context.data.page = this._page;
+		const page = (context.data.page = this._page);
 
-		const response = context.data.response = await this._ajax.enque({
+		const response = (context.data.response = await this._ajax.enque({
 			url: context.url,
 			method: context.method,
-			data: new FormData(context.form)
-		});
+			data: new FormData(context.form),
+		}));
 
 		if (response.redirected) {
 			await context.app.nav({ url: response.url, data: context.data });
-		}
-		else
-			await page.formSubmitted(response, context);
+		} else await page.formSubmitted(response, context);
 
 		await next();
 	}
@@ -149,14 +149,12 @@ class PagesMiddlewareImpl implements Middleware, PagesMiddleware {
 		this._page = page;
 
 		let url = context.url;
-		if (context.hash)
-			url += "#" + context.hash;
+		if (context.hash) url += "#" + context.hash;
 
 		const title = page.header;
 
 		let state = window.history.state;
-		if (!state)
-			state = {};
+		if (!state) state = {};
 		state._b_navid = context.id;
 
 		if (context.source != "first") {
@@ -169,32 +167,27 @@ class PagesMiddlewareImpl implements Middleware, PagesMiddleware {
 			}
 
 			if (context.current?.scope != context.scope || context.current?.source === "first") {
-				// Если изменилась область навигации или предыдущая бала первой, то 
+				// Если изменилась область навигации или предыдущая бала первой, то
 				// не нужно перезаписывать текущую страницу
 				replace = false;
 			}
 
 			let scroll = false;
-			if (replace)
-				window.history.replaceState(state, title, url);
+			if (replace) window.history.replaceState(state, title, url);
 			else {
 				window.history.pushState(state, title, url);
 
 				scroll = true;
 			}
 
-			if (scroll && context.action !== "hash")
-				window.scrollTo({ left: 0, top: 0, behavior: "auto" });
-		}
-		else
-			window.history.replaceState(state, title, url);
+			if (scroll && context.action !== "hash") window.scrollTo({ left: 0, top: 0, behavior: "auto" });
+		} else window.history.replaceState(state, title, url);
 
 		document.title = title;
 	}
 }
 
-export interface PagesMiddleware {
-}
+export interface PagesMiddleware {}
 
 export interface PagesOptions {
 	routes: Routes;

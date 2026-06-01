@@ -11,19 +11,21 @@ import Routes from "./routes";
 
 export default class ExampleServer {
 	private __server: Server | undefined;
-	get server() { return this.__server };
+	get server() {
+		return this.__server;
+	}
 
-	constructor(app: Application, staticDir: string, ssl: { keyFile: string, certFile: string }) {
+	constructor(app: Application, staticDir: string, ssl: { keyFile: string; certFile: string }) {
 		this.config(app, staticDir, ssl);
 
 		Routes(app);
 	}
 
-	private config(app: Application, staticDir: string, ssl: { keyFile: string, certFile: string }): void {
+	private config(app: Application, staticDir: string, ssl: { keyFile: string; certFile: string }): void {
 		app.set("wwwroot", staticDir);
 
 		const corsOptions: CorsOptions = {
-			origin: "*"
+			origin: "*",
 		};
 
 		app.use(cors(corsOptions));

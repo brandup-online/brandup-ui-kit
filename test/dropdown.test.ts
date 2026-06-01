@@ -24,14 +24,21 @@ describe("DropDown", () => {
 	});
 
 	it("renders each option as an <li> item", () => {
-		const select = makeSelect([["1", "One"], ["2", "Two"], ["3", "Three"]]);
+		const select = makeSelect([
+			["1", "One"],
+			["2", "Two"],
+			["3", "Three"],
+		]);
 		const dd = new DropDown(select);
 		const items = dd.element!.querySelectorAll("ul li");
 		expect(items.length).toBe(3);
 	});
 
 	it("first empty-value option is treated as a placeholder and not rendered as item", () => {
-		const select = makeSelect([["", ""], ["a", "Alpha"]]);
+		const select = makeSelect([
+			["", ""],
+			["a", "Alpha"],
+		]);
 		const dd = new DropDown(select);
 		const items = dd.element!.querySelectorAll("ul li");
 		expect(items.length).toBe(1);
@@ -47,7 +54,7 @@ describe("DropDown", () => {
 		expect(span?.textContent).toBe("<img src=x onerror=alert(1)>");
 	});
 
-	it("data-search-on=\"false\" disables searchable (regression: switch fall-through)", () => {
+	it('data-search-on="false" disables searchable (regression: switch fall-through)', () => {
 		const opts: Array<[string, string]> = [];
 		for (let i = 0; i < 20; i++) opts.push([`${i}`, `Option ${i}`]);
 		const select = makeSelect(opts);
@@ -57,14 +64,14 @@ describe("DropDown", () => {
 		expect(dd.element?.classList.contains("searchable")).toBe(false);
 	});
 
-	it("data-search-on=\"true\" enables searchable", () => {
+	it('data-search-on="true" enables searchable', () => {
 		const select = makeSelect([["1", "One"]]);
 		select.setAttribute("data-search-on", "true");
 		const dd = new DropDown(select);
 		expect(dd.element?.classList.contains("searchable")).toBe(true);
 	});
 
-	it("data-search-on=\"N\" enables searchable when option count >= N", () => {
+	it('data-search-on="N" enables searchable when option count >= N', () => {
 		const opts: Array<[string, string]> = [];
 		for (let i = 0; i < 5; i++) opts.push([`${i}`, `Option ${i}`]);
 		const select = makeSelect(opts);
@@ -75,28 +82,41 @@ describe("DropDown", () => {
 	});
 
 	it("getValue() returns the selected value", () => {
-		const select = makeSelect([["a", "Alpha"], ["b", "Beta"]]);
+		const select = makeSelect([
+			["a", "Alpha"],
+			["b", "Beta"],
+		]);
 		select.value = "b";
 		const dd = new DropDown(select);
 		expect(dd.getValue()).toBe("b");
 	});
 
 	it("getSelectedTitle() returns the visible text of the selected option", () => {
-		const select = makeSelect([["a", "Alpha"], ["b", "Beta"]]);
+		const select = makeSelect([
+			["a", "Alpha"],
+			["b", "Beta"],
+		]);
 		select.value = "b";
 		const dd = new DropDown(select);
 		expect(dd.getSelectedTitle()).toBe("Beta");
 	});
 
 	it("getSelectedIndex() returns the selected option's index", () => {
-		const select = makeSelect([["a", "Alpha"], ["b", "Beta"], ["c", "Gamma"]]);
+		const select = makeSelect([
+			["a", "Alpha"],
+			["b", "Beta"],
+			["c", "Gamma"],
+		]);
 		select.value = "c";
 		const dd = new DropDown(select);
 		expect(dd.getSelectedIndex()).toBe(2);
 	});
 
 	it("fires dropdown-change with new value/title when a list item is clicked", () => {
-		const select = makeSelect([["a", "Alpha"], ["b", "Beta"]]);
+		const select = makeSelect([
+			["a", "Alpha"],
+			["b", "Beta"],
+		]);
 		const dd = new DropDown(select);
 		const handler = jest.fn();
 		dd.on(CHANGE_EVENT, handler);
@@ -104,11 +124,13 @@ describe("DropDown", () => {
 		const item = dd.element!.querySelector('li[data-index="1"]') as HTMLElement;
 		item.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-		expect(handler).toHaveBeenCalledWith(expect.objectContaining({
-			value: "b",
-			title: "Beta",
-			index: 1,
-		}));
+		expect(handler).toHaveBeenCalledWith(
+			expect.objectContaining({
+				value: "b",
+				title: "Beta",
+				index: 1,
+			})
+		);
 		expect(dd.getValue()).toBe("b");
 	});
 

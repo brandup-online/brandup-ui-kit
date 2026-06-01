@@ -11,7 +11,9 @@ export abstract class Page extends UIElement {
 	readonly ajax: AjaxQueue;
 	private __hash: string | null;
 
-	get context() { return this.__context; }
+	get context() {
+		return this.__context;
+	}
 
 	constructor(context: NavigateContext<ExampleApplication, PageNavigationData>) {
 		super();
@@ -37,22 +39,21 @@ export abstract class Page extends UIElement {
 	}
 
 	protected _onRenderElement(element: HTMLElement) {
-		element.appendChild(DOM.tag("header", { class: "page-header" }, [
-			DOM.tag("h1", null, this.header)
-		]));
+		element.appendChild(DOM.tag("header", { class: "page-header" }, [DOM.tag("h1", null, this.header)]));
 	}
 
 	/** @internal */
-	async __changedHash(context: NavigateContext<ExampleApplication, PageNavigationData>, newHash: string | null, oldHash: string | null) {
-		if (!this.element)
-			return;
+	async __changedHash(
+		context: NavigateContext<ExampleApplication, PageNavigationData>,
+		newHash: string | null,
+		oldHash: string | null
+	) {
+		if (!this.element) return;
 
 		this.__context = context;
 
-		if (newHash)
-			this.__hash = newHash;
-		else
-			this.__hash = null;
+		if (newHash) this.__hash = newHash;
+		else this.__hash = null;
 
 		await this.onChangedHash(newHash, oldHash);
 	}
@@ -65,8 +66,13 @@ export abstract class Page extends UIElement {
 
 	abstract get header(): string;
 	protected abstract onRenderContent(container: HTMLElement): Promise<void>;
-	protected onChangedHash(_newHash: string | null, _oldHash: string | null): Promise<void> { return Promise.resolve(); }
-	protected async onFormSubmitted(response: AjaxResponse, context: SubmitContext<ExampleApplication, PageSubmitData>) { }
+	protected onChangedHash(_newHash: string | null, _oldHash: string | null): Promise<void> {
+		return Promise.resolve();
+	}
+	protected async onFormSubmitted(
+		response: AjaxResponse,
+		context: SubmitContext<ExampleApplication, PageSubmitData>
+	) {}
 
 	destroy() {
 		this.ajax.destroy();

@@ -39,14 +39,20 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		let type: TextBoxType = "text";
 		if (valueElem instanceof HTMLInputElement) {
 			switch (valueElem.type) {
-				case "text": type = "text"; break;
+				case "text":
+					type = "text";
+					break;
 				case "email":
 					type = "email";
 					if (!valueElem.maxLength || valueElem.maxLength > MAX_EMAIL_LENGTH)
 						valueElem.maxLength = MAX_EMAIL_LENGTH;
 					break;
-				case "url": type = "url"; break;
-				case "tel": type = "tel"; break;
+				case "url":
+					type = "url";
+					break;
+				case "tel":
+					type = "tel";
+					break;
 				case "number":
 					type = "number";
 					valueElem.step = "1"; // Поддерживаем пока что только целые числа
@@ -74,11 +80,8 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 
 		const container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(valueElem.classList)) }, [
 			DOM.tag("div", { class: "decorator" }),
-			DOM.tag("div", { class: "editor" }, [
-				inputElem,
-				symbolsCountElem
-			]),
-			actionsElem
+			DOM.tag("div", { class: "editor" }, [inputElem, symbolsCountElem]),
+			actionsElem,
 		]);
 
 		container.classList.remove(INPUT_CLASS);
@@ -89,15 +92,17 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		if (multyline) container.classList.add("multyline");
 		if (symbolCounter) container.classList.add("counter");
 
-		if (disabled)
-			inputElem.tabIndex = -1;
-		else
-			inputElem.contentEditable = "true";
+		if (disabled) inputElem.tabIndex = -1;
+		else inputElem.contentEditable = "true";
 
 		if (inputmode) inputElem.inputMode = inputmode;
 
 		if (copyButton) {
-			const buttonElem = DOM.tag("button", { command: "copy-text", title: "Скопировать в буфер обмена" }, copyIcon);
+			const buttonElem = DOM.tag(
+				"button",
+				{ command: "copy-text", title: "Скопировать в буфер обмена" },
+				copyIcon
+			);
 			if (disabled) buttonElem.disabled = true;
 			actionsElem.insertAdjacentElement("beforeend", buttonElem);
 		}
@@ -137,194 +142,208 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		this.element.addEventListener("drop", (e) => e.preventDefault(), { signal });
 		this.element.addEventListener("dragenter", (e) => e.preventDefault(), { signal });
 
-		this.__valueElem.addEventListener("change", (e: Event) => {
-			e.preventDefault();
-			e.stopImmediatePropagation();
-		}, { signal });
+		this.__valueElem.addEventListener(
+			"change",
+			(e: Event) => {
+				e.preventDefault();
+				e.stopImmediatePropagation();
+			},
+			{ signal }
+		);
 
 		let hasInputClick = false;
-		this.__inputElem.addEventListener("mousedown", () => {
-			if (this.disabled)
-				return;
+		this.__inputElem.addEventListener(
+			"mousedown",
+			() => {
+				if (this.disabled) return;
 
-			hasInputClick = true;
-		}, { signal });
+				hasInputClick = true;
+			},
+			{ signal }
+		);
 
-		this.__inputElem.addEventListener("focus", () => {
-			if (this.disabled)
-				return;
+		this.__inputElem.addEventListener(
+			"focus",
+			() => {
+				if (this.disabled) return;
 
-			this.element.classList.add("focused");
+				this.element.classList.add("focused");
 
-			if (this.readonly)
-				this.__selectAll();
-			else if (!hasInputClick)
-				this.__carretToEnd(); // пыремещаем курсов в конец, если клик не по строке
-		}, { signal });
+				if (this.readonly) this.__selectAll();
+				else if (!hasInputClick) this.__carretToEnd(); // пыремещаем курсов в конец, если клик не по строке
+			},
+			{ signal }
+		);
 
-		this.__inputElem.addEventListener("blur", () => {
-			hasInputClick = false;
+		this.__inputElem.addEventListener(
+			"blur",
+			() => {
+				hasInputClick = false;
 
-			if (this.disabled)
-				return;
+				if (this.disabled) return;
 
-			this.element.classList.remove("focused");
+				this.element.classList.remove("focused");
 
-			// когда удаляем весь текст, то браузер оставляет один BR, что означает что текста нет
-			// удалить BR нужно, чтобы появился placeholder
-			if (this.__inputElem.firstChild?.nodeName === "BR")
-				DOM.empty(this.__inputElem);
-		}, { signal });
+				// когда удаляем весь текст, то браузер оставляет один BR, что означает что текста нет
+				// удалить BR нужно, чтобы появился placeholder
+				if (this.__inputElem.firstChild?.nodeName === "BR") DOM.empty(this.__inputElem);
+			},
+			{ signal }
+		);
 
-		this.__inputElem.addEventListener("dblclick", () => {
-			if (this.disabled)
-				return;
+		this.__inputElem.addEventListener(
+			"dblclick",
+			() => {
+				if (this.disabled) return;
 
-			if (this.copyButton && this.readonly)
-				this.__selectAll();
-		}, { signal });
+				if (this.copyButton && this.readonly) this.__selectAll();
+			},
+			{ signal }
+		);
 
-		this.element.addEventListener("paste", (e: ClipboardEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-
-			if (this.readonly || this.disabled)
-				return false;
-
-			let pastedData = e.clipboardData?.getData("text/plain");
-			if (!pastedData)
-				return false;
-
-			if (this.type == "number") {
-				const numberData = /[\d\s]+/.exec(pastedData);
-				if (numberData && numberData.length)
-					pastedData = numberData[0].replace(/\s/g, '');
-				else {
-					this.element.classList.add("incorrect");
-					window.setTimeout(() => this.element.classList.remove("incorrect"), 300);
-					return false;
-				}
-			}
-
-			const selection = window.getSelection();
-			if (!selection)
-				return false; // TODO
-
-			if (this.maxlength > 0) {
-				// обрезаем вставляемый текст по кол-ву оставшихся символов для ввода
-
-				const selectionLength = selection.toString().length;
-				const currentTextLength = this.__getTextLength();
-				const leftSymbols = this.maxlength - currentTextLength + selectionLength; // осталось символов для ввода
-
-				if (pastedData.length > leftSymbols)
-					pastedData = pastedData.substring(0, leftSymbols);
-			}
-
-			const lines = pastedData.split(/\n/);
-			// тримим все строки, кроме начала первой строки, вдруг так нужно
-			const output = lines.map((line, index) => index === 0 ? line.trimEnd() : line.trim());
-
-			var fragment = document.createDocumentFragment();
-			if (!this.multyline) {
-				fragment.appendChild(document.createTextNode(output.join(" ")));
-			} else {
-				output.forEach((line, index) => {
-					if (index > 0) fragment.appendChild(document.createElement("br"));
-
-					fragment.appendChild(document.createTextNode(line));
-				});
-			}
-
-			// Удаляем выделенную область
-			selection.getRangeAt(0).deleteContents();
-
-			// Вставляем текст
-			selection.getRangeAt(0).insertNode(fragment);
-
-			// Перемещаем курсор в конец вставленной области
-			selection.setPosition(selection.focusNode, selection.focusOffset);
-
-			this.__applyValue();
-
-			return true;
-		}, { signal });
-
-		this.__inputElem.addEventListener("keydown", (e: KeyboardEvent) => {
-			const isChar = e.key.length === 1;
-
-			if ((this.readonly || this.disabled) && isChar && !e.ctrlKey) {
+		this.element.addEventListener(
+			"paste",
+			(e: ClipboardEvent) => {
 				e.preventDefault();
 				e.stopPropagation();
-				return false;
-			}
 
-			if (this.maxlength > 0 && isChar && !e.ctrlKey) {
-				const currentTextLength = this.__getTextLength();
-				if (currentTextLength >= this.maxlength) {
+				if (this.readonly || this.disabled) return false;
+
+				let pastedData = e.clipboardData?.getData("text/plain");
+				if (!pastedData) return false;
+
+				if (this.type == "number") {
+					const numberData = /[\d\s]+/.exec(pastedData);
+					if (numberData && numberData.length) pastedData = numberData[0].replace(/\s/g, "");
+					else {
+						this.element.classList.add("incorrect");
+						window.setTimeout(() => this.element.classList.remove("incorrect"), 300);
+						return false;
+					}
+				}
+
+				const selection = window.getSelection();
+				if (!selection) return false; // TODO
+
+				if (this.maxlength > 0) {
+					// обрезаем вставляемый текст по кол-ву оставшихся символов для ввода
+
+					const selectionLength = selection.toString().length;
+					const currentTextLength = this.__getTextLength();
+					const leftSymbols = this.maxlength - currentTextLength + selectionLength; // осталось символов для ввода
+
+					if (pastedData.length > leftSymbols) pastedData = pastedData.substring(0, leftSymbols);
+				}
+
+				const lines = pastedData.split(/\n/);
+				// тримим все строки, кроме начала первой строки, вдруг так нужно
+				const output = lines.map((line, index) => (index === 0 ? line.trimEnd() : line.trim()));
+
+				const fragment = document.createDocumentFragment();
+				if (!this.multyline) {
+					fragment.appendChild(document.createTextNode(output.join(" ")));
+				} else {
+					output.forEach((line, index) => {
+						if (index > 0) fragment.appendChild(document.createElement("br"));
+
+						fragment.appendChild(document.createTextNode(line));
+					});
+				}
+
+				// Удаляем выделенную область
+				selection.getRangeAt(0).deleteContents();
+
+				// Вставляем текст
+				selection.getRangeAt(0).insertNode(fragment);
+
+				// Перемещаем курсор в конец вставленной области
+				selection.setPosition(selection.focusNode, selection.focusOffset);
+
+				this.__applyValue();
+
+				return true;
+			},
+			{ signal }
+		);
+
+		this.__inputElem.addEventListener(
+			"keydown",
+			(e: KeyboardEvent) => {
+				const isChar = e.key.length === 1;
+
+				if ((this.readonly || this.disabled) && isChar && !e.ctrlKey) {
 					e.preventDefault();
 					e.stopPropagation();
-
-					this.__toIncorrect();
 					return false;
 				}
-			}
 
-			if (isChar && !e.ctrlKey) {
-				let isIncorrect = false;
+				if (this.maxlength > 0 && isChar && !e.ctrlKey) {
+					const currentTextLength = this.__getTextLength();
+					if (currentTextLength >= this.maxlength) {
+						e.preventDefault();
+						e.stopPropagation();
 
-				switch (this.type) {
-					case "number":
-						if (!/\d/.test(e.key))
-							isIncorrect = true;
-						break;
-					case "email":
-						if (!/[a-zA-Z\d\.\-\_\@]/.test(e.key))
-							isIncorrect = true;
-						break;
+						this.__toIncorrect();
+						return false;
+					}
 				}
 
-				if (isIncorrect) {
+				if (isChar && !e.ctrlKey) {
+					let isIncorrect = false;
+
+					switch (this.type) {
+						case "number":
+							if (!/\d/.test(e.key)) isIncorrect = true;
+							break;
+						case "email":
+							if (!/[a-zA-Z\d.\-_@]/.test(e.key)) isIncorrect = true;
+							break;
+					}
+
+					if (isIncorrect) {
+						e.preventDefault();
+						e.stopPropagation();
+
+						this.__toIncorrect();
+						return false;
+					}
+				}
+
+				if (!this.multyline && (e.key == "U+000A" || e.key == "Enter")) {
+					// Если однострочный режим и нажат enter, то отправляем submit формы
 					e.preventDefault();
-					e.stopPropagation();
-
-					this.__toIncorrect();
+					this.__submitForm();
 					return false;
 				}
-			}
 
-			if (!this.multyline && (e.key == "U+000A" || e.key == "Enter")) {
-				// Если однострочный режим и нажат enter, то отправляем submit формы
-				e.preventDefault();
-				this.__submitForm();
-				return false;
-			}
+				return true;
+			},
+			{ signal }
+		);
 
-			return true;
-		}, { signal });
+		this.__inputElem.addEventListener(
+			"input",
+			() => {
+				if (this.multyline && this.__inputElem.children.length === 1) {
+					const child = this.__inputElem.children.item(0);
+					if (child && child.tagName === "BR") this.__inputElem.innerHTML = "";
+				}
 
-		this.__inputElem.addEventListener("input", () => {
-			if (this.multyline && this.__inputElem.children.length === 1) {
-				const child = this.__inputElem.children.item(0);
-				if (child && child.tagName === "BR")
-					this.__inputElem.innerHTML = '';
-			}
+				this.__applyValue();
 
-			this.__applyValue();
+				let clearInvalidState = true;
 
-			let clearInvalidState = true;
+				if (this.element.classList.contains("invalid")) clearInvalidState = this.validate(); // Если уже не валидно, то перепроверяем
 
-			if (this.element.classList.contains("invalid"))
-				clearInvalidState = this.validate(); // Если уже не валидно, то перепроверяем
+				if (clearInvalidState) this.element.classList.remove("invalid");
+			},
+			{ signal }
+		);
 
-			if (clearInvalidState)
-				this.element.classList.remove("invalid");
-		}, { signal });
-
-		this.registerCommand("copy-text", async context => {
+		this.registerCommand("copy-text", async (context) => {
 			if (!window.navigator.clipboard || this.disabled) return;
 
-			await window.navigator.clipboard.writeText(this.__valueElem.value)
+			await window.navigator.clipboard.writeText(this.__valueElem.value);
 
 			const prevHtml = context.target.innerHTML;
 			context.target.innerHTML = doneIcon;
@@ -347,8 +366,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			lines.forEach((line, index) => {
 				line = line.trim();
 
-				if (index === 0)
-					this.__inputElem.append(document.createTextNode(line));
+				if (index === 0) this.__inputElem.append(document.createTextNode(line));
 				else {
 					const lineElem = document.createElement("div");
 					lineElem.textContent = line;
@@ -359,12 +377,11 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 
 		this.__refreshSymbolsCount();
 
-		if (this.autoFocus && !IS_TOUCH_DEVICE && !this.disabled && !this.readonly)
-			this.__inputElem.focus();
+		if (this.autoFocus && !IS_TOUCH_DEVICE && !this.disabled && !this.readonly) this.__inputElem.focus();
 	}
 
 	private __applyValue() {
-		let newValue = this.__inputElem.innerText.trim();
+		const newValue = this.__inputElem.innerText.trim();
 		this.__valueElem.value = newValue;
 
 		this.__refreshSymbolsCount();
@@ -377,21 +394,16 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	}
 
 	private __refreshSymbolsCount() {
-		if (!this.__symbolsCountElem)
-			return;
+		if (!this.__symbolsCountElem) return;
 
 		const textLength = this.__getTextLength();
 		let counterValue: string;
 
 		if (this.maxlength > 0) {
 			counterValue = `${textLength}/${this.maxlength}`;
-			if (this.maxlength < textLength)
-				this.__symbolsCountElem.classList.add("invalid");
-			else
-				this.__symbolsCountElem.classList.remove("invalid");
-		}
-		else
-			counterValue = textLength.toString();
+			if (this.maxlength < textLength) this.__symbolsCountElem.classList.add("invalid");
+			else this.__symbolsCountElem.classList.remove("invalid");
+		} else counterValue = textLength.toString();
 
 		this.__symbolsCountElem.textContent = counterValue;
 	}
@@ -399,14 +411,14 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	private __selectAll() {
 		this.__inputElem.focus();
 
-		window.getSelection()?.selectAllChildren(this.__inputElem)
+		window.getSelection()?.selectAllChildren(this.__inputElem);
 	}
 
 	private __carretToEnd() {
-		var range = document.createRange();
+		const range = document.createRange();
 		range.selectNodeContents(this.__inputElem);
 		range.collapse(false);
-		var sel = window.getSelection();
+		const sel = window.getSelection();
 		if (sel) {
 			sel.removeAllRanges();
 			sel.addRange(range);
@@ -422,7 +434,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	private __onChange() {
 		this.trigger(CHANGE_EVENT, <ChangeEventData>{
 			textbox: this,
-			value: this.getValue()
+			value: this.getValue(),
 		});
 	}
 
@@ -448,19 +460,15 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	override validate(): boolean {
 		let isValid = super.validate();
 		if (isValid) {
-			let value = this.getValue();
+			const value = this.getValue();
 
-			if (this.required && !value)
-				isValid = false;
+			if (this.required && !value) isValid = false;
 
-			if (this.maxlength > 0 && this.maxlength < value.length)
-				isValid = false;
+			if (this.maxlength > 0 && this.maxlength < value.length) isValid = false;
 		}
 
-		if (!isValid)
-			this.element.classList.add("invalid");
-		else
-			this.element.classList.remove("invalid");
+		if (!isValid) this.element.classList.add("invalid");
+		else this.element.classList.remove("invalid");
 
 		return isValid;
 	}

@@ -15,15 +15,15 @@ builder
 	.useMiddleware(uiKitMiddlewareFactory)
 	.useMiddleware(pages, {
 		routes: {
-			'/': { page: () => import("./pages/index") },
-			'/styles': { page: () => import("./pages/styles") },
-			'/inputs': { page: () => import("./pages/inputs") },
-			'/popups': { page: () => import("./pages/popups") },
-			'/textbox': { page: () => import("./pages/textbox") },
-			'/dropdown': { page: () => import("./pages/dropdown") }
+			"/": { page: () => import("./pages/index") },
+			"/styles": { page: () => import("./pages/styles") },
+			"/inputs": { page: () => import("./pages/inputs") },
+			"/popups": { page: () => import("./pages/popups") },
+			"/textbox": { page: () => import("./pages/textbox") },
+			"/dropdown": { page: () => import("./pages/dropdown") },
 		},
 		notfound: { page: () => import("./pages/error/notfound") },
-		error: { page: () => import("./pages/error/exception") }
+		error: { page: () => import("./pages/error/exception") },
 	})
 	.useMiddleware(errors);
 
