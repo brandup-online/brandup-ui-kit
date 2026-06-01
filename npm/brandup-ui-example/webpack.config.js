@@ -1,4 +1,4 @@
-﻿"use strict";
+"use strict";
 
 const path = require("path");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
@@ -7,7 +7,7 @@ const TerserPlugin = require("terser-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const parseLessVars = require("@brandup/ui-kit/build/parse-less-vars.cjs");
 
-let bundleOutputDir = "./wwwroot/dist";
+const bundleOutputDir = "./wwwroot/dist";
 const frontDir = path.resolve(__dirname, "src", "frontend");
 
 const lessLoaderOptions = {
@@ -20,7 +20,7 @@ const lessLoaderOptions = {
 	},
 };
 
-var splitChunks = {
+const splitChunks = {
 	cacheGroups: {
 		vendors: {
 			test: /[\\/]node_modules[\\/]/,
@@ -28,7 +28,8 @@ var splitChunks = {
 			enforce: true,
 		},
 		styles: {
-			test: /\.(css|scss|less)$/, // нужно чтобы import`ы на одинаковые файла less не дублировались на выходе
+			// предотвращает дублирование одинаковых less-импортов на выходе
+			test: /\.(css|scss|less)$/,
 			reuseExistingChunk: true,
 			enforce: true,
 		},
@@ -42,7 +43,6 @@ var splitChunks = {
 
 module.exports = (_env) => {
 	const isDevBuild = process.env.NODE_ENV !== "production";
-	const getFilePath = (relativePath) => relativePath;
 
 	console.log(`NODE_ENV: "${process.env.NODE_ENV}"`);
 	console.log(`isDevBuild: ${isDevBuild}`);
@@ -55,12 +55,11 @@ module.exports = (_env) => {
 			},
 			resolve: {
 				extensions: [".js", ".jsx", ".ts", ".tsx", ".less"],
-				//modules: [path.resolve(__dirname, 'node_modules')]
 			},
 			output: {
 				path: path.join(__dirname, bundleOutputDir),
-				filename: getFilePath("[name].js"),
-				chunkFilename: isDevBuild ? getFilePath("[name].js") : getFilePath("[name].[contenthash].js"),
+				filename: "[name].js",
+				chunkFilename: isDevBuild ? "[name].js" : "[name].[contenthash].js",
 				iife: true,
 				clean: true,
 				publicPath: "./",
@@ -81,23 +80,23 @@ module.exports = (_env) => {
 						test: /\.(le|c)ss$/,
 						use: [
 							{ loader: MiniCssExtractPlugin.loader },
-							{ loader: "css-loader", options: { importLoaders: 2 } },
+							{ loader: "css-loader", options: { importLoaders: 1 } },
 							{ loader: "less-loader", options: lessLoaderOptions },
 						],
 					},
 					{
 						test: /\.html$/,
 						include: /pages/,
-						use: [{ loader: "raw-loader" }],
+						type: "asset/source",
 					},
 					{
 						test: /\.svg$/,
-						type: "asset/source", // заменил raw-loader
+						type: "asset/source",
 						use: [
 							{
 								loader: "svgo-loader",
 								options: {
-									configFile: __dirname + "/svgo.config.mjs",
+									configFile: path.join(__dirname, "svgo.config.mjs"),
 									floatPrecision: 2,
 								},
 							},
@@ -105,12 +104,18 @@ module.exports = (_env) => {
 					},
 					{
 						test: /\.(png|jpg|jpeg|gif)$/,
-						use: "url-loader?limit=25000",
+						type: "asset",
+						parser: {
+							dataUrlCondition: {
+								maxSize: 25000,
+							},
+						},
 					},
 				],
 			},
 			optimization: {
 				splitChunks: splitChunks,
+				concatenateModules: false,
 				minimize: !isDevBuild,
 				minimizer: [
 					new TerserPlugin({
@@ -121,19 +126,17 @@ module.exports = (_env) => {
 							format: {
 								comments: false,
 							},
-							sourceMap: false,
 						},
 						extractComments: false,
 					}),
 				],
 				removeAvailableModules: false,
 				removeEmptyChunks: true,
-				providedExports: false,
 				usedExports: true,
 			},
 			plugins: [
 				new MiniCssExtractPlugin({
-					filename: getFilePath("[name].css"),
+					filename: "[name].css",
 					chunkFilename: isDevBuild ? "[id].css" : "[id].[contenthash].css",
 					ignoreOrder: true,
 				}),

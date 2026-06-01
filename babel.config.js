@@ -1,14 +1,4 @@
-const plugins = [
-	[
-		"@babel/plugin-transform-runtime",
-		{
-			absoluteRuntime: false,
-			corejs: false,
-			helpers: true,
-			useESModules: true,
-		},
-	],
-];
+const plugins = [["@babel/plugin-transform-runtime", { helpers: true }]];
 
 module.exports = {
 	presets: [

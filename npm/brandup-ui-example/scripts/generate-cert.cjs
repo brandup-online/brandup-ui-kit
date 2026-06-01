@@ -15,20 +15,26 @@ if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
 
 if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-const pems = selfsigned.generate([{ name: "commonName", value: "localhost" }], {
-	days: 3650,
-	keySize: 2048,
-	extensions: [
-		{
-			name: "subjectAltName",
-			altNames: [
-				{ type: 2, value: "localhost" },
-				{ type: 7, ip: "127.0.0.1" },
-			],
-		},
-	],
-});
-
-fs.writeFileSync(keyPath, pems.private);
-fs.writeFileSync(certPath, pems.cert);
-console.log("generated dev cert at", dir);
+selfsigned
+	.generate([{ name: "commonName", value: "localhost" }], {
+		days: 3650,
+		keySize: 2048,
+		extensions: [
+			{
+				name: "subjectAltName",
+				altNames: [
+					{ type: 2, value: "localhost" },
+					{ type: 7, ip: "127.0.0.1" },
+				],
+			},
+		],
+	})
+	.then((pems) => {
+		fs.writeFileSync(keyPath, pems.private);
+		fs.writeFileSync(certPath, pems.cert);
+		console.log("generated dev cert at", dir);
+	})
+	.catch((err) => {
+		console.error("failed to generate dev cert:", err);
+		process.exit(1);
+	});
