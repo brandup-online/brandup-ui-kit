@@ -2,7 +2,7 @@ import "./textbox.less"; // стили компонента
 
 import { InputControl } from "@brandup/ui-input";
 import { IS_TOUCH_DEVICE } from "@brandup/ui-kit";
-import { DOM } from "@brandup/ui-dom";
+import { DOM } from "@brandup/ui";
 import { FuncHelper } from "@brandup/ui-helpers";
 import copyIcon from "../svg/copy.svg";
 import doneIcon from "../svg/tick.svg";

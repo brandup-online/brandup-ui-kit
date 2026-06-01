@@ -1,5 +1,5 @@
 import { InputControl } from "@brandup/ui-input";
-import { DOM } from "@brandup/ui-dom";
+import { DOM } from "@brandup/ui";
 import { detectLanguage, transcriptText } from "./utils/utilities";
 
 import "./dropdown.less"; // стили компонента

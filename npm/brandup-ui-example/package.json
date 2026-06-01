@@ -6,7 +6,6 @@
 		"@brandup/ui": "^2.0.1",
 		"@brandup/ui-ajax": "^2.0.1",
 		"@brandup/ui-app": "^2.0.1",
-		"@brandup/ui-dom": "^2.0.1",
 		"@brandup/ui-dropdown": "file:../brandup-ui-dropdown",
 		"@brandup/ui-helpers": "^2.0.1",
 		"@brandup/ui-kit": "file:../brandup-ui-kit",
