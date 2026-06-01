@@ -29,12 +29,14 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	private __emptyElem: HTMLElement;
 	private __searchInput: HTMLInputElement;
 	private __closePopupFunc: (e: MouseEvent) => void;
+	private __reposAbort?: AbortController;
 	private __hasEmptyValue: boolean = false;
 
 	readonly placeholder: string;
 	readonly emptyText: string;
 	readonly searchPlaceholder: string;
 	readonly searchEmpty: string;
+	readonly cancelText: string;
 	readonly searchOn: number | boolean = 15;
 
 	get typeName(): string { return "BrandUp.DropDown"; }
@@ -48,6 +50,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.emptyText = this.__valueElem.getAttribute("data-emptytext") || "Empty list";
 		this.searchPlaceholder = this.__valueElem.getAttribute("data-search-placeholder") || "Search";
 		this.searchEmpty = this.__valueElem.getAttribute("data-search-empty") || "Not found";
+		this.cancelText = this.__valueElem.getAttribute("data-cancel") || "Cancel";
 
 		const se = this.__valueElem.getAttribute("data-search-on");
 		if (se) {
@@ -74,6 +77,9 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.__emptyElem = DOM.tag("div", { class: "empty" });
 		this.__emptyElem.textContent = this.emptyText;
 
+		const cancelButton = DOM.tag("button", { class: "cancel", command: "close-popup" });
+		cancelButton.textContent = this.cancelText;
+
 		this.__container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(this.__valueElem.classList)) }, [
 			DOM.tag("button", { class: "view", command: "open-popup" }, [this.__textElem, arrowBottomIcon]),
 			this.__popupElem = DOM.tag("div", { class: "popup", tabindex: 0 }, [
@@ -84,11 +90,11 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 					),
 					DOM.tag("div", { class: "search" }, [
 						searchIcon,
-						this.__searchInput = <HTMLInputElement>DOM.tag("input", { type: "search", maxlength: 50, placeholder: this.searchPlaceholder })
+						this.__searchInput = DOM.tag("input", { type: "search", maxlength: 50, placeholder: this.searchPlaceholder })
 					]),
 					this.__listElem = DOM.tag("ul"),
 					this.__emptyElem,
-					DOM.tag("button", { class: "cancel", command: "close-popup" }, "Отмена")
+					cancelButton
 				])
 			])
 		]);
@@ -313,8 +319,13 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		if (this.element?.classList.contains("disabled"))
 			return;
 
-		if (!this.element?.classList.toggle("expanded"))
+		if (this.element?.classList.contains("expanded")) {
+			// уже открыт — закрываем чисто, чтобы и body-класс, и mouseup-листенер ушли
+			this.__closePopup();
 			return;
+		}
+
+		this.element?.classList.add("expanded");
 
 		// закрываем все открытые попапы, кроме текущего
 		document.querySelectorAll('.ui-dropdown.expanded').forEach((dropdown) => {
@@ -326,6 +337,12 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.__popupElem.focus({ preventScroll: true });
 
 		this.__positionPopup();
+
+		// пока popup открыт, перепозиционируем при изменении окна/скролле страницы
+		this.__reposAbort = new AbortController();
+		const reposition = () => this.__positionPopup();
+		window.addEventListener("resize", reposition, { signal: this.__reposAbort.signal });
+		window.addEventListener("scroll", reposition, { signal: this.__reposAbort.signal, passive: true, capture: true });
 
 		document.body.classList.add(BODY_EXPANDED);
 
@@ -364,6 +381,8 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		document.body.classList.remove(BODY_EXPANDED);
 		this.element?.classList.remove("expanded");
 		document.body.removeEventListener("mouseup", this.__closePopupFunc);
+		this.__reposAbort?.abort();
+		this.__reposAbort = undefined;
 	}
 
 	private __search(query: string) {

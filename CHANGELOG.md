@@ -23,6 +23,13 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   CommonJS-friendly) — replaces the `tsc <file> --ignoreConfig --module
   commonjs` cmdline hack and gives the IDE proper context for backend
   files.
+- `DropDown`: `data-cancel` attribute on `<select>` to localize the
+  "Cancel" button text (default: `Cancel`, was hard-coded "Отмена").
+- `DropDown`: popup re-positions on window resize and scroll while open
+  (registered/unregistered via `AbortController.signal`).
+- `TextBox`: all `addEventListener` calls in `__initLogic` now share a
+  single `AbortController`; `destroy()` aborts it instead of leaking
+  listeners on the restored `<input>`.
 
 ### Changed
 - **Bumped dependencies to current latest across the monorepo.** Highlights:
@@ -45,6 +52,15 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   side-steps the `\n` over-counting in `innerText` for multiline content).
 - `DropDown.__getElems` simplified to a single `queryElement` call after
   removing the no-op `cloneNode` + double `append` in `__renderItems`.
+- `DropDown.__togglePopup` now routes the close path through
+  `__closePopup` (body class and `mouseup` listener used to leak until
+  the next click).
+- Removed redundant `<HTMLInputElement>` / `<HTMLButtonElement>` type
+  assertions on `DOM.tag` calls — v2's overload infers the right element
+  type from the tag name.
+- `example`: removed `AbortSignal.{throwIfAborted,any,timeout}` polyfills.
+  All three are Baseline-supported under the current `.browserslistrc`
+  (`last 3 years`) and were not referenced anywhere in the codebase.
 
 ### Fixed
 - **Critical: XSS in `TextBox.__initText`/`setValue`.** Text built from
