@@ -412,7 +412,8 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			const item = it.parentElement;
 			if (!item) return;
 
-			if (it.innerText.toLowerCase().startsWith(query)) {
+			// textContent надёжнее: innerText в браузерах может возвращать пусто/неожиданное для скрытых элементов
+			if ((it.textContent ?? "").toLowerCase().startsWith(query)) {
 				item.classList.add("ok");
 				findedCount++;
 			} else item.classList.remove("ok");
