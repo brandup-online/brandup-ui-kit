@@ -1,200 +1,179 @@
-# brandup-ui-kit
+# @brandup/ui-kit
 
-## Installation and use
+[![Build Status](https://dev.azure.com/brandup/BrandUp%20Core/_apis/build/status%2FBrandUp%2Fbrandup-ui-kit?branchName=main)](https://dev.azure.com/brandup/BrandUp%20Core/_build/latest?definitionId=81&branchName=main)
 
-Install NPM package [@brandup/ui-kit](https://www.npmjs.com/package/@brandup/ui-kit).
+Базовый пакет UI-кита: сброс стилей, типографика, стили полей ввода, PopupManager и middleware для `@brandup/ui-app`.
+
+## Установка
 
 ```
-npm i @brandup/ui-kit@latest
+npm i @brandup/ui-kit
 ```
 
-Add `@brandup/ui-kit` middleware to your application.
+## Подключение middleware
 
-```TypeScript
+Зарегистрируйте `uiKitMiddlewareFactory` в сборщике приложения. Middleware автоматически регистрирует команду `ui-popup-toggle` для управления попапами.
+
+```typescript
 import { ApplicationBuilder } from "@brandup/ui-app";
 import { uiKitMiddlewareFactory } from "@brandup/ui-kit";
 
 const builder = new ApplicationBuilder({});
-builder
-	.useMiddleware(uiKitMiddlewareFactory)
-	.useMiddleware(... other middleware);
+builder.useMiddleware(uiKitMiddlewareFactory);
 
 const app = builder.build({ basePath: "/" });
-
 app.run();
 ```
 
-## Styles
+## PopupManager
 
-### Reset styles
+Статический менеджер для управления всплывающими панелями. В каждый момент времени открыт не более одного попапа.
 
-Reset styles for `<ul>`, `<ol>`, `<menu>`, `<img>` and others.
+### Разметка
 
-See [reset.less](source/reset.less) file.
+Добавьте CSS-класс `ui-popup` на элемент попапа.
 
-### Body styles
-
-Default root styles for `<body>` tag.
-
-```
---main-background
---font-size
---font-family
---font-weight
---line-height
---text-color
+```html
+<!-- Кнопка-инициатор рядом с попапом — команда ui-popup-toggle регистрируется middleware -->
+<button data-command="ui-popup-toggle">Меню</button>
+<div class="ui-popup">...</div>
 ```
 
-See [common.less](source/common.less) file.
+### API
 
-### Header styles
+```typescript
+import { PopupManager } from "@brandup/ui-kit";
 
-Default root styles for `<h1>`, `<h2>`, `<h3>`, `<h4>`, `<h5>`.
+// Открыть попап (закрывает предыдущий, если был открыт другой)
+PopupManager.open(popupElem, {
+    initiator: buttonElem, // необязательно: повторный клик по initiator закроет попап
+    onClose: () => { },    // необязательно: callback при закрытии
+});
 
-```
---h-line-height
+// Закрыть текущий попап
+PopupManager.close();
 
---h1-font-size
---h1-font-weidth
-
---h2-font-size
---h2-font-weidth
-
---h3-font-size
---h3-font-weidth
-
---h4-font-size
---h4-font-weidth
-
---h5-font-size
---h5-font-weidth
+// Проверить, открыт ли какой-либо попап
+PopupManager.isOpened(); // boolean
 ```
 
-See [common.less](source/common.less) file.
+## Утилиты
 
-### SVG styles
+```typescript
+import { IS_TOUCH_DEVICE } from "@brandup/ui-kit";
 
-Default root styles for `<svg>` tag.
-
-```
---svg-size: 20px;
---svg-fill: var(--text-color);
---svg-stroke: none;
+// true на touch-устройствах (мобильные, планшеты)
+if (IS_TOUCH_DEVICE) { ... }
 ```
 
-See [common.less](source/common.less) file.
+## Стили
 
-### Content width
+Подключите стили через импорт в точке входа — они включаются автоматически вместе с пакетом.
 
-Add `content-width` class.
+### Переменные Less
 
-```
---content-max-width
---content-min-width
---content-padding-lr
-```
+Переопределите значения в файле `uikit.vars.less` в корне проекта перед сборкой. Файл с переменными по умолчанию: [vars.less](vars.less).
 
-See [common.less](source/common.less) file.
+**Адаптивные брейкпоинты:**
 
-### Input styles
-
-Styles for:
-
--   reset for input, textarea, button
--   input[type=text]
--   input[type=tel]
--   input[type=email]
--   input[type=password]
--   input[type=search]
--   input[type=url]
--   input[type=date]
--   input[type=datetime]
--   input[type=datetime-local]
--   input[type=time]
--   input[type=file]
--   input[type=number]
--   input[type=checkbox]
--   textarea
--   select
-
-See [inputs.less](source/inputs.less) file.
-
-### Popups
-
-Popups work with class `ui-popup`.
-
-```HTML
-<button data-command="ui-popup-toggle">Menu1</button>
-<div class="ui-popup"></div>
-
-<button id="menu2">Menu2</button>
-<div id="popup2" class="ui-popup"></div>
-
-<button>Menu3</button>
-<div id="popup2" class="ui-popup"></div>
+```less
+@adaptive-desktop-small: 1650px;
+@adaptive-notebook:      1550px;
+@adaptive-notebook-small: 1370px;
+@adaptive-tablet:        1030px;
+@adaptive-tablet-small:  850px;
+@adaptive-mobile:        500px;
+@adaptive-mobile-small:  370px;
 ```
 
-Open popup by popup and initiator element:
+**Общие:**
 
-```TypeScript
-PopupManager.open(DOM.getById("popup2"), { initiator: DOM.getById("menu2") });
+```less
+@main-background: #fff;
+@font-size:       14px;
+@font-family:     system-ui, ...;
+@font-weight:     400;
+@line-height:     130%;
+@text-color:      #222;
 ```
 
-Open popup by only popup element:
+**Заголовки (`h1`–`h5`):**
 
-```TypeScript
-PopupManager.open(DOM.getById("popup3"));
+```less
+@h-line-height: 130%;
+@h1-font-size:  56px;  @h1-font-weight: 600;
+@h2-font-size:  50px;  @h2-font-weight: 600;
+@h3-font-size:  28px;  @h3-font-weight: 600;
+@h4-font-size:  22px;  @h4-font-weight: 600;
+@h5-font-size:  18px;  @h5-font-weight: 600;
 ```
 
-If the initiator is specified, then when the popup is opened again, it will be closed.
+**SVG:**
 
-### Style variables
+```less
+@svg-size:   20px;
+@svg-fill:   @text-color;
+@svg-stroke: none;
+```
 
-Сreate uikit.vars.less in the root of the project.
+**Блок контента (класс `content-width`):**
 
-Connecting script to webpack:
+```less
+@content-max-width:    1280px;
+@content-min-width:    320px;
+@content-padding-lr:   40px;
+```
 
-```JS
+**Попапы:**
+
+```less
+@popup-fill:          @main-background;
+@popup-color:         @text-color;
+@popup-border-radius: 5px;
+@popup-box-shadow:    0px 4px 8px 2px rgba(0,0,0,0.12);
+```
+
+**Поля ввода:**
+
+```less
+@input-height:    46px;
+@input-padding-lr: 20px;
+@input-fill:      #fff;
+@input-color:     @text-color;
+@input-font-size: 14px;
+
+// Состояния: hover, focus, readonly, disabled, invalid, incorrect
+@hover--input-border-color:    #666;
+@focus--input-border-color:    #222;
+@readonly--input-fill:         #f7f7f7;
+@disabled--input-fill:         #eee;
+@invalid--input-border-color:  red;
+```
+
+### parseLessVars
+
+Утилита для чтения Less-переменных в конфигурации webpack.
+
+```js
 const parseLessVars = require("@brandup/ui-kit/build/parse-less-vars.cjs");
+
+// Читает uikit.vars.less из корня проекта
+const vars = parseLessVars();
+
+// Или явно указать путь к файлу
+const vars = parseLessVars("path/to/variables.less");
+// { '@main-color': '#ff0000', '@font-size': '16px', ... }
 ```
 
-Getting variables from a Less file.
+Использование в конфигурации `less-loader`:
 
-The function takes the path to the Less file (string) and returns an object with variables in the format:
-
-The key is the name of a variable with the @ symbol (for example, @MainColor).
-Value — a string with the value of a variable from a file (for example, #ff0000).
-
-Example of a Less file:
-
-```Less
-@main-color: #ff0000;
-@secondary-color: rgba(0, 0, 0, 0.5);
-@font-size: 16px;
-```
-
-Result of parseLessVars:
-
-```JS
+```js
 {
-	'@main-color': '#ff0000',
-	'@secondary-color': 'rgba(0,0,0,0.5)',
-	'@font-size': '16px'
-}
-```
-
-```JS
-const variables = parseLessVars('path/to/your/variables.less');
-```
-
-if no parameter has been set, the function will refer to the uikit.vars.less into root directory.
-
-Usage in the less-loader configuration.
-
-```JS
-{
-	lessOption: {
-		modifyVars: parseLessVars()
-	}
+    loader: "less-loader",
+    options: {
+        lessOptions: {
+            modifyVars: parseLessVars(),
+        },
+    },
 }
 ```
