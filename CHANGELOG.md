@@ -75,6 +75,10 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 - `example`: removed `AbortSignal.{throwIfAborted,any,timeout}` polyfills.
   All three are Baseline-supported under the current `.browserslistrc`
   (`last 3 years`) and were not referenced anywhere in the codebase.
+- Dropped `core-js` and `useBuiltIns: "usage"` from babel configs. The
+  current browserslist (`last 3 years, > 1%, not dead`) targets modern
+  browsers that have everything we use natively. Example app.js dropped
+  from 72.7 KiB → 38.7 KiB minified (~47%).
 
 ### Fixed
 - **Critical: XSS in `TextBox.__initText`/`setValue`.** Text built from
