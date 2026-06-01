@@ -15,7 +15,11 @@ export const MAX_EMAIL_LENGTH = 256; // https://www.rfc-editor.org/rfc/rfc5321#s
 
 export type TextBoxType = "text" | "email" | "url" | "tel" | "number";
 
-export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAreaElement> {
+type TextBoxEvents = {
+	[CHANGE_EVENT]: (data: ChangeEventData) => void;
+};
+
+export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAreaElement, TextBoxEvents> {
 	private __inputElem: HTMLElement;
 	private __actionsElem: HTMLElement;
 	private __symbolsCountElem?: HTMLElement;

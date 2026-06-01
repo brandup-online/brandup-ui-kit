@@ -17,7 +17,11 @@ export const CHANGE_EVENT = "dropdown-change";
 const TABLET_WIDTH = 1030;
 const BODY_EXPANDED = "ui-dropdown-opened";
 
-class DropDown extends InputControl<HTMLSelectElement> {
+type DropDownEvents = {
+	[CHANGE_EVENT]: (data: ChangeEventData) => void;
+};
+
+class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	private __container: HTMLElement;
 	private __popupElem: HTMLElement;
 	private __listElem: HTMLElement;
