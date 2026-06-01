@@ -429,8 +429,9 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	}
 
 	private __getTextLength() {
-		// innerText в многострочном contenteditable содержит \n между <div>-блоками; не считаем их за символы
-		return this.__inputElem.innerText.replace(/\n/g, '').length;
+		// textContent не вставляет \n между блочными детьми (в отличие от innerText), так что multiline-контент считается корректно;
+		// заодно работает в jsdom, где innerText не реализован.
+		return this.__inputElem.textContent?.length ?? 0;
 	}
 
 	private __onChange() {
