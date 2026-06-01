@@ -10,6 +10,23 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ## [Unreleased]
 
+### Deferred (intentionally not done in this revision)
+- **Reactive rewrite of `DropDown` / `TextBox`.** `@brandup/ui` v2 ships
+  a Vue-style reactivity system (`reactive`, `computed`, `effect`,
+  `bind`, `bindEach`). The current components use imperative DOM
+  updates; converting them is a fundamental rewrite that warrants its
+  own focused effort and a major bump (the wire shape stays the same
+  but every internal class-toggle / `__renderItems` becomes reactive).
+  Tests added in this revision (47 cases) are the safety net for that
+  future migration.
+- **Migration from `@brandup/autonpm` to npm workspaces.** Workspaces
+  cover install / build / pack, but `autonpm` also drives an audit
+  auto-fix pass on every `install` (see `node_modules/@brandup/autonpm/
+  src/npm.js`). Replacing it loses that flow, and `azure-pipelines.yml`
+  would need synchronized edits we can't validate locally. Left in
+  place for now.
+
+
 ### Added
 - **ESLint 9 (flat config) + Prettier 3.** Configs at root
   (`eslint.config.mjs`, `.prettierrc.json`, `.prettierignore`); npm
