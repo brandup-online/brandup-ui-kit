@@ -19,18 +19,16 @@ export default [
 	js.configs.recommended,
 	...tseslint.configs.recommended,
 	{
-		// TS-сорцы: jsdom/browser среда
+		// TS-сорцы: браузерная среда
 		files: ["**/*.ts"],
 		languageOptions: {
-			globals: { ...globals.browser, ...globals.jest },
+			globals: { ...globals.browser },
 		},
 		rules: {
 			// `{}` как пустой event-map — стандартный паттерн в наследниках UIElement<TEvents>
 			"@typescript-eslint/no-empty-object-type": "off",
 			// Явные `any` уже есть в коде, не борем
 			"@typescript-eslint/no-explicit-any": "off",
-			// `require()` нужен в .cjs-скриптах сборки (webpack.config.js, parse-less-vars.cjs)
-			"@typescript-eslint/no-require-imports": "off",
 			// Неиспользуемые параметры — только варнинг и с допуском "_" префикса
 			"@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
 			// `!` иногда нужен для нашего паттерна `tb.element!.querySelector(...)` в тестах
@@ -39,8 +37,25 @@ export default [
 		},
 	},
 	{
+		// Тесты: добавляем Jest globals поверх браузерных
+		files: ["**/test/**/*.ts", "**/*.test.ts"],
+		languageOptions: {
+			globals: { ...globals.jest },
+		},
+	},
+	{
+		// Backend TS (example) — Node.js/CJS среда, require() допустим
+		files: ["**/src/backend/**/*.ts"],
+		languageOptions: {
+			globals: { ...globals.node },
+		},
+		rules: {
+			"@typescript-eslint/no-require-imports": "off",
+		},
+	},
+	{
 		// CJS-конфиги и скрипты — node-среда
-		files: ["**/*.cjs", "**/*.js", "babel.config.js", "jest.config.js", "scripts/**", "**/scripts/**"],
+		files: ["**/*.cjs", "**/*.js", "**/scripts/**"],
 		languageOptions: {
 			globals: { ...globals.node },
 			sourceType: "commonjs",
@@ -52,8 +67,8 @@ export default [
 		},
 	},
 	{
-		// ESM-конфиг samого eslint
-		files: ["eslint.config.mjs"],
+		// ESM-конфиги — node-среда
+		files: ["**/*.mjs"],
 		languageOptions: {
 			globals: { ...globals.node },
 			sourceType: "module",
