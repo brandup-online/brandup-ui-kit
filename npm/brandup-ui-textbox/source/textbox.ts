@@ -21,8 +21,7 @@ type TextBoxEvents = {
 
 export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAreaElement, TextBoxEvents> {
 	private __inputElem: HTMLElement;
-	private __actionsElem: HTMLElement;
-	private __symbolsCountElem?: HTMLElement;
+	private __symbolsCountElem: HTMLElement;
 	private __listenerAbort = new AbortController();
 
 	readonly type: TextBoxType;
@@ -35,112 +34,104 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	readonly symbolCounter: boolean;
 	readonly autoFocus: boolean;
 
-	get typeName(): string { return "BrandUp.TextBox"; }
-
 	constructor(valueElem: HTMLInputElement | HTMLTextAreaElement) {
-		super(valueElem);
-
-		if (this.__valueElem instanceof HTMLInputElement) {
-			switch (this.__valueElem.type) {
-				case "text":
-					this.type = "text";
-					break;
+		// определяем тип ввода и нормализуем валидационные атрибуты до super()
+		let type: TextBoxType = "text";
+		if (valueElem instanceof HTMLInputElement) {
+			switch (valueElem.type) {
+				case "text": type = "text"; break;
 				case "email":
-					this.type = "email";
-
-					if (!this.__valueElem.maxLength || this.__valueElem.maxLength > MAX_EMAIL_LENGTH)
-						this.__valueElem.maxLength = MAX_EMAIL_LENGTH;
-
+					type = "email";
+					if (!valueElem.maxLength || valueElem.maxLength > MAX_EMAIL_LENGTH)
+						valueElem.maxLength = MAX_EMAIL_LENGTH;
 					break;
-				case "url":
-					this.type = "url";
-					break;
-				case "tel":
-					this.type = "tel";
-					break;
+				case "url": type = "url"; break;
+				case "tel": type = "tel"; break;
 				case "number":
-					this.type = "number";
-					this.__valueElem.step = "1"; // Поддерживаем пока что только целые числа
+					type = "number";
+					valueElem.step = "1"; // Поддерживаем пока что только целые числа
 					break;
 				default:
-					throw new Error(`Тип ввода ${this.__valueElem.type} не поддерживается.`);
+					throw new Error(`Тип ввода ${valueElem.type} не поддерживается.`);
 			}
 		}
-		else
-			this.type = "text";
 
-		this.__valueElem.classList.add(INPUT_CLASS);
+		valueElem.classList.add(INPUT_CLASS);
 
-		// Инициализация свойств
-		this.maxlength = this.__valueElem.maxLength;
-		this.symbolCounter = this.__valueElem.hasAttribute("data-symbolcounter");
-		this.autoFocus = this.__valueElem.hasAttribute("data-autofocus");
-		this.allowEmptyStrings = this.__valueElem.hasAttribute("data-allow-empty-strings");
-		this.placeholder = this.__valueElem.getAttribute("placeholder");
-		this.inputmode = this.__valueElem.inputMode;
-		this.multyline = valueElem instanceof HTMLTextAreaElement;
-		this.copyButton = this.__valueElem.hasAttribute("data-copy-button") || this.__valueElem.hasAttribute("data-copybutton");
+		const maxlength = valueElem.maxLength;
+		const symbolCounter = valueElem.hasAttribute("data-symbolcounter");
+		const autoFocus = valueElem.hasAttribute("data-autofocus");
+		const allowEmptyStrings = valueElem.hasAttribute("data-allow-empty-strings");
+		const placeholder = valueElem.getAttribute("placeholder");
+		const inputmode = valueElem.inputMode;
+		const multyline = valueElem instanceof HTMLTextAreaElement;
+		const copyButton = valueElem.hasAttribute("data-copy-button") || valueElem.hasAttribute("data-copybutton");
+		const disabled = valueElem.disabled;
 
-		this.__inputElem = DOM.tag("div", { class: "input" });
-		this.__actionsElem = DOM.tag("div", { class: "actions" });
+		const inputElem = DOM.tag("div", { class: "input" });
+		const actionsElem = DOM.tag("div", { class: "actions" });
+		const symbolsCountElem = DOM.tag("div", { class: "symbols" });
 
-		this.__renderUI();
-		this.__initLogic();
-		this.__initText();
-	}
-
-	private __renderUI() {
-		const container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(this.__valueElem.classList)) }, [
+		const container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(valueElem.classList)) }, [
 			DOM.tag("div", { class: "decorator" }),
 			DOM.tag("div", { class: "editor" }, [
-				this.__inputElem,
-				this.__symbolsCountElem = DOM.tag("div", { class: "symbols" })
+				inputElem,
+				symbolsCountElem
 			]),
-			this.__actionsElem
+			actionsElem
 		]);
 
 		container.classList.remove(INPUT_CLASS);
 
-		this.__inputElem.tabIndex = this.__valueElem.tabIndex;
-		this.__valueElem.tabIndex = -1;
+		inputElem.tabIndex = valueElem.tabIndex;
+		valueElem.tabIndex = -1;
 
-		if (this.multyline) container.classList.add("multyline");
+		if (multyline) container.classList.add("multyline");
+		if (symbolCounter) container.classList.add("counter");
 
-		if (this.symbolCounter) container.classList.add("counter");
-
-		if (this.disabled) {
-			this.__inputElem.tabIndex = -1;
-		}
+		if (disabled)
+			inputElem.tabIndex = -1;
 		else
-			this.__inputElem.contentEditable = "true";
+			inputElem.contentEditable = "true";
 
-		if (this.inputmode) this.__inputElem.inputMode = this.inputmode;
+		if (inputmode) inputElem.inputMode = inputmode;
 
-		if (this.copyButton) {
+		if (copyButton) {
 			const buttonElem = DOM.tag("button", { command: "copy-text", title: "Скопировать в буфер обмена" }, copyIcon);
-			if (this.disabled)
-				buttonElem.disabled = true;
-			this.__actionsElem.insertAdjacentElement("beforeend", buttonElem);
+			if (disabled) buttonElem.disabled = true;
+			actionsElem.insertAdjacentElement("beforeend", buttonElem);
 		}
 
-		this.__inputElem.setAttribute("data-placeholder", this.placeholder ?? "");
+		inputElem.setAttribute("data-placeholder", placeholder ?? "");
 
-		this.setElement(container);
-
-		if (this.__valueElem.nextElementSibling) {
-			// Если следующий элемент это миниатюра пока textbox не отрисован
-			const nextElem = <HTMLElement>this.__valueElem.nextElementSibling;
+		// убираем висящую миниатюру, если есть, и вставляем container на место valueElem
+		if (valueElem.nextElementSibling) {
+			const nextElem = valueElem.nextElementSibling as HTMLElement;
 			if (nextElem.classList.contains(MINIATURE_CLASS)) nextElem.remove();
 		}
+		valueElem.insertAdjacentElement("afterend", container);
+		container.insertAdjacentElement("afterbegin", valueElem);
 
-		this.__valueElem.insertAdjacentElement("afterend", container);
-		container.insertAdjacentElement("afterbegin", this.__valueElem);
+		super("BrandUp.TextBox", container, valueElem);
+
+		this.type = type;
+		this.maxlength = maxlength;
+		this.symbolCounter = symbolCounter;
+		this.autoFocus = autoFocus;
+		this.allowEmptyStrings = allowEmptyStrings;
+		this.placeholder = placeholder;
+		this.inputmode = inputmode;
+		this.multyline = multyline;
+		this.copyButton = copyButton;
+
+		this.__inputElem = inputElem;
+		this.__symbolsCountElem = symbolsCountElem;
+
+		this.__initLogic();
+		this.__initText();
 	}
 
 	private __initLogic() {
-		if (!this.element)
-			return;
-
 		const { signal } = this.__listenerAbort; // один AbortController отписывает все listener'ы в destroy
 
 		this.element.addEventListener("drop", (e) => e.preventDefault(), { signal });
@@ -163,7 +154,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			if (this.disabled)
 				return;
 
-			this.element?.classList.add("focused");
+			this.element.classList.add("focused");
 
 			if (this.readonly)
 				this.__selectAll();
@@ -177,7 +168,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			if (this.disabled)
 				return;
 
-			this.element?.classList.remove("focused");
+			this.element.classList.remove("focused");
 
 			// когда удаляем весь текст, то браузер оставляет один BR, что означает что текста нет
 			// удалить BR нужно, чтобы появился placeholder
@@ -197,7 +188,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			e.preventDefault();
 			e.stopPropagation();
 
-			if (this.readonly || this.disabled || !this.element)
+			if (this.readonly || this.disabled)
 				return false;
 
 			let pastedData = e.clipboardData?.getData("text/plain");
@@ -210,7 +201,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 					pastedData = numberData[0].replace(/\s/g, '');
 				else {
 					this.element.classList.add("incorrect");
-					window.setTimeout(() => this.element?.classList.remove("incorrect"), 300);
+					window.setTimeout(() => this.element.classList.remove("incorrect"), 300);
 					return false;
 				}
 			}
@@ -260,9 +251,6 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		}, { signal });
 
 		this.__inputElem.addEventListener("keydown", (e: KeyboardEvent) => {
-			if (!this.element)
-				return false;
-
 			const isChar = e.key.length === 1;
 
 			if ((this.readonly || this.disabled) && isChar && !e.ctrlKey) {
@@ -316,9 +304,6 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		}, { signal });
 
 		this.__inputElem.addEventListener("input", () => {
-			if (!this.element)
-				return;
-
 			if (this.multyline && this.__inputElem.children.length === 1) {
 				const child = this.__inputElem.children.item(0);
 				if (child && child.tagName === "BR")
@@ -387,11 +372,8 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	}
 
 	private __toIncorrect() {
-		if (!this.element)
-			return;
-
 		this.element.classList.add("incorrect");
-		window.setTimeout(() => this.element?.classList.remove("incorrect"), 200);
+		window.setTimeout(() => this.element.classList.remove("incorrect"), 200);
 	}
 
 	private __refreshSymbolsCount() {
@@ -464,9 +446,6 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	}
 
 	override validate(): boolean {
-		if (!this.element)
-			return false;
-
 		let isValid = super.validate();
 		if (isValid) {
 			let value = this.getValue();
@@ -490,8 +469,8 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		this.__listenerAbort.abort();
 		this.__valueElem.tabIndex = this.__inputElem.tabIndex;
 
-		this.element?.insertAdjacentElement("afterend", this.__valueElem);
-		this.element?.remove();
+		this.element.insertAdjacentElement("afterend", this.__valueElem);
+		this.element.remove();
 
 		super.destroy();
 	}

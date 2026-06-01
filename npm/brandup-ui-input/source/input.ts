@@ -1,4 +1,4 @@
-import { UIElement } from "@brandup/ui";
+import { UIElementBound } from "@brandup/ui";
 import "./input.less";
 
 type InputType = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
@@ -6,16 +6,25 @@ type FormInput<T> = T extends InputType ? T : never;
 
 export const INPUT_CSS_CLASS = "ui-input";
 
-export abstract class InputControl<T extends InputType, TEvents = {}> extends UIElement<TEvents> implements IInputControl {
+export abstract class InputControl<T extends InputType, TEvents = {}> extends UIElementBound<TEvents> implements IInputControl {
 	protected __valueElem: FormInput<T>;
 	protected __submitEvent?: (e: SubmitEvent) => void;
 	private __invalidEvent?: (e: Event) => void;
 	private __isValidating?: boolean; // true, когда выполняется checkValidity в validate.
 
-	constructor(valueElem: FormInput<T>) {
-		super();
+	constructor(typeName: string, elem: HTMLElement, valueElem: FormInput<T>) {
+		super(typeName, elem);
 
 		this.__valueElem = valueElem;
+
+		// то, что раньше делал _onRenderElement-override; теперь применяем после super, чтобы видеть valueElem
+		elem.classList.add(INPUT_CSS_CLASS);
+		if (this.required)
+			elem.classList.add("required");
+		if (this.readonly)
+			elem.classList.add("readonly");
+		if (this.disabled)
+			elem.classList.add("disabled");
 
 		this.__initForm();
 	}
@@ -61,17 +70,6 @@ export abstract class InputControl<T extends InputType, TEvents = {}> extends UI
 			form.dispatchEvent(new SubmitEvent("submit", { submitter: form, cancelable: true }));
 	}
 
-	protected override _onRenderElement(elem: HTMLElement) {
-		elem.classList.add(INPUT_CSS_CLASS);
-
-		if (this.required)
-			elem.classList.add("required");
-		if (this.readonly)
-			elem.classList.add("readonly");
-		if (this.disabled)
-			elem.classList.add("disabled");
-	}
-
 	validate(): boolean {
 		if (this.__isValidating)
 			return true;
@@ -85,7 +83,7 @@ export abstract class InputControl<T extends InputType, TEvents = {}> extends UI
 
 	focus(): void {
 		this.__valueElem.focus();
-		this.element?.scrollIntoView({ block: "center", inline: "center" });
+		this.element.scrollIntoView({ block: "center", inline: "center" });
 	}
 
 	override destroy() {

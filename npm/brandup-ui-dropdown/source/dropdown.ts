@@ -17,6 +17,10 @@ export const CHANGE_EVENT = "dropdown-change";
 const TABLET_WIDTH = 1030;
 const BODY_EXPANDED = "ui-dropdown-opened";
 
+// Метаданные транслитерации, привязанные к <li>-элементам. WeakMap не мешает GC очищать удалённые li,
+// в отличие от прежнего `(elem as any)['wsdd_transcript'] = ...` (грязно и без типов).
+const itemTranscripts = new WeakMap<Element, ReturnType<typeof transcriptText>>();
+
 type DropDownEvents = {
 	[CHANGE_EVENT]: (data: ChangeEventData) => void;
 };
@@ -37,82 +41,89 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	readonly searchPlaceholder: string;
 	readonly searchEmpty: string;
 	readonly cancelText: string;
-	readonly searchOn: number | boolean = 15;
-
-	get typeName(): string { return "BrandUp.DropDown"; }
+	readonly searchOn: number | boolean;
 
 	constructor(selectElem: HTMLSelectElement) {
-		super(selectElem);
+		selectElem.classList.add(INPUT_CLASS);
 
-		this.__valueElem.classList.add(INPUT_CLASS);
+		const placeholder = selectElem.getAttribute("data-placeholder") || "Select";
+		const emptyText = selectElem.getAttribute("data-emptytext") || "Empty list";
+		const searchPlaceholder = selectElem.getAttribute("data-search-placeholder") || "Search";
+		const searchEmpty = selectElem.getAttribute("data-search-empty") || "Not found";
+		const cancelText = selectElem.getAttribute("data-cancel") || "Cancel";
 
-		this.placeholder = this.__valueElem.getAttribute("data-placeholder") || "Select";
-		this.emptyText = this.__valueElem.getAttribute("data-emptytext") || "Empty list";
-		this.searchPlaceholder = this.__valueElem.getAttribute("data-search-placeholder") || "Search";
-		this.searchEmpty = this.__valueElem.getAttribute("data-search-empty") || "Not found";
-		this.cancelText = this.__valueElem.getAttribute("data-cancel") || "Cancel";
-
-		const se = this.__valueElem.getAttribute("data-search-on");
+		let searchOn: number | boolean = 15;
+		const se = selectElem.getAttribute("data-search-on");
 		if (se) {
 			switch (se.toLowerCase()) {
-				case "true":
-					this.searchOn = true;
-					break;
-				case "false":
-					this.searchOn = false;
-					break;
-				default:
-					this.searchOn = parseInt(se);
-					break;
+				case "true": searchOn = true; break;
+				case "false": searchOn = false; break;
+				default: searchOn = parseInt(se); break;
 			}
 		}
 
-		// __renderUI — текст из option/data-* атрибутов вставляем через textContent, чтобы не получить XSS через DOM.tag (он рендерит строки как HTML)
-		this.__textElem = DOM.tag("span", null);
-		this.__textElem.textContent = this.placeholder ?? '';
+		// текст из option/data-* атрибутов вставляем через textContent, чтобы не получить XSS через DOM.tag
+		const textElem = DOM.tag("span", null);
+		textElem.textContent = placeholder;
 
 		const headerLabel = DOM.tag("span", null);
-		headerLabel.textContent = this.placeholder ?? '';
+		headerLabel.textContent = placeholder;
 
-		this.__emptyElem = DOM.tag("div", { class: "empty" });
-		this.__emptyElem.textContent = this.emptyText;
+		const emptyElem = DOM.tag("div", { class: "empty" });
+		emptyElem.textContent = emptyText;
 
 		const cancelButton = DOM.tag("button", { class: "cancel", command: "close-popup" });
-		cancelButton.textContent = this.cancelText;
+		cancelButton.textContent = cancelText;
 
-		this.__container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(this.__valueElem.classList)) }, [
-			DOM.tag("button", { class: "view", command: "open-popup" }, [this.__textElem, arrowBottomIcon]),
-			this.__popupElem = DOM.tag("div", { class: "popup", tabindex: 0 }, [
-				DOM.tag("div", { class: "content" }, [
-					DOM.tag("div", { class: "header" }, [
-						headerLabel,
-						DOM.tag("button", { command: "close-popup" }, closeIcon)]
-					),
-					DOM.tag("div", { class: "search" }, [
-						searchIcon,
-						this.__searchInput = DOM.tag("input", { type: "search", maxlength: 50, placeholder: this.searchPlaceholder })
-					]),
-					this.__listElem = DOM.tag("ul"),
-					this.__emptyElem,
-					cancelButton
-				])
+		const searchInput = DOM.tag("input", { type: "search", maxlength: 50, placeholder: searchPlaceholder });
+		const listElem = DOM.tag("ul");
+
+		const popupElem = DOM.tag("div", { class: "popup", tabindex: 0 }, [
+			DOM.tag("div", { class: "content" }, [
+				DOM.tag("div", { class: "header" }, [
+					headerLabel,
+					DOM.tag("button", { command: "close-popup" }, closeIcon)
+				]),
+				DOM.tag("div", { class: "search" }, [searchIcon, searchInput]),
+				listElem,
+				emptyElem,
+				cancelButton
 			])
 		]);
 
-		this.__container.classList.remove(INPUT_CLASS);
+		const container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(selectElem.classList)) }, [
+			DOM.tag("button", { class: "view", command: "open-popup" }, [textElem, arrowBottomIcon]),
+			popupElem
+		]);
 
-		this.setElement(this.__container);
+		container.classList.remove(INPUT_CLASS);
 
-		if (this.__valueElem.nextElementSibling) {
-			const nextElem = <HTMLElement>this.__valueElem.nextElementSibling;
+		if (selectElem.nextElementSibling) {
+			const nextElem = selectElem.nextElementSibling as HTMLElement;
 			if (nextElem.classList.contains(MINIATURE_CLASS)) nextElem.remove();
 		}
 
-		this.__valueElem.insertAdjacentElement("beforebegin", this.__container);
-		this.__container.insertAdjacentElement("beforeend", this.__valueElem);
+		selectElem.insertAdjacentElement("beforebegin", container);
+		container.insertAdjacentElement("beforeend", selectElem);
+
+		super("BrandUp.DropDown", container, selectElem);
+
+		this.placeholder = placeholder;
+		this.emptyText = emptyText;
+		this.searchPlaceholder = searchPlaceholder;
+		this.searchEmpty = searchEmpty;
+		this.cancelText = cancelText;
+		this.searchOn = searchOn;
+
+		this.__container = container;
+		this.__popupElem = popupElem;
+		this.__listElem = listElem;
+		this.__textElem = textElem;
+		this.__emptyElem = emptyElem;
+		this.__searchInput = searchInput;
 
 		this.__closePopupFunc = (e: MouseEvent) => {
-			const t = <HTMLElement>e.target;
+			const t = e.target as HTMLElement;
 			const dd = t.closest(`.${ROOT_CLASS}`);
 			if (!dd || (dd === this.__container && !t.closest("li[data-index]") && t !== this.__searchInput && !t.closest(".search"))) {
 				this.__closePopup();
@@ -133,7 +144,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			this.__textElem.innerText = this.placeholder;
 
 		if (!optionsCount) {
-			this.element?.classList.add("empty");
+			this.element.classList.add("empty");
 			return;
 		}
 
@@ -142,7 +153,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		const isSearchable = this.searchOn === true
 			|| (typeof this.searchOn === "number" && optionsCount >= this.searchOn);
 		if (isSearchable)
-			this.element?.classList.add("searchable");
+			this.element.classList.add("searchable");
 
 		// вставляем элементы меню в фрагмент, чтобы не нагружать процессор
 		const popupItemsFragment = document.createDocumentFragment();
@@ -171,7 +182,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 				checkIcon
 			]);
 
-			(<any>itemElem)['wsdd_transcript'] = transcriptText(itemText);
+			itemTranscripts.set(itemElem, transcriptText(itemText));
 
 			const isSelected = selectedIndex === i;
 			if (isSelected)
@@ -188,7 +199,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		}
 
 		if (this.__hasEmptyValue && !elemCount)
-			this.element?.classList.add("empty");
+			this.element.classList.add("empty");
 
 		this.__listElem.append(popupItemsFragment);
 	}
@@ -198,9 +209,6 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.registerCommand("close-popup", () => this.__closePopup());
 
 		this.registerCommand("select", context => {
-			if (!this.element)
-				return;
-
 			const newIndex = context.target.dataset.index;
 
 			this.element.classList.remove("invalid");
@@ -277,7 +285,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 					break;
 				}
 				case "Tab": {
-					if (target == this.__popupElem && this.element?.classList.contains("empty")) {
+					if (target == this.__popupElem && this.element.classList.contains("empty")) {
 						// если список пустой, то фокус уйдёт от компанента на следующий и нужно закрыть popup
 						this.__closePopup();
 					}
@@ -316,16 +324,16 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	}
 
 	private __togglePopup() {
-		if (this.element?.classList.contains("disabled"))
+		if (this.element.classList.contains("disabled"))
 			return;
 
-		if (this.element?.classList.contains("expanded")) {
+		if (this.element.classList.contains("expanded")) {
 			// уже открыт — закрываем чисто, чтобы и body-класс, и mouseup-листенер ушли
 			this.__closePopup();
 			return;
 		}
 
-		this.element?.classList.add("expanded");
+		this.element.classList.add("expanded");
 
 		// закрываем все открытые попапы, кроме текущего
 		document.querySelectorAll('.ui-dropdown.expanded').forEach((dropdown) => {
@@ -379,7 +387,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 	private __closePopup() {
 		document.body.classList.remove(BODY_EXPANDED);
-		this.element?.classList.remove("expanded");
+		this.element.classList.remove("expanded");
 		document.body.removeEventListener("mouseup", this.__closePopupFunc);
 		this.__reposAbort?.abort();
 		this.__reposAbort = undefined;
@@ -421,7 +429,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 					const item = this.__listElem.children.item(i);
 					if (!item)
 						continue;
-					const transcript = (<any>item)['wsdd_transcript'];
+					const transcript = itemTranscripts.get(item);
 					if (transcript && transcript[queryLang] && transcript[queryLang].startsWith(query)) {
 
 						item.classList.add("ok");
@@ -454,9 +462,6 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	}
 
 	private __getElems(selector: string): { own: HTMLElement } | null {
-		if (!this.element)
-			return null;
-
 		const elem = DOM.queryElement<HTMLElement>(this.element, selector);
 		return elem ? { own: elem } : null;
 	}
@@ -489,10 +494,10 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		if (this.required && !value)
 			isInvalid = true;
 
-		const clearInvalid = () => this.element?.classList.remove("invalid");
+		const clearInvalid = () => this.element.classList.remove("invalid");
 
 		if (isInvalid) {
-			this.element?.classList.add("invalid");
+			this.element.classList.add("invalid");
 		}
 		else
 			clearInvalid();
@@ -503,8 +508,8 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	override destroy(): void {
 		this.__closePopup();
 
-		this.element?.insertAdjacentElement("afterend", this.__valueElem);
-		this.element?.remove();
+		this.element.insertAdjacentElement("afterend", this.__valueElem);
+		this.element.remove();
 
 		super.destroy();
 	}

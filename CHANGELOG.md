@@ -32,6 +32,20 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   listeners on the restored `<input>`.
 
 ### Changed
+- **`InputControl` now extends `UIElementBound`** (new v2 base class for
+  components whose element is bound in the constructor). The constructor
+  signature became `(typeName, elem, valueElem)` and subclasses build the
+  container DOM before `super(...)`. Net effect: `element` is typed
+  `HTMLElement` (never undefined), so the many `this.element?...` and
+  `if (!this.element) return` patterns in `TextBox` / `DropDown` are
+  gone. `_onRenderElement` override is removed; class flags are applied
+  inline after `super()`.
+- `DropDown`: option transcription metadata moved from
+  `(elem as any)['wsdd_transcript']` to a module-level
+  `WeakMap<Element, ReturnType<typeof transcriptText>>` — typed and
+  GC-friendly.
+- `TextBox.__actionsElem` field removed (only ever written, never read
+  after the constructor).
 - **Bumped dependencies to current latest across the monorepo.** Highlights:
   TypeScript 5.9 → 6.0, jest 29 → 30, cross-env 7 → 10, express 4 → 5,
   webpack-cli 5 → 7, and the css/less/style/svgo loaders to their latest
