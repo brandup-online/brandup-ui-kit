@@ -43,6 +43,9 @@ const close = () => {
 }
 
 const open = (popupElem: HTMLElement, options?: PopupOptions) => {
+	if (current && current.popup !== popupElem)
+		close(); // если открыт другой popup, закрываем его, чтобы не оставлять «осиротевший» visible popup
+
 	let newPopup: CurrentPopup = {
 		popup: popupElem,
 		initiator: options?.initiator
