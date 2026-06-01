@@ -19,6 +19,10 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 - `example`: `scripts/generate-cert.cjs` + `prestart` hook that creates a
   fresh self-signed dev cert via the `selfsigned` package. The cert is
   now `.gitignore`d.
+- `example`: dedicated `tsconfig.backend.json` (`module: node16`,
+  CommonJS-friendly) — replaces the `tsc <file> --ignoreConfig --module
+  commonjs` cmdline hack and gives the IDE proper context for backend
+  files.
 
 ### Changed
 - **Bumped dependencies to current latest across the monorepo.** Highlights:
