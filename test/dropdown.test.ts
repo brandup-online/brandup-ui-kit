@@ -164,6 +164,65 @@ describe("DropDown", () => {
 		expect(enterEvent.defaultPrevented).toBe(true);
 	});
 
+	it("typing in search filters by prefix; non-matching items keep no .ok class", () => {
+		const opts: Array<[string, string]> = [];
+		// 20 items, two starting with "Р", rest with other letters — search uses textContent
+		const labels = ["Россия", "Казахстан", "Беларусь", "Узбекистан", "Чехия", "Абхазия", "Польша", "Латвия"];
+		for (let i = 0; i < 3; i++)
+			for (const t of labels) opts.push([`${i}-${t}`, t]);
+		document.body.innerHTML = "";
+		const select = document.createElement("select");
+		for (const [v, t] of opts) {
+			const o = document.createElement("option");
+			o.value = v;
+			o.textContent = t;
+			select.appendChild(o);
+		}
+		select.setAttribute("data-search-on", "true");
+		document.body.appendChild(select);
+
+		const dd = new DropDown(select);
+		const searchInput = dd.element!.querySelector('input[type="search"]') as HTMLInputElement;
+
+		searchInput.value = "Р";
+		searchInput.dispatchEvent(new Event("input"));
+
+		const okCount = dd.element!.querySelectorAll("ul li.ok").length;
+		const totalCount = dd.element!.querySelectorAll("ul li").length;
+		// "Россия" appears 3 times, nothing else starts with Р → exactly 3 matches
+		expect(okCount).toBe(3);
+		// the rest stay unmarked, NOT all items
+		expect(okCount).toBeLessThan(totalCount);
+	});
+
+	it("changing the search query re-filters: previous matches lose .ok", () => {
+		document.body.innerHTML = "";
+		const select = document.createElement("select");
+		for (const [v, t] of [
+			["a", "Apple"],
+			["b", "Banana"],
+			["c", "Cherry"],
+		] as const) {
+			const o = document.createElement("option");
+			o.value = v;
+			o.textContent = t;
+			select.appendChild(o);
+		}
+		select.setAttribute("data-search-on", "true");
+		document.body.appendChild(select);
+
+		const dd = new DropDown(select);
+		const searchInput = dd.element!.querySelector('input[type="search"]') as HTMLInputElement;
+
+		searchInput.value = "a";
+		searchInput.dispatchEvent(new Event("input"));
+		expect([...dd.element!.querySelectorAll("ul li.ok")].map((li) => li.querySelector("span")?.textContent)).toEqual(["Apple"]);
+
+		searchInput.value = "b";
+		searchInput.dispatchEvent(new Event("input"));
+		expect([...dd.element!.querySelectorAll("ul li.ok")].map((li) => li.querySelector("span")?.textContent)).toEqual(["Banana"]);
+	});
+
 	it("destroy() removes the container and restores the original select to the DOM", () => {
 		const select = makeSelect([["a", "Alpha"]]);
 		const dd = new DropDown(select);
