@@ -16,6 +16,9 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   this revision.
 - Per-package `*.less` ambient type declarations (TS 6 requires them for
   side-effect imports).
+- `example`: `scripts/generate-cert.cjs` + `prestart` hook that creates a
+  fresh self-signed dev cert via the `selfsigned` package. The cert is
+  now `.gitignore`d.
 
 ### Changed
 - **Bumped dependencies to current latest across the monorepo.** Highlights:
