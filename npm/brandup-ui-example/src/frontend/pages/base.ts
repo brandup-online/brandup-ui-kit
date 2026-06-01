@@ -1,6 +1,5 @@
-﻿import { UIElement } from "@brandup/ui";
+﻿import { DOM, UIElement } from "@brandup/ui";
 import { AjaxQueue, AjaxResponse } from "@brandup/ui-ajax";
-import { DOM } from "@brandup/ui-dom";
 import { ExampleApplication } from "../app";
 import { PageNavigationData, PageSubmitData } from "frontend/typings/app";
 import { NavigateContext, SubmitContext } from "@brandup/ui-app";

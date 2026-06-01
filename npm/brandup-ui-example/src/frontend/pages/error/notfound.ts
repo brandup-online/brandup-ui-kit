@@ -1,4 +1,4 @@
-﻿import { DOM } from "@brandup/ui-dom";
+﻿import { DOM } from "@brandup/ui";
 import { Page } from "../base";
 
 export default class NotFoundPage extends Page {

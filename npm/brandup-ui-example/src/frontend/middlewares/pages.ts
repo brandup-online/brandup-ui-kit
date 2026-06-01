@@ -1,4 +1,4 @@
-﻿import { DOM } from "@brandup/ui-dom";
+﻿import { DOM } from "@brandup/ui";
 import { AjaxQueue, } from "@brandup/ui-ajax";
 import { Middleware, MiddlewareNext, NAV_OVERIDE_ERROR, NavigateContext, StartContext, StopContext, SubmitContext } from "@brandup/ui-app";
 import { Page } from "../pages/base";

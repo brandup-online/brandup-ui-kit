@@ -26,7 +26,6 @@
 	"types": "source/index.ts",
 	"dependencies": {
 		"@brandup/ui": "^2.0.1",
-		"@brandup/ui-dom": "^2.0.1",
 		"@brandup/ui-helpers": "^2.0.1",
 		"@brandup/ui-input": "file:../brandup-ui-input",
 		"@brandup/ui-kit": "file:../brandup-ui-kit"

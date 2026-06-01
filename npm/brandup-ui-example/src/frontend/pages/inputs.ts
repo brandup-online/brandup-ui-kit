@@ -1,4 +1,4 @@
-﻿import { DOM } from "@brandup/ui-dom";
+﻿import { DOM } from "@brandup/ui";
 import { Page } from "./base";
 import html from "./inputs.html";
 import "./inputs.less";
