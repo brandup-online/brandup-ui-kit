@@ -132,7 +132,10 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		}
 
 		// определяем можно ли делать поиск по элементам в списке
-		if (this.searchOn === true || optionsCount >= <number>this.searchOn)
+		// явная проверка типа: для false `optionsCount >= false` коэрсится в `>= 0` и всегда true
+		const isSearchable = this.searchOn === true
+			|| (typeof this.searchOn === "number" && optionsCount >= this.searchOn);
+		if (isSearchable)
 			this.element?.classList.add("searchable");
 
 		// вставляем элементы меню в фрагмент, чтобы не нагружать процессор
