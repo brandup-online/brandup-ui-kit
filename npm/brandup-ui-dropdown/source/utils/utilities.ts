@@ -1,8 +1,8 @@
-const REGEX_CHAR = /\p{L}/u
+const REGEX_CHAR = /\p{L}/u;
 
 const languages: { [keys in Language]: string } = {
-    english: "qwertyuiopasdfghjklzxcvbnm",
-    russian: "йцукенгшщзхъфывапролджэячсмитьбю",
+	english: "qwertyuiopasdfghjklzxcvbnm",
+	russian: "йцукенгшщзхъфывапролджэячсмитьбю",
 };
 
 // prettier-ignore
@@ -22,51 +22,48 @@ const russian_english_dict: ICharMap = {
 };
 
 interface ICharMap {
-    [keys: string]: string;
+	[keys: string]: string;
 }
 
 type ITranscriptMap = {
-    // {целевой язык: {язык ввода: словарь}}
-    [keys in Language]: { [keys: string]: ICharMap };
+	// {целевой язык: {язык ввода: словарь}}
+	[keys in Language]: { [keys: string]: ICharMap };
 };
 
 const dictionariesMap: ITranscriptMap = {
-    russian: { english: russian_english_dict },
-    english: { russian: english_russian_dict },
+	russian: { english: russian_english_dict },
+	english: { russian: english_russian_dict },
 };
 
 export type Language = "english" | "russian";
 
 export const detectLanguage = (text: string) => {
-    if (!text)
-        return null;
+	if (!text) return null;
 
-    const match = text.match(REGEX_CHAR);
-    if (!match)
-        return null;
+	const match = text.match(REGEX_CHAR);
+	if (!match) return null;
 
-    const firstChar = match[0].toLocaleLowerCase();
-    for (const lang in languages) {
-        if (languages[<Language>lang].includes(firstChar))
-            return lang as Language;
-    }
+	const firstChar = match[0].toLocaleLowerCase();
+	for (const lang in languages) {
+		if (languages[<Language>lang].includes(firstChar)) return lang as Language;
+	}
 
-    return null;
+	return null;
 };
 
 export const transcriptText = (text: string) => {
-    const transcriptVariants: { [keys: string]: string; } = {};
+	const transcriptVariants: { [keys: string]: string } = {};
 
-    const textLanguage = detectLanguage(text);
-    if (textLanguage) {
-        const textArr: string[] = Array.from(text.toLowerCase());
-        for (const lang in dictionariesMap[textLanguage]) {
-            const langVariant = dictionariesMap[textLanguage][lang];
+	const textLanguage = detectLanguage(text);
+	if (textLanguage) {
+		const textArr: string[] = Array.from(text.toLowerCase());
+		for (const lang in dictionariesMap[textLanguage]) {
+			const langVariant = dictionariesMap[textLanguage][lang];
 
-            const transcript = textArr.reduce((prev, current) => prev + (langVariant[current] || current), "");
-            transcriptVariants[lang] = transcript;
-        }
-    }
+			const transcript = textArr.reduce((prev, current) => prev + (langVariant[current] || current), "");
+			transcriptVariants[lang] = transcript;
+		}
+	}
 
-    return transcriptVariants;
+	return transcriptVariants;
 };

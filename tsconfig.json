@@ -5,10 +5,7 @@
 		"target": "ESNext",
 		"sourceMap": false,
 		"strict": true,
-		"lib": [
-			"ESNext",
-			"DOM"
-		],
+		"lib": ["ESNext", "DOM"],
 		"experimentalDecorators": true,
 		"emitDecoratorMetadata": true,
 		"noImplicitAny": true,
@@ -25,12 +22,7 @@
 		"skipLibCheck": true,
 		"allowSyntheticDefaultImports": true
 	},
-	"exclude": [
-		"node_modules",
-		"dist",
-		".vs",
-		".vscode"
-	],
+	"exclude": ["node_modules", "dist", ".vs", ".vscode"],
 	"compileOnSave": false,
 	"typeAcquisition": {
 		"enable": true

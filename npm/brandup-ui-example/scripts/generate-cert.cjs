@@ -13,17 +13,21 @@ if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
 	process.exit(0);
 }
 
-if (!fs.existsSync(dir))
-	fs.mkdirSync(dir, { recursive: true });
+if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-const pems = selfsigned.generate(
-	[{ name: "commonName", value: "localhost" }],
-	{
-		days: 3650,
-		keySize: 2048,
-		extensions: [{ name: "subjectAltName", altNames: [{ type: 2, value: "localhost" }, { type: 7, ip: "127.0.0.1" }] }],
-	}
-);
+const pems = selfsigned.generate([{ name: "commonName", value: "localhost" }], {
+	days: 3650,
+	keySize: 2048,
+	extensions: [
+		{
+			name: "subjectAltName",
+			altNames: [
+				{ type: 2, value: "localhost" },
+				{ type: 7, ip: "127.0.0.1" },
+			],
+		},
+	],
+});
 
 fs.writeFileSync(keyPath, pems.private);
 fs.writeFileSync(certPath, pems.cert);

@@ -9,14 +9,20 @@
 		"@babel/preset-typescript": "^7.29.7",
 		"@babel/runtime": "^7.29.7",
 		"@brandup/autonpm": "^1.0.20",
+		"@eslint/js": "^9.0.0",
 		"@types/jest": "^30.0.0",
 		"babel-jest": "^30.4.1",
 		"cross-env": "^10.1.0",
+		"eslint": "^9.0.0",
+		"eslint-config-prettier": "^10.0.0",
+		"globals": "^17.6.0",
 		"jest": "^30.4.2",
 		"jest-clipboard": "^0.0.11-beta.0",
 		"jest-environment-jsdom": "^30.4.1",
 		"jest-transform-stub": "^2.0.0",
-		"ts-node": "^10.9.2"
+		"prettier": "^3.0.0",
+		"ts-node": "^10.9.2",
+		"typescript-eslint": "^8.0.0"
 	},
 	"scripts": {
 		"i": "npm i && npm run npm:install",
@@ -30,6 +36,10 @@
 		"npm:version": "autonpm-version",
 		"npm:cleanup": "autonpm-cleanup",
 		"npm:pack": "autonpm pack",
+		"lint": "eslint .",
+		"lint:fix": "eslint . --fix",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
 		"test": "cross-env NODE_ENV=test jest --config=jest.config.js --no-cache --passWithNoTests"
 	}
 }

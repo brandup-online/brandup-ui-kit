@@ -5,10 +5,7 @@
 		"target": "ESNext",
 		"sourceMap": false,
 		"strict": true,
-		"lib": [
-			"ESNext",
-			"DOM"
-		],
+		"lib": ["ESNext", "DOM"],
 		"experimentalDecorators": true,
 		"emitDecoratorMetadata": true,
 		"noImplicitAny": true,
@@ -26,13 +23,6 @@
 		"allowSyntheticDefaultImports": true
 	},
 	"type": "module",
-	"exclude": [
-		"node_modules",
-		"wwwroot",
-		"server",
-		"src/backend",
-		".idea",
-		".vscode"
-	],
+	"exclude": ["node_modules", "wwwroot", "server", "src/backend", ".idea", ".vscode"],
 	"compileOnSave": true
 }

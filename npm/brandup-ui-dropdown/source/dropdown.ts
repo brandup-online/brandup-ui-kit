@@ -56,9 +56,15 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		const se = selectElem.getAttribute("data-search-on");
 		if (se) {
 			switch (se.toLowerCase()) {
-				case "true": searchOn = true; break;
-				case "false": searchOn = false; break;
-				default: searchOn = parseInt(se); break;
+				case "true":
+					searchOn = true;
+					break;
+				case "false":
+					searchOn = false;
+					break;
+				default:
+					searchOn = parseInt(se);
+					break;
 			}
 		}
 
@@ -82,18 +88,18 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			DOM.tag("div", { class: "content" }, [
 				DOM.tag("div", { class: "header" }, [
 					headerLabel,
-					DOM.tag("button", { command: "close-popup" }, closeIcon)
+					DOM.tag("button", { command: "close-popup" }, closeIcon),
 				]),
 				DOM.tag("div", { class: "search" }, [searchIcon, searchInput]),
 				listElem,
 				emptyElem,
-				cancelButton
-			])
+				cancelButton,
+			]),
 		]);
 
 		const container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(selectElem.classList)) }, [
 			DOM.tag("button", { class: "view", command: "open-popup" }, [textElem, arrowBottomIcon]),
-			popupElem
+			popupElem,
 		]);
 
 		container.classList.remove(INPUT_CLASS);
@@ -125,7 +131,13 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.__closePopupFunc = (e: MouseEvent) => {
 			const t = e.target as HTMLElement;
 			const dd = t.closest(`.${ROOT_CLASS}`);
-			if (!dd || (dd === this.__container && !t.closest("li[data-index]") && t !== this.__searchInput && !t.closest(".search"))) {
+			if (
+				!dd ||
+				(dd === this.__container &&
+					!t.closest("li[data-index]") &&
+					t !== this.__searchInput &&
+					!t.closest(".search"))
+			) {
 				this.__closePopup();
 				this.__clearSearch();
 			}
@@ -140,8 +152,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		const optionsCount = this.__valueElem.options.length;
 		const selectedIndex = this.__valueElem.selectedIndex;
 
-		if (!optionsCount)
-			this.__textElem.innerText = this.placeholder;
+		if (!optionsCount) this.__textElem.innerText = this.placeholder;
 
 		if (!optionsCount) {
 			this.element.classList.add("empty");
@@ -150,10 +161,9 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 		// определяем можно ли делать поиск по элементам в списке
 		// явная проверка типа: для false `optionsCount >= false` коэрсится в `>= 0` и всегда true
-		const isSearchable = this.searchOn === true
-			|| (typeof this.searchOn === "number" && optionsCount >= this.searchOn);
-		if (isSearchable)
-			this.element.classList.add("searchable");
+		const isSearchable =
+			this.searchOn === true || (typeof this.searchOn === "number" && optionsCount >= this.searchOn);
+		if (isSearchable) this.element.classList.add("searchable");
 
 		// вставляем элементы меню в фрагмент, чтобы не нагружать процессор
 		const popupItemsFragment = document.createDocumentFragment();
@@ -161,8 +171,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		let elemCount = 0;
 		for (let i = 0; i < optionsCount; i++) {
 			const optionElem = this.__valueElem.options.item(i);
-			if (!optionElem)
-				continue;
+			if (!optionElem) continue;
 
 			const itemText = optionElem.textContent?.trim() || "";
 			const itemValue = optionElem.value;
@@ -179,14 +188,13 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 			const itemElem = DOM.tag("li", { command: "select", dataset: { value: itemValue, index: i.toString() } }, [
 				itemSpan,
-				checkIcon
+				checkIcon,
 			]);
 
 			itemTranscripts.set(itemElem, transcriptText(itemText));
 
 			const isSelected = selectedIndex === i;
-			if (isSelected)
-				itemElem.classList.add("hasvalue");
+			if (isSelected) itemElem.classList.add("hasvalue");
 
 			popupItemsFragment.append(itemElem);
 
@@ -198,8 +206,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			elemCount++;
 		}
 
-		if (this.__hasEmptyValue && !elemCount)
-			this.element.classList.add("empty");
+		if (this.__hasEmptyValue && !elemCount) this.element.classList.add("empty");
 
 		this.__listElem.append(popupItemsFragment);
 	}
@@ -208,7 +215,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.registerCommand("open-popup", () => this.__togglePopup());
 		this.registerCommand("close-popup", () => this.__closePopup());
 
-		this.registerCommand("select", context => {
+		this.registerCommand("select", (context) => {
 			const newIndex = context.target.dataset.index;
 
 			this.element.classList.remove("invalid");
@@ -216,13 +223,12 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			this.__closePopup();
 
 			const currentSelect = this.__getSelectedElem();
-			if (currentSelect && newIndex === currentSelect.own.dataset.index)
-				return; // если выбор остался таким же
+			if (currentSelect && newIndex === currentSelect.own.dataset.index) return; // если выбор остался таким же
 
-			DOM.removeClass(this.element, '.hasvalue', 'hasvalue');
+			DOM.removeClass(this.element, ".hasvalue", "hasvalue");
 
 			if (currentSelect && currentSelect.own.closest(`.${ROOT_CLASS}`))
-				this.__textElem.innerText = this.placeholder ?? '';
+				this.__textElem.innerText = this.placeholder ?? "";
 
 			// делаем новый выбор
 			this.__valueElem.value = context.target.dataset.value || "";
@@ -260,8 +266,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 					if (isSpan) {
 						// Если есть предыдущий элемент, то переводим фокус на него
 						const prevItemElem = target.parentElement?.previousElementSibling;
-						if (prevItemElem)
-							(<HTMLElement>prevItemElem.firstElementChild).focus();
+						if (prevItemElem) (<HTMLElement>prevItemElem.firstElementChild).focus();
 
 						e.preventDefault();
 					}
@@ -271,8 +276,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 					if (isSpan) {
 						// Если есть следующий элемент, то переводим фокус на него
 						const nextItemElem = target.parentElement?.nextElementSibling;
-						if (nextItemElem)
-							(<HTMLElement>nextItemElem.firstElementChild).focus();
+						if (nextItemElem) (<HTMLElement>nextItemElem.firstElementChild).focus();
 
 						e.preventDefault();
 					}
@@ -288,21 +292,19 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 					if (target == this.__popupElem && this.element.classList.contains("empty")) {
 						// если список пустой, то фокус уйдёт от компанента на следующий и нужно закрыть popup
 						this.__closePopup();
-					}
-					else if (target == this.__searchInput && this.__listElem.classList.contains("notfound")) {
+					} else if (target == this.__searchInput && this.__listElem.classList.contains("notfound")) {
 						// если не найдено, то фокус уйдёт от компанента на следующий и нужно закрыть popup
 						this.__closePopup();
-					}
-					else if (isSpan && !target.parentElement?.nextElementSibling) {
+					} else if (isSpan && !target.parentElement?.nextElementSibling) {
 						// если фокус на последнем элементе списка, то фокус уйдёт от компанента на следующий и нужно закрыть popup
 						this.__closePopup();
 					}
 					break;
 				}
-				case "Enter": { // так как теперь мы обрабатываем не <a>
+				case "Enter": {
+					// так как теперь мы обрабатываем не <a>
 					e.preventDefault(); // чтобы Enter в поле поиска не сабмитил форму, в которой может находиться dropdown
-					if (isSpan)
-						target.click();
+					if (isSpan) target.click();
 					this.__closePopup();
 					break;
 				}
@@ -319,13 +321,12 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			dropdown: this,
 			index: this.getSelectedIndex(),
 			value: this.getValue(),
-			title: this.getSelectedTitle()
+			title: this.getSelectedTitle(),
 		});
 	}
 
 	private __togglePopup() {
-		if (this.element.classList.contains("disabled"))
-			return;
+		if (this.element.classList.contains("disabled")) return;
 
 		if (this.element.classList.contains("expanded")) {
 			// уже открыт — закрываем чисто, чтобы и body-класс, и mouseup-листенер ушли
@@ -336,9 +337,9 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.element.classList.add("expanded");
 
 		// закрываем все открытые попапы, кроме текущего
-		document.querySelectorAll('.ui-dropdown.expanded').forEach((dropdown) => {
+		document.querySelectorAll(".ui-dropdown.expanded").forEach((dropdown) => {
 			if (dropdown !== this.element) {
-				dropdown.classList.remove('expanded');
+				dropdown.classList.remove("expanded");
 			}
 		});
 
@@ -350,7 +351,11 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.__reposAbort = new AbortController();
 		const reposition = () => this.__positionPopup();
 		window.addEventListener("resize", reposition, { signal: this.__reposAbort.signal });
-		window.addEventListener("scroll", reposition, { signal: this.__reposAbort.signal, passive: true, capture: true });
+		window.addEventListener("scroll", reposition, {
+			signal: this.__reposAbort.signal,
+			passive: true,
+			capture: true,
+		});
 
 		document.body.classList.add(BODY_EXPANDED);
 
@@ -361,8 +366,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 		top = itemTop - this.__listElem.clientHeight / 2 + itemHeight;
 
-		if (top !== null)
-			this.__listElem.scrollTo({ left: 0, top: top, behavior: 'instant' });
+		if (top !== null) this.__listElem.scrollTo({ left: 0, top: top, behavior: "instant" });
 
 		document.body.addEventListener("mouseup", this.__closePopupFunc);
 	}
@@ -370,8 +374,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	private __positionPopup() {
 		this.__popupElem.classList.remove("top", "right");
 
-		if (document.body.clientWidth <= TABLET_WIDTH)
-			return;
+		if (document.body.clientWidth <= TABLET_WIDTH) return;
 
 		const bodyHeight = document.body.clientHeight;
 		const popupRect = this.__popupElem.getBoundingClientRect();
@@ -404,19 +407,15 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.__listElem.classList.add("result");
 		const items = DOM.queryElements(this.__listElem, "li span");
 
-
 		let findedCount = 0;
-		items.forEach(it => {
+		items.forEach((it) => {
 			const item = it.parentElement;
-			if (!item)
-				return;
+			if (!item) return;
 
 			if (it.innerText.toLowerCase().startsWith(query)) {
 				item.classList.add("ok");
 				findedCount++;
-			}
-			else
-				item.classList.remove("ok");
+			} else item.classList.remove("ok");
 		});
 
 		if (!findedCount) {
@@ -427,16 +426,12 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			if (queryLang) {
 				for (let i = 0; i < this.__listElem.children.length; i++) {
 					const item = this.__listElem.children.item(i);
-					if (!item)
-						continue;
+					if (!item) continue;
 					const transcript = itemTranscripts.get(item);
 					if (transcript && transcript[queryLang] && transcript[queryLang].startsWith(query)) {
-
 						item.classList.add("ok");
 						findedCount++;
-					}
-					else
-						item.classList.remove("ok");
+					} else item.classList.remove("ok");
 				}
 			}
 		}
@@ -444,21 +439,19 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		if (findedCount > 0) {
 			this.__emptyElem.innerText = this.emptyText;
 			this.__listElem.classList.remove("notfound");
-		}
-		else {
+		} else {
 			this.__emptyElem.innerText = this.searchEmpty;
 			this.__listElem.classList.add("notfound");
 		}
 	}
 
 	private __clearSearch() {
-		if (!this.__listElem.classList.contains("result"))
-			return;
+		if (!this.__listElem.classList.contains("result")) return;
 
 		this.__emptyElem.innerText = this.emptyText;
 		this.__listElem.classList.remove("result", "notfound");
 		DOM.removeClass(this.__listElem, "li.ok", "ok");
-		this.__searchInput.value = '';
+		this.__searchInput.value = "";
 	}
 
 	private __getElems(selector: string): { own: HTMLElement } | null {
@@ -488,19 +481,16 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	}
 
 	override validate(): boolean {
-		let value = this.getValue();
+		const value = this.getValue();
 		let isInvalid = !this.__valueElem.validity.valid;
 
-		if (this.required && !value)
-			isInvalid = true;
+		if (this.required && !value) isInvalid = true;
 
 		const clearInvalid = () => this.element.classList.remove("invalid");
 
 		if (isInvalid) {
 			this.element.classList.add("invalid");
-		}
-		else
-			clearInvalid();
+		} else clearInvalid();
 
 		return !isInvalid;
 	}

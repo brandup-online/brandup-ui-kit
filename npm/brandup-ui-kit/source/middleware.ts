@@ -5,9 +5,9 @@ export class UiKitMiddleware implements Middleware {
 	name = "uikit";
 
 	start(context: StartContext, next: MiddlewareNext) {
-		context.app.registerCommand(POPUP_COMMAND, context => {
+		context.app.registerCommand(POPUP_COMMAND, (context) => {
 			if (!context.target.nextElementSibling?.classList.contains(POPUP_CLASS))
-				throw new Error('Not found popup elem.');
+				throw new Error("Not found popup elem.");
 
 			PopupManager.open(context.target.nextElementSibling as HTMLElement, { initiator: context.target });
 		});

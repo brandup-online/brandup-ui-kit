@@ -3,17 +3,16 @@ export const POPUP_EXPANDED_CLASS = "ui-popup-expanded";
 export const POPUP_COMMAND = "ui-popup-toggle";
 
 type CurrentPopup = {
-	initiator?: HTMLElement,
-	popup: HTMLElement,
-	closeCallback?: () => void
+	initiator?: HTMLElement;
+	popup: HTMLElement;
+	closeCallback?: () => void;
 };
 
-var current: CurrentPopup | null = null;
+let current: CurrentPopup | null = null;
 
 const closePopupEventHandler = (e: MouseEvent) => {
 	const target = e.target as HTMLElement;
-	if (target.closest(`.${POPUP_CLASS}`))
-		return; // если клик внутри popup, то делать ничего не нужно
+	if (target.closest(`.${POPUP_CLASS}`)) return; // если клик внутри popup, то делать ничего не нужно
 
 	const clickedMenuItem = target.closest(`.${POPUP_EXPANDED_CLASS}`);
 	const isInitiator = target == current?.initiator;
@@ -30,8 +29,7 @@ const closePopupEventHandler = (e: MouseEvent) => {
 
 const close = () => {
 	if (current) {
-		if (current.closeCallback)
-			current.closeCallback();
+		if (current.closeCallback) current.closeCallback();
 
 		current.initiator?.classList.remove(POPUP_EXPANDED_CLASS); // закрываем последнее открытое контекстное меню
 		current.popup.classList.remove("opened");
@@ -40,15 +38,14 @@ const close = () => {
 	}
 
 	document.body.removeEventListener("click", closePopupEventHandler);
-}
+};
 
 const open = (popupElem: HTMLElement, options?: PopupOptions) => {
-	if (current && current.popup !== popupElem)
-		close(); // если открыт другой popup, закрываем его, чтобы не оставлять «осиротевший» visible popup
+	if (current && current.popup !== popupElem) close(); // если открыт другой popup, закрываем его, чтобы не оставлять «осиротевший» visible popup
 
-	let newPopup: CurrentPopup = {
+	const newPopup: CurrentPopup = {
 		popup: popupElem,
-		initiator: options?.initiator
+		initiator: options?.initiator,
 	};
 
 	newPopup.closeCallback = options?.onClose;
@@ -61,17 +58,16 @@ const open = (popupElem: HTMLElement, options?: PopupOptions) => {
 		document.body.addEventListener("click", closePopupEventHandler);
 
 		current = newPopup;
-	}
-	else {
+	} else {
 		// данный popup уже открыт, закрываем его
 		close();
 	}
-}
+};
 
 export const PopupManager: IPopupManager = {
 	open,
 	close,
-	isOpened: () => !!current
+	isOpened: () => !!current,
 };
 
 interface IPopupManager {
@@ -82,5 +78,5 @@ interface IPopupManager {
 
 interface PopupOptions {
 	initiator?: HTMLElement;
-	onClose?: () => void
+	onClose?: () => void;
 }

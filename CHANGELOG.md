@@ -11,6 +11,11 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 ## [Unreleased]
 
 ### Added
+- **ESLint 9 (flat config) + Prettier 3.** Configs at root
+  (`eslint.config.mjs`, `.prettierrc.json`, `.prettierignore`); npm
+  scripts `lint`, `lint:fix`, `format`, `format:check`. Prettier matches
+  the existing `.editorconfig` (tabs, CRLF). Whole codebase
+  auto-formatted in one pass.
 - Jest test suite (47 tests across `popup`, `utilities`, `textbox`,
   `dropdown`) covering public API plus regression tests for every fix in
   this revision.
