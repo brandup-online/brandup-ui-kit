@@ -23,6 +23,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	private __inputElem: HTMLElement;
 	private __actionsElem: HTMLElement;
 	private __symbolsCountElem?: HTMLElement;
+	private __listenerAbort = new AbortController();
 
 	readonly type: TextBoxType;
 	readonly allowEmptyStrings: boolean;
@@ -116,7 +117,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		if (this.inputmode) this.__inputElem.inputMode = this.inputmode;
 
 		if (this.copyButton) {
-			const buttonElem = <HTMLButtonElement>DOM.tag("button", { command: "copy-text", title: "Скопировать в буфер обмена" }, copyIcon);
+			const buttonElem = DOM.tag("button", { command: "copy-text", title: "Скопировать в буфер обмена" }, copyIcon);
 			if (this.disabled)
 				buttonElem.disabled = true;
 			this.__actionsElem.insertAdjacentElement("beforeend", buttonElem);
@@ -140,13 +141,15 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		if (!this.element)
 			return;
 
-		this.element.addEventListener("drop", (e) => e.preventDefault());
-		this.element.addEventListener("dragenter", (e) => e.preventDefault());
+		const { signal } = this.__listenerAbort; // один AbortController отписывает все listener'ы в destroy
+
+		this.element.addEventListener("drop", (e) => e.preventDefault(), { signal });
+		this.element.addEventListener("dragenter", (e) => e.preventDefault(), { signal });
 
 		this.__valueElem.addEventListener("change", (e: Event) => {
 			e.preventDefault();
 			e.stopImmediatePropagation();
-		});
+		}, { signal });
 
 		let hasInputClick = false;
 		this.__inputElem.addEventListener("mousedown", () => {
@@ -154,7 +157,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 				return;
 
 			hasInputClick = true;
-		});
+		}, { signal });
 
 		this.__inputElem.addEventListener("focus", () => {
 			if (this.disabled)
@@ -166,7 +169,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 				this.__selectAll();
 			else if (!hasInputClick)
 				this.__carretToEnd(); // пыремещаем курсов в конец, если клик не по строке
-		});
+		}, { signal });
 
 		this.__inputElem.addEventListener("blur", () => {
 			hasInputClick = false;
@@ -180,7 +183,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			// удалить BR нужно, чтобы появился placeholder
 			if (this.__inputElem.firstChild?.nodeName === "BR")
 				DOM.empty(this.__inputElem);
-		});
+		}, { signal });
 
 		this.__inputElem.addEventListener("dblclick", () => {
 			if (this.disabled)
@@ -188,7 +191,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 
 			if (this.copyButton && this.readonly)
 				this.__selectAll();
-		});
+		}, { signal });
 
 		this.element.addEventListener("paste", (e: ClipboardEvent) => {
 			e.preventDefault();
@@ -254,7 +257,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			this.__applyValue();
 
 			return true;
-		});
+		}, { signal });
 
 		this.__inputElem.addEventListener("keydown", (e: KeyboardEvent) => {
 			if (!this.element)
@@ -310,7 +313,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			}
 
 			return true;
-		});
+		}, { signal });
 
 		this.__inputElem.addEventListener("input", () => {
 			if (!this.element)
@@ -331,7 +334,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 
 			if (clearInvalidState)
 				this.element.classList.remove("invalid");
-		});
+		}, { signal });
 
 		this.registerCommand("copy-text", async context => {
 			if (!window.navigator.clipboard || this.disabled) return;
@@ -484,6 +487,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	}
 
 	override destroy(): void {
+		this.__listenerAbort.abort();
 		this.__valueElem.tabIndex = this.__inputElem.tabIndex;
 
 		this.element?.insertAdjacentElement("afterend", this.__valueElem);
