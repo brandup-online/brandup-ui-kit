@@ -6,7 +6,7 @@ type FormInput<T> = T extends InputType ? T : never;
 
 export const INPUT_CSS_CLASS = "ui-input";
 
-export abstract class InputControl<T extends InputType> extends UIElement implements IInputControl {
+export abstract class InputControl<T extends InputType, TEvents = {}> extends UIElement<TEvents> implements IInputControl {
 	protected __valueElem: FormInput<T>;
 	protected __submitEvent?: (e: SubmitEvent) => void;
 	private __isValidating?: boolean; // true, когда выполняется checkValidity в validate.
