@@ -220,7 +220,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 				// обрезаем вставляемый текст по кол-ву оставшихся символов для ввода
 
 				const selectionLength = selection.toString().length;
-				const currentTextLength = this.__getTextLenght();
+				const currentTextLength = this.__getTextLength();
 				const leftSymbols = this.maxlength - currentTextLength + selectionLength; // осталось символов для ввода
 
 				if (pastedData.length > leftSymbols)
@@ -269,7 +269,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			}
 
 			if (this.maxlength > 0 && isChar && !e.ctrlKey) {
-				const currentTextLength = this.__getTextLenght();
+				const currentTextLength = this.__getTextLength();
 				if (currentTextLength >= this.maxlength) {
 					e.preventDefault();
 					e.stopPropagation();
@@ -395,7 +395,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		if (!this.__symbolsCountElem)
 			return;
 
-		const textLength = this.__getTextLenght();
+		const textLength = this.__getTextLength();
 		let counterValue: string;
 
 		if (this.maxlength > 0) {
@@ -428,8 +428,9 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		}
 	}
 
-	private __getTextLenght() {
-		return this.__inputElem.innerText.length;
+	private __getTextLength() {
+		// innerText в многострочном contenteditable содержит \n между <div>-блоками; не считаем их за символы
+		return this.__inputElem.innerText.replace(/\n/g, '').length;
 	}
 
 	private __onChange() {
@@ -448,7 +449,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	}
 
 	getValue(): string {
-		return this.__valueElem.value?.trim() ?? null;
+		return this.__valueElem.value.trim();
 	}
 
 	setValue(value: string): void {

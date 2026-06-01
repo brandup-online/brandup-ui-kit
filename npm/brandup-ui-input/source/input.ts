@@ -9,6 +9,7 @@ export const INPUT_CSS_CLASS = "ui-input";
 export abstract class InputControl<T extends InputType, TEvents = {}> extends UIElement<TEvents> implements IInputControl {
 	protected __valueElem: FormInput<T>;
 	protected __submitEvent?: (e: SubmitEvent) => void;
+	private __invalidEvent?: (e: Event) => void;
 	private __isValidating?: boolean; // true, когда выполняется checkValidity в validate.
 
 	constructor(valueElem: FormInput<T>) {
@@ -25,14 +26,15 @@ export abstract class InputControl<T extends InputType, TEvents = {}> extends UI
 	get readonly(): boolean { return this.__valueElem.hasAttribute("readonly") || this.__valueElem.hasAttribute("data-readonly"); }
 
 	private __initForm() {
-		this.__valueElem.addEventListener("invalid", (e: Event) => {
+		this.__invalidEvent = (e: Event) => {
 			e.preventDefault();
 
 			this.__submitForm();
-		});
+		};
+		this.__valueElem.addEventListener("invalid", this.__invalidEvent);
 
 		this.__submitEvent = (e: SubmitEvent) => {
-			if ((<HTMLButtonElement>e.submitter).formNoValidate || (<HTMLFormElement>e.target).noValidate)
+			if ((e.submitter as HTMLButtonElement | null)?.formNoValidate || (<HTMLFormElement>e.target).noValidate)
 				return; // Не делаем валидацию, если она отключена в форме или в инициаторе события submit
 
 			if (this.disabled)
@@ -89,6 +91,9 @@ export abstract class InputControl<T extends InputType, TEvents = {}> extends UI
 	override destroy() {
 		if (this.form && this.__submitEvent)
 			this.form.removeEventListener("submit", this.__submitEvent);
+
+		if (this.__invalidEvent)
+			this.__valueElem.removeEventListener("invalid", this.__invalidEvent);
 
 		super.destroy();
 	}

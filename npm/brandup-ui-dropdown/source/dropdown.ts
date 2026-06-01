@@ -29,7 +29,6 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	private __emptyElem: HTMLElement;
 	private __searchInput: HTMLInputElement;
 	private __closePopupFunc: (e: MouseEvent) => void;
-	private __invalidTimeout?: number;
 	private __hasEmptyValue: boolean = false;
 
 	readonly placeholder: string;
@@ -65,13 +64,22 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			}
 		}
 
-		// __renderUI
+		// __renderUI — текст из option/data-* атрибутов вставляем через textContent, чтобы не получить XSS через DOM.tag (он рендерит строки как HTML)
+		this.__textElem = DOM.tag("span", null);
+		this.__textElem.textContent = this.placeholder ?? '';
+
+		const headerLabel = DOM.tag("span", null);
+		headerLabel.textContent = this.placeholder ?? '';
+
+		this.__emptyElem = DOM.tag("div", { class: "empty" });
+		this.__emptyElem.textContent = this.emptyText;
+
 		this.__container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(this.__valueElem.classList)) }, [
-			DOM.tag("button", { class: "view", command: "open-popup" }, [this.__textElem = DOM.tag("span", null, this.placeholder ?? ''), arrowBottomIcon]),
+			DOM.tag("button", { class: "view", command: "open-popup" }, [this.__textElem, arrowBottomIcon]),
 			this.__popupElem = DOM.tag("div", { class: "popup", tabindex: 0 }, [
 				DOM.tag("div", "content", [
 					DOM.tag("div", "header", [
-						DOM.tag("span", null, this.placeholder ?? ''),
+						headerLabel,
 						DOM.tag("button", { command: "close-popup" }, closeIcon)]
 					),
 					DOM.tag("div", { class: "search" }, [
@@ -79,7 +87,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 						this.__searchInput = <HTMLInputElement>DOM.tag("input", { type: "search", maxlength: 50, placeholder: this.searchPlaceholder })
 					]),
 					this.__listElem = DOM.tag("ul"),
-					this.__emptyElem = DOM.tag("div", { class: "empty" }, this.emptyText),
+					this.__emptyElem,
 					DOM.tag("button", { class: "cancel", command: "close-popup" }, "Отмена")
 				])
 			])
@@ -124,11 +132,8 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		}
 
 		// определяем можно ли делать поиск по элементам в списке
-		let isSearchable = false;
-		if (this.searchOn === true || optionsCount >= <number>this.searchOn) {
+		if (this.searchOn === true || optionsCount >= <number>this.searchOn)
 			this.element?.classList.add("searchable");
-			isSearchable = true;
-		}
 
 		// вставляем элементы меню в фрагмент, чтобы не нагружать процессор
 		const popupItemsFragment = document.createDocumentFragment();
@@ -149,25 +154,19 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 				continue;
 			}
 
-			let itemElem = DOM.tag("li", { command: "select", dataset: { value: itemValue, index: i.toString() } }, [
-				DOM.tag("span", { tabindex: "0" }, itemText),
-				checkIcon
-			]
-			);
+			const itemSpan = DOM.tag("span", { tabindex: "0" });
+			itemSpan.textContent = itemText; // безопасно: textContent не парсит HTML
 
-			const transcript = (<any>itemElem)['wsdd_transcript'] = transcriptText(itemText);
+			const itemElem = DOM.tag("li", { command: "select", dataset: { value: itemValue, index: i.toString() } }, [
+				itemSpan,
+				checkIcon
+			]);
+
+			(<any>itemElem)['wsdd_transcript'] = transcriptText(itemText);
 
 			const isSelected = selectedIndex === i;
 			if (isSelected)
 				itemElem.classList.add("hasvalue");
-
-			if (isSearchable) {
-				// дублируем быстрый элемент в общем списке, чтобы находить его при поиске
-
-				itemElem = itemElem.cloneNode(true) as HTMLLIElement;
-				(<any>itemElem)['wsdd_transcript'] = transcript;
-				popupItemsFragment.append(itemElem);
-			}
 
 			popupItemsFragment.append(itemElem);
 
@@ -284,7 +283,9 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 					break;
 				}
 				case "Enter": { // так как теперь мы обрабатываем не <a>
-					target.click();
+					e.preventDefault(); // чтобы Enter в поле поиска не сабмитил форму, в которой может находиться dropdown
+					if (isSpan)
+						target.click();
 					this.__closePopup();
 					break;
 				}
@@ -434,12 +435,8 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		if (!this.element)
 			return null;
 
-		const elems = DOM.queryElements(this.element, selector);
-		if (elems.length === 2)
-			return { own: elems.item(0) };
-		else if (elems.length === 1)
-			return { own: elems.item(0) };
-		return null;
+		const elem = DOM.queryElement<HTMLElement>(this.element, selector);
+		return elem ? { own: elem } : null;
 	}
 
 	private __getElemsByIndex(index: number) {
@@ -464,8 +461,6 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	}
 
 	override validate(): boolean {
-		window.clearTimeout(this.__invalidTimeout);
-
 		let value = this.getValue();
 		let isInvalid = !this.__valueElem.validity.valid;
 
