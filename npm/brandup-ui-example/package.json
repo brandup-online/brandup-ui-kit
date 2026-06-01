@@ -32,6 +32,7 @@
 		"less-plugin-clean-css": "^1.6.0",
 		"mini-css-extract-plugin": "^2.10.2",
 		"raw-loader": "^4.0.2",
+		"selfsigned": "^3.0.0",
 		"style-loader": "^4.0.0",
 		"svgo": "^4.0.1",
 		"svgo-loader": "^5.0.0",
@@ -43,9 +44,11 @@
 		"webpack-cli": "^7.0.3"
 	},
 	"scripts": {
+		"setup-cert": "node ./scripts/generate-cert.cjs",
 		"build": "tsc ./src/backend/program.ts --ignoreConfig --module commonjs --outDir ./server && cross-env NODE_ENV=production webpack --config webpack.config.js",
 		"dev-build": "cross-env NODE_ENV=development webpack --config webpack.config.js",
 		"watch": "cross-env NODE_ENV=development webpack --config webpack.config.js --watch",
+		"prestart": "npm run setup-cert",
 		"start": "node ./server/program.js --port=8316",
 		"serve": "npm run build && npm run start"
 	}
