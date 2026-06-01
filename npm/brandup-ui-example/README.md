@@ -5,5 +5,5 @@
 ## Запуск приложения
 
 ```
-npm run start-dev
+npm run serve
 ```

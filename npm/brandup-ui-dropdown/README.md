@@ -1,10 +1,10 @@
 # brandup-ui-dropdown
 
-[![Build Status](https://dev.azure.com/brandup/BrandUp%20Core/_apis/build/status%2FBrandUp%2Fbrandup-ui-kit?branchName=master)]()
+[![Build Status](https://dev.azure.com/brandup/BrandUp%20Core/_apis/build/status%2FBrandUp%2Fbrandup-ui-kit?branchName=main)](https://dev.azure.com/brandup/BrandUp%20Core/_build/latest?definitionId=81&branchName=main)
 
 ## Installation
 
-Install NPM package [@brandup/ui](https://www.npmjs.com/package/@brandup/ui-dropdown).
+Install NPM package [@brandup/ui-dropdown](https://www.npmjs.com/package/@brandup/ui-dropdown).
 
 ```
 npm i @brandup/ui-dropdown@latest

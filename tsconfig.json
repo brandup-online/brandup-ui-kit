@@ -3,28 +3,20 @@
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"target": "ESNext",
-		"sourceMap": false,
 		"strict": true,
 		"lib": ["ESNext", "DOM"],
 		"experimentalDecorators": true,
 		"emitDecoratorMetadata": true,
-		"noImplicitAny": true,
-		"noEmitOnError": true,
+		"noEmit": true,
 		"noImplicitOverride": true,
 		"noImplicitReturns": true,
-		"noImplicitThis": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"declarationMap": false,
 		"resolveJsonModule": true,
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
-		"skipLibCheck": true,
-		"allowSyntheticDefaultImports": true
+		"skipLibCheck": true
 	},
 	"exclude": ["node_modules", "dist", ".vs", ".vscode"],
-	"compileOnSave": false,
-	"typeAcquisition": {
-		"enable": true
-	}
+	"compileOnSave": false
 }

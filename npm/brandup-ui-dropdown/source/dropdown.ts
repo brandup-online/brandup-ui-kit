@@ -359,14 +359,13 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 		document.body.classList.add(BODY_EXPANDED);
 
-		let top = 0;
 		const selectedElem = this.__getSelectedElem();
 		const itemHeight = selectedElem?.own?.clientHeight || 0;
 		const itemTop = selectedElem?.own?.offsetTop || 0;
 
-		top = itemTop - this.__listElem.clientHeight / 2 + itemHeight;
+		const top = itemTop - this.__listElem.clientHeight / 2 + itemHeight;
 
-		if (top !== null) this.__listElem.scrollTo({ left: 0, top: top, behavior: "instant" });
+		this.__listElem.scrollTo({ left: 0, top: top, behavior: "instant" });
 
 		document.body.addEventListener("mouseup", this.__closePopupFunc);
 	}
