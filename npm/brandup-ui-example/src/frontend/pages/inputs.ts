@@ -13,7 +13,7 @@ export default class NavigationPage extends Page {
 		const controls = DOM.queryElements(container, ".control");
 		controls.forEach(control => {
 			const html = control.innerHTML.replace(/[\u00A0-\u9999<>\&]/g, i => '&#' + i.charCodeAt(0) + ';');
-			control.insertAdjacentElement("afterend", DOM.tag("pre", "html", html.trim()));
+			control.insertAdjacentElement("afterend", DOM.tag("pre", { class: "html" }, html.trim()));
 		});
 	}
 }

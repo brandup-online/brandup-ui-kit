@@ -77,8 +77,8 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.__container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(this.__valueElem.classList)) }, [
 			DOM.tag("button", { class: "view", command: "open-popup" }, [this.__textElem, arrowBottomIcon]),
 			this.__popupElem = DOM.tag("div", { class: "popup", tabindex: 0 }, [
-				DOM.tag("div", "content", [
-					DOM.tag("div", "header", [
+				DOM.tag("div", { class: "content" }, [
+					DOM.tag("div", { class: "header" }, [
 						headerLabel,
 						DOM.tag("button", { command: "close-popup" }, closeIcon)]
 					),

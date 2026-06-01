@@ -91,7 +91,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	private __renderUI() {
 		const container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(this.__valueElem.classList)) }, [
 			DOM.tag("div", { class: "decorator" }),
-			DOM.tag("div", "editor", [
+			DOM.tag("div", { class: "editor" }, [
 				this.__inputElem,
 				this.__symbolsCountElem = DOM.tag("div", { class: "symbols" })
 			]),

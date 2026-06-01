@@ -26,7 +26,7 @@ class PagesMiddlewareImpl implements Middleware, PagesMiddleware {
 	}
 
 	async start(context: StartContext, next: MiddlewareNext) {
-		context.app.element?.insertAdjacentElement("beforeend", this._loaderElem = DOM.tag("div", "app-loader"));
+		context.app.element?.insertAdjacentElement("beforeend", this._loaderElem = DOM.tag("div", { class: "app-loader" }));
 
 		for (var key in this._options.routes) {
 			const route = this._options.routes[key];
