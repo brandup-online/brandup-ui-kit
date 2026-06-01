@@ -6,6 +6,7 @@ const config = {
 		"^.+\\.[jt]sx?$": "babel-jest",
 		".+\\.(css|styl|less|sass|scss|png|jpg|ttf|woff|woff2)$": "jest-transform-stub",
 	},
+	modulePaths: ["<rootDir>/npm/brandup-ui-dropdown/node_modules"],
 	moduleNameMapper: {
 		"\\.svg$": "<rootDir>/test/__mocks__/svg.ts",
 	},

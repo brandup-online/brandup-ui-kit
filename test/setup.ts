@@ -1,3 +1,9 @@
+import { initUICommands } from "@brandup/ui";
+
+// Регистрируем глобальный click-обработчик команд (@brandup/ui UIElement).
+// В продакшене это делает Application.run(); в тестах вызываем явно.
+initUICommands();
+
 // jsdom не реализует scrollIntoView — стабим, чтобы UI-логика (InputControl.focus и т.п.) не падала под тестами.
 (Element.prototype as any).scrollIntoView = function () {};
 
