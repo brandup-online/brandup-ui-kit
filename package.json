@@ -22,7 +22,7 @@
 		"jest-transform-stub": "^2.0.0",
 		"prettier": "^3.8.3",
 		"ts-node": "^10.9.2",
-		"typescript-eslint": "^8.60.0"
+		"typescript-eslint": "^8.60.1"
 	},
 	"scripts": {
 		"i": "npm i && npm run npm:install",
