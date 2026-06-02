@@ -1,5 +1,8 @@
-// @brandup/ui v2 регистрирует глобальный click-обработчик команд при module load
-// (`window.addEventListener("click", commandClickHandler)` в element.ts), отдельной инициализации не нужно.
+import { initUICommands } from "@brandup/ui";
+
+// Регистрируем глобальный click-обработчик команд (@brandup/ui v2.0.2+).
+// В продакшене это делает Application.run(); в тестах вызываем явно.
+initUICommands();
 
 // jsdom не реализует scrollIntoView — стабим, чтобы UI-логика (InputControl.focus и т.п.) не падала под тестами.
 (Element.prototype as any).scrollIntoView = function () {};
