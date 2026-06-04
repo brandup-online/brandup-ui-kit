@@ -6,9 +6,11 @@ import {
 	HOTKEY_TOOLS,
 	defaultFormatMarkers,
 	deserialize,
+	ensureParagraphs,
 	insertFormattedText,
 	isFormatActive,
 	normalizeWhitespace,
+	restoreSelection,
 	selectionCharBounds,
 	serialize,
 	toggleFormat,
@@ -120,14 +122,19 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		return !!this.__opts.readonly;
 	}
 
+	// формат хранения значения: format → выбранный; plain → markdown без инструментов (\n\n/\n)
+	private get __valueStorage(): FormatStorage {
+		return this.format ? this.formatStorage : "markdown";
+	}
+	private get __valueTools(): FormatTool[] {
+		return this.format ? this.formatTools : [];
+	}
+
 	// --- публичный API ---
 
 	getValue(): string {
-		// plain-режим сериализуем как markdown без инструментов: теги отбрасываются,
-		// переводы строк → \n. Это корректно для multiline и работает в jsdom (в отличие от innerText).
-		return this.format
-			? serialize(this.editable, this.formatStorage, this.formatTools, this.formatMarkers)
-			: serialize(this.editable, "markdown", []);
+		// multiline → модель абзацев (<p>/\n\n) и мягких переносов (<br>/\n)
+		return serialize(this.editable, this.__valueStorage, this.__valueTools, this.formatMarkers, this.multiline);
 	}
 
 	setValue(value: string): void {
@@ -209,20 +216,14 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		DOM.empty(this.editable);
 		if (!value) return;
 
-		if (this.format) {
-			this.editable.innerHTML = deserialize(value, this.formatStorage, this.formatTools, this.formatMarkers);
-		} else {
-			const lines = value.split(/\n/);
-			lines.forEach((line, index) => {
-				line = line.trim();
-				if (index === 0) this.editable.append(document.createTextNode(line));
-				else {
-					const lineElem = document.createElement("div");
-					lineElem.textContent = line;
-					this.editable.append(lineElem);
-				}
-			});
-		}
+		// multiline → <p>-абзацы; single-line → инлайновое содержимое
+		this.editable.innerHTML = deserialize(
+			value,
+			this.__valueStorage,
+			this.__valueTools,
+			this.formatMarkers,
+			this.multiline
+		);
 	}
 
 	private __emitChange() {
@@ -311,9 +312,28 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		editable.addEventListener(
 			"input",
 			() => {
-				if (this.multiline && editable.children.length === 1) {
-					const child = editable.children.item(0);
-					if (child && child.tagName === "BR") editable.innerHTML = "";
+				if (this.multiline) {
+					// нормализация меняет структуру (обёртка в <p>, удаление <br>) и сбрасывает каретку —
+					// запоминаем её позицию по текстовому смещению и восстанавливаем после
+					const selection = window.getSelection();
+					const caret =
+						selection && selection.rangeCount > 0 && editable.contains(selection.anchorNode)
+							? selectionCharBounds(editable, selection.getRangeAt(0))
+							: null;
+					const before = editable.innerHTML;
+
+					ensureParagraphs(editable); // блуждающий текст/div → <p>
+
+					if (caret && selection && editable.innerHTML !== before)
+						restoreSelection(editable, caret[0], caret[1], selection);
+
+					// единственный пустой абзац → очищаем, чтобы показать placeholder
+					if (editable.children.length === 1) {
+						const only = editable.firstElementChild!;
+						if (only.tagName === "P" && (only.textContent ?? "") === "") DOM.empty(editable);
+					}
+				} else if (editable.firstChild?.nodeName === "BR") {
+					editable.innerHTML = "";
 				}
 				this.__emitChange();
 			},
@@ -351,9 +371,122 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			return;
 		}
 
-		if (!this.multiline && (e.key === "U+000A" || e.key === "Enter")) {
+		if (e.key === "Enter" || e.key === "U+000A") {
 			e.preventDefault();
-			this.__opts.onEnter?.();
+
+			if (!this.multiline) {
+				this.__opts.onEnter?.(); // однострочный режим — submit и т.п.
+				return;
+			}
+
+			// Shift/Ctrl/Cmd+Enter — мягкий перенос (<br>) внутри абзаца; Enter — новый абзац (<p>)
+			if (e.shiftKey || e.ctrlKey || e.metaKey) this.__insertSoftBreak();
+			else this.__insertParagraph();
+
+			this.__clearPendingFormats();
+			this.__emitChange();
+		}
+	}
+
+	private __emptyParagraph(): HTMLParagraphElement {
+		const p = document.createElement("p");
+		p.appendChild(document.createElement("br"));
+		return p;
+	}
+
+	// Enter в multiline: разбить текущий абзац по каретке на два <p>
+	private __insertParagraph() {
+		const selection = window.getSelection();
+		if (!selection || selection.rangeCount === 0 || !this.editable.contains(selection.anchorNode)) return;
+
+		const range = selection.getRangeAt(0);
+		range.deleteContents();
+
+		// текущий абзац (ближайший <p>/<div> внутри редактора)
+		let para: Node | null = range.startContainer;
+		while (para && para !== this.editable && !this.__isBlock(para)) para = para.parentNode;
+
+		// каретка не внутри абзаца — создаём абзац сразу с видимым результатом (иначе Enter «срабатывает со 2-го раза»)
+		if (!para || para === this.editable) {
+			const next = this.__emptyParagraph();
+			if (this.editable.childNodes.length === 0) {
+				// пустой редактор: пустая строка-источник + новая строка с кареткой
+				this.editable.appendChild(this.__emptyParagraph());
+				this.editable.appendChild(next);
+			} else {
+				// каретка на уровне редактора между/после абзацев — вставляем новый абзац в эту позицию
+				const ref = this.editable.childNodes[range.startOffset] ?? null;
+				this.editable.insertBefore(next, ref);
+			}
+			this.__caretToStart(next);
+			return;
+		}
+
+		// выносим содержимое от каретки до конца абзаца в новый <p>
+		const tail = document.createRange();
+		tail.selectNodeContents(para);
+		tail.setStart(range.endContainer, range.endOffset);
+		const fragment = tail.extractContents();
+
+		const next = document.createElement("p");
+		next.appendChild(fragment);
+		(para as ChildNode).after(next);
+
+		// extractContents в конце абзаца оставляет пустой текст-узел → <p></p> без заполнителя
+		// (невидим/нефокусируем, каретка не встаёт). Чистим и ставим <br> в опустевшие абзацы.
+		this.__fillEmptyParagraph(para as HTMLElement);
+		this.__fillEmptyParagraph(next);
+
+		this.__caretToStart(next);
+	}
+
+	// убирает пустые текст-узлы и ставит <br>-заполнитель в пустой абзац (для видимости и каретки)
+	private __fillEmptyParagraph(p: HTMLElement) {
+		p.normalize(); // удаляет пустые Text-узлы, склеивает соседние
+		if (!p.firstChild) p.appendChild(document.createElement("br"));
+	}
+
+	// Ctrl+Enter в multiline: вставить мягкий перенос <br>
+	private __insertSoftBreak() {
+		const selection = window.getSelection();
+		if (!selection || selection.rangeCount === 0 || !this.editable.contains(selection.anchorNode)) return;
+
+		const range = selection.getRangeAt(0);
+		range.deleteContents();
+
+		const br = document.createElement("br");
+		range.insertNode(br);
+
+		// каретку — после <br>; если перенос в конце строки, нужен второй <br>-заполнитель,
+		// иначе новая строка не отображается (хвостовой <br> отбрасывается при сериализации)
+		const after = document.createRange();
+		if (!br.nextSibling) {
+			const pad = document.createElement("br");
+			br.after(pad);
+			after.setStartBefore(pad);
+		} else {
+			after.setStartAfter(br);
+		}
+		after.collapse(true);
+		selection.removeAllRanges();
+		selection.addRange(after);
+	}
+
+	private __isBlock(node: Node): boolean {
+		return (
+			node.nodeType === Node.ELEMENT_NODE &&
+			((node as Element).tagName === "P" || (node as Element).tagName === "DIV")
+		);
+	}
+
+	private __caretToStart(node: Node) {
+		const range = document.createRange();
+		range.setStart(node, 0);
+		range.collapse(true);
+		const selection = window.getSelection();
+		if (selection) {
+			selection.removeAllRanges();
+			selection.addRange(range);
 		}
 	}
 
@@ -481,7 +614,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 	private __caretToEnd() {
 		const range = document.createRange();
-		range.selectNodeContents(this.editable);
+		// multiline: каретку в конец последнего абзаца (а не на уровень редактора),
+		// иначе и ввод, и Enter попадают мимо <p>
+		const last = this.multiline ? this.editable.lastElementChild : null;
+		range.selectNodeContents(last && this.__isBlock(last) ? last : this.editable);
 		range.collapse(false);
 		const sel = window.getSelection();
 		if (sel) {

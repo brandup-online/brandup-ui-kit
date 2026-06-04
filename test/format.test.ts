@@ -139,6 +139,38 @@ describe("custom markdown markers", () => {
 	});
 });
 
+describe("paragraphs (multiline)", () => {
+	const md = defaultFormatMarkers();
+
+	it("serializes <p> as paragraphs and <br> as soft breaks (HTML)", () => {
+		const root = makeRoot("<p>a<br>b</p><p>c</p>");
+		expect(serialize(root, "html", [], md, true)).toBe("<p>a<br>b</p><p>c</p>");
+	});
+
+	it("serializes paragraphs as \\n\\n and soft breaks as \\n (Markdown)", () => {
+		const root = makeRoot("<p>a<br>b</p><p>c</p>");
+		expect(serialize(root, "markdown", [], md, true)).toBe("a\nb\n\nc");
+	});
+
+	it("deserializes HTML paragraphs back to <p>/<br>", () => {
+		expect(deserialize("<p>a<br>b</p><p>c</p>", "html", [], md, true)).toBe("<p>a<br>b</p><p>c</p>");
+	});
+
+	it("deserializes Markdown \\n\\n paragraphs and \\n soft breaks", () => {
+		expect(deserialize("a\nb\n\nc", "markdown", [], md, true)).toBe("<p>a<br>b</p><p>c</p>");
+	});
+
+	it("wraps stray top-level content into a <p>", () => {
+		expect(deserialize("hello", "html", [], md, true)).toBe("<p>hello</p>");
+	});
+
+	it("drops trailing placeholder <br> (soft break is meaningful only between content)", () => {
+		expect(serialize(makeRoot("<p>ab<br></p>"), "markdown", [], md, true)).toBe("ab");
+		expect(serialize(makeRoot("<p>ab<br><br></p>"), "markdown", [], md, true)).toBe("ab");
+		expect(serialize(makeRoot("<p>ab<br>cd</p>"), "markdown", [], md, true)).toBe("ab\ncd"); // в середине — сохраняется
+	});
+});
+
 describe("normalizeWhitespace", () => {
 	it("collapses repeated spaces and trims the edges", () => {
 		const root = makeRoot("  a   b  ");

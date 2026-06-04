@@ -122,16 +122,17 @@ function wrap(storage: FormatStorage, tool: FormatTool, inner: string, markers: 
 	return `${marker}${inner}${marker}`;
 }
 
-function serializeNodes(
+// Сериализует инлайновое содержимое (текст, форматирование, <br> как мягкий перенос).
+// Абзацы (<p>/<div>) на этом уровне не учитываются — их разбирает serializeParagraphs.
+function serializeInline(
 	nodes: ArrayLike<ChildNode>,
 	storage: FormatStorage,
 	tagMap: Record<string, FormatTool>,
 	markers: FormatMarkers
 ): string {
 	let result = "";
-	const list = Array.from(nodes);
 
-	for (const node of list) {
+	for (const node of Array.from(nodes)) {
 		if (node.nodeType === Node.TEXT_NODE) {
 			const text = node.textContent ?? "";
 			result += storage === "html" ? escapeHtml(text) : text;
@@ -144,16 +145,14 @@ function serializeNodes(
 		const tag = el.tagName;
 
 		if (tag === "BR") {
-			result += lineBreak(storage);
+			result += lineBreak(storage); // мягкий перенос
 			continue;
 		}
 
-		const inner = serializeNodes(el.childNodes, storage, tagMap, markers);
+		const inner = serializeInline(el.childNodes, storage, tagMap, markers);
 
+		// вложенный блочный элемент (нестандарт) — без обёртки, просто содержимое
 		if (tag === "DIV" || tag === "P") {
-			// блочный элемент = новая строка
-			const nl = lineBreak(storage);
-			if (result && !result.endsWith(nl)) result += nl;
 			result += inner;
 			continue;
 		}
@@ -166,32 +165,77 @@ function serializeNodes(
 	return result;
 }
 
+// Хвостовые переносы абзаца отбрасываем — это <br>-заполнители, делающие последнюю строку видимой;
+// мягкий перенос осмыслен только между содержимым (для пустой строки используйте новый абзац).
+function trimTrailingBreaks(inline: string, storage: FormatStorage): string {
+	return storage === "html" ? inline.replace(/(?:<br>)+$/, "") : inline.replace(/\n+$/, "");
+}
+
+// Разбивает верхний уровень на абзацы: <p>/<div> — отдельный абзац, остальное — неявный абзац.
+// HTML: <p>содержимое</p>; Markdown/Plain: абзацы через \n\n, мягкие переносы внутри — \n.
+function serializeParagraphs(
+	root: ParentNode,
+	storage: FormatStorage,
+	tagMap: Record<string, FormatTool>,
+	markers: FormatMarkers
+): string {
+	const paragraphs: string[] = [];
+	let buffer: ChildNode[] = [];
+
+	const flush = () => {
+		if (buffer.length) paragraphs.push(serializeInline(buffer, storage, tagMap, markers));
+		buffer = [];
+	};
+
+	for (const node of Array.from(root.childNodes)) {
+		const isBlock =
+			node.nodeType === Node.ELEMENT_NODE &&
+			((node as Element).tagName === "P" || (node as Element).tagName === "DIV");
+
+		if (isBlock) {
+			flush();
+			paragraphs.push(serializeInline((node as Element).childNodes, storage, tagMap, markers));
+		} else {
+			buffer.push(node);
+		}
+	}
+	flush();
+
+	const cleaned = paragraphs.map((p) => trimTrailingBreaks(p, storage));
+
+	if (storage === "html") return cleaned.map((p) => `<p>${p}</p>`).join("");
+	return cleaned.join("\n\n");
+}
+
 /**
- * Сериализует содержимое contenteditable-редактора в строку для хранения.
- * Сохраняются только включённые инструменты форматирования.
+ * Сериализует содержимое редактора в строку для хранения. Сохраняются только включённые инструменты.
+ * При paragraphs=true применяется модель «абзацы (<p>/\n\n) + мягкие переносы (<br>/\n)».
  */
 export function serialize(
 	root: HTMLElement,
 	storage: FormatStorage,
 	tools: FormatTool[],
-	markers: FormatMarkers = defaultFormatMarkers()
+	markers: FormatMarkers = defaultFormatMarkers(),
+	paragraphs = false
 ): string {
-	const value = serializeNodes(root.childNodes, storage, buildTagMap(tools), markers);
+	const tagMap = buildTagMap(tools);
 
-	// нормализуем переводы строк по краям
+	if (paragraphs) return serializeParagraphs(root, storage, tagMap, markers).trim();
+
+	const inline = serializeInline(root.childNodes, storage, tagMap, markers);
 	if (storage === "html")
-		return value
+		return inline
 			.replace(/^(?:<br>)+/, "")
 			.replace(/(?:<br>)+$/, "")
 			.trim();
-	return value.replace(/^\n+/, "").replace(/\n+$/, "").trim();
+	return inline.replace(/^\n+/, "").replace(/\n+$/, "").trim();
 }
 
-function markdownToHtml(value: string, tools: FormatTool[], markers: FormatMarkers): string {
-	let html = escapeHtml(value).replace(/\r?\n/g, "<br>");
+// Markdown-разметка одного абзаца → инлайновый HTML (escape, \n→<br>, маркеры).
+function markdownInline(text: string, tools: FormatTool[], markers: FormatMarkers): string {
+	let html = escapeHtml(text).replace(/\r?\n/g, "<br>");
 
-	// Маркеры применяем по убыванию длины: длинный (**) раньше короткого-префикса (*),
-	// иначе одиночная звезда «съест» двойную.
+	// Маркеры применяем по убыванию длины: длинный (**) раньше короткого-префикса (*).
 	const order = tools.slice().sort((a, b) => markers[b].length - markers[a].length);
 	for (const tool of order) {
 		const marker = markers[tool];
@@ -208,22 +252,37 @@ function markdownToHtml(value: string, tools: FormatTool[], markers: FormatMarke
 
 /**
  * Готовит сохранённое значение к отображению в редакторе (возвращает HTML).
- * HTML-значения санитизируются до разрешённых тегов, Markdown — конвертируется в HTML.
+ * При paragraphs=true строит <p>-абзацы; HTML-значения санитизируются до разрешённых тегов,
+ * Markdown/Plain — разбивается на абзацы по \n\n (мягкий перенос \n → <br>).
  */
 export function deserialize(
 	value: string,
 	storage: FormatStorage,
 	tools: FormatTool[],
-	markers: FormatMarkers = defaultFormatMarkers()
+	markers: FormatMarkers = defaultFormatMarkers(),
+	paragraphs = false
 ): string {
 	if (!value) return "";
 
-	if (storage === "markdown") return markdownToHtml(value, tools, markers);
+	if (storage === "markdown") {
+		if (!paragraphs) return markdownInline(value, tools, markers);
+		return value
+			.split(/\n{2,}/)
+			.map((p) => `<p>${markdownInline(p, tools, markers) || "<br>"}</p>`)
+			.join("");
+	}
 
-	// html: парсим и пересобираем, отбрасывая всё, кроме разрешённых тегов и переводов строк
+	// html: парсим и пересобираем, отбрасывая всё, кроме разрешённых тегов
 	const template = document.createElement("template");
 	template.innerHTML = value;
-	return serializeNodes(template.content.childNodes, "html", buildTagMap(tools), defaultFormatMarkers());
+	const tagMap = buildTagMap(tools);
+
+	if (!paragraphs) return serializeInline(template.content.childNodes, "html", tagMap, defaultFormatMarkers());
+
+	return serializeParagraphs(template.content, "html", tagMap, defaultFormatMarkers()).replace(
+		/<p><\/p>/g,
+		"<p><br></p>"
+	);
 }
 
 // --- Переключение форматирования на выделении (Selection/Range API, без execCommand) ---
@@ -264,7 +323,8 @@ function locateChar(root: HTMLElement, target: number): { node: Text; offset: nu
 	return last ? { node: last, offset: last.length } : null;
 }
 
-function restoreSelection(root: HTMLElement, start: number, end: number, selection: Selection) {
+// Восстанавливает выделение по абсолютным текстовым смещениям (см. selectionCharBounds).
+export function restoreSelection(root: HTMLElement, start: number, end: number, selection: Selection) {
 	const s = locateChar(root, start);
 	const e = locateChar(root, end);
 	if (!s || !e) return;
@@ -543,4 +603,51 @@ export function normalizeWhitespace(root: HTMLElement) {
 	if (pendingSpaceNode) pendingSpaceNode.data = pendingSpaceNode.data.replace(/ $/, ""); // хвост последней строки
 
 	cleanupFormatting(root); // убрать опустевшие теги, склеить узлы
+}
+
+/**
+ * Нормализует верхний уровень редактора к абзацам <p>: блуждающие текст/инлайн оборачиваются в <p>,
+ * <div> заменяются на <p>, пустые абзацы получают <br>-заполнитель (чтобы строка была видимой).
+ */
+export function ensureParagraphs(root: HTMLElement) {
+	let run: ChildNode[] = [];
+
+	const flushRun = (before: Node | null) => {
+		if (!run.length) return;
+		const p = document.createElement("p");
+		for (const node of run) p.appendChild(node);
+		root.insertBefore(p, before);
+		run = [];
+	};
+
+	for (const node of Array.from(root.childNodes)) {
+		const el = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
+
+		if (el && (el.tagName === "P" || el.tagName === "DIV")) {
+			flushRun(node);
+			if (el.tagName === "DIV") {
+				const p = document.createElement("p");
+				while (el.firstChild) p.appendChild(el.firstChild);
+				root.replaceChild(p, el);
+			}
+		} else {
+			run.push(node);
+		}
+	}
+	flushRun(null);
+
+	for (const p of Array.from(root.querySelectorAll("p"))) {
+		if (!p.firstChild) {
+			p.appendChild(document.createElement("br")); // пустой абзац — заполнитель для видимости строки
+			continue;
+		}
+
+		// в непустом абзаце убираем краевые <br>-заполнители: иначе введённый текст
+		// оказывается рядом с лишним переносом (символ «съезжает» на новую строку).
+		// Внутренние <br> (мягкие переносы) сохраняются.
+		if ((p.textContent ?? "").length > 0) {
+			while (p.firstChild && p.firstChild.nodeName === "BR") p.removeChild(p.firstChild);
+			while (p.lastChild && p.lastChild.nodeName === "BR") p.removeChild(p.lastChild);
+		}
+	}
 }

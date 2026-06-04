@@ -212,6 +212,120 @@ describe("RichEditor formatting", () => {
 	});
 });
 
+describe("RichEditor paragraphs (multiline)", () => {
+	it("renders the value as <p> paragraphs", () => {
+		const editor = makeEditor({ format: false, multiline: true, value: "ab\n\ncd" });
+		expect(editor.editable.innerHTML).toBe("<p>ab</p><p>cd</p>");
+		expect(editor.getValue()).toBe("ab\n\ncd");
+	});
+
+	it("Enter splits the current paragraph into a new <p>", () => {
+		const editor = makeEditor({ format: false, multiline: true, value: "abcd" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 2);
+
+		editor.editable.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", cancelable: true, bubbles: true }));
+
+		expect(editor.editable.innerHTML).toBe("<p>ab</p><p>cd</p>");
+		expect(editor.getValue()).toBe("ab\n\ncd");
+	});
+
+	it("Enter on an empty editor creates a new line on the first press", () => {
+		const editor = makeEditor({ format: false, multiline: true });
+		caretAt(editor.editable, 0);
+
+		editor.editable.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", cancelable: true, bubbles: true }));
+
+		expect(editor.editable.innerHTML).toBe("<p><br></p><p><br></p>");
+	});
+
+	it("Enter with the caret at editor level appends a new paragraph (first press)", () => {
+		const editor = makeEditor({ format: false, multiline: true, value: "abcd" });
+		caretAt(editor.editable, 1); // на уровне редактора, после <p>
+
+		editor.editable.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", cancelable: true, bubbles: true }));
+
+		expect(editor.editable.innerHTML).toBe("<p>abcd</p><p><br></p>");
+	});
+
+	it("Enter at the end of a paragraph adds an empty <p> with placeholder and moves the caret", () => {
+		const editor = makeEditor({ format: false, multiline: true, value: "abcd" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 4); // конец "abcd"
+
+		editor.editable.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", cancelable: true, bubbles: true }));
+
+		expect(editor.editable.innerHTML).toBe("<p>abcd</p><p><br></p>"); // есть <br>, абзац не пустой <p></p>
+		const paras = editor.editable.querySelectorAll("p");
+		expect(window.getSelection()!.anchorNode).toBe(paras[1]); // каретка в новом абзаце (с первого раза)
+	});
+
+	it("Ctrl+Enter inserts a soft <br> within the paragraph", () => {
+		const editor = makeEditor({ format: false, multiline: true, value: "abcd" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 2);
+
+		editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, cancelable: true, bubbles: true })
+		);
+
+		expect(editor.editable.innerHTML).toBe("<p>ab<br>cd</p>");
+		expect(editor.getValue()).toBe("ab\ncd");
+	});
+
+	it("Shift+Enter inserts a soft <br> within the paragraph", () => {
+		const editor = makeEditor({ format: false, multiline: true, value: "abcd" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 2);
+
+		editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "Enter", shiftKey: true, cancelable: true, bubbles: true })
+		);
+
+		expect(editor.editable.innerHTML).toBe("<p>ab<br>cd</p>");
+		expect(editor.getValue()).toBe("ab\ncd");
+	});
+
+	it("removes the placeholder <br> once a paragraph has text (input)", () => {
+		const editor = makeEditor({ format: false, multiline: true });
+		editor.editable.innerHTML = "<p>a<br></p>"; // как после ввода первого символа в пустой абзац
+		editor.editable.dispatchEvent(new Event("input", { bubbles: true }));
+		expect(editor.editable.innerHTML).toBe("<p>a</p>");
+	});
+
+	it("keeps the caret after the typed character through normalization", () => {
+		const editor = makeEditor({ format: false, multiline: true });
+		editor.editable.innerHTML = "<p>a<br></p>"; // символ + <br>-заполнитель
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		const r = document.createRange();
+		r.setStart(editor.editable.querySelector("p")!.firstChild!, 1);
+		r.collapse(true);
+		sel.addRange(r);
+
+		editor.editable.dispatchEvent(new Event("input", { bubbles: true }));
+
+		expect(editor.editable.innerHTML).toBe("<p>a</p>");
+		// каретка осталась после "a" (а не сброшена в начало — иначе ввод шёл бы в обратном порядке)
+		expect(sel.anchorNode).toBe(editor.editable.querySelector("p")!.firstChild);
+		expect(sel.anchorOffset).toBe(1);
+	});
+
+	it("keeps inner soft breaks when stripping edge placeholders", () => {
+		const editor = makeEditor({ format: false, multiline: true });
+		editor.editable.innerHTML = "<p>a<br>b<br></p>";
+		editor.editable.dispatchEvent(new Event("input", { bubbles: true }));
+		expect(editor.editable.innerHTML).toBe("<p>a<br>b</p>");
+	});
+
+	it("Enter does not split in single-line mode (calls onEnter)", () => {
+		const onEnter = jest.fn();
+		const editor = makeEditor({ format: false, multiline: false, value: "ab", onEnter });
+		caretAt(editor.editable.firstChild!, 1);
+
+		editor.editable.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", cancelable: true, bubbles: true }));
+
+		expect(onEnter).toHaveBeenCalled();
+		expect(editor.editable.querySelector("p")).toBeNull(); // без абзацев
+	});
+});
+
 describe("RichEditor readonly", () => {
 	it("blocks any editing via beforeinput", () => {
 		const editor = makeEditor({ readonly: true, value: "abc" });
