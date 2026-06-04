@@ -257,7 +257,7 @@ describe("TextBox formatting", () => {
 		caret.collapse(true);
 		sel.addRange(caret);
 
-		(tb as unknown as { __expandSelectionToWords(s: Selection): void }).__expandSelectionToWords(sel);
+		(tb.editor as unknown as { __expandSelectionToWords(s: Selection): void }).__expandSelectionToWords(sel);
 
 		expect(window.getSelection()!.toString()).toBe("bar");
 	});
@@ -275,7 +275,7 @@ describe("TextBox formatting", () => {
 		range.setEnd(textNode, 3);
 		sel.addRange(range);
 
-		(tb as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
+		(tb.editor as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
 
 		expect(editor.innerHTML).toBe("<b>barbaz</b>");
 		expect(tb.getValue()).toBe("<b>barbaz</b>");
@@ -294,7 +294,7 @@ describe("TextBox formatting", () => {
 		range.setEnd(textNode, 3);
 		sel.addRange(range);
 
-		(tb as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
+		(tb.editor as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
 
 		// слово отформатировано целиком, но выделение осталось исходным — "bar"
 		expect(editor.innerHTML).toBe("<b>barbaz</b>");
@@ -314,7 +314,7 @@ describe("TextBox formatting", () => {
 		caret.collapse(true);
 		sel.addRange(caret);
 
-		(tb as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
+		(tb.editor as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
 
 		expect(editor.innerHTML).toBe("<b>barbaz</b>");
 		expect(window.getSelection()!.isCollapsed).toBe(true);
@@ -333,7 +333,7 @@ describe("TextBox formatting", () => {
 		range.setEnd(textNode, 6);
 		sel.addRange(range);
 
-		(tb as unknown as { __expandSelectionToWords(s: Selection): void }).__expandSelectionToWords(sel);
+		(tb.editor as unknown as { __expandSelectionToWords(s: Selection): void }).__expandSelectionToWords(sel);
 
 		expect(window.getSelection()!.toString()).toBe("foo bar");
 	});
@@ -353,7 +353,7 @@ describe("TextBox formatting", () => {
 		const editor = tb.element!.querySelector(".input")! as HTMLElement;
 		caretAt(editor, 0);
 
-		(tb as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
+		(tb.editor as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
 
 		// текст не изменился, но кнопка активна (режим набора)
 		expect(editor.textContent).toBe("");
@@ -368,7 +368,7 @@ describe("TextBox formatting", () => {
 		editor.textContent = "a  b";
 		caretAt(editor.firstChild!, 2);
 
-		(tb as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
+		(tb.editor as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
 
 		expect(editor.textContent).toBe("a  b");
 		const btn = tb.element!.querySelector('.format-button[data-format-tool="bold"]')!;
@@ -380,7 +380,7 @@ describe("TextBox formatting", () => {
 		const editor = tb.element!.querySelector(".input")! as HTMLElement;
 		caretAt(editor, 0);
 
-		(tb as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
+		(tb.editor as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
 
 		editor.dispatchEvent(
 			new InputEvent("beforeinput", { inputType: "insertText", data: "x", cancelable: true, bubbles: true })
@@ -396,7 +396,7 @@ describe("TextBox formatting", () => {
 		const btn = tb.element!.querySelector('.format-button[data-format-tool="bold"]')!;
 		caretAt(editor, 0);
 
-		const apply = (tb as unknown as { __applyFormat(tool: string): void }).__applyFormat.bind(tb);
+		const apply = (tb.editor as unknown as { __applyFormat(tool: string): void }).__applyFormat.bind(tb.editor);
 		apply("bold");
 		expect(btn.classList.contains("active")).toBe(true);
 		apply("bold");
@@ -409,7 +409,7 @@ describe("TextBox formatting", () => {
 		const btn = tb.element!.querySelector('.format-button[data-format-tool="bold"]')!;
 		caretAt(editor, 0);
 
-		(tb as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
+		(tb.editor as unknown as { __applyFormat(tool: string): void }).__applyFormat("bold");
 		expect(btn.classList.contains("active")).toBe(true);
 
 		editor.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
@@ -431,7 +431,7 @@ describe("TextBox formatting", () => {
 		caret.collapse(true);
 		sel.addRange(caret);
 
-		(tb as unknown as { __expandSelectionToWords(s: Selection): void }).__expandSelectionToWords(sel);
+		(tb.editor as unknown as { __expandSelectionToWords(s: Selection): void }).__expandSelectionToWords(sel);
 
 		expect(window.getSelection()!.isCollapsed).toBe(true);
 	});

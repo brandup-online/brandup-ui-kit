@@ -8,7 +8,7 @@ import {
 	deserialize,
 	defaultFormatMarkers,
 	normalizeWhitespace,
-} from "../npm/brandup-ui-textbox/source/format";
+} from "../npm/brandup-ui-richeditor/source/format";
 
 function makeRoot(html: string): HTMLElement {
 	document.body.innerHTML = "";

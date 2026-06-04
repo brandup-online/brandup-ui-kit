@@ -1,5 +1,7 @@
 export { default } from "./textbox";
 export * from "./textbox";
+
+// реэкспорт типов/утилит форматирования из @brandup/ui-richeditor для обратной совместимости
 export {
 	ALL_FORMAT_TOOLS,
 	FORMAT_TOOLS,
@@ -9,4 +11,4 @@ export {
 	type FormatTool,
 	type FormatStorage,
 	type FormatMarkers,
-} from "./format";
+} from "@brandup/ui-richeditor";

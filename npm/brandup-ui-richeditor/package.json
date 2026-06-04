@@ -1,17 +1,20 @@
 {
-	"name": "@brandup/ui-textbox",
-	"description": "Textbox control type and styles.",
+	"name": "@brandup/ui-richeditor",
+	"description": "Rich text editor over a contenteditable element (bold, italic, strike, underline).",
 	"keywords": [
 		"brandup",
 		"javascript",
 		"typescript",
-		"ui"
+		"ui",
+		"editor",
+		"richtext",
+		"contenteditable"
 	],
 	"author": {
 		"name": "Dmitry Kovyazin",
 		"email": "it@brandup.online"
 	},
-	"homepage": "https://github.com/brandup-online/brandup-ui-kit/npm/brandup-ui-textbox",
+	"homepage": "https://github.com/brandup-online/brandup-ui-kit/npm/brandup-ui-richeditor",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/brandup-online/brandup-ui-kit.git"
@@ -25,11 +28,7 @@
 	"main": "source/index.ts",
 	"types": "source/index.ts",
 	"dependencies": {
-		"@brandup/ui": "^2.0.3",
-		"@brandup/ui-helpers": "^2.0.3",
-		"@brandup/ui-input": "file:../brandup-ui-input",
-		"@brandup/ui-kit": "file:../brandup-ui-kit",
-		"@brandup/ui-richeditor": "file:../brandup-ui-richeditor"
+		"@brandup/ui": "^2.0.3"
 	},
 	"devDependencies": {
 		"less": "^4.6.4",

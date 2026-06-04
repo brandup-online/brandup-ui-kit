@@ -1,0 +1,116 @@
+// Стили RichEditor: редактируемая область, отображение тегов форматирования
+// и плавающая панель инструментов (появляется в фокусе).
+// CSS-переменные --input-* предоставляет @brandup/ui-kit; заданы fallback'и для standalone-использования.
+
+.ui-richeditor {
+	position: relative;
+	display: block;
+	box-sizing: border-box;
+
+	--svg-size: 18px;
+	--svg-fill: var(--input-color, #222);
+
+	& > .ui-richeditor-input {
+		appearance: none;
+		position: relative;
+		box-sizing: border-box;
+		outline: none;
+		word-wrap: anywhere;
+		white-space: pre-wrap; // сохраняем пробелы (в т.ч. ведущие/повторяющиеся)
+
+		// видимые теги форматирования
+		& b,
+		& strong {
+			font-weight: 700;
+		}
+		& i,
+		& em {
+			font-style: italic;
+		}
+		& s,
+		& strike,
+		& del {
+			text-decoration: line-through;
+		}
+		& u,
+		& ins {
+			text-decoration: underline;
+		}
+
+		&:empty:after {
+			content: attr(data-placeholder);
+			display: block;
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			color: var(--placeholder-color, #999);
+			font-weight: var(--placeholder-font-weight, inherit);
+			font-style: var(--placeholder-font-style, inherit);
+			box-sizing: border-box;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			pointer-events: none;
+		}
+	}
+
+	// панель форматирования — плавающая, появляется в фокусе
+	& .format-toolbar {
+		display: none;
+		position: absolute;
+		left: 0;
+		bottom: 100%;
+		margin-bottom: 6px;
+		z-index: 10;
+		flex-flow: row nowrap;
+		align-items: center;
+		gap: 2px;
+		padding: 3px;
+		background-color: var(--input-fill, #fff);
+		border: var(--input-border-type, solid) var(--input-border-width, 1px) var(--input-border-color, #aaa);
+		border-radius: var(--input-border-radius, 0);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+		& .format-button {
+			width: calc(var(--input-height, 46px) - 12px);
+			height: calc(var(--input-height, 46px) - 12px);
+			border-radius: calc(var(--input-border-radius, 0) - 2px);
+			border: 0;
+			background: var(--input-toolbar-button-fill, transparent);
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+
+			& svg {
+				width: var(--svg-size, 18px);
+				height: var(--svg-size, 18px);
+				fill: var(--svg-fill, currentColor);
+				pointer-events: none;
+			}
+
+			&:hover {
+				background-color: var(--hover--input-toolbar-button-fill, rgba(0, 0, 0, 0.06));
+			}
+
+			&.active {
+				background-color: var(--hover--input-toolbar-button-fill, rgba(0, 0, 0, 0.12));
+			}
+		}
+	}
+
+	&.focused .format-toolbar {
+		display: flex;
+	}
+
+	&.multiline > .ui-richeditor-input:empty:after {
+		white-space: normal;
+		text-overflow: unset;
+	}
+
+	&.disabled > .ui-richeditor-input {
+		user-select: none;
+		cursor: default;
+	}
+}
