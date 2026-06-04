@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import RichEditor, { ROOT_CLASS, EDITABLE_CLASS, TOOLBAR_CLASS } from "../npm/brandup-ui-richeditor/source/richeditor";
+import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS } from "../npm/brandup-ui-richeditor/source/richeditor";
 
 type Opts = ConstructorParameters<typeof RichEditor>[1];
 
@@ -40,12 +40,11 @@ const toolbarButton = (tool: string) =>
 	document.querySelector(`.${TOOLBAR_CLASS} .format-button[data-format-tool="${tool}"]`);
 
 describe("RichEditor structure", () => {
-	it("wraps the element and makes it editable", () => {
+	it("makes the passed element itself the editable (no wrapper)", () => {
 		const editor = makeEditor();
+		expect(editor.editable).toBe(editor.element); // элемент и редактор объединены
 		expect(editor.element.classList.contains(ROOT_CLASS)).toBe(true);
-		expect(editor.editable.classList.contains(EDITABLE_CLASS)).toBe(true);
 		expect(editor.editable.contentEditable).toBe("true");
-		expect(editor.element.contains(editor.editable)).toBe(true);
 	});
 
 	it("shows the shared toolbar (in body) with all tools on focus", () => {
@@ -64,6 +63,21 @@ describe("RichEditor structure", () => {
 		expect(toolbarButtons()).toHaveLength(2);
 	});
 
+	it("mounts the toolbar inside a provided container (.in-container)", () => {
+		document.body.innerHTML = "";
+		const container = document.createElement("div");
+		const div = document.createElement("div");
+		container.appendChild(div);
+		document.body.appendChild(container);
+
+		const editor = new RichEditor(div, { format: true, tools: ["bold"], toolbarContainer: container });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		const toolbar = container.querySelector(`.${TOOLBAR_CLASS}`)!;
+		expect(toolbar.parentElement).toBe(container);
+		expect(toolbar.classList.contains("in-container")).toBe(true);
+	});
+
 	it("does not show the toolbar without format", () => {
 		const editor = makeEditor({ format: false });
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
@@ -71,16 +85,15 @@ describe("RichEditor structure", () => {
 		expect(document.querySelector(`.${TOOLBAR_CLASS}.visible`)).toBeNull();
 	});
 
-	it("destroy() unwraps the element and keeps it in the DOM", () => {
+	it("destroy() keeps the host element in the DOM and strips editor styling", () => {
 		const editor = makeEditor();
 		const editable = editor.editable;
-		const wrapper = editor.element;
 
 		editor.destroy();
 
-		expect(wrapper.isConnected).toBe(false);
 		expect(editable.isConnected).toBe(true);
-		expect(editable.classList.contains(EDITABLE_CLASS)).toBe(false);
+		expect(editable.classList.contains(ROOT_CLASS)).toBe(false);
+		expect(editable.getAttribute("contenteditable")).toBeNull();
 	});
 });
 
@@ -196,5 +209,37 @@ describe("RichEditor formatting", () => {
 		(toolbarButton("bold") as HTMLElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
 		expect(editor.editable.innerHTML).toBe("<b>barbaz</b>");
+	});
+});
+
+describe("RichEditor readonly", () => {
+	it("blocks any editing via beforeinput", () => {
+		const editor = makeEditor({ readonly: true, value: "abc" });
+		expect(editor.readonly).toBe(true);
+
+		const e = new InputEvent("beforeinput", {
+			inputType: "insertText",
+			data: "x",
+			cancelable: true,
+			bubbles: true,
+		});
+		editor.editable.dispatchEvent(e);
+
+		expect(e.defaultPrevented).toBe(true);
+		expect(editor.getValue()).toBe("abc");
+	});
+
+	it("does not enable formatting or show a toolbar in readonly", () => {
+		const editor = makeEditor({ readonly: true });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		expect(editor.formatTools).toHaveLength(0);
+		expect(document.querySelector(`.${TOOLBAR_CLASS}.visible`)).toBeNull();
+	});
+
+	it("stays selectable/copyable (contenteditable remains)", () => {
+		const editor = makeEditor({ readonly: true, value: "abc" });
+		expect(editor.editable.contentEditable).toBe("true");
+		expect(editor.editable.classList.contains("readonly")).toBe(true);
 	});
 });

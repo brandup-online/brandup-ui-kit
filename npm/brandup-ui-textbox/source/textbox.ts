@@ -159,7 +159,8 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		this.__inputElem = inputElem;
 		this.__symbolsCountElem = symbolsCountElem;
 
-		// фильтрация ввода по типу и обработка submit/ошибок — через хуки RichEditor
+		// фильтрация ввода по типу, ограничение длины и обработка submit/ошибок — через хуки RichEditor
+		// (RichEditor про maxlength/типы не знает; всё это контролирует TextBox)
 		const options: RichEditorOptions = {
 			format,
 			tools: formatTools,
@@ -168,24 +169,54 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			placeholder,
 			multiline: multyline,
 			readonly,
-			disabled,
-			maxLength: maxlength,
+			// тулбар позиционируется относительно контейнера TextBox (а не document.body)
+			toolbarContainer: container,
 			value: valueElem.value,
 			onReject: () => this.__toIncorrect(),
 			onEnter: () => this.__submitForm(),
 		};
 
-		if (type === "number") {
-			options.filterChar = (char) => /\d/.test(char);
-			options.filterPaste = (text) => {
-				const numberData = /[\d\s]+/.exec(text);
-				return numberData && numberData.length ? numberData[0].replace(/\s/g, "") : null;
+		// допустим ли вводимый символ по типу
+		const typeAllowsChar = (char: string) => {
+			if (type === "number") return /\d/.test(char);
+			if (type === "email") return /[a-zA-Z\d.\-_@]/.test(char);
+			return true;
+		};
+
+		if (type === "number" || type === "email" || maxlength > 0) {
+			options.filterChar = (char) => {
+				// достигнут лимит длины — отклоняем
+				if (maxlength > 0 && this.__editor.getLength() >= maxlength) return false;
+				return typeAllowsChar(char);
 			};
-		} else if (type === "email") {
-			options.filterChar = (char) => /[a-zA-Z\d.\-_@]/.test(char);
+		}
+
+		if (type === "number" || maxlength > 0) {
+			options.filterPaste = (text) => {
+				let pasted = text;
+
+				if (type === "number") {
+					const numberData = /[\d\s]+/.exec(pasted);
+					if (!numberData || !numberData.length) return null;
+					pasted = numberData[0].replace(/\s/g, "");
+				}
+
+				// обрезаем по количеству оставшихся символов (с учётом замены выделения)
+				if (maxlength > 0) {
+					const selectionLength = window.getSelection()?.toString().length ?? 0;
+					const left = maxlength - this.__editor.getLength() + selectionLength;
+					if (pasted.length > left) pasted = pasted.substring(0, Math.max(0, left));
+				}
+
+				return pasted;
+			};
 		}
 
 		this.__editor = new RichEditor(inputElem, options);
+
+		// RichEditor не знает про disabled — отключаем редактирование на стороне TextBox
+		// (визуал даёт класс .disabled от InputControl: затемнение, user-select: none)
+		if (disabled) inputElem.contentEditable = "false";
 
 		// синхронизируем скрытое поле с нормализованным содержимым редактора (без события)
 		this.__valueElem.value = this.__editor.getValue();

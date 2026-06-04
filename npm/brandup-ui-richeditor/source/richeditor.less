@@ -2,69 +2,60 @@
 // и общий тулбар форматирования (живёт в document.body, см. ./toolbar).
 // CSS-переменные --input-* предоставляет @brandup/ui-kit; заданы fallback'и для standalone-использования.
 
+// .ui-richeditor — это сам редактируемый элемент (обёртки нет, тулбар общий в body)
 .ui-richeditor {
+	appearance: none;
 	position: relative;
-	display: block;
 	box-sizing: border-box;
+	outline: none;
+	word-wrap: anywhere;
+	white-space: pre-wrap; // сохраняем пробелы (в т.ч. ведущие/повторяющиеся)
 
-	& > .ui-richeditor-input {
-		appearance: none;
-		position: relative;
-		box-sizing: border-box;
-		outline: none;
-		word-wrap: anywhere;
-		white-space: pre-wrap; // сохраняем пробелы (в т.ч. ведущие/повторяющиеся)
-
-		// видимые теги форматирования
-		& b,
-		& strong {
-			font-weight: 700;
-		}
-		& i,
-		& em {
-			font-style: italic;
-		}
-		& s,
-		& strike,
-		& del {
-			text-decoration: line-through;
-		}
-		& u,
-		& ins {
-			text-decoration: underline;
-		}
-
-		&:empty:after {
-			content: attr(data-placeholder);
-			display: block;
-			position: absolute;
-			left: 0;
-			top: 0;
-			right: 0;
-			color: var(--placeholder-color, #999);
-			font-weight: var(--placeholder-font-weight, inherit);
-			font-style: var(--placeholder-font-style, inherit);
-			box-sizing: border-box;
-			overflow: hidden;
-			white-space: nowrap;
-			text-overflow: ellipsis;
-			pointer-events: none;
-		}
+	// видимые теги форматирования
+	& b,
+	& strong {
+		font-weight: 700;
+	}
+	& i,
+	& em {
+		font-style: italic;
+	}
+	& s,
+	& strike,
+	& del {
+		text-decoration: line-through;
+	}
+	& u,
+	& ins {
+		text-decoration: underline;
 	}
 
-	&.multiline > .ui-richeditor-input:empty:after {
+	&:empty:after {
+		content: attr(data-placeholder);
+		display: block;
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		color: var(--placeholder-color, #999);
+		font-weight: var(--placeholder-font-weight, inherit);
+		font-style: var(--placeholder-font-style, inherit);
+		box-sizing: border-box;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+		pointer-events: none;
+	}
+
+	&.multiline:empty:after {
 		white-space: normal;
 		text-overflow: unset;
 	}
-
-	&.disabled > .ui-richeditor-input {
-		user-select: none;
-		cursor: default;
-	}
 }
 
-// общий тулбар форматирования — единый для всех редакторов, в document.body,
-// позиционируется над активным редактором (координаты задаёт ./toolbar)
+// общий тулбар форматирования — единый для всех редакторов.
+// По умолчанию в document.body (position: fixed, координаты задаёт ./toolbar);
+// с классом .in-container — позиционируется над контейнером-родителем (position: absolute).
 .ui-richeditor-toolbar {
 	display: none;
 	position: fixed;
@@ -83,6 +74,14 @@
 
 	&.visible {
 		display: flex;
+	}
+
+	// позиционирование относительно контейнера-родителя (например, .ui-textbox)
+	&.in-container {
+		position: absolute;
+		left: 0;
+		bottom: 100%;
+		margin-bottom: 6px;
 	}
 
 	& .format-button {

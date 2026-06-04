@@ -168,8 +168,7 @@ describe("DropDown", () => {
 		const opts: Array<[string, string]> = [];
 		// 20 items, two starting with "Р", rest with other letters — search uses textContent
 		const labels = ["Россия", "Казахстан", "Беларусь", "Узбекистан", "Чехия", "Абхазия", "Польша", "Латвия"];
-		for (let i = 0; i < 3; i++)
-			for (const t of labels) opts.push([`${i}-${t}`, t]);
+		for (let i = 0; i < 3; i++) for (const t of labels) opts.push([`${i}-${t}`, t]);
 		document.body.innerHTML = "";
 		const select = document.createElement("select");
 		for (const [v, t] of opts) {
@@ -216,11 +215,15 @@ describe("DropDown", () => {
 
 		searchInput.value = "a";
 		searchInput.dispatchEvent(new Event("input"));
-		expect([...dd.element!.querySelectorAll("ul li.ok")].map((li) => li.querySelector("span")?.textContent)).toEqual(["Apple"]);
+		expect(
+			[...dd.element!.querySelectorAll("ul li.ok")].map((li) => li.querySelector("span")?.textContent)
+		).toEqual(["Apple"]);
 
 		searchInput.value = "b";
 		searchInput.dispatchEvent(new Event("input"));
-		expect([...dd.element!.querySelectorAll("ul li.ok")].map((li) => li.querySelector("span")?.textContent)).toEqual(["Banana"]);
+		expect(
+			[...dd.element!.querySelectorAll("ul li.ok")].map((li) => li.querySelector("span")?.textContent)
+		).toEqual(["Banana"]);
 	});
 
 	it("destroy() removes the container and restores the original select to the DOM", () => {

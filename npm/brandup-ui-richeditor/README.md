@@ -33,7 +33,9 @@ editor.onChange(({ value }) => console.log(value));
 
 ### Панель форматирования
 
-Панель — **общая для всех редакторов** (`div.ui-richeditor-toolbar` в `document.body`). При фокусе редактора она перестраивается под его инструменты, позиционируется над ним и показывается; при потере фокуса — скрывается. Размещение в `body` (а не внутри редактора) защищает панель от обрезки `overflow: hidden` у родительских контейнеров. Кнопки диспатчат форматирование напрямую активному редактору.
+Панель — **общая для всех редакторов** (`div.ui-richeditor-toolbar`). При фокусе редактора она перестраивается под его инструменты, позиционируется над ним и показывается; при потере фокуса — скрывается. Кнопки диспатчат форматирование напрямую активному редактору.
+
+По умолчанию панель живёт в `document.body` (`position: fixed`) — это защищает её от обрезки `overflow: hidden` у родителей. Если задан `toolbarContainer`, панель монтируется в него и позиционируется относительно него (`position: absolute`, над контейнером) — например, `TextBox` передаёт свой контейнер `.ui-textbox`.
 
 ## Опции (`RichEditorOptions`)
 
@@ -45,8 +47,8 @@ editor.onChange(({ value }) => console.log(value));
 | `markers` | `Partial<FormatMarkers>` | Переопределение markdown-маркеров по инструментам |
 | `placeholder` | `string \| null` | Текст-заглушка |
 | `multiline` | `boolean` | Многострочный режим |
-| `readonly` / `disabled` | `boolean` | Режимы только для чтения / отключения |
-| `maxLength` | `number` | Ограничение длины (0 — без ограничения) |
+| `readonly` | `boolean` | Только для чтения — запрещает ввод и изменение текста (выделение и копирование остаются) |
+| `toolbarContainer` | `HTMLElement \| null` | Контейнер для панели; по умолчанию `document.body` (`position: fixed`). Если задан — панель монтируется в него и позиционируется над ним (`position: absolute`). Контейнер должен быть `position: relative` |
 | `value` | `string` | Начальное значение |
 | `filterChar` | `(char) => boolean` | Хук: `false` — отклонить вводимый символ |
 | `filterPaste` | `(text) => string \| null` | Хук: `null` — отклонить вставку; иначе очищенный текст |
@@ -60,7 +62,7 @@ editor.onChange(({ value }) => console.log(value));
 | Член | Описание |
 |---|---|
 | `editable` | Редактируемый элемент |
-| `format`, `formatTools`, `formatStorage`, `formatMarkers`, `multiline`, `maxLength` | Параметры экземпляра |
+| `format`, `formatTools`, `formatStorage`, `formatMarkers`, `multiline` | Параметры экземпляра |
 | `getValue(): string` | Сериализованное значение (по `storage`) |
 | `setValue(value: string): void` | Установить значение (нормализует, генерирует `change`) |
 | `getLength(): number` | Длина текста (без учёта переводов строк) |
