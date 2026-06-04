@@ -52,7 +52,7 @@ stages:
                   displayName: "npm install"
                   inputs:
                       command: "custom"
-                      customCommand: "run i --nofix"
+                      customCommand: "run i"
 
                 - task: "Npm@1"
                   displayName: "packages npm build"
