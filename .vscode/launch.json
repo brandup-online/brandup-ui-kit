@@ -27,6 +27,27 @@
 				"uriFormat": "https://localhost:%s",
 				"action": "openExternally"
 			}
+		},
+		{
+			"name": "Example: dev-server (live reload)",
+			"type": "node-terminal",
+			"request": "launch",
+			"cwd": "${workspaceFolder}/npm/brandup-ui-example",
+			"command": "npm run dev-server"
+		},
+		{
+			"name": "Example: API (no browser)",
+			"type": "node-terminal",
+			"request": "launch",
+			"cwd": "${workspaceFolder}/npm/brandup-ui-example",
+			"command": "npm run start"
+		}
+	],
+	"compounds": [
+		{
+			"name": "Example: watch + live reload",
+			"configurations": ["Example: API (no browser)", "Example: dev-server (live reload)"],
+			"stopAll": true
 		}
 	]
 }

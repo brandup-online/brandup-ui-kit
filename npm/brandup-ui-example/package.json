@@ -40,13 +40,15 @@
 		"typescript": "^6.0.3",
 		"url-loader": "^4.1.1",
 		"webpack": "^5.107.2",
-		"webpack-cli": "^7.0.3"
+		"webpack-cli": "^7.0.3",
+		"webpack-dev-server": "^5.2.4"
 	},
 	"scripts": {
 		"setup-cert": "node ./scripts/generate-cert.cjs",
 		"build": "tsc -p tsconfig.backend.json && cross-env NODE_ENV=production webpack --config webpack.config.js",
 		"dev-build": "cross-env NODE_ENV=development webpack --config webpack.config.js",
 		"watch": "cross-env NODE_ENV=development webpack --config webpack.config.js --watch",
+		"dev-server": "cross-env NODE_ENV=development webpack serve --config webpack.config.js",
 		"prestart": "npm run setup-cert",
 		"start": "node ./server/program.js --port=8316",
 		"serve": "npm run build && npm run start"
