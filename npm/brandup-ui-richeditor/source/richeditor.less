@@ -11,6 +11,20 @@
 	word-wrap: anywhere;
 	white-space: pre-wrap; // сохраняем пробелы (в т.ч. ведущие/повторяющиеся)
 
+	// абзацы — без user-agent-полей, иначе первый <p> «съезжает» вниз (как новая строка)
+	& p {
+		margin: 0;
+		padding: 5px 0;
+
+		&:first-child {
+			padding-top: 0;
+		}
+
+		&:last-child {
+			padding-bottom: 0;
+		}
+	}
+
 	// видимые теги форматирования
 	& b,
 	& strong {
