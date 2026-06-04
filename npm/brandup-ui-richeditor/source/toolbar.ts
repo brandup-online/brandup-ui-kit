@@ -1,5 +1,7 @@
 // Общий (единый для всех редакторов) тулбар форматирования.
-// Размещается в document.body, позиционируется над активным редактором.
+// По умолчанию живёт в document.body и позиционируется над активным редактором (position: fixed).
+// Если редактор задал toolbarContainer — панель монтируется в него и позиционируется
+// относительно него (position: absolute; над контейнером).
 // Кнопки диспатчат форматирование напрямую активному редактору (без системы команд,
 // т.к. тулбар находится вне привязанных UIElement).
 
@@ -23,6 +25,8 @@ export const TOOLBAR_CLASS = "ui-richeditor-toolbar";
 export interface ToolbarHost {
 	readonly editable: HTMLElement;
 	readonly formatTools: FormatTool[];
+	/** Контейнер для тулбара; null/undefined — document.body (position: fixed над редактором). */
+	readonly toolbarContainer?: HTMLElement | null;
 	applyFormat(tool: FormatTool): void;
 	isToolActive(tool: FormatTool): boolean;
 }
@@ -34,6 +38,7 @@ class FormatToolbar {
 	private __buttons: Array<[FormatTool, HTMLButtonElement]> = [];
 	private __active: ToolbarHost | null = null;
 	private __toolsKey = "";
+	private __inContainer = false;
 	private readonly __reposition = () => this.reposition();
 
 	/** Показать тулбар для редактора (на фокусе): перестроить кнопки, спозиционировать, показать. */
@@ -45,11 +50,24 @@ class FormatToolbar {
 		this.refresh();
 
 		const elem = this.__ensure();
-		elem.classList.add("visible");
-		window.addEventListener("scroll", this.__reposition, true);
-		window.addEventListener("resize", this.__reposition);
+		const container = host.toolbarContainer ?? document.body;
+		this.__inContainer = container !== document.body;
 
-		this.reposition();
+		if (elem.parentElement !== container) container.appendChild(elem);
+		elem.classList.toggle("in-container", this.__inContainer);
+		elem.classList.add("visible");
+
+		if (this.__inContainer) {
+			// позиционирование задаёт CSS (absolute; bottom: 100% относительно контейнера) — JS не нужен;
+			// сбрасываем inline-координаты от предыдущего body-режима, чтобы не перекрывали CSS
+			elem.style.left = "";
+			elem.style.top = "";
+			this.__removeViewportListeners();
+		} else {
+			window.addEventListener("scroll", this.__reposition, { passive: true });
+			window.addEventListener("resize", this.__reposition, { passive: true });
+			this.reposition();
+		}
 	}
 
 	/** Скрыть тулбар, если он обслуживает этот редактор (на blur/destroy). */
@@ -58,8 +76,7 @@ class FormatToolbar {
 
 		this.__active = null;
 		if (this.__elem) this.__elem.classList.remove("visible");
-		window.removeEventListener("scroll", this.__reposition, true);
-		window.removeEventListener("resize", this.__reposition);
+		this.__removeViewportListeners();
 	}
 
 	/** Обновить подсветку активных инструментов по текущему выделению. */
@@ -68,9 +85,9 @@ class FormatToolbar {
 		for (const [tool, btn] of this.__buttons) btn.classList.toggle("active", this.__active.isToolActive(tool));
 	}
 
-	/** Пересчитать позицию над активным редактором. */
+	/** Пересчитать позицию над активным редактором (только для режима body/fixed). */
 	reposition() {
-		if (!this.__active || !this.__elem) return;
+		if (!this.__active || !this.__elem || this.__inContainer) return;
 
 		const rect = this.__active.editable.getBoundingClientRect();
 		const elem = this.__elem;
@@ -79,17 +96,13 @@ class FormatToolbar {
 		elem.style.top = `${Math.max(4, top)}px`;
 	}
 
+	private __removeViewportListeners() {
+		window.removeEventListener("scroll", this.__reposition, true);
+		window.removeEventListener("resize", this.__reposition);
+	}
+
 	private __ensure(): HTMLElement {
-		if (this.__elem && this.__elem.isConnected) return this.__elem;
-
-		if (this.__elem) {
-			// узел был откреплён (например, очисткой body) — возвращаем обратно
-			document.body.appendChild(this.__elem);
-			return this.__elem;
-		}
-
-		this.__elem = DOM.tag("div", { class: TOOLBAR_CLASS });
-		document.body.appendChild(this.__elem);
+		if (!this.__elem) this.__elem = DOM.tag("div", { class: TOOLBAR_CLASS });
 		return this.__elem;
 	}
 

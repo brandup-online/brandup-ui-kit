@@ -50,6 +50,7 @@
 		margin-right: 5px;
 		padding-right: calc(var(--input-padding-lr) - 5px);
 		scrollbar-width: 6px;
+		overflow-y: auto;
 
 		&::-webkit-scrollbar {
 			width: 6px;
@@ -76,12 +77,8 @@
 		min-width: 0;
 	}
 
-	& .ui-richeditor-input {
-		overflow-y: auto;
-	}
-
 	// скрываем счётчик, пока редактор пуст (показан placeholder)
-	& .editor:has(.ui-richeditor-input:empty) .symbols {
+	& .editor:has(.ui-richeditor:empty) .symbols {
 		display: none;
 	}
 

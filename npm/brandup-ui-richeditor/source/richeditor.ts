@@ -20,8 +20,7 @@ import { formatToolbar } from "./toolbar";
 
 export { TOOLBAR_CLASS, formatToolbar, type ToolbarHost } from "./toolbar";
 
-export const ROOT_CLASS = "ui-richeditor"; // обёртка, к которой привязан UIElement
-export const EDITABLE_CLASS = "ui-richeditor-input"; // редактируемый элемент
+export const ROOT_CLASS = "ui-richeditor"; // редактируемый элемент, к нему привязан UIElement
 export const CHANGE_EVENT = "richeditor-change";
 
 const NAV_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Escape"];
@@ -39,10 +38,10 @@ export interface RichEditorOptions {
 	placeholder?: string | null;
 	/** Многострочный режим. */
 	multiline?: boolean;
+	/** Только для чтения — запрещает ввод и изменение текста (но не выделение/копирование). */
 	readonly?: boolean;
-	disabled?: boolean;
-	/** Ограничение длины (0 — без ограничения). */
-	maxLength?: number;
+	/** Контейнер для панели форматирования; по умолчанию document.body (position: fixed над редактором). */
+	toolbarContainer?: HTMLElement | null;
 	/** Начальное значение. */
 	value?: string;
 
@@ -73,7 +72,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	readonly formatStorage: FormatStorage;
 	readonly formatMarkers: FormatMarkers;
 	readonly multiline: boolean;
-	readonly maxLength: number;
+	readonly toolbarContainer: HTMLElement | null;
 
 	private __opts: RichEditorOptions;
 	private __abort = new AbortController();
@@ -84,19 +83,14 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const format = !!options.format;
 		const multiline = !!options.multiline;
 		const readonly = !!options.readonly;
-		const disabled = !!options.disabled;
-		// форматирование доступно только если редактор не readonly/disabled
-		const tools = format && !disabled && !readonly ? (options.tools ?? ALL_FORMAT_TOOLS.slice()) : [];
+		// форматирование недоступно в режиме только для чтения
+		const tools = format && !readonly ? (options.tools ?? ALL_FORMAT_TOOLS.slice()) : [];
 
-		// обёртка-контейнер (тулбар общий и живёт в body, см. ./toolbar)
-		const wrapper = DOM.tag("div", { class: ROOT_CLASS });
+		// тулбар общий и живёт в body (см. ./toolbar), поэтому обёртка не нужна —
+		// привязываем UIElement прямо к переданному элементу, он же и редактируемый
+		editable.classList.add(ROOT_CLASS);
 
-		// вставляем обёртку на место элемента и переносим элемент внутрь
-		editable.parentNode?.insertBefore(wrapper, editable);
-		wrapper.insertAdjacentElement("afterbegin", editable);
-		editable.classList.add(EDITABLE_CLASS);
-
-		super("BrandUp.RichEditor", wrapper);
+		super("BrandUp.RichEditor", editable);
 
 		this.editable = editable;
 		this.__opts = options;
@@ -105,15 +99,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.formatStorage = options.storage === "markdown" ? "markdown" : "html";
 		this.formatMarkers = Object.assign(defaultFormatMarkers(), options.markers);
 		this.multiline = multiline;
-		this.maxLength = options.maxLength && options.maxLength > 0 ? options.maxLength : 0;
+		this.toolbarContainer = options.toolbarContainer ?? null;
 
-		if (disabled) editable.removeAttribute("contenteditable");
-		else editable.contentEditable = "true";
+		// редактируемость есть всегда; правки в readonly блокируются на beforeinput,
+		// при этом остаётся возможность фокуса, выделения и копирования
+		editable.contentEditable = "true";
 
 		if (options.placeholder != null) editable.setAttribute("data-placeholder", options.placeholder);
-		if (multiline) wrapper.classList.add("multiline");
-		if (readonly) wrapper.classList.add("readonly");
-		if (disabled) wrapper.classList.add("disabled");
+		if (multiline) editable.classList.add("multiline");
+		if (readonly) editable.classList.add("readonly");
 
 		this.__initEvents();
 		this.__initFormat();
@@ -124,9 +118,6 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 	get readonly(): boolean {
 		return !!this.__opts.readonly;
-	}
-	get disabled(): boolean {
-		return !!this.__opts.disabled;
 	}
 
 	// --- публичный API ---
@@ -160,7 +151,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 	/** Переключить форматирование инструмента (вызывается общим тулбаром и хоткеями). */
 	applyFormat(tool: FormatTool): void {
-		if (!this.format || this.readonly || this.disabled || !this.formatTools.includes(tool)) return;
+		if (!this.format || this.readonly || !this.formatTools.includes(tool)) return;
 
 		const selection = window.getSelection();
 		if (!selection || selection.rangeCount === 0) return;
@@ -204,11 +195,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.__abort.abort();
 		formatToolbar.detach(this);
 
-		this.editable.classList.remove(EDITABLE_CLASS);
+		// элемент передан хостом — не удаляем его, только снимаем оформление редактора
+		this.editable.classList.remove(ROOT_CLASS, "multiline", "readonly", "focused");
 		this.editable.removeAttribute("contenteditable");
 		this.editable.removeAttribute("data-placeholder");
-		this.element.insertAdjacentElement("afterend", this.editable);
-		this.element.remove();
 
 		super.destroy();
 	}
@@ -246,7 +236,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	// Нормализация пробелов: схлопывание повторов + обрезка краёв строк.
 	// Событие change генерируется только при notify=true и реальном изменении.
 	private __normalize(notify: boolean) {
-		if (this.disabled || this.readonly) return;
+		if (this.readonly) return;
 
 		const before = this.editable.textContent ?? "";
 		normalizeWhitespace(this.editable);
@@ -267,7 +257,6 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		editable.addEventListener(
 			"mousedown",
 			() => {
-				if (this.disabled) return;
 				this.__hasInputClick = true;
 				this.__clearPendingFormats(); // перемещение каретки кликом — выход из режима набора
 			},
@@ -277,7 +266,6 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		editable.addEventListener(
 			"focus",
 			() => {
-				if (this.disabled) return;
 				this.element.classList.add("focused");
 
 				// показываем общий тулбар над этим редактором
@@ -293,7 +281,6 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			"blur",
 			() => {
 				this.__hasInputClick = false;
-				if (this.disabled) return;
 
 				this.element.classList.remove("focused");
 				formatToolbar.detach(this);
@@ -307,17 +294,19 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			{ signal }
 		);
 
-		editable.addEventListener(
-			"dblclick",
-			() => {
-				if (this.disabled) return;
-				this.__trimSelectionWhitespace();
-			},
-			{ signal }
-		);
+		editable.addEventListener("dblclick", () => this.__trimSelectionWhitespace(), { signal });
 
 		this.element.addEventListener("paste", (e: ClipboardEvent) => this.__onPaste(e), { signal });
 		editable.addEventListener("keydown", (e: KeyboardEvent) => this.__onKeydown(e), { signal });
+
+		// readonly — запрет любых правок (ввод, удаление, вставка, IME); выделение/копирование остаются
+		editable.addEventListener(
+			"beforeinput",
+			(e: InputEvent) => {
+				if (this.readonly) e.preventDefault();
+			},
+			{ signal }
+		);
 
 		editable.addEventListener(
 			"input",
@@ -349,16 +338,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 		const isChar = e.key.length === 1;
 
-		if ((this.readonly || this.disabled) && isChar && !e.ctrlKey) {
+		if (this.readonly && isChar && !e.ctrlKey) {
 			e.preventDefault();
 			e.stopPropagation();
-			return;
-		}
-
-		if (this.maxLength > 0 && isChar && !e.ctrlKey && this.getLength() >= this.maxLength) {
-			e.preventDefault();
-			e.stopPropagation();
-			this.__reject();
 			return;
 		}
 
@@ -379,7 +361,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		e.preventDefault();
 		e.stopPropagation();
 
-		if (this.readonly || this.disabled) return;
+		if (this.readonly) return;
 
 		let pasted = e.clipboardData?.getData("text/plain");
 		if (!pasted) return;
@@ -395,12 +377,6 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 		const selection = window.getSelection();
 		if (!selection || selection.rangeCount === 0) return;
-
-		if (this.maxLength > 0) {
-			const selectionLength = selection.toString().length;
-			const left = this.maxLength - this.getLength() + selectionLength; // осталось символов
-			if (pasted.length > left) pasted = pasted.substring(0, left);
-		}
 
 		const lines = pasted.split(/\n/);
 		const output = lines.map((line, index) => (index === 0 ? line.trimEnd() : line.trim()));
@@ -444,7 +420,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.editable.addEventListener(
 			"beforeinput",
 			(e: InputEvent) => {
-				if (this.disabled || this.readonly || this.__pendingFormats.size === 0) return;
+				if (this.readonly || this.__pendingFormats.size === 0) return;
 				if (e.inputType !== "insertText" || e.data == null) return;
 
 				e.preventDefault();

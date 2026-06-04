@@ -23,7 +23,7 @@ describe("TextBox", () => {
 		const container = input.parentElement!;
 		expect(container.classList.contains(ROOT_CLASS)).toBe(true);
 		// the contenteditable .input div exists inside the container
-		expect(container.querySelector(".ui-richeditor-input")).not.toBeNull();
+		expect(container.querySelector(".ui-richeditor")).not.toBeNull();
 	});
 
 	it("getValue() returns the trimmed underlying value", () => {
@@ -45,7 +45,7 @@ describe("TextBox", () => {
 
 		tb.setValue("<img src=x onerror=alert(1)>");
 
-		const editable = tb.element!.querySelector(".ui-richeditor-input")!;
+		const editable = tb.element!.querySelector(".ui-richeditor")!;
 		expect(editable.querySelector("img")).toBeNull();
 		expect(editable.textContent).toBe("<img src=x onerror=alert(1)>");
 	});
@@ -85,10 +85,28 @@ describe("TextBox", () => {
 		expect(tb.element!.classList.contains("invalid")).toBe(true);
 	});
 
+	it("blocks input at maxlength and flashes the incorrect state", () => {
+		document.body.innerHTML = "";
+		const input = document.createElement("input");
+		input.type = "text";
+		input.maxLength = 3;
+		input.value = "abc";
+		document.body.appendChild(input);
+
+		const tb = new TextBox(input);
+		const editable = tb.element!.querySelector(".ui-richeditor") as HTMLElement;
+
+		const e = new KeyboardEvent("keydown", { key: "x", cancelable: true, bubbles: true });
+		editable.dispatchEvent(e);
+
+		expect(e.defaultPrevented).toBe(true); // символ не вставлен
+		expect(tb.element!.classList.contains("incorrect")).toBe(true);
+	});
+
 	it("double-click word selection trims whitespace at word boundaries", () => {
 		const { input } = setup({ value: "foo bar baz" });
 		const tb = new TextBox(input);
-		const editor = tb.element!.querySelector(".ui-richeditor-input")! as HTMLElement;
+		const editor = tb.element!.querySelector(".ui-richeditor")! as HTMLElement;
 		const textNode = editor.firstChild!;
 
 		// имитируем выделение " bar " с пробелами по краям
@@ -109,7 +127,7 @@ describe("TextBox", () => {
 		const tb = new TextBox(input);
 
 		expect(tb.getValue()).toBe("a b");
-		expect(tb.element!.querySelector(".ui-richeditor-input")!.textContent).toBe("a b");
+		expect(tb.element!.querySelector(".ui-richeditor")!.textContent).toBe("a b");
 	});
 
 	it("normalizes whitespace on setValue", () => {
@@ -124,7 +142,7 @@ describe("TextBox", () => {
 	it("normalizes whitespace on blur", () => {
 		const { input } = setup();
 		const tb = new TextBox(input);
-		const editor = tb.element!.querySelector(".ui-richeditor-input")! as HTMLElement;
+		const editor = tb.element!.querySelector(".ui-richeditor")! as HTMLElement;
 
 		editor.textContent = "a   b  ";
 		editor.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
@@ -180,11 +198,15 @@ describe("TextBox formatting", () => {
 		expect(tb.formatTools).toEqual(["bold", "italic", "strike", "underline"]);
 	});
 
-	it("shows the shared toolbar (in body) over the field on focus", () => {
+	it("mounts the toolbar inside the textbox container on focus", () => {
 		const tb = new TextBox(setupFormat({ tools: "bold italic" }));
-		const editable = tb.element!.querySelector(".ui-richeditor-input") as HTMLElement;
+		const editable = tb.element!.querySelector(".ui-richeditor") as HTMLElement;
 		editable.dispatchEvent(new FocusEvent("focus"));
-		expect(document.querySelectorAll(".ui-richeditor-toolbar .format-button")).toHaveLength(2);
+
+		const toolbar = tb.element!.querySelector(".ui-richeditor-toolbar")!;
+		expect(toolbar.parentElement).toBe(tb.element); // в контейнере TextBox, не в body
+		expect(toolbar.classList.contains("in-container")).toBe(true);
+		expect(toolbar.querySelectorAll(".format-button")).toHaveLength(2);
 	});
 
 	it("limits tools via data-format-tools and ignores unknown values", () => {
@@ -199,7 +221,7 @@ describe("TextBox formatting", () => {
 
 	it("does not enable formatting for non-text types", () => {
 		const tb = new TextBox(setupFormat({ type: "number" }));
-		const editable = tb.element!.querySelector(".ui-richeditor-input") as HTMLElement;
+		const editable = tb.element!.querySelector(".ui-richeditor") as HTMLElement;
 		editable.dispatchEvent(new FocusEvent("focus"));
 		expect(tb.format).toBe(false);
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).toBeNull();
@@ -207,7 +229,7 @@ describe("TextBox formatting", () => {
 
 	it("deserializes stored HTML into the editor, keeping only allowed tags", () => {
 		const tb = new TextBox(setupFormat({ value: "a <b>bold</b> <script>x</script>" }));
-		const editor = tb.element!.querySelector(".ui-richeditor-input")!;
+		const editor = tb.element!.querySelector(".ui-richeditor")!;
 		expect(editor.querySelector("b")).not.toBeNull();
 		expect(editor.querySelector("script")).toBeNull();
 		expect(editor.textContent).toBe("a bold x");
@@ -215,7 +237,7 @@ describe("TextBox formatting", () => {
 
 	it("serializes editor content back to the value on input", () => {
 		const tb = new TextBox(setupFormat());
-		const editor = tb.element!.querySelector(".ui-richeditor-input") as HTMLElement;
+		const editor = tb.element!.querySelector(".ui-richeditor") as HTMLElement;
 		editor.innerHTML = "plain <b>x</b> <i>y</i>";
 		editor.dispatchEvent(new Event("input", { bubbles: true }));
 		expect(tb.getValue()).toBe("plain <b>x</b> <i>y</i>");
@@ -223,7 +245,7 @@ describe("TextBox formatting", () => {
 
 	it("uses custom markdown markers from data-format-md-* attributes", () => {
 		const tb = new TextBox(setupFormat({ storage: "markdown", markers: { italic: "_" }, value: "_x_ y" }));
-		const editor = tb.element!.querySelector(".ui-richeditor-input") as HTMLElement;
+		const editor = tb.element!.querySelector(".ui-richeditor") as HTMLElement;
 		expect(editor.querySelector("i")).not.toBeNull();
 		editor.dispatchEvent(new Event("input", { bubbles: true }));
 		expect(tb.getValue()).toBe("_x_ y");
@@ -232,7 +254,7 @@ describe("TextBox formatting", () => {
 
 	it("drops formatting tags that are not in the enabled tools", () => {
 		const tb = new TextBox(setupFormat({ tools: "bold", value: "<b>x</b> <i>y</i>" }));
-		const editor = tb.element!.querySelector(".ui-richeditor-input")!;
+		const editor = tb.element!.querySelector(".ui-richeditor")!;
 		expect(editor.querySelector("b")).not.toBeNull();
 		expect(editor.querySelector("i")).toBeNull();
 		expect(editor.textContent).toBe("x y");
