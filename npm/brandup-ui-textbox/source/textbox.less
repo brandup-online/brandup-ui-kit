@@ -71,36 +71,15 @@
 		}
 	}
 
-	& .input {
-		appearance: none;
-		position: relative;
+	// редактор (@brandup/ui-richeditor) — занимает доступное место; внутреннее оформление в richeditor.less
+	& .ui-richeditor {
 		flex: 1 1 auto;
-		box-sizing: border-box;
-		word-wrap: anywhere;
-		white-space: pre-wrap; // сохраняем пробелы (в т.ч. ведущие/повторяющиеся), чтобы они были видны
-		outline: none;
+		min-width: 0;
+	}
 
-		&:empty {
-			&:after {
-				content: attr(data-placeholder);
-				display: block;
-				position: absolute;
-				left: 0;
-				top: 0;
-				right: 0;
-				color: var(--placeholder-color);
-				font-weight: var(--placeholder-font-weight);
-				font-style: var(--placeholder-font-style);
-				box-sizing: border-box;
-				overflow: hidden;
-				white-space: nowrap;
-				text-overflow: ellipsis;
-			}
-
-			& ~ .symbols {
-				display: none;
-			}
-		}
+	// скрываем счётчик, пока редактор пуст (показан placeholder)
+	& .editor:has(.ui-richeditor-input:empty) .symbols {
+		display: none;
 	}
 
 	& .symbols {
@@ -154,76 +133,6 @@
 		}
 	}
 
-	// панель форматирования — плавающая панель над контролом, появляется в фокусе
-	& .format-toolbar {
-		display: none;
-		position: absolute;
-		left: 0;
-		bottom: 100%;
-		margin-bottom: 6px;
-		z-index: 10;
-		flex-flow: row nowrap;
-		align-items: center;
-		gap: 2px;
-		padding: 3px;
-		background-color: var(--input-fill);
-		border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
-		border-radius: var(--input-border-radius);
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-
-		& .format-button {
-			width: calc(var(--input-height) - 12px);
-			height: calc(var(--input-height) - 12px);
-			border-radius: calc(var(--input-border-radius) - 2px);
-			border: 0;
-			background: var(--input-toolbar-button-fill);
-			cursor: pointer;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-
-			& svg {
-				pointer-events: none;
-			}
-
-			&:hover {
-				background-color: var(--hover--input-toolbar-button-fill);
-			}
-
-			&.active {
-				background-color: var(--hover--input-toolbar-button-fill);
-			}
-		}
-	}
-
-	&.focused .format-toolbar {
-		display: flex;
-	}
-
-	// видимые теги форматирования внутри редактора
-	& .input {
-		& b,
-		& strong {
-			font-weight: 700;
-		}
-
-		& i,
-		& em {
-			font-style: italic;
-		}
-
-		& s,
-		& strike,
-		& del {
-			text-decoration: line-through;
-		}
-
-		& u,
-		& ins {
-			text-decoration: underline;
-		}
-	}
-
 	// мультистроковый режим
 	&.multyline {
 		// data-multyline == true
@@ -234,15 +143,8 @@
 			gap: 2px;
 		}
 
-		& .input {
+		& .ui-richeditor {
 			flex: 1 10 auto;
-
-			&:empty {
-				&:after {
-					white-space: normal;
-					text-overflow: unset;
-				}
-			}
 		}
 	}
 

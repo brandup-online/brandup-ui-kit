@@ -1,6 +1,6 @@
-// Опциональное форматирование текста (жирный, курсив, зачёркивание, подчёркивание)
-// для TextBox. Включается атрибутом data-format, состав — data-format-tools,
-// формат хранения значения — data-format-storage ("html" | "markdown").
+// Форматирование текста (жирный, курсив, зачёркивание, подчёркивание) для RichEditor:
+// разбор/сериализация значения (HTML | Markdown), переключение формата на выделении
+// и вставка форматированного текста на чистом Selection/Range API (без execCommand).
 
 export type FormatTool = "bold" | "italic" | "strike" | "underline";
 export type FormatStorage = "html" | "markdown";
