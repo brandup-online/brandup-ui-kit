@@ -216,6 +216,72 @@ test test test test test test test test test test test test test test test test 
 	</div>
 
 	<div class="part">
+		<h2>Форматирование текста</h2>
+		<div class="example">
+			<div class="field">
+				<h5>Все инструменты (HTML)</h5>
+				<textarea
+					class="textbox-input"
+					data-content-script="textbox"
+					data-format
+					placeholder="Введите форматированный текст"
+				></textarea>
+			</div>
+			<div class="field">
+				<h5>Все инструменты (Markdown)</h5>
+				<textarea
+					class="textbox-input"
+					data-content-script="textbox"
+					data-format
+					data-format-storage="markdown"
+					placeholder="Введите форматированный текст"
+				></textarea>
+			</div>
+			<div class="field">
+				<h5>Только жирный и курсив</h5>
+				<textarea
+					class="textbox-input"
+					data-content-script="textbox"
+					data-format
+					data-format-tools="bold italic"
+					placeholder="Введите форматированный текст"
+				></textarea>
+			</div>
+			<div class="field">
+				<h5>Однострочный (HTML)</h5>
+				<input
+					type="text"
+					class="textbox-input"
+					data-content-script="textbox"
+					data-format
+					placeholder="Введите форматированный текст"
+				/>
+			</div>
+			<div class="field">
+				<h5>С исходным значением (HTML)</h5>
+				<textarea
+					class="textbox-input"
+					data-content-script="textbox"
+					data-format
+				>
+Текст с <b>жирным</b>, <i>курсивом</i>, <s>зачёркиванием</s> и <u>подчёркиванием</u>.</textarea
+				>
+			</div>
+			<div class="field">
+				<h5>С исходным значением (Markdown)</h5>
+				<textarea
+					class="textbox-input"
+					data-content-script="textbox"
+					data-format
+					data-format-storage="markdown"
+				>
+Текст с **жирным**, *курсивом*, ~~зачёркиванием~~ и ++подчёркиванием++.</textarea
+				>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
 		<h2>Типы ввода</h2>
 		<form>
 			<div class="example">
