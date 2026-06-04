@@ -44,12 +44,35 @@ const splitChunks = {
 module.exports = (_env) => {
 	const isDevBuild = process.env.NODE_ENV !== "production";
 
+	// dev-server отдаёт бандл с корня, поэтому абсолютный publicPath; прод-сборка остаётся относительной
+	const publicPath = isDevBuild ? "/" : "./";
+
 	console.log(`NODE_ENV: "${process.env.NODE_ENV}"`);
 	console.log(`isDevBuild: ${isDevBuild}`);
 
 	return [
 		{
 			mode: isDevBuild ? "development" : "production",
+			devServer: {
+				static: {
+					directory: path.join(__dirname, bundleOutputDir),
+					publicPath: "/",
+				},
+				historyApiFallback: true, // клиентский роутинг SPA (/textbox, /dropdown и т.д.)
+				hot: false, // приложение не поддерживает HMR — используем полную перезагрузку
+				liveReload: true,
+				open: true,
+				port: 8080,
+				proxy: [
+					{
+						// API отдаёт express-сервер (npm run start), фронт проксирует к нему
+						context: ["/_ajax", "/_form"],
+						target: "https://localhost:8316",
+						secure: false,
+						changeOrigin: true,
+					},
+				],
+			},
 			entry: {
 				app: path.resolve(__dirname, "src", "frontend", "index.ts"),
 			},
@@ -62,7 +85,7 @@ module.exports = (_env) => {
 				chunkFilename: isDevBuild ? "[name].js" : "[name].[contenthash].js",
 				iife: true,
 				clean: true,
-				publicPath: "./",
+				publicPath: publicPath,
 			},
 			module: {
 				rules: [
@@ -143,7 +166,7 @@ module.exports = (_env) => {
 				new HtmlWebpackPlugin({
 					filename: "index.html",
 					template: path.join(frontDir, "template.html"),
-					publicPath: "./",
+					publicPath: publicPath,
 				}),
 			],
 		},

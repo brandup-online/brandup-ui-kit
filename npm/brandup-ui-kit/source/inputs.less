@@ -32,15 +32,22 @@
 	--input-font-weight: @input-font-weight;
 	--input-font-style: @input-font-style;
 	--input-line-height: @input-line-height;
+	
+	// toolbar
+	--input-toolbar-button-fill: var(--input-fill);
 
+	// hover
 	--hover--input-border-color: @hover--input-border-color;
 	--hover--input-fill: @hover--input-fill;
 	--hover--input-color: @hover--input-color;
+	--hover--input-toolbar-button-fill: color-mix(in srgb, var(--input-fill), #000 @hover--input-toolbar-button-darken);
 
+	// focus
 	--focus--input-border-color: @focus--input-border-color;
 	--focus--input-fill: @focus--input-fill;
 	--focus--input-color: @focus--input-color;
 
+	// readonly
 	--readonly--input-fill: @readonly--input-fill;
 	--readonly--input-color: @readonly--input-color;
 
