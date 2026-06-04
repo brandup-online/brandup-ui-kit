@@ -3,7 +3,6 @@ import "./richeditor.less"; // стили редактора и панели ф�
 import { DOM, UIElementBound } from "@brandup/ui";
 import {
 	ALL_FORMAT_TOOLS,
-	FORMAT_TOOLS,
 	HOTKEY_TOOLS,
 	defaultFormatMarkers,
 	deserialize,
@@ -17,17 +16,9 @@ import {
 	type FormatStorage,
 	type FormatTool,
 } from "./format";
-import boldIcon from "../svg/bold.svg";
-import italicIcon from "../svg/italic.svg";
-import strikeIcon from "../svg/strike.svg";
-import underlineIcon from "../svg/underline.svg";
+import { formatToolbar } from "./toolbar";
 
-const FORMAT_ICONS: Record<FormatTool, string> = {
-	bold: boldIcon,
-	italic: italicIcon,
-	strike: strikeIcon,
-	underline: underlineIcon,
-};
+export { TOOLBAR_CLASS, formatToolbar, type ToolbarHost } from "./toolbar";
 
 export const ROOT_CLASS = "ui-richeditor"; // обёртка, к которой привязан UIElement
 export const EDITABLE_CLASS = "ui-richeditor-input"; // редактируемый элемент
@@ -86,7 +77,6 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 	private __opts: RichEditorOptions;
 	private __abort = new AbortController();
-	private __formatButtons: Array<[FormatTool, HTMLButtonElement]> = [];
 	private __pendingFormats = new Set<FormatTool>();
 	private __hasInputClick = false;
 
@@ -95,32 +85,11 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const multiline = !!options.multiline;
 		const readonly = !!options.readonly;
 		const disabled = !!options.disabled;
-		const tools = format ? (options.tools ?? ALL_FORMAT_TOOLS.slice()) : [];
+		// форматирование доступно только если редактор не readonly/disabled
+		const tools = format && !disabled && !readonly ? (options.tools ?? ALL_FORMAT_TOOLS.slice()) : [];
 
-		// обёртка с панелью форматирования (плавающая, появляется в фокусе)
+		// обёртка-контейнер (тулбар общий и живёт в body, см. ./toolbar)
 		const wrapper = DOM.tag("div", { class: ROOT_CLASS });
-
-		const formatButtons: Array<[FormatTool, HTMLButtonElement]> = [];
-		if (format && tools.length && !disabled && !readonly) {
-			const toolbarElem = DOM.tag("div", { class: "format-toolbar" });
-			for (const tool of tools) {
-				const def = FORMAT_TOOLS[tool];
-				const buttonElem = DOM.tag(
-					"button",
-					{
-						type: "button",
-						class: "format-button",
-						command: def.command,
-						"data-format-tool": tool,
-						title: def.title,
-					},
-					FORMAT_ICONS[tool]
-				);
-				toolbarElem.insertAdjacentElement("beforeend", buttonElem);
-				formatButtons.push([tool, buttonElem]);
-			}
-			wrapper.insertAdjacentElement("beforeend", toolbarElem);
-		}
 
 		// вставляем обёртку на место элемента и переносим элемент внутрь
 		editable.parentNode?.insertBefore(wrapper, editable);
@@ -137,7 +106,6 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.formatMarkers = Object.assign(defaultFormatMarkers(), options.markers);
 		this.multiline = multiline;
 		this.maxLength = options.maxLength && options.maxLength > 0 ? options.maxLength : 0;
-		this.__formatButtons = formatButtons;
 
 		if (disabled) editable.removeAttribute("contenteditable");
 		else editable.contentEditable = "true";
@@ -190,8 +158,51 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.on(CHANGE_EVENT, handler);
 	}
 
+	/** Переключить форматирование инструмента (вызывается общим тулбаром и хоткеями). */
+	applyFormat(tool: FormatTool): void {
+		if (!this.format || this.readonly || this.disabled || !this.formatTools.includes(tool)) return;
+
+		const selection = window.getSelection();
+		if (!selection || selection.rangeCount === 0) return;
+		if (!this.editable.contains(selection.anchorNode)) return;
+
+		// запоминаем исходное выделение, чтобы вернуть его после форматирования
+		const original = selectionCharBounds(this.editable, selection.getRangeAt(0));
+
+		// форматируем слова целиком: и при курсоре без выделения, и при выделении части слова
+		this.__expandSelectionToWords(selection);
+
+		const range = selection.getRangeAt(0);
+		if (range.collapsed) {
+			// под кареткой нет слова — режим набора: формат для следующего ввода
+			if (this.__pendingFormats.has(tool)) this.__pendingFormats.delete(tool);
+			else this.__pendingFormats.add(tool);
+
+			formatToolbar.refresh();
+			return;
+		}
+
+		this.__pendingFormats.clear();
+
+		toggleFormat(this.editable, range, tool, selection, original);
+
+		this.__emitChange();
+		formatToolbar.refresh();
+	}
+
+	/** Активен ли формат инструмента на текущем выделении (для подсветки кнопки тулбара). */
+	isToolActive(tool: FormatTool): boolean {
+		if (this.__pendingFormats.has(tool)) return true;
+
+		const selection = window.getSelection();
+		if (!selection || selection.rangeCount === 0 || !this.editable.contains(selection.anchorNode)) return false;
+
+		return isFormatActive(this.editable, selection.getRangeAt(0), tool);
+	}
+
 	override destroy(): void {
 		this.__abort.abort();
+		formatToolbar.detach(this);
 
 		this.editable.classList.remove(EDITABLE_CLASS);
 		this.editable.removeAttribute("contenteditable");
@@ -269,6 +280,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				if (this.disabled) return;
 				this.element.classList.add("focused");
 
+				// показываем общий тулбар над этим редактором
+				if (this.format && this.formatTools.length) formatToolbar.attach(this);
+
 				if (this.readonly) this.__selectAll();
 				else if (!this.__hasInputClick) this.__caretToEnd();
 			},
@@ -282,6 +296,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				if (this.disabled) return;
 
 				this.element.classList.remove("focused");
+				formatToolbar.detach(this);
 
 				// удаляем висящий BR, чтобы появился placeholder
 				if (editable.firstChild?.nodeName === "BR") DOM.empty(editable);
@@ -324,7 +339,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			if (tool) {
 				e.preventDefault();
 				e.stopPropagation();
-				if (this.formatTools.includes(tool)) this.__applyFormat(tool);
+				if (this.formatTools.includes(tool)) this.applyFormat(tool);
 				return;
 			}
 		}
@@ -411,22 +426,16 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	// --- форматирование ---
 
 	private __initFormat() {
-		if (!this.format || !this.__formatButtons.length) return;
+		if (!this.format) return;
 
 		const { signal } = this.__abort;
 
-		for (const [tool, buttonElem] of this.__formatButtons) {
-			// не даём кнопке забрать фокус, иначе теряется выделение в редакторе
-			buttonElem.addEventListener("mousedown", (ev) => ev.preventDefault(), { signal });
-			this.registerCommand(FORMAT_TOOLS[tool].command, () => this.__applyFormat(tool));
-		}
-
-		// подсветка активных инструментов по текущему выделению
+		// подсветка активных инструментов общего тулбара по текущему выделению
 		document.addEventListener(
 			"selectionchange",
 			() => {
 				if (document.activeElement === this.editable || this.editable.contains(document.activeElement))
-					this.__refreshFormatState();
+					formatToolbar.refresh();
 			},
 			{ signal }
 		);
@@ -448,7 +457,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	private __clearPendingFormats() {
 		if (!this.__pendingFormats.size) return;
 		this.__pendingFormats.clear();
-		this.__refreshFormatState();
+		formatToolbar.refresh();
 	}
 
 	private __insertPendingText(data: string) {
@@ -458,38 +467,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		insertFormattedText(this.editable, data, Array.from(this.__pendingFormats), selection);
 
 		this.__emitChange();
-		this.__refreshFormatState();
-	}
-
-	private __applyFormat(tool: FormatTool) {
-		if (!this.format || this.readonly || this.disabled || !this.formatTools.includes(tool)) return;
-
-		const selection = window.getSelection();
-		if (!selection || selection.rangeCount === 0) return;
-		if (!this.editable.contains(selection.anchorNode)) return;
-
-		// запоминаем исходное выделение, чтобы вернуть его после форматирования
-		const original = selectionCharBounds(this.editable, selection.getRangeAt(0));
-
-		// форматируем слова целиком: и при курсоре без выделения, и при выделении части слова
-		this.__expandSelectionToWords(selection);
-
-		const range = selection.getRangeAt(0);
-		if (range.collapsed) {
-			// под кареткой нет слова — режим набора: формат для следующего ввода
-			if (this.__pendingFormats.has(tool)) this.__pendingFormats.delete(tool);
-			else this.__pendingFormats.add(tool);
-
-			this.__refreshFormatState();
-			return;
-		}
-
-		this.__pendingFormats.clear();
-
-		toggleFormat(this.editable, range, tool, selection, original);
-
-		this.__emitChange();
-		this.__refreshFormatState();
+		formatToolbar.refresh();
 	}
 
 	private __expandSelectionToWords(selection: Selection) {
@@ -516,22 +494,6 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		expanded.setEnd(endContainer, endOffset);
 		selection.removeAllRanges();
 		selection.addRange(expanded);
-	}
-
-	private __refreshFormatState() {
-		if (!this.format) return;
-
-		const selection = window.getSelection();
-		const range =
-			selection && selection.rangeCount > 0 && this.editable.contains(selection.anchorNode)
-				? selection.getRangeAt(0)
-				: null;
-
-		for (const [tool, buttonElem] of this.__formatButtons) {
-			const active =
-				this.__pendingFormats.has(tool) || (range ? isFormatActive(this.editable, range, tool) : false);
-			buttonElem.classList.toggle("active", active);
-		}
 	}
 
 	// --- выделение/каретка ---

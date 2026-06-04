@@ -103,7 +103,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			}
 		}
 
-		const inputElem = DOM.tag("div", { class: "input" });
+		const inputElem = DOM.tag("div");
 		const actionsElem = DOM.tag("div", { class: "actions" });
 		const symbolsCountElem = DOM.tag("div", { class: "symbols" });
 
