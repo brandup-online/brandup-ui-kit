@@ -46,7 +46,6 @@
 		box-sizing: border-box;
 		cursor: text;
 		position: relative;
-		overflow-y: auto;
 		z-index: 2;
 		margin-right: 5px;
 		padding-right: calc(var(--input-padding-lr) - 5px);
@@ -75,6 +74,10 @@
 	& .ui-richeditor {
 		flex: 1 1 auto;
 		min-width: 0;
+	}
+
+	& .ui-richeditor-input {
+		overflow-y: auto;
 	}
 
 	// скрываем счётчик, пока редактор пуст (показан placeholder)

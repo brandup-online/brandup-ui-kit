@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import RichEditor, { ROOT_CLASS, EDITABLE_CLASS } from "../npm/brandup-ui-richeditor/source/richeditor";
+import RichEditor, { ROOT_CLASS, EDITABLE_CLASS, TOOLBAR_CLASS } from "../npm/brandup-ui-richeditor/source/richeditor";
 
 type Opts = ConstructorParameters<typeof RichEditor>[1];
 
@@ -32,10 +32,12 @@ function caretAt(node: Node, offset: number) {
 	return sel;
 }
 
-const applyFormat = (editor: RichEditor, tool: string) =>
-	(editor as unknown as { __applyFormat(t: string): void }).__applyFormat(tool);
 const expandWords = (editor: RichEditor, sel: Selection) =>
 	(editor as unknown as { __expandSelectionToWords(s: Selection): void }).__expandSelectionToWords(sel);
+
+const toolbarButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .format-button`);
+const toolbarButton = (tool: string) =>
+	document.querySelector(`.${TOOLBAR_CLASS} .format-button[data-format-tool="${tool}"]`);
 
 describe("RichEditor structure", () => {
 	it("wraps the element and makes it editable", () => {
@@ -46,21 +48,27 @@ describe("RichEditor structure", () => {
 		expect(editor.element.contains(editor.editable)).toBe(true);
 	});
 
-	it("renders a toolbar with all tools by default", () => {
+	it("shows the shared toolbar (in body) with all tools on focus", () => {
 		const editor = makeEditor();
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		const toolbar = document.querySelector(`.${TOOLBAR_CLASS}`)!;
+		expect(toolbar.parentElement).toBe(document.body);
 		expect(editor.formatTools).toEqual(["bold", "italic", "strike", "underline"]);
-		expect(editor.element.querySelectorAll(".format-button")).toHaveLength(4);
+		expect(toolbarButtons()).toHaveLength(4);
 	});
 
-	it("limits tools and renders only their buttons", () => {
+	it("rebuilds the toolbar with only the editor's tools on focus", () => {
 		const editor = makeEditor({ tools: ["bold", "italic"] });
-		expect(editor.element.querySelectorAll(".format-button")).toHaveLength(2);
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+		expect(toolbarButtons()).toHaveLength(2);
 	});
 
-	it("renders no toolbar without format", () => {
+	it("does not show the toolbar without format", () => {
 		const editor = makeEditor({ format: false });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
 		expect(editor.format).toBe(false);
-		expect(editor.element.querySelectorAll(".format-button")).toHaveLength(0);
+		expect(document.querySelector(`.${TOOLBAR_CLASS}.visible`)).toBeNull();
 	});
 
 	it("destroy() unwraps the element and keeps it in the DOM", () => {
@@ -130,7 +138,7 @@ describe("RichEditor formatting", () => {
 	it("applies a format to the whole word when only a part is selected", () => {
 		const editor = makeEditor({ tools: ["bold"], value: "barbaz" });
 		selectRange(editor.editable.firstChild!, 0, 3);
-		applyFormat(editor, "bold");
+		editor.applyFormat("bold");
 		expect(editor.editable.innerHTML).toBe("<b>barbaz</b>");
 		expect(editor.getValue()).toBe("<b>barbaz</b>");
 	});
@@ -138,7 +146,7 @@ describe("RichEditor formatting", () => {
 	it("keeps the original partial selection after formatting", () => {
 		const editor = makeEditor({ tools: ["bold"], value: "barbaz" });
 		selectRange(editor.editable.firstChild!, 0, 3);
-		applyFormat(editor, "bold");
+		editor.applyFormat("bold");
 		expect(window.getSelection()!.toString()).toBe("bar");
 	});
 
@@ -152,10 +160,10 @@ describe("RichEditor formatting", () => {
 	it("toggles formatting off when reapplied", () => {
 		const editor = makeEditor({ tools: ["bold"], value: "barbaz" });
 		selectRange(editor.editable.firstChild!, 0, 3);
-		applyFormat(editor, "bold");
+		editor.applyFormat("bold");
 		expect(editor.editable.innerHTML).toBe("<b>barbaz</b>");
 		selectRange(editor.editable.querySelector("b")!.firstChild!, 0, 3);
-		applyFormat(editor, "bold");
+		editor.applyFormat("bold");
 		expect(editor.editable.innerHTML).toBe("barbaz");
 	});
 
@@ -168,11 +176,11 @@ describe("RichEditor formatting", () => {
 
 	it("enters typing mode on an empty field and wraps typed text", () => {
 		const editor = makeEditor({ tools: ["bold"] });
+		editor.editable.dispatchEvent(new FocusEvent("focus")); // показываем тулбар
 		caretAt(editor.editable, 0);
-		applyFormat(editor, "bold");
+		editor.applyFormat("bold");
 
-		const btn = editor.element.querySelector('.format-button[data-format-tool="bold"]')!;
-		expect(btn.classList.contains("active")).toBe(true);
+		expect(toolbarButton("bold")!.classList.contains("active")).toBe(true);
 
 		editor.editable.dispatchEvent(
 			new InputEvent("beforeinput", { inputType: "insertText", data: "x", cancelable: true, bubbles: true })
@@ -180,12 +188,12 @@ describe("RichEditor formatting", () => {
 		expect(editor.editable.innerHTML).toBe("<b>x</b>");
 	});
 
-	it("routes the toolbar button command to apply formatting (nested UIElement)", () => {
+	it("applies formatting via a shared toolbar button click", () => {
 		const editor = makeEditor({ tools: ["bold"], value: "barbaz" });
+		editor.editable.dispatchEvent(new FocusEvent("focus")); // активный редактор + тулбар
 		selectRange(editor.editable.firstChild!, 0, 3);
 
-		const btn = editor.element.querySelector('.format-button[data-format-tool="bold"]') as HTMLElement;
-		btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		(toolbarButton("bold") as HTMLElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
 		expect(editor.editable.innerHTML).toBe("<b>barbaz</b>");
 	});
