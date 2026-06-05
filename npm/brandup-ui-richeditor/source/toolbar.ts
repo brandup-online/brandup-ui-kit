@@ -40,6 +40,13 @@ class FormatToolbar {
 	private __toolsKey = "";
 	private __inContainer = false;
 	private readonly __reposition = () => this.reposition();
+	private __resizeObserver: ResizeObserver | null = null;
+
+	constructor() {
+		// единый листенер на весь app: подсветка активных инструментов по текущему выделению.
+		// refresh() сам проверяет наличие активного редактора, поэтому отдельных per-editor листенеров не нужно.
+		if (typeof document !== "undefined") document.addEventListener("selectionchange", () => this.refresh());
+	}
 
 	/** Показать тулбар для редактора (на фокусе): перестроить кнопки, спозиционировать, показать. */
 	attach(host: ToolbarHost) {
@@ -66,6 +73,11 @@ class FormatToolbar {
 		} else {
 			window.addEventListener("scroll", this.__reposition, { passive: true });
 			window.addEventListener("resize", this.__reposition, { passive: true });
+			// рост высоты редактора (многострочный ввод) сдвигает его верх — пересчитываем позицию
+			if (typeof ResizeObserver !== "undefined") {
+				this.__resizeObserver ??= new ResizeObserver(this.__reposition);
+				this.__resizeObserver.observe(host.editable);
+			}
 			this.reposition();
 		}
 	}
@@ -97,8 +109,10 @@ class FormatToolbar {
 	}
 
 	private __removeViewportListeners() {
-		window.removeEventListener("scroll", this.__reposition, true);
+		// capture должен совпадать с addEventListener (там { passive: true } → capture=false), иначе не снимется
+		window.removeEventListener("scroll", this.__reposition);
 		window.removeEventListener("resize", this.__reposition);
+		this.__resizeObserver?.disconnect();
 	}
 
 	private __ensure(): HTMLElement {

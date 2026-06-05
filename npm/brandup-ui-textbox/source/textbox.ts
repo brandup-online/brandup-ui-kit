@@ -185,8 +185,11 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 
 		if (type === "number" || type === "email" || maxlength > 0) {
 			options.filterChar = (char) => {
-				// достигнут лимит длины — отклоняем
-				if (maxlength > 0 && this.__editor.getLength() >= maxlength) return false;
+				// достигнут лимит длины — отклоняем (выделение будет заменено, поэтому вычитаем его длину)
+				if (maxlength > 0) {
+					const selectionLength = window.getSelection()?.toString().length ?? 0;
+					if (this.__editor.getLength() - selectionLength >= maxlength) return false;
+				}
 				return typeAllowsChar(char);
 			};
 		}
@@ -315,6 +318,11 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		});
 	}
 
+	/** Многострочный режим (textarea). Псевдоним без опечатки в имени. */
+	get multiline(): boolean {
+		return this.multyline;
+	}
+
 	/** Доступ к встроенному редактору (форматирование, выделение и т.п.). */
 	get editor(): RichEditor {
 		return this.__editor;
@@ -344,7 +352,9 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 
 			if (this.required && !value) isValid = false;
 
-			if (this.maxlength > 0 && this.maxlength < value.length) isValid = false;
+			// длина — по видимому тексту (getLength), а не по сериализованному value:
+			// при format/html в value есть теги, в multiline — разделители абзацев \n\n
+			if (this.maxlength > 0 && this.maxlength < this.__editor.getLength()) isValid = false;
 		}
 
 		if (!isValid) this.element.classList.add("invalid");

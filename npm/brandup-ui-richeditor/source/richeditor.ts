@@ -19,6 +19,16 @@ import {
 	type FormatStorage,
 	type FormatTool,
 } from "./format";
+import {
+	caretToEnd,
+	expandSelectionToWords,
+	insertParagraph,
+	insertPastedParagraphs,
+	insertSoftBreak,
+	selectAllContent,
+	trimParagraphEdges,
+	trimSelectionWhitespace,
+} from "./editing";
 import { EditorHistory } from "./history";
 import { formatToolbar } from "./toolbar";
 
@@ -142,7 +152,6 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (readonly) editable.classList.add("readonly");
 
 		this.__initEvents();
-		this.__initFormat();
 
 		this.__render(options.value ?? "");
 		this.__normalize(false); // нормализация без события (инициализация)
@@ -198,7 +207,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const original = selectionCharBounds(this.editable, selection.getRangeAt(0));
 
 		// форматируем слова целиком: и при курсоре без выделения, и при выделении части слова
-		this.__expandSelectionToWords(selection);
+		expandSelectionToWords(this.editable, selection);
 
 		const range = selection.getRangeAt(0);
 		if (range.collapsed) {
@@ -284,15 +293,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	}
 
 	// Нормализация: схлопывание пробелов + обрезка краёв строк; в multiline дополнительно
-	// удаление пустых абзацев в начале/конце и схлопывание подряд идущих пустых.
-	// Событие change генерируется только при notify=true и реальном изменении значения.
+	// удаление пустых абзацев. Событие change генерируется только при notify=true и реальном изменении
+	// (сравниваем innerHTML — дешевле двойной сериализации и ловит структурные правки абзацев).
 	private __normalize(notify: boolean) {
 		if (this.readonly) return;
 
-		const before = this.getValue();
+		const before = this.editable.innerHTML;
 		normalizeWhitespace(this.editable);
 		if (this.multiline) normalizeParagraphs(this.editable);
-		if (this.getValue() === before) return;
+		if (this.editable.innerHTML === before) return;
 
 		if (notify) this.__emitChange();
 	}
@@ -323,8 +332,8 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				// показываем общий тулбар над этим редактором
 				if (this.format && this.formatTools.length) formatToolbar.attach(this);
 
-				if (this.readonly) this.__selectAll();
-				else if (!this.__hasInputClick) this.__caretToEnd();
+				if (this.readonly) selectAllContent(this.editable);
+				else if (!this.__hasInputClick) caretToEnd(this.editable, this.multiline);
 			},
 			{ signal }
 		);
@@ -346,7 +355,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			{ signal }
 		);
 
-		editable.addEventListener("dblclick", () => this.__trimSelectionWhitespace(), { signal });
+		editable.addEventListener("dblclick", () => trimSelectionWhitespace(this.editable), { signal });
 
 		this.element.addEventListener("paste", (e: ClipboardEvent) => this.__onPaste(e), { signal });
 		editable.addEventListener("keydown", (e: KeyboardEvent) => this.__onKeydown(e), { signal });
@@ -442,120 +451,12 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			}
 
 			// Shift/Ctrl/Cmd+Enter — мягкий перенос (<br>) внутри абзаца; Enter — новый абзац (<p>)
-			if (e.shiftKey || e.ctrlKey || e.metaKey) this.__insertSoftBreak();
-			else this.__insertParagraph();
+			this.__history?.record("op");
+			if (e.shiftKey || e.ctrlKey || e.metaKey) insertSoftBreak(this.editable);
+			else insertParagraph(this.editable);
 
 			this.__clearPendingFormats();
 			this.__emitChange();
-		}
-	}
-
-	private __emptyParagraph(): HTMLParagraphElement {
-		const p = document.createElement("p");
-		p.appendChild(document.createElement("br"));
-		return p;
-	}
-
-	// Enter в multiline: разбить текущий абзац по каретке на два <p>
-	private __insertParagraph() {
-		const selection = window.getSelection();
-		if (!selection || selection.rangeCount === 0 || !this.editable.contains(selection.anchorNode)) return;
-
-		const range = selection.getRangeAt(0);
-		this.__history?.record("op");
-		range.deleteContents();
-
-		// текущий абзац (ближайший <p>/<div> внутри редактора)
-		let para: Node | null = range.startContainer;
-		while (para && para !== this.editable && !this.__isBlock(para)) para = para.parentNode;
-
-		// каретка не внутри абзаца — создаём абзац сразу с видимым результатом (иначе Enter «срабатывает со 2-го раза»)
-		if (!para || para === this.editable) {
-			const next = this.__emptyParagraph();
-			if (this.editable.childNodes.length === 0) {
-				// пустой редактор: пустая строка-источник + новая строка с кареткой
-				this.editable.appendChild(this.__emptyParagraph());
-				this.editable.appendChild(next);
-			} else {
-				// каретка на уровне редактора между/после абзацев — вставляем новый абзац в эту позицию
-				const ref = this.editable.childNodes[range.startOffset] ?? null;
-				this.editable.insertBefore(next, ref);
-			}
-			this.__caretToStart(next);
-			return;
-		}
-
-		// выносим содержимое от каретки до конца абзаца в новый <p>
-		const tail = document.createRange();
-		tail.selectNodeContents(para);
-		tail.setStart(range.endContainer, range.endOffset);
-		const fragment = tail.extractContents();
-
-		const next = document.createElement("p");
-		next.appendChild(fragment);
-		(para as ChildNode).after(next);
-
-		// extractContents в конце абзаца оставляет пустой текст-узел → <p></p> без заполнителя
-		// (невидим/нефокусируем, каретка не встаёт). Чистим и ставим <br> в опустевшие абзацы.
-		this.__fillEmptyParagraph(para as HTMLElement);
-		this.__fillEmptyParagraph(next);
-
-		this.__caretToStart(next);
-	}
-
-	// убирает пустые текст-узлы и ставит <br>-заполнитель в пустой абзац (для видимости и каретки)
-	private __fillEmptyParagraph(p: HTMLElement) {
-		p.normalize(); // удаляет пустые Text-узлы, склеивает соседние
-		if (!p.firstChild) p.appendChild(document.createElement("br"));
-	}
-
-	// Shift/Ctrl+Enter в multiline: вставить мягкий перенос <br>
-	private __insertSoftBreak() {
-		const selection = window.getSelection();
-		if (!selection || selection.rangeCount === 0 || !this.editable.contains(selection.anchorNode)) return;
-
-		const range = selection.getRangeAt(0);
-		this.__history?.record("op");
-		range.deleteContents();
-
-		const br = document.createElement("br");
-		range.insertNode(br);
-
-		// insertNode в конце текст-узла расщепляет его и оставляет пустой хвост — убираем,
-		// иначе br.nextSibling != null и заполнитель не ставится (перенос в конце строки не виден)
-		const next = br.nextSibling;
-		if (next && next.nodeType === Node.TEXT_NODE && (next.textContent ?? "") === "") next.remove();
-
-		const after = document.createRange();
-		if (!br.nextSibling) {
-			// перенос в конце строки — нужен второй <br>-заполнитель, иначе новая строка не отображается
-			// (хвостовой <br> отбрасывается при сериализации)
-			const pad = document.createElement("br");
-			br.after(pad);
-			after.setStartBefore(pad);
-		} else {
-			after.setStartAfter(br);
-		}
-		after.collapse(true);
-		selection.removeAllRanges();
-		selection.addRange(after);
-	}
-
-	private __isBlock(node: Node): boolean {
-		return (
-			node.nodeType === Node.ELEMENT_NODE &&
-			((node as Element).tagName === "P" || (node as Element).tagName === "DIV")
-		);
-	}
-
-	private __caretToStart(node: Node) {
-		const range = document.createRange();
-		range.setStart(node, 0);
-		range.collapse(true);
-		const selection = window.getSelection();
-		if (selection) {
-			selection.removeAllRanges();
-			selection.addRange(range);
 		}
 	}
 
@@ -640,7 +541,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			t.textContent = (t.textContent ?? "").replace(/\s+/g, " ");
 
 		const paras = Array.from(holder.content.children) as HTMLElement[];
-		for (const p of paras) this.__trimParagraphEdges(p);
+		for (const p of paras) trimParagraphEdges(p);
 
 		// отбрасываем пустые краевые абзацы (ведущие/хвостовые \n и <br>-обёртки из буфера),
 		// иначе перед и после вставленного текста появляются пустые строки
@@ -668,7 +569,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			range.insertNode(fragment);
 		} else {
 			caretOffset = start + paras.map((p) => p.textContent ?? "").join("").length;
-			this.__insertPastedParagraphs(paras, range);
+			insertPastedParagraphs(this.editable, paras, range);
 			ensureParagraphs(this.editable); // заполнить пустые абзацы, убрать краевые <br>
 		}
 
@@ -677,72 +578,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		return true;
 	}
 
-	// Вставляет санитизированные абзацы <p> в позицию каретки, разбивая текущий абзац.
-	private __insertPastedParagraphs(paras: HTMLElement[], range: Range) {
-		let para: Node | null = range.startContainer;
-		while (para && para !== this.editable && !this.__isBlock(para)) para = para.parentNode;
-
-		// каретка не внутри абзаца (пустой редактор / уровень редактора) — вставляем абзацы как есть
-		if (!para || para === this.editable) {
-			const ref = this.editable.childNodes[range.startOffset] ?? null;
-			for (const p of paras) this.editable.insertBefore(p, ref);
-			return;
-		}
-
-		const block = para as HTMLElement;
-
-		// хвост текущего абзаца после каретки — выносим, чтобы вернуть в конец вставки
-		const tailRange = document.createRange();
-		tailRange.selectNodeContents(block);
-		tailRange.setStart(range.startContainer, range.startOffset);
-		const tail = tailRange.extractContents();
-
-		// первый вставляемый абзац вливается в текущий (после содержимого до каретки)
-		while (paras[0].firstChild) block.appendChild(paras[0].firstChild);
-
-		if (paras.length === 1) {
-			block.appendChild(tail); // один абзац: содержимое-до + вставка + хвост в одном <p>
-			return;
-		}
-
-		// остальные абзацы — отдельными <p> после текущего; хвост — в конец последнего
-		let anchor: ChildNode = block;
-		for (let i = 1; i < paras.length; i++) {
-			anchor.after(paras[i]);
-			anchor = paras[i];
-		}
-		paras[paras.length - 1].appendChild(tail);
-	}
-
-	// Обрезает пробелы по краям абзаца (после схлопывания) — у крайних текстовых узлов.
-	private __trimParagraphEdges(p: HTMLElement) {
-		const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
-		const texts: Text[] = [];
-		for (let t = walker.nextNode() as Text | null; t; t = walker.nextNode() as Text | null) texts.push(t);
-		if (!texts.length) return;
-
-		texts[0].textContent = (texts[0].textContent ?? "").replace(/^ /, "");
-		const last = texts[texts.length - 1];
-		last.textContent = (last.textContent ?? "").replace(/ $/, "");
-	}
-
 	// --- форматирование ---
-
-	private __initFormat() {
-		if (!this.format) return;
-
-		const { signal } = this.__abort;
-
-		// подсветка активных инструментов общего тулбара по текущему выделению
-		document.addEventListener(
-			"selectionchange",
-			() => {
-				if (document.activeElement === this.editable || this.editable.contains(document.activeElement))
-					formatToolbar.refresh();
-			},
-			{ signal }
-		);
-	}
 
 	// Единый beforeinput: гашение нативной отмены, readonly-блокировка, режим набора и запись истории.
 	private __onBeforeInput(e: InputEvent) {
@@ -787,82 +623,5 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 		this.__emitChange();
 		formatToolbar.refresh();
-	}
-
-	private __expandSelectionToWords(selection: Selection) {
-		const range = selection.getRangeAt(0);
-
-		const { startContainer, endContainer } = range;
-		let startOffset = range.startOffset;
-		let endOffset = range.endOffset;
-
-		if (startContainer.nodeType === Node.TEXT_NODE && this.editable.contains(startContainer)) {
-			const text = startContainer.textContent ?? "";
-			while (startOffset > 0 && !/\s/.test(text[startOffset - 1])) startOffset--;
-		}
-
-		if (endContainer.nodeType === Node.TEXT_NODE && this.editable.contains(endContainer)) {
-			const text = endContainer.textContent ?? "";
-			while (endOffset < text.length && !/\s/.test(text[endOffset])) endOffset++;
-		}
-
-		if (startOffset === range.startOffset && endOffset === range.endOffset) return;
-
-		const expanded = document.createRange();
-		expanded.setStart(startContainer, startOffset);
-		expanded.setEnd(endContainer, endOffset);
-		selection.removeAllRanges();
-		selection.addRange(expanded);
-	}
-
-	// --- выделение/каретка ---
-
-	private __selectAll() {
-		this.editable.focus();
-		window.getSelection()?.selectAllChildren(this.editable);
-	}
-
-	private __caretToEnd() {
-		const range = document.createRange();
-		// multiline: каретку в конец последнего абзаца (а не на уровень редактора),
-		// иначе и ввод, и Enter попадают мимо <p>
-		const last = this.multiline ? this.editable.lastElementChild : null;
-		range.selectNodeContents(last && this.__isBlock(last) ? last : this.editable);
-		range.collapse(false);
-		const sel = window.getSelection();
-		if (sel) {
-			sel.removeAllRanges();
-			sel.addRange(range);
-		}
-	}
-
-	private __trimSelectionWhitespace() {
-		const selection = window.getSelection();
-		if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
-
-		const range = selection.getRangeAt(0);
-		if (!this.editable.contains(range.startContainer) || !this.editable.contains(range.endContainer)) return;
-
-		const { startContainer, endContainer } = range;
-		let startOffset = range.startOffset;
-		let endOffset = range.endOffset;
-
-		if (startContainer.nodeType === Node.TEXT_NODE) {
-			const text = startContainer.textContent ?? "";
-			while (startOffset < text.length && /\s/.test(text[startOffset])) startOffset++;
-		}
-		if (endContainer.nodeType === Node.TEXT_NODE) {
-			const text = endContainer.textContent ?? "";
-			while (endOffset > 0 && /\s/.test(text[endOffset - 1])) endOffset--;
-		}
-
-		if (startContainer === endContainer && startOffset >= endOffset) return;
-		if (startOffset === range.startOffset && endOffset === range.endOffset) return;
-
-		const trimmed = document.createRange();
-		trimmed.setStart(startContainer, startOffset);
-		trimmed.setEnd(endContainer, endOffset);
-		selection.removeAllRanges();
-		selection.addRange(trimmed);
 	}
 }

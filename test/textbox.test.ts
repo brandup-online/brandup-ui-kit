@@ -3,13 +3,14 @@
  */
 import TextBox, { ROOT_CLASS } from "../npm/brandup-ui-textbox/source/textbox";
 
-function setup(opts: { value?: string; required?: boolean; type?: string } = {}) {
+function setup(opts: { value?: string; required?: boolean; type?: string; maxlength?: number } = {}) {
 	document.body.innerHTML = "";
 	const form = document.createElement("form");
 	const input = document.createElement("input");
 	input.type = opts.type ?? "text";
 	if (opts.value !== undefined) input.value = opts.value;
 	if (opts.required) input.required = true;
+	if (opts.maxlength) input.maxLength = opts.maxlength;
 	form.appendChild(input);
 	document.body.appendChild(form);
 	return { input, form };
@@ -30,6 +31,24 @@ describe("TextBox", () => {
 		const { input } = setup({ value: "  hello  " });
 		const tb = new TextBox(input);
 		expect(tb.getValue()).toBe("hello");
+	});
+
+	it("allows typing to replace a full selection at maxlength", () => {
+		const { input } = setup({ value: "abcde", maxlength: 5 });
+		const tb = new TextBox(input);
+		const editable = tb.editor.editable;
+
+		// выделяем весь текст — ввод символа заменит его, длина не вырастет
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		const r = document.createRange();
+		r.selectNodeContents(editable);
+		sel.addRange(r);
+
+		const e = new KeyboardEvent("keydown", { key: "x", cancelable: true, bubbles: true });
+		editable.dispatchEvent(e);
+
+		expect(e.defaultPrevented).toBe(false); // не отклонён — выделение будет заменено
 	});
 
 	it("setValue() updates the underlying input value", () => {
@@ -175,11 +194,19 @@ describe("TextBox", () => {
 });
 
 function setupFormat(
-	opts: { tools?: string; storage?: string; type?: string; value?: string; markers?: Record<string, string> } = {}
+	opts: {
+		tools?: string;
+		storage?: string;
+		type?: string;
+		value?: string;
+		markers?: Record<string, string>;
+		maxlength?: number;
+	} = {}
 ) {
 	document.body.innerHTML = "";
 	const input = document.createElement("input");
 	input.type = opts.type ?? "text";
+	if (opts.maxlength) input.maxLength = opts.maxlength;
 	input.setAttribute("data-format", "");
 	if (opts.tools !== undefined) input.setAttribute("data-format-tools", opts.tools);
 	if (opts.storage !== undefined) input.setAttribute("data-format-storage", opts.storage);
@@ -258,5 +285,13 @@ describe("TextBox formatting", () => {
 		expect(editor.querySelector("b")).not.toBeNull();
 		expect(editor.querySelector("i")).toBeNull();
 		expect(editor.textContent).toBe("x y");
+	});
+
+	it("validate() counts visible text length, not the serialized value (format/html)", () => {
+		const tb = new TextBox(setupFormat({ tools: "bold", maxlength: 6, value: "<b>hello</b>" }));
+
+		expect(tb.editor.getLength()).toBe(5); // видимых символов 5
+		expect(tb.getValue()).toBe("<b>hello</b>"); // сериализованное value длиннее (12)
+		expect(tb.validate()).toBe(true); // 5 ≤ 6 — валидно по видимому тексту, а не по тегам
 	});
 });

@@ -2,6 +2,7 @@
  * @jest-environment jsdom
  */
 import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS } from "../npm/brandup-ui-richeditor/source/richeditor";
+import { expandSelectionToWords } from "../npm/brandup-ui-richeditor/source/editing";
 
 type Opts = ConstructorParameters<typeof RichEditor>[1];
 
@@ -32,8 +33,7 @@ function caretAt(node: Node, offset: number) {
 	return sel;
 }
 
-const expandWords = (editor: RichEditor, sel: Selection) =>
-	(editor as unknown as { __expandSelectionToWords(s: Selection): void }).__expandSelectionToWords(sel);
+const expandWords = (editor: RichEditor, sel: Selection) => expandSelectionToWords(editor.editable, sel);
 
 const toolbarButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .format-button`);
 const toolbarButton = (tool: string) =>
