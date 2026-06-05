@@ -18,6 +18,7 @@ import {
 	type FormatStorage,
 	type FormatTool,
 } from "./format";
+import { EditorHistory } from "./history";
 import { formatToolbar } from "./toolbar";
 
 export { TOOLBAR_CLASS, formatToolbar, type ToolbarHost } from "./toolbar";
@@ -26,6 +27,19 @@ export const ROOT_CLASS = "ui-richeditor"; // редактируемый эле�
 export const CHANGE_EVENT = "richeditor-change";
 
 const NAV_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Escape"];
+
+// нативные правки (печать/удаление), состояние до которых запоминаем для собственного undo;
+// вставка/перетаскивание и Enter обрабатываются отдельно, undo/redo — на keydown
+const NATIVE_EDIT_TYPES = new Set([
+	"insertText",
+	"insertReplacementText",
+	"insertCompositionText",
+	"deleteContentBackward",
+	"deleteContentForward",
+	"deleteWordBackward",
+	"deleteWordForward",
+	"deleteByCut",
+]);
 
 export interface RichEditorOptions {
 	/** Включает форматирование и панель инструментов. */
@@ -80,6 +94,8 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	private __abort = new AbortController();
 	private __pendingFormats = new Set<FormatTool>();
 	private __hasInputClick = false;
+	// собственная история undo/redo — только при форматировании (см. ./history)
+	private __history: EditorHistory | null = null;
 
 	constructor(editable: HTMLElement, options: RichEditorOptions = {}) {
 		const format = !!options.format;
@@ -102,6 +118,8 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.formatMarkers = Object.assign(defaultFormatMarkers(), options.markers);
 		this.multiline = multiline;
 		this.toolbarContainer = options.toolbarContainer ?? null;
+		// история включается вместе с форматированием
+		this.__history = format ? new EditorHistory(editable) : null;
 
 		// редактируемость есть всегда; правки в readonly блокируются на beforeinput,
 		// при этом остаётся возможность фокуса, выделения и копирования
@@ -182,8 +200,27 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 		this.__pendingFormats.clear();
 
+		this.__history?.record("op");
 		toggleFormat(this.editable, range, tool, selection, original);
 
+		this.__emitChange();
+		formatToolbar.refresh();
+	}
+
+	/** Отменить последнее действие (история ведётся только при форматировании). */
+	private __undo(): void {
+		if (!this.__history?.undo()) return;
+		this.__afterHistory();
+	}
+
+	/** Повторить отменённое действие. */
+	private __redo(): void {
+		if (!this.__history?.redo()) return;
+		this.__afterHistory();
+	}
+
+	private __afterHistory(): void {
+		this.__pendingFormats.clear();
 		this.__emitChange();
 		formatToolbar.refresh();
 	}
@@ -300,14 +337,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.element.addEventListener("paste", (e: ClipboardEvent) => this.__onPaste(e), { signal });
 		editable.addEventListener("keydown", (e: KeyboardEvent) => this.__onKeydown(e), { signal });
 
-		// readonly — запрет любых правок (ввод, удаление, вставка, IME); выделение/копирование остаются
-		editable.addEventListener(
-			"beforeinput",
-			(e: InputEvent) => {
-				if (this.readonly) e.preventDefault();
-			},
-			{ signal }
-		);
+		editable.addEventListener("beforeinput", (e: InputEvent) => this.__onBeforeInput(e), { signal });
 
 		editable.addEventListener(
 			"input",
@@ -349,6 +379,23 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				e.preventDefault();
 				e.stopPropagation();
 				if (this.formatTools.includes(tool)) this.applyFormat(tool);
+				return;
+			}
+		}
+
+		// undo/redo собственной истории (только при форматировании): Ctrl/Cmd+Z — отмена,
+		// Ctrl+Y или Ctrl/Cmd+Shift+Z — повтор. Триггерим на keydown (надёжно во всех состояниях,
+		// в т.ч. когда нативный undo/redo-стек пуст); сам нативный undo гасим в __onBeforeInput.
+		if (this.__history && (e.ctrlKey || e.metaKey) && !e.altKey) {
+			const key = e.key.toLowerCase();
+			if (key === "z" && !e.shiftKey) {
+				e.preventDefault();
+				this.__undo();
+				return;
+			}
+			if (key === "y" || (key === "z" && e.shiftKey)) {
+				e.preventDefault();
+				this.__redo();
 				return;
 			}
 		}
@@ -400,6 +447,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (!selection || selection.rangeCount === 0 || !this.editable.contains(selection.anchorNode)) return;
 
 		const range = selection.getRangeAt(0);
+		this.__history?.record("op");
 		range.deleteContents();
 
 		// текущий абзац (ближайший <p>/<div> внутри редактора)
@@ -452,6 +500,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (!selection || selection.rangeCount === 0 || !this.editable.contains(selection.anchorNode)) return;
 
 		const range = selection.getRangeAt(0);
+		this.__history?.record("op");
 		range.deleteContents();
 
 		const br = document.createElement("br");
@@ -530,6 +579,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		}
 
 		const range = selection.getRangeAt(0);
+		this.__history?.record("op");
 		range.deleteContents();
 		range.insertNode(fragment);
 		selection.setPosition(selection.focusNode, selection.focusOffset);
@@ -553,19 +603,35 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			},
 			{ signal }
 		);
+	}
+
+	// Единый beforeinput: гашение нативной отмены, readonly-блокировка, режим набора и запись истории.
+	private __onBeforeInput(e: InputEvent) {
+		// Нативная отмена в contenteditable приходит сюда (historyUndo/Redo). Саму операцию выполняет
+		// keydown-обработчик (надёжно во всех состояниях), здесь лишь ГАСИМ нативный undo, чтобы он
+		// не конфликтовал с нашей историей (особенно после ручных правок форматирования).
+		// keydown всегда предшествует beforeinput, поэтому двойного срабатывания нет.
+		if (this.__history && (e.inputType === "historyUndo" || e.inputType === "historyRedo")) {
+			e.preventDefault();
+			return;
+		}
+
+		if (this.readonly) {
+			// readonly — запрет любых правок (ввод, удаление, вставка, IME); выделение/копирование остаются
+			e.preventDefault();
+			return;
+		}
 
 		// режим набора: оборачиваем вводимый текст в ожидающие форматы
-		this.editable.addEventListener(
-			"beforeinput",
-			(e: InputEvent) => {
-				if (this.readonly || this.__pendingFormats.size === 0) return;
-				if (e.inputType !== "insertText" || e.data == null) return;
+		if (this.__pendingFormats.size > 0 && e.inputType === "insertText" && e.data != null) {
+			e.preventDefault();
+			this.__history?.record("op");
+			this.__insertPendingText(e.data);
+			return;
+		}
 
-				e.preventDefault();
-				this.__insertPendingText(e.data);
-			},
-			{ signal }
-		);
+		// запоминаем состояние до нативной печати/удаления для собственного undo
+		if (this.__history && NATIVE_EDIT_TYPES.has(e.inputType)) this.__history.record("type");
 	}
 
 	private __clearPendingFormats() {
