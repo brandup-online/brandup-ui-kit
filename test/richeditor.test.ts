@@ -282,6 +282,18 @@ describe("RichEditor paragraphs (multiline)", () => {
 		expect(editor.getValue()).toBe("ab\ncd");
 	});
 
+	it("soft break at the end of a paragraph shows a new line on the first press", () => {
+		const editor = makeEditor({ format: false, multiline: true, value: "abcd" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 4); // конец абзаца
+
+		editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "Enter", shiftKey: true, cancelable: true, bubbles: true })
+		);
+
+		// реальный <br> + <br>-заполнитель (без него новая строка не видна), пустого текст-узла нет
+		expect(editor.editable.innerHTML).toBe("<p>abcd<br><br></p>");
+	});
+
 	it("removes the placeholder <br> once a paragraph has text (input)", () => {
 		const editor = makeEditor({ format: false, multiline: true });
 		editor.editable.innerHTML = "<p>a<br></p>"; // как после ввода первого символа в пустой абзац

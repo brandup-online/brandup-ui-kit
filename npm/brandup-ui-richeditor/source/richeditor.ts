@@ -446,7 +446,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (!p.firstChild) p.appendChild(document.createElement("br"));
 	}
 
-	// Ctrl+Enter в multiline: вставить мягкий перенос <br>
+	// Shift/Ctrl+Enter в multiline: вставить мягкий перенос <br>
 	private __insertSoftBreak() {
 		const selection = window.getSelection();
 		if (!selection || selection.rangeCount === 0 || !this.editable.contains(selection.anchorNode)) return;
@@ -457,10 +457,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const br = document.createElement("br");
 		range.insertNode(br);
 
-		// каретку — после <br>; если перенос в конце строки, нужен второй <br>-заполнитель,
-		// иначе новая строка не отображается (хвостовой <br> отбрасывается при сериализации)
+		// insertNode в конце текст-узла расщепляет его и оставляет пустой хвост — убираем,
+		// иначе br.nextSibling != null и заполнитель не ставится (перенос в конце строки не виден)
+		const next = br.nextSibling;
+		if (next && next.nodeType === Node.TEXT_NODE && (next.textContent ?? "") === "") next.remove();
+
 		const after = document.createRange();
 		if (!br.nextSibling) {
+			// перенос в конце строки — нужен второй <br>-заполнитель, иначе новая строка не отображается
+			// (хвостовой <br> отбрасывается при сериализации)
 			const pad = document.createElement("br");
 			br.after(pad);
 			after.setStartBefore(pad);
