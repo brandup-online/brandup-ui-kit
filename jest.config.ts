@@ -1,4 +1,6 @@
-const config = {
+import type { Config } from "jest";
+
+const config: Config = {
 	verbose: true,
 	testMatch: ["**/test/**/*.test.ts"],
 	testEnvironment: "./FixJSDOMEnvironment.ts",
@@ -14,4 +16,4 @@ const config = {
 	moduleFileExtensions: ["js", "ts"],
 };
 
-module.exports = config;
+export default config;

@@ -9,7 +9,7 @@ import {
 	defaultFormatMarkers,
 	normalizeWhitespace,
 	normalizeParagraphs,
-} from "../npm/brandup-ui-richeditor/source/format";
+} from "../source/format";
 
 function makeRoot(html: string): HTMLElement {
 	document.body.innerHTML = "";

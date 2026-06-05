@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { PopupManager, POPUP_CLASS, POPUP_EXPANDED_CLASS } from "../npm/brandup-ui-kit/source/popup";
+import { PopupManager, POPUP_CLASS, POPUP_EXPANDED_CLASS } from "../source/popup";
 
 function makePopup(): HTMLElement {
 	const el = document.createElement("div");
