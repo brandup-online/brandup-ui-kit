@@ -338,6 +338,96 @@ describe("RichEditor paragraphs (multiline)", () => {
 	});
 });
 
+describe("RichEditor history (undo/redo)", () => {
+	// триггер undo/redo — на keydown (браузер диспатчит historyUndo/Redo в beforeinput только
+	// при непустом нативном стеке, которого у нас нет, т.к. нативную отмену мы гасим)
+	const undo = (editor: RichEditor, opts: KeyboardEventInit = {}) => {
+		const e = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, cancelable: true, bubbles: true, ...opts });
+		editor.editable.dispatchEvent(e);
+		return e;
+	};
+	const redoCtrlY = (editor: RichEditor) =>
+		editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "y", ctrlKey: true, cancelable: true, bubbles: true })
+		);
+	const redoShiftZ = (editor: RichEditor) =>
+		editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "z", ctrlKey: true, shiftKey: true, cancelable: true, bubbles: true })
+		);
+
+	it("undoes and redoes a formatting action (Ctrl+Z / Ctrl+Y)", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "barbaz" });
+		selectRange(editor.editable.firstChild!, 0, 3);
+		editor.applyFormat("bold");
+		expect(editor.editable.innerHTML).toBe("<b>barbaz</b>");
+
+		const e = undo(editor);
+		expect(e.defaultPrevented).toBe(true);
+		expect(editor.editable.innerHTML).toBe("barbaz"); // формат снят
+
+		redoCtrlY(editor);
+		expect(editor.editable.innerHTML).toBe("<b>barbaz</b>"); // формат возвращён
+	});
+
+	it("redoes with Ctrl+Shift+Z as well", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "barbaz" });
+		selectRange(editor.editable.firstChild!, 0, 3);
+		editor.applyFormat("bold");
+
+		undo(editor);
+		redoShiftZ(editor);
+		expect(editor.editable.innerHTML).toBe("<b>barbaz</b>");
+	});
+
+	it("clears the redo stack after a new action", () => {
+		const editor = makeEditor({ tools: ["bold", "italic"], value: "barbaz" });
+		selectRange(editor.editable.firstChild!, 0, 3);
+		editor.applyFormat("bold");
+
+		undo(editor); // откатили жирный → "barbaz"
+		selectRange(editor.editable.firstChild!, 0, 3);
+		editor.applyFormat("italic"); // новое действие — redo должен очиститься
+		expect(editor.editable.innerHTML).toBe("<i>barbaz</i>");
+
+		redoCtrlY(editor); // повторять нечего
+		expect(editor.editable.innerHTML).toBe("<i>barbaz</i>");
+	});
+
+	it("undo emits a change event", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "barbaz" });
+		const onChange = jest.fn();
+		editor.onChange(onChange);
+
+		selectRange(editor.editable.firstChild!, 0, 3);
+		editor.applyFormat("bold");
+		onChange.mockClear();
+
+		undo(editor);
+		expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ value: "barbaz" }));
+	});
+
+	it("suppresses native history via beforeinput without a second undo", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "barbaz" });
+		selectRange(editor.editable.firstChild!, 0, 3);
+		editor.applyFormat("bold");
+		undo(editor); // keydown выполнил отмену → "barbaz"
+
+		// нативный historyUndo (если бы пришёл) гасится, но повторно НЕ откатывает
+		const e = new InputEvent("beforeinput", { inputType: "historyUndo", cancelable: true, bubbles: true });
+		editor.editable.dispatchEvent(e);
+		expect(e.defaultPrevented).toBe(true);
+		expect(editor.editable.innerHTML).toBe("barbaz"); // без второго отката
+	});
+
+	it("does not intercept history without formatting", () => {
+		const editor = makeEditor({ format: false, value: "abc" });
+		const e = undo(editor);
+
+		expect(e.defaultPrevented).toBe(false); // не перехватываем — отдаём браузеру
+		expect(editor.editable.textContent).toBe("abc");
+	});
+});
+
 describe("RichEditor readonly", () => {
 	it("blocks any editing via beforeinput", () => {
 		const editor = makeEditor({ readonly: true, value: "abc" });
