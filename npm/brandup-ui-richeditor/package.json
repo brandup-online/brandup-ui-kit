@@ -1,4 +1,7 @@
 {
+	"publishConfig": {
+		"access": "public"
+	},
 	"name": "@brandup/ui-richeditor",
 	"description": "Rich text editor over a contenteditable element (bold, italic, strike, underline).",
 	"keywords": [

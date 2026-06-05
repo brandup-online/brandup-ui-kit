@@ -1,4 +1,7 @@
 {
+	"publishConfig": {
+		"access": "public"
+	},
 	"name": "@brandup/ui-dropdown",
 	"description": "DropDown control type and styles.",
 	"keywords": [

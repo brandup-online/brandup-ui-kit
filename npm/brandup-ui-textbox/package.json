@@ -1,4 +1,7 @@
 {
+	"publishConfig": {
+		"access": "public"
+	},
 	"name": "@brandup/ui-textbox",
 	"description": "Textbox control type and styles.",
 	"keywords": [
