@@ -62,6 +62,16 @@ export function normalizeWhitespace(root: HTMLElement) {
 }
 
 /**
+ * Нормализует абзацы многострочного режима: удаляет пустые абзацы (без текстового содержимого).
+ * Если содержимого нет вовсе — редактор остаётся пустым (показывается placeholder).
+ */
+export function normalizeParagraphs(root: HTMLElement) {
+	for (const el of Array.from(root.children)) {
+		if (el.tagName === "P" && (el.textContent ?? "").trim() === "") el.remove();
+	}
+}
+
+/**
  * Нормализует верхний уровень редактора к абзацам <p>: блуждающие текст/инлайн оборачиваются в <p>,
  * <div> заменяются на <p>, пустые абзацы получают <br>-заполнитель (чтобы строка была видимой).
  */

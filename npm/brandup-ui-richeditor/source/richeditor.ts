@@ -9,6 +9,7 @@ import {
 	ensureParagraphs,
 	insertFormattedText,
 	isFormatActive,
+	normalizeParagraphs,
 	normalizeWhitespace,
 	restoreSelection,
 	selectionCharBounds,
@@ -282,14 +283,16 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.__opts.onReject?.();
 	}
 
-	// Нормализация пробелов: схлопывание повторов + обрезка краёв строк.
-	// Событие change генерируется только при notify=true и реальном изменении.
+	// Нормализация: схлопывание пробелов + обрезка краёв строк; в multiline дополнительно
+	// удаление пустых абзацев в начале/конце и схлопывание подряд идущих пустых.
+	// Событие change генерируется только при notify=true и реальном изменении значения.
 	private __normalize(notify: boolean) {
 		if (this.readonly) return;
 
-		const before = this.editable.textContent ?? "";
+		const before = this.getValue();
 		normalizeWhitespace(this.editable);
-		if ((this.editable.textContent ?? "") === before) return;
+		if (this.multiline) normalizeParagraphs(this.editable);
+		if (this.getValue() === before) return;
 
 		if (notify) this.__emitChange();
 	}

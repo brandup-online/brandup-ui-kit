@@ -145,6 +145,17 @@ describe("RichEditor value", () => {
 		expect(editor.getValue()).toBe("a b");
 		expect(editor.editable.textContent).toBe("a b");
 	});
+
+	it("removes empty paragraphs on blur (multiline)", () => {
+		const editor = makeEditor({ multiline: true });
+		// пустые абзацы в начале/конце и между содержимым
+		editor.editable.innerHTML = "<p><br></p><p>a</p><p><br></p><p><br></p><p>b</p><p><br></p>";
+
+		editor.editable.dispatchEvent(new FocusEvent("blur"));
+
+		expect(editor.editable.innerHTML).toBe("<p>a</p><p>b</p>");
+		expect(editor.getValue()).toBe("<p>a</p><p>b</p>");
+	});
 });
 
 describe("RichEditor formatting", () => {
