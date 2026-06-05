@@ -168,6 +168,9 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		// вставляем элементы меню в фрагмент, чтобы не нагружать процессор
 		const popupItemsFragment = document.createDocumentFragment();
 
+		// исключаем дубликаты: значение, уже добавленное в список, повторно не рендерим
+		const addedValues = new Set<string>();
+
 		let elemCount = 0;
 		for (let i = 0; i < optionsCount; i++) {
 			const optionElem = this.__valueElem.options.item(i);
@@ -182,6 +185,10 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 				this.__hasEmptyValue = true;
 				continue;
 			}
+
+			// такое значение уже есть в списке — пропускаем дубликат
+			if (addedValues.has(itemValue)) continue;
+			addedValues.add(itemValue);
 
 			const itemSpan = DOM.tag("span", { tabindex: "0" });
 			itemSpan.textContent = itemText; // безопасно: textContent не парсит HTML

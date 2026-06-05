@@ -45,6 +45,20 @@ describe("DropDown", () => {
 		expect(items[0].textContent).toContain("Alpha");
 	});
 
+	it("excludes options whose value is already in the list (deduplicates by value)", () => {
+		const select = makeSelect([
+			["a", "Alpha"],
+			["b", "Beta"],
+			["a", "Alpha duplicate"], // тот же value "a" — не должен попасть в список
+			["c", "Gamma"],
+		]);
+		const dd = new DropDown(select);
+
+		const values = [...dd.element!.querySelectorAll("ul li")].map((li) => (li as HTMLElement).dataset.value);
+		expect(values).toEqual(["a", "b", "c"]);
+		expect(dd.element!.querySelectorAll("ul li").length).toBe(3);
+	});
+
 	it("renders option text as text, not HTML (XSS regression)", () => {
 		const select = makeSelect([["1", "<img src=x onerror=alert(1)>"]]);
 		const dd = new DropDown(select);
