@@ -8,6 +8,7 @@ import {
 	deserialize,
 	defaultFormatMarkers,
 	normalizeWhitespace,
+	normalizeParagraphs,
 } from "../npm/brandup-ui-richeditor/source/format";
 
 function makeRoot(html: string): HTMLElement {
@@ -196,6 +197,32 @@ describe("normalizeWhitespace", () => {
 		normalizeWhitespace(root);
 		expect(root.querySelector("b")).toBeNull();
 		expect(root.textContent).toBe("x");
+	});
+});
+
+describe("normalizeParagraphs", () => {
+	it("removes empty paragraphs anywhere (edges and between content)", () => {
+		const root = makeRoot("<p><br></p><p>a</p><p><br></p><p>b</p><p><br></p>");
+		normalizeParagraphs(root);
+		expect(root.innerHTML).toBe("<p>a</p><p>b</p>");
+	});
+
+	it("removes consecutive empty paragraphs", () => {
+		const root = makeRoot("<p>a</p><p><br></p><p><br></p><p><br></p><p>b</p>");
+		normalizeParagraphs(root);
+		expect(root.innerHTML).toBe("<p>a</p><p>b</p>");
+	});
+
+	it("treats whitespace-only paragraphs as empty", () => {
+		const root = makeRoot("<p>  </p><p>a</p>");
+		normalizeParagraphs(root);
+		expect(root.innerHTML).toBe("<p>a</p>");
+	});
+
+	it("removes all paragraphs when there is no content", () => {
+		const root = makeRoot("<p><br></p><p><br></p>");
+		normalizeParagraphs(root);
+		expect(root.innerHTML).toBe("");
 	});
 });
 

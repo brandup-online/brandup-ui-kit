@@ -16,4 +16,4 @@ export {
 } from "./format-config";
 export { serialize, deserialize } from "./serialize";
 export { selectionCharBounds, restoreSelection, toggleFormat, insertFormattedText, isFormatActive } from "./selection";
-export { normalizeWhitespace, ensureParagraphs } from "./paragraphs";
+export { normalizeWhitespace, normalizeParagraphs, ensureParagraphs } from "./paragraphs";
