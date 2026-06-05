@@ -41,6 +41,17 @@ const NATIVE_EDIT_TYPES = new Set([
 	"deleteByCut",
 ]);
 
+// Буква физической клавиши (KeyA…KeyZ) — не зависит от раскладки. Для не-латинских раскладок
+// (например, кириллицы) e.key даёт другую букву, поэтому хоткеи сверяем и по e.code.
+function codeLetter(e: KeyboardEvent): string {
+	return /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : "";
+}
+
+// Совпадает ли нажатие с латинской буквой хоткея — по e.key (латиница/AZERTY) или e.code (кириллица и пр.).
+function isHotkeyLetter(e: KeyboardEvent, letter: string): boolean {
+	return e.key.toLowerCase() === letter || codeLetter(e) === letter;
+}
+
 export interface RichEditorOptions {
 	/** Включает форматирование и панель инструментов. */
 	format?: boolean;
@@ -372,9 +383,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	}
 
 	private __onKeydown(e: KeyboardEvent) {
-		// хоткеи форматирования (Ctrl/Cmd+B/I/U); зачёркивание — только кнопкой
+		// хоткеи форматирования (Ctrl/Cmd+B/I/U); зачёркивание — только кнопкой.
+		// Сверяем по e.key и e.code — иначе на не-латинской раскладке (кириллица) хоткеи не срабатывают.
 		if (this.format && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
-			const tool = HOTKEY_TOOLS[e.key.toLowerCase()];
+			const tool = HOTKEY_TOOLS[e.key.toLowerCase()] ?? HOTKEY_TOOLS[codeLetter(e)];
 			if (tool) {
 				e.preventDefault();
 				e.stopPropagation();
@@ -387,13 +399,13 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// Ctrl+Y или Ctrl/Cmd+Shift+Z — повтор. Триггерим на keydown (надёжно во всех состояниях,
 		// в т.ч. когда нативный undo/redo-стек пуст); сам нативный undo гасим в __onBeforeInput.
 		if (this.__history && (e.ctrlKey || e.metaKey) && !e.altKey) {
-			const key = e.key.toLowerCase();
-			if (key === "z" && !e.shiftKey) {
+			const z = isHotkeyLetter(e, "z");
+			if (z && !e.shiftKey) {
 				e.preventDefault();
 				this.__undo();
 				return;
 			}
-			if (key === "y" || (key === "z" && e.shiftKey)) {
+			if (isHotkeyLetter(e, "y") || (z && e.shiftKey)) {
 				e.preventDefault();
 				this.__redo();
 				return;
@@ -550,22 +562,37 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 		if (this.readonly) return;
 
-		let pasted = e.clipboardData?.getData("text/plain");
-		if (!pasted) return;
+		const data = e.clipboardData;
+		if (!data) return;
 
+		const plain = data.getData("text/plain");
+		// форматированную вставку берём из text/html только при включённом форматировании
+		const html = this.format && this.formatTools.length ? data.getData("text/html") : "";
+
+		// filterPaste решает по тексту: null — отклонить; если хук ИЗМЕНИЛ текст (обрезка по длине,
+		// фильтр по типу) — форматирование сохранить нельзя, вставляем очищенный простой текст
+		let plainOverride: string | null = null;
 		if (this.__opts.filterPaste) {
-			const filtered = this.__opts.filterPaste(pasted);
+			const filtered = this.__opts.filterPaste(plain);
 			if (filtered == null) {
 				this.__reject();
 				return;
 			}
-			pasted = filtered;
+			if (filtered !== plain) plainOverride = filtered;
 		}
 
 		const selection = window.getSelection();
 		if (!selection || selection.rangeCount === 0) return;
 
-		const lines = pasted.split(/\n/);
+		if (html && plainOverride == null && this.__pasteHtml(html, selection)) return;
+		this.__pastePlain(plainOverride ?? plain, selection);
+	}
+
+	// Простая вставка текста: переносы строк — мягкие <br> (multiline) или пробелы (single-line).
+	private __pastePlain(text: string, selection: Selection) {
+		if (!text) return;
+
+		const lines = text.split(/\n/);
 		const output = lines.map((line, index) => (index === 0 ? line.trimEnd() : line.trim()));
 
 		const fragment = document.createDocumentFragment();
@@ -585,6 +612,115 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		selection.setPosition(selection.focusNode, selection.focusOffset);
 
 		this.__emitChange();
+	}
+
+	// Вставка форматированного текста из text/html. Возвращает false, если вставлять нечего
+	// (тогда вызывающий откатывается на простую вставку). Санитизация до включённых инструментов;
+	// multiline сохраняет абзацы <p> и мягкие переносы <br>, single-line — инлайн с пробелами.
+	private __pasteHtml(html: string, selection: Selection): boolean {
+		// убираем мусорные элементы (Word/браузер: стили, скрипты, заголовок документа)
+		const source = document.createElement("template");
+		source.innerHTML = html;
+		source.content
+			.querySelectorAll("script, style, head, meta, link, title, noscript")
+			.forEach((el) => el.remove());
+
+		// единый источник санитизации — deserialize (теги-синонимы → канонические, лишнее развёрнуто)
+		const clean = deserialize(source.innerHTML, "html", this.formatTools, this.formatMarkers, true);
+		const holder = document.createElement("template");
+		holder.innerHTML = clean;
+
+		// внешний HTML: пробелы/переводы строк между тегами не значимы — схлопываем,
+		// иначе литеральные \n (pre-wrap) и отступы дают лишние переносы
+		const textWalker = document.createTreeWalker(holder.content, NodeFilter.SHOW_TEXT);
+		for (let t = textWalker.nextNode(); t; t = textWalker.nextNode())
+			t.textContent = (t.textContent ?? "").replace(/\s+/g, " ");
+
+		const paras = Array.from(holder.content.children) as HTMLElement[];
+		for (const p of paras) this.__trimParagraphEdges(p);
+
+		// отбрасываем пустые краевые абзацы (ведущие/хвостовые \n и <br>-обёртки из буфера),
+		// иначе перед и после вставленного текста появляются пустые строки
+		while (paras.length && (paras[0].textContent ?? "").trim() === "") paras.shift();
+		while (paras.length && (paras[paras.length - 1].textContent ?? "").trim() === "") paras.pop();
+		if (!paras.length) return false;
+
+		const range = selection.getRangeAt(0);
+		this.__history?.record("op");
+		range.deleteContents();
+
+		// каретку ставим по абсолютному текстовому смещению (длина вставки), не отслеживая узлы
+		const start = selectionCharBounds(this.editable, range)[0];
+		let caretOffset: number;
+
+		if (!this.multiline) {
+			// инлайн: абзацы и переносы → пробелы, форматирование сохраняем
+			const fragment = document.createDocumentFragment();
+			paras.forEach((p, index) => {
+				if (index > 0) fragment.appendChild(document.createTextNode(" "));
+				while (p.firstChild) fragment.appendChild(p.firstChild);
+			});
+			fragment.querySelectorAll("br").forEach((br) => br.replaceWith(document.createTextNode(" ")));
+			caretOffset = start + (fragment.textContent ?? "").length;
+			range.insertNode(fragment);
+		} else {
+			caretOffset = start + paras.map((p) => p.textContent ?? "").join("").length;
+			this.__insertPastedParagraphs(paras, range);
+			ensureParagraphs(this.editable); // заполнить пустые абзацы, убрать краевые <br>
+		}
+
+		restoreSelection(this.editable, caretOffset, caretOffset, selection);
+		this.__emitChange();
+		return true;
+	}
+
+	// Вставляет санитизированные абзацы <p> в позицию каретки, разбивая текущий абзац.
+	private __insertPastedParagraphs(paras: HTMLElement[], range: Range) {
+		let para: Node | null = range.startContainer;
+		while (para && para !== this.editable && !this.__isBlock(para)) para = para.parentNode;
+
+		// каретка не внутри абзаца (пустой редактор / уровень редактора) — вставляем абзацы как есть
+		if (!para || para === this.editable) {
+			const ref = this.editable.childNodes[range.startOffset] ?? null;
+			for (const p of paras) this.editable.insertBefore(p, ref);
+			return;
+		}
+
+		const block = para as HTMLElement;
+
+		// хвост текущего абзаца после каретки — выносим, чтобы вернуть в конец вставки
+		const tailRange = document.createRange();
+		tailRange.selectNodeContents(block);
+		tailRange.setStart(range.startContainer, range.startOffset);
+		const tail = tailRange.extractContents();
+
+		// первый вставляемый абзац вливается в текущий (после содержимого до каретки)
+		while (paras[0].firstChild) block.appendChild(paras[0].firstChild);
+
+		if (paras.length === 1) {
+			block.appendChild(tail); // один абзац: содержимое-до + вставка + хвост в одном <p>
+			return;
+		}
+
+		// остальные абзацы — отдельными <p> после текущего; хвост — в конец последнего
+		let anchor: ChildNode = block;
+		for (let i = 1; i < paras.length; i++) {
+			anchor.after(paras[i]);
+			anchor = paras[i];
+		}
+		paras[paras.length - 1].appendChild(tail);
+	}
+
+	// Обрезает пробелы по краям абзаца (после схлопывания) — у крайних текстовых узлов.
+	private __trimParagraphEdges(p: HTMLElement) {
+		const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+		const texts: Text[] = [];
+		for (let t = walker.nextNode() as Text | null; t; t = walker.nextNode() as Text | null) texts.push(t);
+		if (!texts.length) return;
+
+		texts[0].textContent = (texts[0].textContent ?? "").replace(/^ /, "");
+		const last = texts[texts.length - 1];
+		last.textContent = (last.textContent ?? "").replace(/ $/, "");
 	}
 
 	// --- форматирование ---

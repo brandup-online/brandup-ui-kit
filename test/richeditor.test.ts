@@ -338,6 +338,113 @@ describe("RichEditor paragraphs (multiline)", () => {
 	});
 });
 
+describe("RichEditor paste (formatted)", () => {
+	// в jsdom нет полноценного ClipboardEvent — подкладываем clipboardData вручную
+	const paste = (editor: RichEditor, { html = "", plain = "" }: { html?: string; plain?: string }) => {
+		const e = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
+		e.clipboardData = { getData: (type: string) => (type === "text/html" ? html : plain) };
+		editor.editable.dispatchEvent(e);
+		return e;
+	};
+
+	it("multiline: preserves <p> paragraphs and formatting, splitting the current paragraph", () => {
+		const editor = makeEditor({ tools: ["bold", "italic"], multiline: true, value: "foobar" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 3); // между foo|bar
+
+		paste(editor, { html: "<p><b>A</b></p><p><i>B</i></p>", plain: "A\nB" });
+
+		// первый абзац влит в текущий, второй — новый <p>, хвост "bar" — в конец вставки
+		expect(editor.editable.innerHTML).toBe("<p>foo<b>A</b></p><p><i>B</i>bar</p>");
+		expect(editor.getValue()).toBe("<p>foo<b>A</b></p><p><i>B</i>bar</p>");
+	});
+
+	it("multiline: single pasted paragraph stays inline in the current paragraph", () => {
+		const editor = makeEditor({ tools: ["bold"], multiline: true, value: "foobar" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 3);
+
+		paste(editor, { html: "<p><b>X</b></p>", plain: "X" });
+
+		expect(editor.editable.innerHTML).toBe("<p>foo<b>X</b>bar</p>");
+	});
+
+	it("single-line: flattens paragraphs to inline with spaces, keeps formatting", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "foo" });
+		caretAt(editor.editable.firstChild!, 3); // конец foo
+
+		paste(editor, { html: "<p><b>A</b></p><p>B</p>", plain: "A\nB" });
+
+		expect(editor.editable.innerHTML).toBe("foo<b>A</b> B");
+	});
+
+	it("sanitizes junk and drops disabled tools", () => {
+		const editor = makeEditor({ tools: ["bold"], multiline: true });
+		caretAt(editor.editable, 0);
+
+		paste(editor, {
+			html: "<style>p{color:red}</style><p><b>A</b><i>B</i><span>C</span></p>",
+			plain: "ABC",
+		});
+
+		// style вырезан, <i>/<span> развёрнуты (i отключён), <b> сохранён
+		expect(editor.editable.innerHTML).toBe("<p><b>A</b>BC</p>");
+	});
+
+	it("drops empty leading/trailing paragraphs and collapses whitespace from the clipboard", () => {
+		const editor = makeEditor({ tools: ["bold"], multiline: true });
+		caretAt(editor.editable, 0);
+
+		// типичный мусор браузера: пустые краевые блоки и переводы строк/отступы между тегами
+		paste(editor, {
+			html: "<p><br></p>\n  <p>  <b>A</b>\n  B  </p>\n<p><br></p>",
+			plain: "A B",
+		});
+
+		expect(editor.editable.innerHTML).toBe("<p><b>A</b> B</p>"); // без пустых строк вокруг
+	});
+
+	it("falls back to plain text when there is no HTML", () => {
+		const editor = makeEditor({ tools: ["bold"], multiline: true, value: "foo" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 3);
+
+		paste(editor, { plain: "bar" });
+
+		expect(editor.editable.textContent).toBe("foobar");
+		expect(editor.editable.querySelector("b")).toBeNull();
+	});
+
+	it("rejects via filterPaste (null) and inserts nothing", () => {
+		const onReject = jest.fn();
+		const editor = makeEditor({
+			tools: ["bold"],
+			multiline: true,
+			value: "foo",
+			filterPaste: () => null,
+			onReject,
+		});
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 3);
+
+		paste(editor, { html: "<p><b>A</b></p>", plain: "A" });
+
+		expect(onReject).toHaveBeenCalled();
+		expect(editor.editable.textContent).toBe("foo");
+	});
+
+	it("falls back to plain when filterPaste transforms the text (e.g. maxLength)", () => {
+		const editor = makeEditor({
+			tools: ["bold"],
+			multiline: true,
+			filterPaste: (t) => t.slice(0, 2), // обрезка по длине
+		});
+		caretAt(editor.editable, 0);
+
+		paste(editor, { html: "<p><b>ABCD</b></p>", plain: "ABCD" });
+
+		// форматирование не сохраняем — вставлен очищенный текст без <b>
+		expect(editor.editable.textContent).toBe("AB");
+		expect(editor.editable.querySelector("b")).toBeNull();
+	});
+});
+
 describe("RichEditor history (undo/redo)", () => {
 	// триггер undo/redo — на keydown (браузер диспатчит historyUndo/Redo в beforeinput только
 	// при непустом нативном стеке, которого у нас нет, т.к. нативную отмену мы гасим)
@@ -376,6 +483,34 @@ describe("RichEditor history (undo/redo)", () => {
 
 		undo(editor);
 		redoShiftZ(editor);
+		expect(editor.editable.innerHTML).toBe("<b>barbaz</b>");
+	});
+
+	it("works on a non-Latin layout via e.code (Cyrillic: key='я'/'н', code='KeyZ'/'KeyY')", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "barbaz" });
+		selectRange(editor.editable.firstChild!, 0, 3);
+		editor.applyFormat("bold");
+
+		// кириллическая раскладка: физическая Z даёт key="я", но code="KeyZ"
+		editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "я", code: "KeyZ", ctrlKey: true, cancelable: true, bubbles: true })
+		);
+		expect(editor.editable.innerHTML).toBe("barbaz");
+
+		// физическая Y даёт key="н", code="KeyY"
+		editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "н", code: "KeyY", ctrlKey: true, cancelable: true, bubbles: true })
+		);
+		expect(editor.editable.innerHTML).toBe("<b>barbaz</b>");
+	});
+
+	it("applies a formatting hotkey on a non-Latin layout (Ctrl+B as key='и', code='KeyB')", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "barbaz" });
+		selectRange(editor.editable.firstChild!, 0, 3);
+
+		editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "и", code: "KeyB", ctrlKey: true, cancelable: true, bubbles: true })
+		);
 		expect(editor.editable.innerHTML).toBe("<b>barbaz</b>");
 	});
 
