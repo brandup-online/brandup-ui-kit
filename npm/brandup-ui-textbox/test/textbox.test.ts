@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import TextBox, { ROOT_CLASS } from "../npm/brandup-ui-textbox/source/textbox";
+import TextBox, { ROOT_CLASS } from "../source/textbox";
 
 function setup(opts: { value?: string; required?: boolean; type?: string; maxlength?: number } = {}) {
 	document.body.innerHTML = "";

@@ -40,6 +40,6 @@
 		"lint:fix": "eslint . --fix",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
-		"test": "cross-env NODE_ENV=test jest --config=jest.config.js --no-cache --passWithNoTests"
+		"test": "cross-env NODE_ENV=test jest --config=jest.config.ts --no-cache --passWithNoTests"
 	}
 }

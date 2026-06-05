@@ -1,4 +1,4 @@
-import { detectLanguage, transcriptText } from "../npm/brandup-ui-dropdown/source/utils/utilities";
+import { detectLanguage, transcriptText } from "../source/utils/utilities";
 
 describe("detectLanguage", () => {
 	it("identifies english text by first letter", () => {

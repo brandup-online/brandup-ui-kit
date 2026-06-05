@@ -1,8 +1,8 @@
 /**
  * @jest-environment jsdom
  */
-import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS } from "../npm/brandup-ui-richeditor/source/richeditor";
-import { expandSelectionToWords } from "../npm/brandup-ui-richeditor/source/editing";
+import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS } from "../source/richeditor";
+import { expandSelectionToWords } from "../source/editing";
 
 type Opts = ConstructorParameters<typeof RichEditor>[1];
 

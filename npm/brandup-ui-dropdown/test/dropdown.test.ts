@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import DropDown, { ROOT_CLASS, CHANGE_EVENT } from "../npm/brandup-ui-dropdown/source/dropdown";
+import DropDown, { ROOT_CLASS, CHANGE_EVENT } from "../source/dropdown";
 
 function makeSelect(options: Array<[value: string, text: string]>): HTMLSelectElement {
 	document.body.innerHTML = "";
