@@ -1,6 +1,6 @@
 ﻿import { Middleware, MiddlewareNext, NavigateContext } from "@brandup/ui-app";
 import { ExampleApplication } from "../app";
-import { PageNavigationData } from "../typings/app";
+import type { PageNavigationData } from "../typings/app";
 
 const ErrorMiddlewareFactory = (): Middleware => {
 	return {

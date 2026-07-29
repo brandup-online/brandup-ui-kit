@@ -1,7 +1,7 @@
 ﻿import { DOM, UIElement } from "@brandup/ui";
 import { AjaxQueue, AjaxResponse } from "@brandup/ui-ajax";
 import { ExampleApplication } from "../app";
-import { PageNavigationData, PageSubmitData } from "frontend/typings/app";
+import type { PageNavigationData, PageSubmitData } from "frontend/typings/app";
 import { NavigateContext, SubmitContext } from "@brandup/ui-app";
 import "./base.less";
 

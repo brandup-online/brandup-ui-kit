@@ -1,6 +1,6 @@
 ﻿import { ApplicationBuilder } from "@brandup/ui-app";
 import { uiKitMiddlewareFactory } from "@brandup/ui-kit";
-import { ExampleApplicationModel } from "./typings/app";
+import type { ExampleApplicationModel } from "./typings/app";
 import { ExampleApplication } from "./app";
 import "./pages/base";
 import "./styles/styles.less";

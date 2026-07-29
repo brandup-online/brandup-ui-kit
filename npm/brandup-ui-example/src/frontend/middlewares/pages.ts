@@ -11,7 +11,7 @@ import {
 } from "@brandup/ui-app";
 import { Page } from "../pages/base";
 import { ExampleApplication } from "../app";
-import { PageNavigationData, PageSubmitData } from "../typings/app";
+import type { PageNavigationData, PageSubmitData } from "../typings/app";
 import { FuncHelper } from "@brandup/ui-helpers";
 
 class PagesMiddlewareImpl implements Middleware, PagesMiddleware {
