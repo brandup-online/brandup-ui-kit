@@ -15,7 +15,10 @@
 		"resolveJsonModule": true,
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
-		"skipLibCheck": true
+		"skipLibCheck": true,
+		// TypeScript 6 no longer auto-discovers @types from parent node_modules,
+		// so the jest globals used in test/ have to be requested explicitly.
+		"types": ["jest"]
 	},
 	"include": ["source", "test"],
 	"exclude": ["node_modules", "dist", ".vs", ".vscode"],

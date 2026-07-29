@@ -35,7 +35,7 @@
 		"@brandup/ui-richeditor": "file:../brandup-ui-richeditor"
 	},
 	"devDependencies": {
-		"less": "^4.6.4",
+		"less": "^4.8.1",
 		"typescript": "^6.0.3"
 	},
 	"files": [
