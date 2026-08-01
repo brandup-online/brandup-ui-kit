@@ -7,7 +7,7 @@
 ## Пакеты
 
 | Пакет | Описание |
-|---|---|
+| --- | --- |
 | [@brandup/ui-kit](npm/brandup-ui-kit/README.md) | Базовые стили, PopupManager, middleware и CSS-переменные |
 | [@brandup/ui-input](npm/brandup-ui-input/README.md) | Абстрактный базовый класс для элементов ввода |
 | [@brandup/ui-textbox](npm/brandup-ui-textbox/README.md) | Компонент текстового поля (`input`, `textarea`) |

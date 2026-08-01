@@ -8,7 +8,7 @@
 
 ## Установка и запуск
 
-```
+```bash
 npm run serve
 ```
 
@@ -16,7 +16,7 @@ npm run serve
 
 ### Режим разработки (без сервера)
 
-```
+```bash
 npm run watch
 ```
 
@@ -24,7 +24,7 @@ npm run watch
 
 ### Только сборка фронтенда
 
-```
+```bash
 npm run dev-build    # development-сборка
 npm run build        # production-сборка
 ```
@@ -35,6 +35,6 @@ npm run build        # production-сборка
 
 Чтобы сгенерировать сертификат вручную:
 
-```
+```bash
 npm run setup-cert
 ```

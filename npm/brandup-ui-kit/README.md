@@ -6,7 +6,7 @@
 
 ## Установка
 
-```
+```bash
 npm i @brandup/ui-kit
 ```
 

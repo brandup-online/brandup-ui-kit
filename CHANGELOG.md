@@ -11,6 +11,7 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 ## [Unreleased]
 
 ### Deferred (intentionally not done in this revision)
+
 - **Reactive rewrite of `DropDown` / `TextBox`.** `@brandup/ui` v2 ships
   a Vue-style reactivity system (`reactive`, `computed`, `effect`,
   `bind`, `bindEach`). The current components use imperative DOM
@@ -26,8 +27,8 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   would need synchronized edits we can't validate locally. Left in
   place for now.
 
-
 ### Added
+
 - **ESLint 9 (flat config) + Prettier 3.** Configs at root
   (`eslint.config.mjs`, `.prettierrc.json`, `.prettierignore`); npm
   scripts `lint`, `lint:fix`, `format`, `format:check`. Prettier matches
@@ -54,6 +55,7 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   listeners on the restored `<input>`.
 
 ### Changed
+
 - **`InputControl` now extends `UIElementBound`** (new v2 base class for
   components whose element is bound in the constructor). The constructor
   signature became `(typeName, elem, valueElem)` and subclasses build the
@@ -103,6 +105,7 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   from 72.7 KiB → 38.7 KiB minified (~47%).
 
 ### Fixed
+
 - **Critical: XSS in `TextBox.__initText`/`setValue`.** Text built from
   `<input value>` was inserted via `innerHTML`. Replaced with safe DOM
   construction (`createTextNode`, `textContent`).
@@ -132,6 +135,7 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   v8 requires named wildcards).
 
 ### Removed
+
 - Dead `__invalidTimeout` field in `DropDown` (only ever cleared, never
   set).
 - Dead unreachable `elems.length === 2` branch in `DropDown.__getElems`.
@@ -139,6 +143,7 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   no sources — only stale `node_modules`).
 
 ### Repository hygiene
+
 - `repository.url`, `homepage`, and `bugs.url` in all four published
   packages now point at the correct repo (`brandup-online/brandup-ui-kit`,
   was `brandup-online/brandup-ui`).
