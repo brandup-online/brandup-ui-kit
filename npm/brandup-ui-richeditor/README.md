@@ -8,7 +8,7 @@
 
 ## Установка
 
-```
+```bash
 npm i @brandup/ui-richeditor
 ```
 
@@ -40,7 +40,7 @@ editor.onChange(({ value }) => console.log(value));
 ## Опции (`RichEditorOptions`)
 
 | Опция | Тип | Описание |
-|---|---|---|
+| --- | --- | --- |
 | `format` | `boolean` | Включает форматирование и панель инструментов |
 | `tools` | `FormatTool[]` | Состав инструментов (по умолчанию все) |
 | `storage` | `"html" \| "markdown"` | Формат сериализации значения (по умолчанию `html`) |
@@ -60,7 +60,7 @@ editor.onChange(({ value }) => console.log(value));
 ## API
 
 | Член | Описание |
-|---|---|
+| --- | --- |
 | `editable` | Редактируемый элемент |
 | `format`, `formatTools`, `formatStorage`, `formatMarkers`, `multiline` | Параметры экземпляра |
 | `getValue(): string` | Сериализованное значение (по `storage`) |
@@ -105,7 +105,7 @@ editor.onChange(({ value }) => console.log(value));
 ## Формат хранения
 
 | `storage` | Хранение | Абзац / мягкий перенос | Маркеры форматирования |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `html` | Санитизированный HTML | `<p>…</p>` / `<br>` | `<b>`, `<i>`, `<s>`, `<u>` |
 | `markdown` | Лёгкая разметка | `\n\n` / `\n` | `**жирный**`, `*курсив*`, `~~зачёркнутый~~`, `++подчёркнутый++` |
 

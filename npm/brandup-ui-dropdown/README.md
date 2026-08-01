@@ -6,7 +6,7 @@
 
 ## Установка
 
-```
+```bash
 npm i @brandup/ui-dropdown
 ```
 
@@ -35,7 +35,7 @@ dropdown.on(CHANGE_EVENT, (data: ChangeEventData) => {
 ## Data-атрибуты
 
 | Атрибут | По умолчанию | Описание |
-|---|---|---|
+| --- | --- | --- |
 | `data-placeholder` | `"Select"` | Текст при отсутствии выбранного значения |
 | `data-emptytext` | `"Empty list"` | Текст при пустом списке опций |
 | `data-search-placeholder` | `"Search"` | Плейсхолдер строки поиска |
@@ -48,7 +48,7 @@ dropdown.on(CHANGE_EVENT, (data: ChangeEventData) => {
 ### Методы (унаследованы от InputControl)
 
 | Метод | Описание |
-|---|---|
+| --- | --- |
 | `validate(): boolean` | Проверяет значение через нативный `checkValidity()` |
 | `focus(): void` | Устанавливает фокус |
 | `destroy(): void` | Восстанавливает исходный `<select>` и освобождает ресурсы |
@@ -56,7 +56,7 @@ dropdown.on(CHANGE_EVENT, (data: ChangeEventData) => {
 ### Свойства
 
 | Свойство | Тип | Описание |
-|---|---|---|
+| --- | --- | --- |
 | `placeholder` | `string` | Текст-заглушка |
 | `emptyText` | `string` | Текст при пустом списке |
 | `searchOn` | `number \| boolean` | Настройка отображения строки поиска |
