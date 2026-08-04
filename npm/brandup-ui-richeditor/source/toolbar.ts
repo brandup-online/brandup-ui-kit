@@ -6,11 +6,14 @@
 // т.к. тулбар находится вне привязанных UIElement).
 
 import { DOM } from "@brandup/ui";
+import { POPUP_CLASS, PopupManager } from "@brandup/ui-kit";
 import { EDITOR_ACTIONS, FORMAT_TOOLS, type EditorAction, type FormatTool } from "./format";
+import { EMOJIS } from "./emoji";
 import boldIcon from "../svg/bold.svg";
 import italicIcon from "../svg/italic.svg";
 import strikeIcon from "../svg/strike.svg";
 import underlineIcon from "../svg/underline.svg";
+import emojiIcon from "../svg/emoji.svg";
 import eraseIcon from "../svg/erase.svg";
 import undoIcon from "../svg/undo.svg";
 import redoIcon from "../svg/redo.svg";
@@ -23,12 +26,14 @@ const FORMAT_ICONS: Record<FormatTool, string> = {
 };
 
 const ACTION_ICONS: Record<EditorAction, string> = {
+	emoji: emojiIcon,
 	erase: eraseIcon,
 	undo: undoIcon,
 	redo: redoIcon,
 };
 
 export const TOOLBAR_CLASS = "ui-richeditor-toolbar";
+export const EMOJI_PICKER_CLASS = "ui-richeditor-emoji";
 
 /** Редактор, которым управляет общий тулбар. */
 export interface ToolbarHost {
@@ -43,12 +48,15 @@ export interface ToolbarHost {
 	applyAction?(action: EditorAction): void;
 	/** false — кнопка действия недоступна (нечего отменять/очищать). */
 	isActionEnabled?(action: EditorAction): boolean;
+	/** Вставка текста в каретку — для панели смайликов. */
+	insertText?(text: string): void;
 }
 
 const MARGIN = 6;
 
 class FormatToolbar {
 	private __elem: HTMLElement | null = null;
+	private __emojiPicker: HTMLElement | null = null;
 	private __buttons: Array<[FormatTool, HTMLButtonElement]> = [];
 	private __actionButtons: Array<[EditorAction, HTMLButtonElement]> = [];
 	private __active: ToolbarHost | null = null;
@@ -102,6 +110,7 @@ class FormatToolbar {
 	detach(host: ToolbarHost) {
 		if (this.__active !== host) return;
 
+		this.__closeEmoji();
 		this.__active = null;
 		if (this.__elem) this.__elem.classList.remove("visible");
 		this.__removeViewportListeners();
@@ -136,7 +145,16 @@ class FormatToolbar {
 	}
 
 	private __ensure(): HTMLElement {
-		if (!this.__elem) this.__elem = DOM.tag("div", { class: TOOLBAR_CLASS });
+		if (!this.__elem) {
+			this.__elem = DOM.tag("div", { class: TOOLBAR_CLASS });
+
+			// Панель нигде не должна забирать фокус, иначе редактор теряет выделение, а blur
+			// прячет сам тулбар. Слушатель висит на корне, а не на кнопках: до disabled-кнопки
+			// событие не доходит (браузер их не диспатчит), да и клик по фону панели между
+			// кнопками иначе тоже уводил бы фокус. Дочерние элементы покрываются всплытием.
+			this.__elem.addEventListener("mousedown", (e) => e.preventDefault());
+		}
+
 		return this.__elem;
 	}
 
@@ -157,8 +175,6 @@ class FormatToolbar {
 				{ type: "button", class: "format-button", "data-format-tool": tool, title: def.title },
 				FORMAT_ICONS[tool]
 			);
-			// не даём кнопке забрать фокус, иначе теряется выделение в редакторе
-			btn.addEventListener("mousedown", (e) => e.preventDefault());
 			btn.addEventListener("click", () => this.__active?.applyFormat(tool));
 
 			elem.appendChild(btn);
@@ -174,12 +190,55 @@ class FormatToolbar {
 				{ type: "button", class: "action-button", "data-editor-action": action, title: def.title },
 				ACTION_ICONS[action]
 			);
-			btn.addEventListener("mousedown", (e) => e.preventDefault());
-			btn.addEventListener("click", () => this.__active?.applyAction?.(action));
+			if (action === "emoji") btn.addEventListener("click", (e) => this.__toggleEmoji(btn, e));
+			else btn.addEventListener("click", () => this.__active?.applyAction?.(action));
 
 			elem.appendChild(btn);
 			this.__actionButtons.push([action, btn]);
 		}
+
+		// панель пережила перестройку кнопок — возвращаем её в тулбар, чтобы не собирать заново
+		if (this.__emojiPicker) elem.appendChild(this.__emojiPicker);
+	}
+
+	private __toggleEmoji(initiator: HTMLButtonElement, e: MouseEvent) {
+		// PopupManager вешает свой слушатель закрытия на body прямо в open(), то есть во время
+		// этого же клика: до body событие ещё не дошло, слушатель успел бы его получить и закрыть
+		// панель сразу после открытия. Штатно попап открывается из command-обработчика на window,
+		// куда событие приходит последним, — здесь роль этого играет остановка всплытия.
+		e.stopPropagation();
+
+		PopupManager.open(this.__ensureEmojiPicker(), { initiator });
+	}
+
+	private __ensureEmojiPicker(): HTMLElement {
+		if (this.__emojiPicker) return this.__emojiPicker;
+
+		const picker = DOM.tag("div", { class: `${POPUP_CLASS} ${EMOJI_PICKER_CLASS}` });
+
+		const fragment = document.createDocumentFragment();
+		for (const emoji of EMOJIS)
+			fragment.appendChild(DOM.tag("button", { type: "button", class: "emoji", tabindex: "-1", title: emoji }, emoji));
+		picker.appendChild(fragment);
+
+		// фокус панель не забирает — mousedown гасится общим слушателем на корне тулбара
+		picker.addEventListener("click", (e) => {
+			const target = (e.target as HTMLElement).closest<HTMLElement>(".emoji");
+			if (!target) return;
+
+			this.__active?.insertText?.(target.textContent ?? "");
+			PopupManager.close();
+		});
+
+		this.__ensure().appendChild(picker);
+		this.__emojiPicker = picker;
+
+		return picker;
+	}
+
+	/** Закрыть панель смайликов, если открыта именно она (тулбар уходит — попап не должен остаться). */
+	private __closeEmoji() {
+		if (this.__emojiPicker?.classList.contains("opened")) PopupManager.close();
 	}
 }
 

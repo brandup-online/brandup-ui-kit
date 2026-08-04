@@ -3,7 +3,8 @@
 		<h2>Кнопки действий</h2>
 		<p class="note">
 			Панель показывается при фокусе. Кнопки действий подключаются явно через <code>actions</code> и блокируются,
-			когда действие недоступно: отменять нечего, повторять нечего, очищать нечего.
+			когда действие недоступно: отменять нечего, повторять нечего, очищать нечего. Действие
+			<code>emoji</code> открывает панель вставки смайликов.
 		</p>
 		<div class="example">
 			<div class="field">
@@ -12,10 +13,24 @@
 					class="editor"
 					data-richeditor
 					data-format
-					data-editor-actions="erase undo redo"
+					data-editor-actions="emoji erase undo redo"
 					data-placeholder="Введите текст"
 					data-multiline
 					data-value="Текст с &lt;b&gt;жирным&lt;/b&gt;, &lt;i&gt;курсивом&lt;/i&gt; и &lt;u&gt;подчёркиванием&lt;/u&gt;."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Только вставка смайликов</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-format-tools=""
+					data-editor-actions="emoji"
+					data-placeholder="Введите текст"
+					data-multiline
+					data-value="Кнопка открывает панель, символ вставляется в каретку."
 				></div>
 				<pre class="value"></pre>
 			</div>

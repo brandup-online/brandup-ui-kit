@@ -3,12 +3,12 @@
 export type FormatTool = "bold" | "italic" | "strike" | "underline";
 export type FormatStorage = "html" | "markdown";
 
-/** Действие редактора (не формат): очистка форматирования, отмена и повтор. */
-export type EditorAction = "erase" | "undo" | "redo";
+/** Действие редактора (не формат): вставка смайлика, очистка форматирования, отмена и повтор. */
+export type EditorAction = "emoji" | "erase" | "undo" | "redo";
 
 export const ALL_FORMAT_TOOLS: FormatTool[] = ["bold", "italic", "strike", "underline"];
 
-export const ALL_EDITOR_ACTIONS: EditorAction[] = ["erase", "undo", "redo"];
+export const ALL_EDITOR_ACTIONS: EditorAction[] = ["emoji", "erase", "undo", "redo"];
 
 interface FormatToolDef {
 	/** Канонический тег при оборачивании и сериализации. */
@@ -60,6 +60,7 @@ interface EditorActionDef {
 }
 
 export const EDITOR_ACTIONS: Record<EditorAction, EditorActionDef> = {
+	emoji: { title: "Вставить смайлик" },
 	erase: { title: "Очистить форматирование" },
 	undo: { title: "Отменить (Ctrl+Z)" },
 	redo: { title: "Повторить (Ctrl+Y)" },

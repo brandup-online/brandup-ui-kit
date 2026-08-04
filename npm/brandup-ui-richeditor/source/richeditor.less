@@ -136,10 +136,43 @@
 		&[disabled] {
 			cursor: default;
 			opacity: 0.4;
+			// хит-тест проваливается на сам тулбар: браузер не диспатчит события на disabled-кнопку,
+			// и без этого mousedown не гасится — редактор теряет фокус, а панель прячется по blur
+			pointer-events: none;
 
 			&:hover {
 				background: var(--input-toolbar-button-fill, transparent);
 			}
+		}
+	}
+}
+
+// панель вставки смайликов — попап под кнопкой тулбара (открытием/закрытием управляет
+// PopupManager из @brandup/ui-kit; базовые .ui-popup-стили приходят оттуда же).
+.ui-richeditor-emoji {
+	top: 100%;
+	left: 0;
+	margin-top: 4px;
+	width: 296px;
+	max-height: 220px;
+	overflow-y: auto;
+	padding: 4px;
+	display: flex;
+	flex-flow: row wrap;
+
+	& .emoji {
+		width: 32px;
+		height: 32px;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		cursor: pointer;
+		font-size: 20px;
+		line-height: 1;
+		border-radius: calc(var(--input-border-radius, 0) - 2px);
+
+		&:hover {
+			background-color: var(--hover--input-toolbar-button-fill, rgba(0, 0, 0, 0.06));
 		}
 	}
 }
