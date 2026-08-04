@@ -61,7 +61,7 @@ export default class RichEditorPage extends Page {
 
 		const markers: Partial<FormatMarkers> = {};
 		for (const tool of ALL_FORMAT_TOOLS) {
-			const marker = elem.getAttribute(`data-md-${tool}`);
+			const marker = elem.getAttribute(`data-format-md-${tool}`);
 			if (marker) markers[tool] = marker;
 		}
 
