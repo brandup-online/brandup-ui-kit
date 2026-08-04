@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS } from "../source/richeditor";
-import { expandSelectionToWords } from "../source/editing";
+import { expandRangeToWords } from "../source/editing";
 
 type Opts = ConstructorParameters<typeof RichEditor>[1];
 
@@ -33,11 +33,24 @@ function caretAt(node: Node, offset: number) {
 	return sel;
 }
 
-const expandWords = (editor: RichEditor, sel: Selection) => expandSelectionToWords(editor.editable, sel);
+const expandWords = (editor: RichEditor, sel: Selection) =>
+	expandRangeToWords(editor.editable, sel.getRangeAt(0)).toString();
+
+function selectAll(editor: RichEditor) {
+	const sel = window.getSelection()!;
+	sel.removeAllRanges();
+	const r = document.createRange();
+	r.selectNodeContents(editor.editable);
+	sel.addRange(r);
+	return sel;
+}
 
 const toolbarButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .format-button`);
 const toolbarButton = (tool: string) =>
 	document.querySelector(`.${TOOLBAR_CLASS} .format-button[data-format-tool="${tool}"]`);
+const actionButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .action-button`);
+const actionButton = (action: string) =>
+	document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} .action-button[data-editor-action="${action}"]`);
 
 describe("RichEditor structure", () => {
 	it("makes the passed element itself the editable (no wrapper)", () => {
@@ -174,11 +187,12 @@ describe("RichEditor formatting", () => {
 		expect(window.getSelection()!.toString()).toBe("bar");
 	});
 
-	it("expands a collapsed caret to the whole word", () => {
+	it("expands a collapsed caret to the whole word without moving the selection", () => {
 		const editor = makeEditor({ tools: ["bold"], value: "foo bar baz" });
 		caretAt(editor.editable.firstChild!, 5);
-		expandWords(editor, window.getSelection()!);
-		expect(window.getSelection()!.toString()).toBe("bar");
+
+		expect(expandWords(editor, window.getSelection()!)).toBe("bar");
+		expect(window.getSelection()!.toString()).toBe(""); // расширение не трогает каретку
 	});
 
 	it("toggles formatting off when reapplied", () => {
@@ -571,6 +585,247 @@ describe("RichEditor history (undo/redo)", () => {
 
 		expect(e.defaultPrevented).toBe(false); // не перехватываем — отдаём браузеру
 		expect(editor.editable.textContent).toBe("abc");
+	});
+});
+
+describe("RichEditor clear formatting", () => {
+	it("clears all formatting within the selection", () => {
+		const editor = makeEditor({ value: "<b>bold</b> <i>italic</i> plain" });
+		selectAll(editor);
+
+		editor.clearFormat();
+
+		expect(editor.editable.innerHTML).toBe("bold italic plain");
+		expect(editor.getValue()).toBe("bold italic plain");
+	});
+
+	it("clears formatting of the whole word under a collapsed caret", () => {
+		const editor = makeEditor({ value: "<b>bold</b> plain" });
+		caretAt(editor.editable.querySelector("b")!.firstChild!, 2);
+
+		editor.clearFormat();
+
+		expect(editor.editable.innerHTML).toBe("bold plain");
+	});
+
+	it("keeps formatting outside the selection", () => {
+		const editor = makeEditor({ multiline: true, value: "<p><b>one</b></p><p><b>two</b></p>" });
+		const second = editor.editable.querySelectorAll("b")[1]!;
+		selectRange(second.firstChild!, 0, 3);
+
+		editor.clearFormat();
+
+		expect(editor.editable.innerHTML).toBe("<p><b>one</b></p><p>two</p>");
+	});
+
+	it("removes synonym tags brought in by pasted/stored HTML", () => {
+		const editor = makeEditor({ value: "<b>x</b> y" });
+		editor.editable.innerHTML = "<strong>x</strong> <em>y</em>"; // синонимы канонических тегов
+		selectAll(editor);
+
+		editor.clearFormat();
+
+		expect(editor.editable.innerHTML).toBe("x y");
+	});
+
+	it("does nothing (and records no history step) when there is nothing to clear", () => {
+		const editor = makeEditor({ value: "plain text" });
+		selectAll(editor);
+
+		editor.clearFormat();
+
+		expect(editor.canUndo).toBe(false);
+		expect(editor.editable.innerHTML).toBe("plain text");
+	});
+
+	it("keeps the caret put when there is nothing to clear", () => {
+		const editor = makeEditor({ value: "plain word" });
+		caretAt(editor.editable.firstChild!, 2); // внутри неформатированного слова
+
+		editor.clearFormat();
+
+		// раньше слово оставалось выделенным расширением, хотя очистка не сработала
+		expect(window.getSelection()!.toString()).toBe("");
+	});
+
+	it("keeps the original partial selection after clearing", () => {
+		const editor = makeEditor({ value: "<b>barbaz</b>" });
+		selectRange(editor.editable.querySelector("b")!.firstChild!, 0, 3);
+
+		editor.clearFormat();
+
+		expect(editor.editable.innerHTML).toBe("barbaz");
+		expect(window.getSelection()!.toString()).toBe("bar");
+	});
+
+	it("erase stays available when the caret sits inside a formatted word", () => {
+		const editor = makeEditor({ actions: ["erase"], value: "<b>bold</b> tail" });
+		caretAt(editor.editable.querySelector("b")!.firstChild!, 2);
+
+		// предикат кнопки смотрит на ту же цель, что возьмёт clearFormat
+		expect(editor.isActionEnabled("erase")).toBe(true);
+
+		editor.clearFormat();
+		expect(editor.editable.innerHTML).toBe("bold tail");
+	});
+
+	it("erase is unavailable on a plain word", () => {
+		const editor = makeEditor({ actions: ["erase"], value: "<b>bold</b> tail" });
+		caretAt(editor.editable.lastChild!, 3); // внутри «tail»
+
+		expect(editor.isActionEnabled("erase")).toBe(false);
+	});
+
+	it("clearAllFormat() strips formatting without a selection", () => {
+		const editor = makeEditor({ value: "<b>a</b> <i>b</i>" });
+		window.getSelection()!.removeAllRanges();
+
+		editor.clearAllFormat();
+
+		expect(editor.editable.innerHTML).toBe("a b");
+		expect(editor.getValue()).toBe("a b");
+	});
+
+	it("clearing is undoable and emits a change", () => {
+		const editor = makeEditor({ value: "<b>bold</b> text" });
+		const onChange = jest.fn();
+		editor.onChange(onChange);
+		selectAll(editor);
+
+		editor.clearFormat();
+		expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ value: "bold text" }));
+
+		editor.undo();
+		expect(editor.editable.innerHTML).toBe("<b>bold</b> text");
+	});
+
+	it("exits typing mode when clearing", () => {
+		const editor = makeEditor({ tools: ["bold"] });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+		caretAt(editor.editable, 0);
+		editor.applyFormat("bold"); // режим набора
+		expect(editor.isToolActive("bold")).toBe(true);
+
+		editor.clearFormat();
+
+		expect(editor.isToolActive("bold")).toBe(false);
+	});
+
+	it("does not clear formatting in readonly", () => {
+		const editor = makeEditor({ readonly: true });
+		editor.editable.innerHTML = "<b>bold</b>"; // разметка проставлена хостом мимо deserialize
+		selectAll(editor);
+
+		editor.clearFormat();
+		editor.clearAllFormat();
+
+		expect(editor.editable.innerHTML).toBe("<b>bold</b>");
+	});
+});
+
+describe("RichEditor undo/redo API", () => {
+	it("undo()/redo() revert and replay a formatting operation", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "barbaz" });
+		selectRange(editor.editable.firstChild!, 0, 3);
+		editor.applyFormat("bold");
+		expect(editor.editable.innerHTML).toBe("<b>barbaz</b>");
+
+		editor.undo();
+		expect(editor.editable.innerHTML).toBe("barbaz");
+
+		editor.redo();
+		expect(editor.editable.innerHTML).toBe("<b>barbaz</b>");
+	});
+
+	it("reports canUndo/canRedo", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "barbaz" });
+		expect(editor.canUndo).toBe(false);
+		expect(editor.canRedo).toBe(false);
+
+		selectRange(editor.editable.firstChild!, 0, 3);
+		editor.applyFormat("bold");
+		expect(editor.canUndo).toBe(true);
+		expect(editor.canRedo).toBe(false);
+
+		editor.undo();
+		expect(editor.canUndo).toBe(false);
+		expect(editor.canRedo).toBe(true);
+	});
+
+	it("has no history without formatting", () => {
+		const editor = makeEditor({ format: false, value: "abc" });
+		expect(editor.canUndo).toBe(false);
+
+		editor.undo(); // не должно падать
+		expect(editor.editable.textContent).toBe("abc");
+	});
+});
+
+describe("RichEditor toolbar actions", () => {
+	it("adds no action buttons by default", () => {
+		const editor = makeEditor();
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		expect(editor.editorActions).toHaveLength(0);
+		expect(actionButtons()).toHaveLength(0);
+		expect(toolbarButtons()).toHaveLength(4);
+	});
+
+	it("renders requested action buttons after a separator", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["erase", "undo", "redo"] });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		expect(actionButtons()).toHaveLength(3);
+		expect(document.querySelector(`.${TOOLBAR_CLASS} .split`)).not.toBeNull();
+	});
+
+	it("shows the toolbar with actions only (no format tools)", () => {
+		const editor = makeEditor({ tools: [], actions: ["undo", "redo"] });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		expect(document.querySelector(`.${TOOLBAR_CLASS}.visible`)).not.toBeNull();
+		expect(actionButtons()).toHaveLength(2);
+	});
+
+	it("disables undo/redo/erase while there is nothing to do", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["erase", "undo", "redo"], value: "barbaz" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+		caretAt(editor.editable.firstChild!, 0);
+
+		expect(actionButton("undo")!.disabled).toBe(true);
+		expect(actionButton("redo")!.disabled).toBe(true);
+		expect(actionButton("erase")!.disabled).toBe(true);
+	});
+
+	it("enables undo and erase after a formatting operation", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["erase", "undo", "redo"], value: "barbaz" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		selectRange(editor.editable.firstChild!, 0, 3);
+		editor.applyFormat("bold");
+
+		expect(actionButton("undo")!.disabled).toBe(false);
+		expect(actionButton("erase")!.disabled).toBe(false);
+		expect(actionButton("redo")!.disabled).toBe(true);
+	});
+
+	it("runs the action on button click", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["erase", "undo"], value: "barbaz" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+		selectRange(editor.editable.firstChild!, 0, 3);
+		editor.applyFormat("bold");
+
+		actionButton("undo")!.click();
+		expect(editor.editable.innerHTML).toBe("barbaz");
+	});
+
+	it("ignores actions that are not enabled for the editor", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["undo"], value: "<b>bold</b>" });
+		selectAll(editor);
+
+		editor.applyAction("erase"); // не входит в actions
+
+		expect(editor.editable.innerHTML).toBe("<b>bold</b>");
 	});
 });
 

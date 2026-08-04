@@ -1,0 +1,231 @@
+<section class="page-block richeditors">
+	<div class="part">
+		<h2>Кнопки действий</h2>
+		<p class="note">
+			Панель показывается при фокусе. Кнопки действий подключаются явно через <code>actions</code> и блокируются,
+			когда действие недоступно: отменять нечего, повторять нечего, очищать нечего.
+		</p>
+		<div class="example">
+			<div class="field">
+				<h5>Инструменты и все действия</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-editor-actions="erase undo redo"
+					data-placeholder="Введите текст"
+					data-multiline
+					data-value="Текст с &lt;b&gt;жирным&lt;/b&gt;, &lt;i&gt;курсивом&lt;/i&gt; и &lt;u&gt;подчёркиванием&lt;/u&gt;."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Только очистка формата</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-editor-actions="erase"
+					data-placeholder="Введите текст"
+					data-multiline
+					data-value="Очистка снимает &lt;b&gt;все форматы&lt;/b&gt; сразу."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Только отмена и повтор</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-format-tools=""
+					data-editor-actions="undo redo"
+					data-placeholder="Введите текст"
+					data-multiline
+					data-value="Панель без инструментов форматирования."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Без действий (по умолчанию)</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-placeholder="Введите текст"
+					data-multiline
+					data-value="Кнопок действий нет — панель как раньше."
+				></div>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>Вызов методов из кода</h2>
+		<p class="note">
+			Те же операции доступны без панели: <code>clearFormat()</code>, <code>clearAllFormat()</code>,
+			<code>undo()</code>, <code>redo()</code>. Флаги <code>canUndo</code> / <code>canRedo</code> показывают
+			доступность отмены.
+		</p>
+		<div class="example wide">
+			<div class="field">
+				<h5>Редактор без панели действий</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-placeholder="Введите текст"
+					data-multiline
+					data-value="Выделите слово и нажмите кнопку, либо очистите &lt;b&gt;всё содержимое&lt;/b&gt; целиком."
+				></div>
+				<div class="buttons">
+					<button type="button" class="app-button" data-command="editor-method" data-method="clear">
+						clearFormat()
+					</button>
+					<button type="button" class="app-button" data-command="editor-method" data-method="clear-all">
+						clearAllFormat()
+					</button>
+					<button type="button" class="app-button" data-command="editor-method" data-method="undo">
+						undo()
+					</button>
+					<button type="button" class="app-button" data-command="editor-method" data-method="redo">
+						redo()
+					</button>
+					<button type="button" class="app-button" data-command="editor-method" data-method="reset">
+						setValue()
+					</button>
+				</div>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>Формат хранения</h2>
+		<p class="note">
+			Значение сериализуется в HTML либо в Markdown; маркеры Markdown настраиваются на каждый инструмент — так
+			редактор подгоняется под диалект конкретного мессенджера.
+		</p>
+		<div class="example">
+			<div class="field">
+				<h5>HTML (по умолчанию)</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-editor-actions="erase undo redo"
+					data-placeholder="Введите текст"
+					data-multiline
+					data-value="Текст с &lt;b&gt;жирным&lt;/b&gt; и &lt;s&gt;зачёркиванием&lt;/s&gt;."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Markdown (маркеры по умолчанию)</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-format-storage="markdown"
+					data-editor-actions="erase undo redo"
+					data-placeholder="Введите текст"
+					data-multiline
+					data-value="Текст с **жирным**, *курсивом*, ~~зачёркиванием~~ и ++подчёркиванием++."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Markdown в диалекте мессенджеров</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-format-storage="markdown"
+					data-md-bold="*"
+					data-md-italic="_"
+					data-md-strike="~"
+					data-md-underline="__"
+					data-editor-actions="erase undo redo"
+					data-placeholder="Введите текст"
+					data-multiline
+					data-value="Текст с *жирным*, _курсивом_ и ~зачёркиванием~."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Без форматирования (plain)</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-placeholder="Введите текст"
+					data-multiline
+					data-value="Абзацы разделяются пустой строкой."
+				></div>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>Режимы</h2>
+		<div class="example">
+			<div class="field">
+				<h5>Однострочный</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-editor-actions="erase undo redo"
+					data-placeholder="Введите текст"
+					data-value="Enter не создаёт абзац."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Только жирный и курсив</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-format-tools="bold italic"
+					data-editor-actions="erase undo"
+					data-placeholder="Введите текст"
+					data-multiline
+					data-value="Остальные инструменты отключены."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Только для чтения</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-editor-actions="erase undo redo"
+					data-readonly
+					data-placeholder="Введите текст"
+					data-multiline
+					data-value="Правки запрещены, панели нет — выделять и копировать можно."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Панель внутри контейнера</h5>
+				<div class="toolbar-host">
+					<div
+						class="editor"
+						data-richeditor
+						data-format
+						data-editor-actions="erase undo redo"
+						data-toolbar-container
+						data-placeholder="Введите текст"
+						data-multiline
+						data-value="Панель прижата к этому контейнеру, а не к body."
+					></div>
+				</div>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+</section>

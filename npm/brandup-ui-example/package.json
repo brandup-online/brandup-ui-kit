@@ -9,6 +9,7 @@
 		"@brandup/ui-dropdown": "file:../brandup-ui-dropdown",
 		"@brandup/ui-helpers": "^2.0.5",
 		"@brandup/ui-kit": "file:../brandup-ui-kit",
+		"@brandup/ui-richeditor": "file:../brandup-ui-richeditor",
 		"@brandup/ui-textbox": "file:../brandup-ui-textbox",
 		"cors": "^2.8.6",
 		"express": "^5.2.1"

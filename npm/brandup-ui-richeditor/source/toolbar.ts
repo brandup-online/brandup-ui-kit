@@ -6,11 +6,14 @@
 // т.к. тулбар находится вне привязанных UIElement).
 
 import { DOM } from "@brandup/ui";
-import { FORMAT_TOOLS, type FormatTool } from "./format";
+import { EDITOR_ACTIONS, FORMAT_TOOLS, type EditorAction, type FormatTool } from "./format";
 import boldIcon from "../svg/bold.svg";
 import italicIcon from "../svg/italic.svg";
 import strikeIcon from "../svg/strike.svg";
 import underlineIcon from "../svg/underline.svg";
+import eraseIcon from "../svg/erase.svg";
+import undoIcon from "../svg/undo.svg";
+import redoIcon from "../svg/redo.svg";
 
 const FORMAT_ICONS: Record<FormatTool, string> = {
 	bold: boldIcon,
@@ -19,16 +22,27 @@ const FORMAT_ICONS: Record<FormatTool, string> = {
 	underline: underlineIcon,
 };
 
+const ACTION_ICONS: Record<EditorAction, string> = {
+	erase: eraseIcon,
+	undo: undoIcon,
+	redo: redoIcon,
+};
+
 export const TOOLBAR_CLASS = "ui-richeditor-toolbar";
 
 /** Редактор, которым управляет общий тулбар. */
 export interface ToolbarHost {
 	readonly editable: HTMLElement;
 	readonly formatTools: FormatTool[];
+	/** Действия (очистка формата, отмена/повтор); пусто/undefined — кнопок действий нет. */
+	readonly editorActions?: EditorAction[];
 	/** Контейнер для тулбара; null/undefined — document.body (position: fixed над редактором). */
 	readonly toolbarContainer?: HTMLElement | null;
 	applyFormat(tool: FormatTool): void;
 	isToolActive(tool: FormatTool): boolean;
+	applyAction?(action: EditorAction): void;
+	/** false — кнопка действия недоступна (нечего отменять/очищать). */
+	isActionEnabled?(action: EditorAction): boolean;
 }
 
 const MARGIN = 6;
@@ -36,6 +50,7 @@ const MARGIN = 6;
 class FormatToolbar {
 	private __elem: HTMLElement | null = null;
 	private __buttons: Array<[FormatTool, HTMLButtonElement]> = [];
+	private __actionButtons: Array<[EditorAction, HTMLButtonElement]> = [];
 	private __active: ToolbarHost | null = null;
 	private __toolsKey = "";
 	private __inContainer = false;
@@ -50,10 +65,11 @@ class FormatToolbar {
 
 	/** Показать тулбар для редактора (на фокусе): перестроить кнопки, спозиционировать, показать. */
 	attach(host: ToolbarHost) {
-		if (!host.formatTools.length) return;
+		const actions = host.editorActions ?? [];
+		if (!host.formatTools.length && !actions.length) return;
 
 		this.__active = host;
-		this.__build(host.formatTools);
+		this.__build(host.formatTools, actions);
 		this.refresh();
 
 		const elem = this.__ensure();
@@ -91,10 +107,14 @@ class FormatToolbar {
 		this.__removeViewportListeners();
 	}
 
-	/** Обновить подсветку активных инструментов по текущему выделению. */
+	/** Обновить подсветку активных инструментов и доступность действий по текущему состоянию. */
 	refresh() {
-		if (!this.__active) return;
-		for (const [tool, btn] of this.__buttons) btn.classList.toggle("active", this.__active.isToolActive(tool));
+		const host = this.__active;
+		if (!host) return;
+
+		for (const [tool, btn] of this.__buttons) btn.classList.toggle("active", host.isToolActive(tool));
+		// хост может не реализовывать isActionEnabled — тогда кнопка всегда доступна
+		for (const [action, btn] of this.__actionButtons) btn.disabled = host.isActionEnabled?.(action) === false;
 	}
 
 	/** Пересчитать позицию над активным редактором (только для режима body/fixed). */
@@ -120,14 +140,15 @@ class FormatToolbar {
 		return this.__elem;
 	}
 
-	private __build(tools: FormatTool[]) {
-		const key = tools.join(",");
+	private __build(tools: FormatTool[], actions: EditorAction[]) {
+		const key = `${tools.join(",")}|${actions.join(",")}`;
 		const elem = this.__ensure();
-		if (key === this.__toolsKey && this.__buttons.length) return; // тот же состав — переиспользуем кнопки
+		if (key === this.__toolsKey && elem.firstChild) return; // тот же состав — переиспользуем кнопки
 
 		this.__toolsKey = key;
 		DOM.empty(elem);
 		this.__buttons = [];
+		this.__actionButtons = [];
 
 		for (const tool of tools) {
 			const def = FORMAT_TOOLS[tool];
@@ -142,6 +163,22 @@ class FormatToolbar {
 
 			elem.appendChild(btn);
 			this.__buttons.push([tool, btn]);
+		}
+
+		if (tools.length && actions.length) elem.appendChild(DOM.tag("div", { class: "split" }));
+
+		for (const action of actions) {
+			const def = EDITOR_ACTIONS[action];
+			const btn = DOM.tag(
+				"button",
+				{ type: "button", class: "action-button", "data-editor-action": action, title: def.title },
+				ACTION_ICONS[action]
+			);
+			btn.addEventListener("mousedown", (e) => e.preventDefault());
+			btn.addEventListener("click", () => this.__active?.applyAction?.(action));
+
+			elem.appendChild(btn);
+			this.__actionButtons.push([action, btn]);
 		}
 	}
 }

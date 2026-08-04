@@ -6,6 +6,14 @@ import { ALL_FORMAT_TOOLS, FORMAT_TOOLS, type FormatTool } from "./format-config
 /** Канонические теги форматирования (в верхнем регистре, как tagName). */
 const FORMAT_TAG_NAMES = ALL_FORMAT_TOOLS.map((t) => FORMAT_TOOLS[t].tag.toUpperCase());
 
+// Все распознаваемые теги форматирования (канонические и синонимы) — для снятия форматирования
+// целиком: в содержимом редактора синонимов быть не должно, но вставка и setValue могут их принести.
+const MATCH_TAG_NAMES = Array.from(new Set(ALL_FORMAT_TOOLS.flatMap((t) => FORMAT_TOOLS[t].matchTags)));
+
+// Селекторы считаем один раз: обе выборки идут на каждую правку формата и на каждое обновление панели.
+const FORMAT_SELECTOR = FORMAT_TAG_NAMES.join(",").toLowerCase();
+const MATCH_SELECTOR = MATCH_TAG_NAMES.join(",").toLowerCase();
+
 /** Ближайший предок-элемент с одним из тегов (в пределах root, не включая root). */
 function formatAncestor(node: Node, tags: string[], root: HTMLElement): HTMLElement | null {
 	let el = node.parentElement;
@@ -97,12 +105,13 @@ function nodeWithinRange(node: Node, range: Range): boolean {
 	);
 }
 
-function collectTextNodes(root: HTMLElement, range: Range, strict: boolean): Text[] {
+/** Непустые текстовые узлы, целиком попавшие в диапазон (частично задетые правке не подлежат). */
+function collectTextNodes(root: HTMLElement, range: Range): Text[] {
 	const nodes: Text[] = [];
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	let n = walker.nextNode() as Text | null;
 	while (n) {
-		if (n.length > 0 && (strict ? nodeWithinRange(n, range) : range.intersectsNode(n))) nodes.push(n);
+		if (n.length > 0 && nodeWithinRange(n, range)) nodes.push(n);
 		n = walker.nextNode() as Text | null;
 	}
 	return nodes;
@@ -151,13 +160,11 @@ function unwrapElement(el: HTMLElement) {
 
 /** Чистит разметку: убирает пустые теги, схлопывает вложенные и соседние одинаковые, склеивает текст. */
 export function cleanupFormatting(root: HTMLElement) {
-	const selector = FORMAT_TAG_NAMES.join(",").toLowerCase();
-
 	let changed = true;
 	while (changed) {
 		changed = false;
 
-		for (const el of Array.from(root.querySelectorAll<HTMLElement>(selector))) {
+		for (const el of Array.from(root.querySelectorAll<HTMLElement>(FORMAT_SELECTOR))) {
 			if (!el.isConnected) continue;
 
 			// пустой тег
@@ -190,11 +197,37 @@ export function cleanupFormatting(root: HTMLElement) {
 }
 
 /**
- * Переключает форматирование инструмента на выделении.
- * Если весь выделенный текст уже отформатирован — снимает формат, иначе применяет.
+ * Каркас правки форматирования на выделении: доводит границы Range до целых текстовых узлов,
+ * отдаёт строго попавшие узлы в `mutate` и восстанавливает выделение.
  *
  * По умолчанию восстанавливает выделение, на котором работал. Через `restoreBounds`
  * можно восстановить другое выделение (например, исходное до расширения до слова).
+ */
+function editSelection(
+	root: HTMLElement,
+	range: Range,
+	selection: Selection,
+	restoreBounds: [number, number] | undefined,
+	mutate: (nodes: Text[]) => void
+) {
+	if (range.collapsed) return;
+
+	const [startChar, endChar] = restoreBounds ?? selectionCharBounds(root, range);
+
+	splitBoundaries(range);
+
+	const nodes = collectTextNodes(root, range);
+	if (!nodes.length) return;
+
+	mutate(nodes);
+
+	cleanupFormatting(root);
+	restoreSelection(root, startChar, endChar, selection);
+}
+
+/**
+ * Переключает форматирование инструмента на выделении.
+ * Если весь выделенный текст уже отформатирован — снимает формат, иначе применяет.
  */
 export function toggleFormat(
 	root: HTMLElement,
@@ -203,26 +236,73 @@ export function toggleFormat(
 	selection: Selection,
 	restoreBounds?: [number, number]
 ) {
-	if (range.collapsed) return;
-
 	const def = FORMAT_TOOLS[tool];
 	const tags = def.matchTags;
-	const [startChar, endChar] = restoreBounds ?? selectionCharBounds(root, range);
 
-	splitBoundaries(range);
+	editSelection(root, range, selection, restoreBounds, (nodes) => {
+		const allFormatted = nodes.every((n) => formatAncestor(n, tags, root) !== null);
+		if (allFormatted) {
+			for (const n of nodes) removeFormatFromNode(n, tags, root);
+		} else {
+			for (const n of nodes) if (!formatAncestor(n, tags, root)) wrapTextNode(n, def.tag);
+		}
+	});
+}
 
-	const nodes = collectTextNodes(root, range, true);
-	if (!nodes.length) return;
+/** Снимает всё форматирование с выделения (все инструменты сразу, включая теги-синонимы). */
+export function clearFormat(root: HTMLElement, range: Range, selection: Selection, restoreBounds?: [number, number]) {
+	editSelection(root, range, selection, restoreBounds, (nodes) => {
+		for (const n of nodes) removeFormatFromNode(n, MATCH_TAG_NAMES, root);
+	});
+}
 
-	const allFormatted = nodes.every((n) => formatAncestor(n, tags, root) !== null);
-	if (allFormatted) {
-		for (const n of nodes) removeFormatFromNode(n, tags, root);
-	} else {
-		for (const n of nodes) if (!formatAncestor(n, tags, root)) wrapTextNode(n, def.tag);
+/** Снимает всё форматирование со всего содержимого (выделение не участвует). */
+export function clearAllFormat(root: HTMLElement) {
+	// вложенные элементы после разворачивания родителя остаются в дереве — снимок обходим целиком
+	for (const el of Array.from(root.querySelectorAll<HTMLElement>(MATCH_SELECTOR))) unwrapElement(el);
+
+	root.normalize();
+}
+
+/**
+ * Состояние форматирования на выделении указанными тегами.
+ * `every` — отформатирован весь текст (подсветка кнопки инструмента),
+ * `some` — отформатирована хоть какая-то часть (доступность очистки).
+ * Обход прерывается на первом узле, решающем исход.
+ */
+function rangeFormatState(root: HTMLElement, range: Range, tags: string[], mode: "every" | "some"): boolean {
+	if (range.collapsed) {
+		const node = range.startContainer;
+		const probe = node.nodeType === Node.TEXT_NODE ? node : (node.childNodes[range.startOffset] ?? node);
+		return formatAncestor(probe, tags, root) !== null;
 	}
 
-	cleanupFormatting(root);
-	restoreSelection(root, startChar, endChar, selection);
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	let found = false;
+
+	for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
+		if (!n.length || !range.intersectsNode(n)) continue;
+
+		const formatted = formatAncestor(n, tags, root) !== null;
+		if (mode === "some") {
+			if (formatted) return true;
+		} else if (!formatted) return false;
+
+		found = true;
+	}
+
+	// every: пустое выделение — не «отформатировано целиком»; some: ни одного форматированного узла
+	return mode === "every" && found;
+}
+
+/** Есть ли форматирование на выделении (или под кареткой) — для доступности кнопки очистки. */
+export function hasFormatting(root: HTMLElement, range: Range): boolean {
+	return rangeFormatState(root, range, MATCH_TAG_NAMES, "some");
+}
+
+/** Есть ли форматирование хоть где-то в содержимом. */
+export function hasAnyFormatting(root: HTMLElement): boolean {
+	return root.querySelector(MATCH_SELECTOR) !== null;
 }
 
 /**
@@ -253,15 +333,5 @@ export function insertFormattedText(root: HTMLElement, data: string, tools: Form
 
 /** Активен ли формат инструмента на текущем выделении (для подсветки кнопки). */
 export function isFormatActive(root: HTMLElement, range: Range, tool: FormatTool): boolean {
-	const tags = FORMAT_TOOLS[tool].matchTags;
-
-	if (range.collapsed) {
-		const node = range.startContainer;
-		const probe = node.nodeType === Node.TEXT_NODE ? node : (node.childNodes[range.startOffset] ?? node);
-		return formatAncestor(probe, tags, root) !== null;
-	}
-
-	const nodes = collectTextNodes(root, range, false);
-	if (!nodes.length) return false;
-	return nodes.every((n) => formatAncestor(n, tags, root) !== null);
+	return rangeFormatState(root, range, FORMAT_TOOLS[tool].matchTags, "every");
 }

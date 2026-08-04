@@ -29,6 +29,21 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Added
 
+- **Clear formatting, undo and redo in `@brandup/ui-richeditor`.**
+  `clearFormat()` strips every format from the selection (or from the word
+  under a collapsed caret, matching how formats are applied), including
+  synonym tags brought in by paste or `setValue`; `clearAllFormat()` does
+  the same for the whole content. `undo()` / `redo()` and the `canUndo` /
+  `canRedo` flags expose the editor's own history, which previously was
+  reachable only through `Ctrl+Z` / `Ctrl+Y`. Both clearing operations are
+  a single undo step and record nothing when there is nothing to clear.
+  The shared toolbar can now show action buttons for these — opted in via
+  the `actions` option (`erase`, `undo`, `redo`) or the
+  `data-editor-actions` attribute on `TextBox`; without it the toolbar is
+  unchanged. Buttons carry `disabled` while the action is unavailable,
+  decided from the same word-expanded range the operation itself works
+  on, so a button is never disabled while its action would have done
+  something — and never moves the caret when it does nothing.
 - **ESLint 9 (flat config) + Prettier 3.** Configs at root
   (`eslint.config.mjs`, `.prettierrc.json`, `.prettierignore`); npm
   scripts `lint`, `lint:fix`, `format`, `format:check`. Prettier matches
@@ -106,6 +121,10 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Fixed
 
+- **`TextBox` copy button never fired.** It declared its command as a
+  `command` attribute, while `@brandup/ui` v2 dispatches from
+  `dataset.command`, i.e. `data-command` — the registered `copy-text`
+  handler was unreachable. Covered by a regression test.
 - **Critical: XSS in `TextBox.__initText`/`setValue`.** Text built from
   `<input value>` was inserted via `innerHTML`. Replaced with safe DOM
   construction (`createTextNode`, `textContent`).

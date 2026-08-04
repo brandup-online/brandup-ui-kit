@@ -179,10 +179,12 @@ export function trimParagraphEdges(p: HTMLElement) {
 	last.textContent = (last.textContent ?? "").replace(/ $/, "");
 }
 
-/** Расширяет выделение до целых слов на границах (для применения формата к слову целиком). */
-export function expandSelectionToWords(editable: HTMLElement, selection: Selection) {
-	const range = selection.getRangeAt(0);
-
+/**
+ * Диапазон, расширенный до целых слов на границах (для применения формата к слову целиком).
+ * Возвращает новый Range и не трогает выделение — вызывающий сам решает, править ли по нему
+ * и когда двигать каретку.
+ */
+export function expandRangeToWords(editable: HTMLElement, range: Range): Range {
 	const { startContainer, endContainer } = range;
 	let startOffset = range.startOffset;
 	let endOffset = range.endOffset;
@@ -197,13 +199,10 @@ export function expandSelectionToWords(editable: HTMLElement, selection: Selecti
 		while (endOffset < text.length && !/\s/.test(text[endOffset])) endOffset++;
 	}
 
-	if (startOffset === range.startOffset && endOffset === range.endOffset) return;
-
 	const expanded = document.createRange();
 	expanded.setStart(startContainer, startOffset);
 	expanded.setEnd(endContainer, endOffset);
-	selection.removeAllRanges();
-	selection.addRange(expanded);
+	return expanded;
 }
 
 /** Убирает пробелы по краям выделения (например, после двойного клика по слову). */

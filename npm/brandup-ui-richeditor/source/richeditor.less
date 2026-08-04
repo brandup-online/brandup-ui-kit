@@ -98,7 +98,16 @@
 		margin-bottom: 6px;
 	}
 
-	& .format-button {
+	// разделитель между инструментами форматирования и действиями
+	& .split {
+		width: 1px;
+		align-self: stretch;
+		margin: 2px 3px;
+		background-color: var(--input-border-color, #aaa);
+	}
+
+	& .format-button,
+	& .action-button {
 		width: calc(var(--input-height, 46px) - 12px);
 		height: calc(var(--input-height, 46px) - 12px);
 		border-radius: calc(var(--input-border-radius, 0) - 2px);
@@ -122,6 +131,15 @@
 
 		&.active {
 			background-color: var(--hover--input-toolbar-button-fill, rgba(0, 0, 0, 0.12));
+		}
+
+		&[disabled] {
+			cursor: default;
+			opacity: 0.4;
+
+			&:hover {
+				background: var(--input-toolbar-button-fill, transparent);
+			}
 		}
 	}
 }

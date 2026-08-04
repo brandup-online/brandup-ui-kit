@@ -5,15 +5,29 @@
 //   paragraphs    — нормализация пробелов и приведение к абзацам <p>
 
 export {
+	ALL_EDITOR_ACTIONS,
 	ALL_FORMAT_TOOLS,
+	EDITOR_ACTIONS,
 	FORMAT_TOOLS,
 	HOTKEY_TOOLS,
 	defaultFormatMarkers,
+	parseEditorActions,
 	parseFormatTools,
+	type EditorAction,
 	type FormatMarkers,
 	type FormatStorage,
 	type FormatTool,
 } from "./format-config";
 export { serialize, deserialize } from "./serialize";
-export { selectionCharBounds, restoreSelection, toggleFormat, insertFormattedText, isFormatActive } from "./selection";
+export {
+	selectionCharBounds,
+	restoreSelection,
+	toggleFormat,
+	clearFormat,
+	clearAllFormat,
+	hasFormatting,
+	hasAnyFormatting,
+	insertFormattedText,
+	isFormatActive,
+} from "./selection";
 export { normalizeWhitespace, normalizeParagraphs, ensureParagraphs } from "./paragraphs";
