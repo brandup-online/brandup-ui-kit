@@ -13,5 +13,6 @@ export {
 	type EditorAction,
 	type FormatTool,
 	type FormatStorage,
+	type ParagraphMode,
 	type FormatMarkers,
 } from "./format";

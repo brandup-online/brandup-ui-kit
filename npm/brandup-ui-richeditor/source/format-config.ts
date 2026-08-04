@@ -3,6 +3,15 @@
 export type FormatTool = "bold" | "italic" | "strike" | "underline";
 export type FormatStorage = "html" | "markdown";
 
+/**
+ * Что делает Enter в многострочном режиме.
+ *
+ * `block` — новый абзац (`<p>`, в markdown `\n\n`); модификатор даёт мягкий перенос.
+ * `break` — мягкий перенос (`<br>`, в markdown `\n`), как в мессенджерах: абзац там набирается
+ * двумя переносами. Без этого каждый Enter уезжал бы в хранилище пустой строкой.
+ */
+export type ParagraphMode = "block" | "break";
+
 /** Действие редактора (не формат): вставка смайлика, очистка форматирования, отмена и повтор. */
 export type EditorAction = "emoji" | "erase" | "undo" | "redo";
 

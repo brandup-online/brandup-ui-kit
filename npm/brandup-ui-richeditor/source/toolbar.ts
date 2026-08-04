@@ -57,6 +57,8 @@ const MARGIN = 6;
 class FormatToolbar {
 	private __elem: HTMLElement | null = null;
 	private __emojiPicker: HTMLElement | null = null;
+	private __emojiHost: ToolbarHost | null = null; // куда уйдёт выбранный символ
+	private __emojiInitiator: HTMLElement | null = null; // кнопка, у которой открыта панель
 	private __buttons: Array<[FormatTool, HTMLButtonElement]> = [];
 	private __actionButtons: Array<[EditorAction, HTMLButtonElement]> = [];
 	private __active: ToolbarHost | null = null;
@@ -164,6 +166,7 @@ class FormatToolbar {
 		if (key === this.__toolsKey && elem.firstChild) return; // тот же состав — переиспользуем кнопки
 
 		this.__toolsKey = key;
+		const pickerInToolbar = !!this.__emojiPicker && this.__emojiPicker.parentElement === elem;
 		DOM.empty(elem);
 		this.__buttons = [];
 		this.__actionButtons = [];
@@ -197,40 +200,63 @@ class FormatToolbar {
 			this.__actionButtons.push([action, btn]);
 		}
 
-		// панель пережила перестройку кнопок — возвращаем её в тулбар, чтобы не собирать заново
-		if (this.__emojiPicker) elem.appendChild(this.__emojiPicker);
+		// панель пережила перестройку кнопок — возвращаем её в тулбар, чтобы не собирать заново.
+		// Если её забрал хост под свою кнопку, она остаётся у него.
+		if (pickerInToolbar && this.__emojiPicker) elem.appendChild(this.__emojiPicker);
+	}
+
+	/**
+	 * Открыть панель смайликов у произвольной кнопки — например у собственной кнопки хоста рядом
+	 * с полем ввода, а не в тулбаре. Панель одна на все редакторы и переезжает в `container`;
+	 * выбранный символ уходит в `host`, даже если тулбар сейчас обслуживает другой редактор.
+	 *
+	 * Вызывать из обработчика `click`, погасив всплытие: PopupManager вешает свой слушатель
+	 * закрытия на body прямо в open(), то есть во время этого же клика — до body событие ещё
+	 * не дошло, и слушатель закрыл бы панель сразу после открытия.
+	 */
+	openEmoji(host: ToolbarHost, initiator: HTMLElement, container: HTMLElement) {
+		// повторный клик по той же кнопке закрывает панель (это делает toggle внутри PopupManager),
+		// а вот у другой кнопки её нужно сперва закрыть — иначе toggle сочтёт открытие повторным
+		if (this.__emojiInitiator !== initiator && this.__emojiPicker?.classList.contains("opened"))
+			PopupManager.close();
+
+		this.__emojiHost = host;
+		this.__emojiInitiator = initiator;
+
+		PopupManager.open(this.__ensureEmojiPicker(container), { initiator });
 	}
 
 	private __toggleEmoji(initiator: HTMLButtonElement, e: MouseEvent) {
-		// PopupManager вешает свой слушатель закрытия на body прямо в open(), то есть во время
-		// этого же клика: до body событие ещё не дошло, слушатель успел бы его получить и закрыть
-		// панель сразу после открытия. Штатно попап открывается из command-обработчика на window,
-		// куда событие приходит последним, — здесь роль этого играет остановка всплытия.
 		e.stopPropagation();
 
-		PopupManager.open(this.__ensureEmojiPicker(), { initiator });
+		if (this.__active) this.openEmoji(this.__active, initiator, this.__ensure());
 	}
 
-	private __ensureEmojiPicker(): HTMLElement {
-		if (this.__emojiPicker) return this.__emojiPicker;
+	private __ensureEmojiPicker(container: HTMLElement): HTMLElement {
+		const picker = this.__emojiPicker ?? this.__buildEmojiPicker();
+		if (picker.parentElement !== container) container.appendChild(picker);
 
+		return picker;
+	}
+
+	private __buildEmojiPicker(): HTMLElement {
 		const picker = DOM.tag("div", { class: `${POPUP_CLASS} ${EMOJI_PICKER_CLASS}` });
 
 		const fragment = document.createDocumentFragment();
 		for (const emoji of EMOJIS)
-			fragment.appendChild(DOM.tag("button", { type: "button", class: "emoji", tabindex: "-1", title: emoji }, emoji));
+			fragment.appendChild(DOM.tag("button", { type: "button", class: "emoji", tabindex: "-1" }, emoji));
 		picker.appendChild(fragment);
 
-		// фокус панель не забирает — mousedown гасится общим слушателем на корне тулбара
+		// панель может висеть и вне тулбара, поэтому гасит фокус сама
+		picker.addEventListener("mousedown", (e) => e.preventDefault());
 		picker.addEventListener("click", (e) => {
 			const target = (e.target as HTMLElement).closest<HTMLElement>(".emoji");
 			if (!target) return;
 
-			this.__active?.insertText?.(target.textContent ?? "");
+			this.__emojiHost?.insertText?.(target.textContent ?? "");
 			PopupManager.close();
 		});
 
-		this.__ensure().appendChild(picker);
 		this.__emojiPicker = picker;
 
 		return picker;

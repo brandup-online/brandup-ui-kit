@@ -16,6 +16,7 @@ export {
 	type EditorAction,
 	type FormatMarkers,
 	type FormatStorage,
+	type ParagraphMode,
 	type FormatTool,
 } from "./format-config";
 export { serialize, deserialize } from "./serialize";

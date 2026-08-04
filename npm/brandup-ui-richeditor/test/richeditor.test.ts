@@ -941,6 +941,48 @@ describe("RichEditor toolbar actions", () => {
 	});
 });
 
+describe("RichEditor paragraph mode", () => {
+	const pressEnter = (editor: RichEditor, offset: number, shift = false) => {
+		const paragraph = editor.editable.querySelector("p")!;
+		caretAt(paragraph.firstChild!, offset);
+		editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "Enter", shiftKey: shift, bubbles: true, cancelable: true })
+		);
+	};
+
+	it("block (default): Enter starts a new paragraph", () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown", value: "раз" });
+		expect(editor.paragraph).toBe("block");
+
+		pressEnter(editor, 3);
+		editor.insertText("два");
+
+		expect(editor.editable.querySelectorAll("p")).toHaveLength(2);
+		expect(editor.getValue()).toBe("раз\n\nдва");
+	});
+
+	// в мессенджерах Enter переносит строку, а абзац набирается двумя переносами
+	it("break: Enter makes a soft line break", () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown", paragraph: "break", value: "раз" });
+
+		pressEnter(editor, 3);
+		editor.insertText("два");
+
+		expect(editor.editable.querySelectorAll("p")).toHaveLength(1);
+		expect(editor.getValue()).toBe("раз\nдва");
+	});
+
+	it("break: the modifier gives the paragraph instead", () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown", paragraph: "break", value: "раз" });
+
+		pressEnter(editor, 3, true);
+		editor.insertText("два");
+
+		expect(editor.editable.querySelectorAll("p")).toHaveLength(2);
+		expect(editor.getValue()).toBe("раз\n\nдва");
+	});
+});
+
 describe("RichEditor emoji picker", () => {
 	const picker = () => document.querySelector<HTMLElement>(`.${EMOJI_PICKER_CLASS}`);
 	const emojiButtons = () => document.querySelectorAll<HTMLButtonElement>(`.${EMOJI_PICKER_CLASS} .emoji`);
