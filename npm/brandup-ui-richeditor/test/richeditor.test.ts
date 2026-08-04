@@ -3,6 +3,7 @@
  */
 import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS } from "../source/richeditor";
 import { expandRangeToWords } from "../source/editing";
+import { selectionCharBounds } from "../source/selection";
 
 type Opts = ConstructorParameters<typeof RichEditor>[1];
 
@@ -132,6 +133,17 @@ describe("RichEditor value", () => {
 		expect(handler).toHaveBeenCalledWith(expect.objectContaining({ value: "typed" }));
 	});
 
+	// содержимое заменено целиком — прежняя каретка к нему не относится
+	it("puts the caret at the end of the new value when it was inside the editor", () => {
+		const editor = makeEditor({ value: "old text" });
+		caretAt(editor.editable.firstChild!, 3);
+
+		editor.setValue("brand new value");
+
+		const sel = window.getSelection()!;
+		expect(selectionCharBounds(editor.editable, sel.getRangeAt(0))).toEqual([15, 15]);
+	});
+
 	it("deserializes stored HTML keeping only allowed tags", () => {
 		const editor = makeEditor({ value: "a <b>bold</b> <script>x</script>" });
 		expect(editor.editable.querySelector("b")).not.toBeNull();
@@ -168,6 +180,34 @@ describe("RichEditor value", () => {
 
 		expect(editor.editable.innerHTML).toBe("<p>a</p><p>b</p>");
 		expect(editor.getValue()).toBe("<p>a</p><p>b</p>");
+	});
+
+	// Присваивание Text.data схлопывает живые Range в начало узла, поэтому нормализация,
+	// которой нечего менять, обязана не трогать текстовые узлы вовсе.
+	it("keeps the caret in place when normalization changes nothing", () => {
+		const editor = makeEditor({ value: "one two three" });
+		const text = editor.editable.firstChild as Text;
+		caretAt(text, 6); // внутри "two"
+
+		editor.editable.dispatchEvent(new FocusEvent("blur"));
+
+		const sel = window.getSelection()!;
+		expect(sel.anchorNode).toBe(text);
+		expect(sel.anchorOffset).toBe(6);
+	});
+
+	it("moves the caret with the text when normalization collapses a space", () => {
+		const editor = makeEditor({ value: "one two three" });
+		const text = editor.editable.firstChild as Text;
+		text.data = "one  two three"; // лишний пробел, как после набора
+		caretAt(text, 12); // начало "three"
+
+		editor.editable.dispatchEvent(new FocusEvent("blur"));
+
+		const sel = window.getSelection()!;
+		expect(editor.editable.textContent).toBe("one two three");
+		// смещение уменьшилось ровно на один схлопнутый пробел — каретка осталась у "three"
+		expect(sel.anchorOffset).toBe(11);
 	});
 });
 
@@ -636,6 +676,34 @@ describe("RichEditor clear formatting", () => {
 
 		expect(editor.canUndo).toBe(false);
 		expect(editor.editable.innerHTML).toBe("plain text");
+	});
+
+	// Вызов из кода (кнопка на странице, а не в тулбаре) уводит фокус из редактора, и клик
+	// приходит уже после blur. Нормализация на blur не должна двигать каретку — иначе очистка
+	// срабатывает не на том слове, где стоял курсор.
+	it("clears the word under the caret even when the editor lost focus first", () => {
+		const editor = makeEditor({ value: "<b>one two</b>" });
+		caretAt(editor.editable.querySelector("b")!.firstChild!, 6); // внутри "two"
+
+		editor.editable.dispatchEvent(new FocusEvent("blur"));
+		editor.clearFormat();
+
+		expect(editor.editable.innerHTML).toBe("<b>one </b>two");
+	});
+
+	// Хост возвращает фокус в редактор после вызова метода — каретка должна остаться там,
+	// где стояла, а не уехать в конец текста.
+	it("keeps the caret where it was when focus is returned after the call", () => {
+		const editor = makeEditor({ value: "<b>one two</b> three" });
+		caretAt(editor.editable.querySelector("b")!.firstChild!, 6); // внутри "two"
+
+		editor.editable.dispatchEvent(new FocusEvent("blur"));
+		editor.clearFormat();
+		editor.editable.dispatchEvent(new FocusEvent("focus")); // editor.focus() из кода хоста
+
+		const sel = window.getSelection()!;
+		const bounds = selectionCharBounds(editor.editable, sel.getRangeAt(0));
+		expect(bounds).toEqual([6, 6]); // там же, внутри "two", а не в конце текста (13)
 	});
 
 	it("keeps the caret put when there is nothing to clear", () => {

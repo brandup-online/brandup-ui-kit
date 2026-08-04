@@ -35,6 +35,26 @@ export function selectionCharBounds(root: HTMLElement, range: Range): [number, n
 	return [start, end];
 }
 
+/**
+ * Пересчитывает абсолютное текстовое смещение после нормализации пробелов.
+ *
+ * Нормализация только удаляет символы (схлопывает пробелы) и заменяет табы пробелами,
+ * поэтому старый и новый текст выравниваются одним проходом: несовпадение означает
+ * удалённый символ. Без пересчёта каретка отстаёт ровно на число схлопнутых перед ней
+ * пробелов и может уехать в соседнее слово.
+ */
+export function mapCharOffset(before: string, after: string, offset: number): number {
+	const same = (a: string, b: string) => a === b || (b === " " && (a === " " || a === "\t"));
+
+	let i = 0;
+	let j = 0;
+	while (i < offset && j < after.length) {
+		if (same(before[i], after[j])) j++;
+		i++;
+	}
+	return j;
+}
+
 /** Находит текстовый узел и локальное смещение по абсолютному текстовому смещению. */
 function locateChar(root: HTMLElement, target: number): { node: Text; offset: number } | null {
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
