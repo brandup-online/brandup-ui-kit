@@ -158,6 +158,23 @@ describe("markdown boundaries", () => {
 		expect(parse("маска _.txt и _.log")).toBe("маска _.txt и _.log");
 	});
 
+	// `_` курсива — префикс `__` подчёркивания и принадлежит другой инструкции, поэтому
+	// длинный маркер не забирает третий символ и внешняя пара остаётся курсиву
+	it("leaves a shorter prefix marker room to pair around the longer one", () => {
+		expect(deserialize("___текст___", "markdown", ["underline", "italic"], md)).toBe("<i><u>текст</u></i>");
+		expect(deserialize("__текст__", "markdown", ["underline", "italic"], md)).toBe("<u>текст</u>");
+		expect(deserialize("_текст_", "markdown", ["underline", "italic"], md)).toBe("<i>текст</i>");
+	});
+
+	// в keycap-последовательности маркер — базовый символ эмодзи, а не разметка
+	it("does not treat a keycap base character as a marker", () => {
+		const starMarkers = defaultFormatMarkers();
+		starMarkers.bold = "*";
+
+		expect(deserialize("*⃣раз*", "markdown", ["bold"], starMarkers)).toBe("*⃣раз*");
+		expect(deserialize("*слово*", "markdown", ["bold"], starMarkers)).toBe("<b>слово</b>");
+	});
+
 	it("does not let a format cross a line break", () => {
 		expect(parse("через _две\nстроки_ нельзя")).toBe("через _две<br>строки_ нельзя");
 	});

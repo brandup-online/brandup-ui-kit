@@ -155,25 +155,40 @@ export function serialize(
 	return inline.replace(/^\n+/, "").replace(/\n+$/, "").trim();
 }
 
+/** Инструмент, его маркер и признак «содержимое не может начинаться/заканчиваться самим маркером». */
+type MarkerRule = [tool: FormatTool, marker: string, standalone: boolean];
+
 /**
- * Маркеры в порядке применения: длинный (`**`) раньше короткого-префикса (`*`), иначе
+ * Маркеры в порядке применения: длинный (`__`) раньше короткого-префикса (`_`), иначе
  * короткий съест половину длинного. Считается один раз на разбор — `markdownInline`
  * вызывается на каждый абзац.
+ *
+ * Если короткий маркер является префиксом длинного и принадлежит другой инструкции
+ * (`_` курсив внутри `__` подчёркивания), длинный не должен захватывать лишний символ:
+ * иначе `___текст___` разберётся как подчёркивание с `_` по краям вместо курсива поверх
+ * подчёркивания. Так же поступают паттерны конвертеров.
  */
-function orderedMarkers(tools: FormatTool[], markers: FormatMarkers): Array<[FormatTool, string]> {
-	return tools
-		.filter((tool) => markers[tool])
-		.sort((a, b) => markers[b].length - markers[a].length)
-		.map((tool) => [tool, markers[tool]]);
+function orderedMarkers(tools: FormatTool[], markers: FormatMarkers): MarkerRule[] {
+	const active = tools.filter((tool) => markers[tool]).sort((a, b) => markers[b].length - markers[a].length);
+
+	return active.map((tool) => {
+		const marker = markers[tool];
+		const hasShorterPrefix = active.some((other) => {
+			const value = markers[other];
+			return value.length < marker.length && marker.startsWith(value);
+		});
+
+		return [tool, marker, hasShorterPrefix];
+	});
 }
 
 // Markdown-разметка одного абзаца → инлайновый HTML (escape, маркеры, \n→<br>).
-function markdownInline(text: string, order: Array<[FormatTool, string]>): string {
+function markdownInline(text: string, order: MarkerRule[]): string {
 	let html = escapeHtml(text);
 
-	for (const [tool, marker] of order) {
+	for (const [tool, marker, standalone] of order) {
 		const def = FORMAT_TOOLS[tool];
-		html = html.replace(markerPattern(marker), `$1<${def.tag}>$2</${def.tag}>`);
+		html = html.replace(markerPattern(marker, standalone), `$1<${def.tag}>$2</${def.tag}>`);
 	}
 
 	// переносы — после маркеров: пока это \n, запрет на пересечение строки работает
@@ -191,16 +206,28 @@ function markdownInline(text: string, order: Array<[FormatTool, string]>): strin
  *
  * Левая граница захватывается группой и возвращается на место — lookbehind не используется,
  * его нет в Safari до 16.4.
+ *
+ * Содержимое не начинается и с U+20E3: в keycap-последовательностях (`*⃣`, `#⃣`, `1⃣`) сам
+ * маркер служит базовым символом, и без этого `*⃣раз*` разбиралось бы как разметка вместо эмодзи.
+ *
+ * При `standalone` содержимое дополнительно не начинается и не заканчивается символом самого
+ * маркера — см. {@link orderedMarkers}.
  */
-function markerPattern(marker: string): RegExp {
-	let pattern = markerPatterns.get(marker);
+function markerPattern(marker: string, standalone: boolean): RegExp {
+	const key = standalone ? `${marker} ` : marker;
+
+	let pattern = markerPatterns.get(key);
 	if (pattern) return pattern;
 
 	const escaped = escapeRegExp(marker);
 	const boundary = "[^\\p{L}\\p{N}]";
+	// символ маркера в классе — экранируем то, что в нём значимо
+	const own = standalone ? marker.slice(-1).replace(/[\\\]^-]/g, "\\$&") : "";
+	const head = `[^\\s\\u20e3${own}]`;
+	const tail = standalone ? `[^\\s${own}]` : "\\S";
 
-	pattern = new RegExp(`(^|${boundary})${escaped}(\\S|\\S[^\\n]*?\\S)${escaped}(?=$|${boundary})`, "gu");
-	markerPatterns.set(marker, pattern);
+	pattern = new RegExp(`(^|${boundary})${escaped}(${head}|${head}[^\\n]*?${tail})${escaped}(?=$|${boundary})`, "gu");
+	markerPatterns.set(key, pattern);
 
 	return pattern;
 }
