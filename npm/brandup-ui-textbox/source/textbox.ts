@@ -6,6 +6,7 @@ import { DOM } from "@brandup/ui";
 import { FuncHelper } from "@brandup/ui-helpers";
 import RichEditor, {
 	defaultFormatMarkers,
+	parseEditorActions,
 	parseFormatTools,
 	type FormatMarkers,
 	type FormatStorage,
@@ -93,6 +94,8 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		const formatStorage: FormatStorage =
 			valueElem.getAttribute("data-format-storage") === "markdown" ? "markdown" : "html";
 		const formatTools = format ? parseFormatTools(valueElem.getAttribute("data-format-tools")) : [];
+		// кнопки действий панели (очистка формата, отмена, повтор) — подключаются явно
+		const editorActions = format ? parseEditorActions(valueElem.getAttribute("data-editor-actions")) : [];
 
 		// markdown-маркеры с дефолтами, переопределяются атрибутами data-format-md-<tool>
 		const formatMarkers = defaultFormatMarkers();
@@ -123,9 +126,10 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		if (inputmode) inputElem.inputMode = inputmode;
 
 		if (copyButton) {
+			// команда объявляется атрибутом data-command — по нему её ищет обработчик @brandup/ui
 			const buttonElem = DOM.tag(
 				"button",
-				{ command: "copy-text", title: "Скопировать в буфер обмена" },
+				{ "data-command": "copy-text", title: "Скопировать в буфер обмена" },
 				copyIcon
 			);
 			if (disabled) buttonElem.disabled = true;
@@ -164,6 +168,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		const options: RichEditorOptions = {
 			format,
 			tools: formatTools,
+			actions: editorActions,
 			storage: formatStorage,
 			markers: formatMarkers,
 			placeholder,

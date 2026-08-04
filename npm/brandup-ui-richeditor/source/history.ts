@@ -30,6 +30,16 @@ export class EditorHistory {
 		this.__root = root;
 	}
 
+	/** Есть ли что отменять (для disabled-состояния кнопки). */
+	get canUndo(): boolean {
+		return this.__undo.length > 0;
+	}
+
+	/** Есть ли что повторять. */
+	get canRedo(): boolean {
+		return this.__redo.length > 0;
+	}
+
 	private __snapshot(): Snapshot {
 		const sel = window.getSelection();
 		let start = 0;

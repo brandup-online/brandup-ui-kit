@@ -3,11 +3,14 @@
 export type FormatTool = "bold" | "italic" | "strike" | "underline";
 export type FormatStorage = "html" | "markdown";
 
+/** Действие редактора (не формат): очистка форматирования, отмена и повтор. */
+export type EditorAction = "erase" | "undo" | "redo";
+
 export const ALL_FORMAT_TOOLS: FormatTool[] = ["bold", "italic", "strike", "underline"];
 
+export const ALL_EDITOR_ACTIONS: EditorAction[] = ["erase", "undo", "redo"];
+
 interface FormatToolDef {
-	/** Имя команды (атрибут command у кнопки и registerCommand). */
-	command: string;
 	/** Канонический тег при оборачивании и сериализации. */
 	tag: string;
 	/** Теги, распознаваемые при разборе входного HTML. */
@@ -22,7 +25,6 @@ interface FormatToolDef {
 
 export const FORMAT_TOOLS: Record<FormatTool, FormatToolDef> = {
 	bold: {
-		command: "format-bold",
 		tag: "b",
 		matchTags: ["B", "STRONG"],
 		md: "**",
@@ -30,7 +32,6 @@ export const FORMAT_TOOLS: Record<FormatTool, FormatToolDef> = {
 		title: "Жирный",
 	},
 	italic: {
-		command: "format-italic",
 		tag: "i",
 		matchTags: ["I", "EM"],
 		md: "*",
@@ -38,7 +39,6 @@ export const FORMAT_TOOLS: Record<FormatTool, FormatToolDef> = {
 		title: "Курсив",
 	},
 	strike: {
-		command: "format-strike",
 		tag: "s",
 		matchTags: ["S", "STRIKE", "DEL"],
 		md: "~~",
@@ -46,13 +46,23 @@ export const FORMAT_TOOLS: Record<FormatTool, FormatToolDef> = {
 		title: "Зачёркнутый",
 	},
 	underline: {
-		command: "format-underline",
 		tag: "u",
 		matchTags: ["U", "INS"],
 		md: "++",
 		hotkey: "u",
 		title: "Подчёркнутый",
 	},
+};
+
+interface EditorActionDef {
+	/** Подсказка на кнопке. */
+	title: string;
+}
+
+export const EDITOR_ACTIONS: Record<EditorAction, EditorActionDef> = {
+	erase: { title: "Очистить форматирование" },
+	undo: { title: "Отменить (Ctrl+Z)" },
+	redo: { title: "Повторить (Ctrl+Y)" },
 };
 
 /** Markdown-маркер для каждого инструмента форматирования. */
@@ -75,15 +85,22 @@ export const HOTKEY_TOOLS: Record<string, FormatTool> = (() => {
 	return map;
 })();
 
-/** Разбирает значение атрибута data-format-tools, оставляя только известные инструменты. */
+// Разбор атрибута-списка через пробел: оставляет только известные значения,
+// убирает дубли и восстанавливает порядок объявления.
+function parseList<T extends string>(value: string, known: T[]): T[] {
+	const parsed = value.split(/\s+/).filter(Boolean);
+	return known.filter((item) => parsed.includes(item));
+}
+
+/** Разбирает значение атрибута data-format-tools; отсутствие атрибута — все инструменты. */
 export function parseFormatTools(value: string | null): FormatTool[] {
-	if (value === null) return ALL_FORMAT_TOOLS.slice();
+	return value === null ? ALL_FORMAT_TOOLS.slice() : parseList(value, ALL_FORMAT_TOOLS);
+}
 
-	const tools = value
-		.split(/\s+/)
-		.filter(Boolean)
-		.filter((t): t is FormatTool => (ALL_FORMAT_TOOLS as string[]).includes(t));
-
-	// убираем дубли, сохраняя порядок объявления
-	return ALL_FORMAT_TOOLS.filter((t) => tools.includes(t));
+/**
+ * Разбирает значение атрибута data-editor-actions. В отличие от инструментов,
+ * действия подключаются явно: отсутствие атрибута — пустой набор.
+ */
+export function parseEditorActions(value: string | null): EditorAction[] {
+	return value === null ? [] : parseList(value, ALL_EDITOR_ACTIONS);
 }

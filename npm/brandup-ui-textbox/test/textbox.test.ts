@@ -3,7 +3,9 @@
  */
 import TextBox, { ROOT_CLASS } from "../source/textbox";
 
-function setup(opts: { value?: string; required?: boolean; type?: string; maxlength?: number } = {}) {
+function setup(
+	opts: { value?: string; required?: boolean; type?: string; maxlength?: number; copyButton?: boolean } = {}
+) {
 	document.body.innerHTML = "";
 	const form = document.createElement("form");
 	const input = document.createElement("input");
@@ -11,6 +13,7 @@ function setup(opts: { value?: string; required?: boolean; type?: string; maxlen
 	if (opts.value !== undefined) input.value = opts.value;
 	if (opts.required) input.required = true;
 	if (opts.maxlength) input.maxLength = opts.maxlength;
+	if (opts.copyButton) input.setAttribute("data-copybutton", "true");
 	form.appendChild(input);
 	document.body.appendChild(form);
 	return { input, form };
@@ -49,6 +52,15 @@ describe("TextBox", () => {
 		editable.dispatchEvent(e);
 
 		expect(e.defaultPrevented).toBe(false); // не отклонён — выделение будет заменено
+	});
+
+	it("declares the copy command via data-command so the click handler finds it", () => {
+		const { input } = setup({ value: "text", copyButton: true });
+		new TextBox(input);
+
+		const button = input.parentElement!.querySelector("button")!;
+		// обработчик @brandup/ui читает dataset.command — атрибут command его не активирует
+		expect(button.dataset.command).toBe("copy-text");
 	});
 
 	it("setValue() updates the underlying input value", () => {

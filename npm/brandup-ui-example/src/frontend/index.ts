@@ -20,6 +20,7 @@ builder
 			"/inputs": { page: () => import("./pages/inputs") },
 			"/popups": { page: () => import("./pages/popups") },
 			"/textbox": { page: () => import("./pages/textbox") },
+			"/richeditor": { page: () => import("./pages/richeditor") },
 			"/dropdown": { page: () => import("./pages/dropdown") },
 		},
 		notfound: { page: () => import("./pages/error/notfound") },
