@@ -1,0 +1,49 @@
+.page-block.messageeditors {
+	display: flex;
+	flex-flow: column nowrap;
+	row-gap: 30px;
+
+	& .part {
+		display: flex;
+		flex-flow: column nowrap;
+		row-gap: 20px;
+
+		& .note {
+			margin: 0;
+			max-width: 900px;
+			color: #444;
+
+			& code {
+				padding: 1px 4px;
+				background-color: #eee;
+				border-radius: 3px;
+				font-size: 0.9em;
+			}
+		}
+
+		& .chat {
+			display: flex;
+			flex-flow: column nowrap;
+			row-gap: 24px;
+		}
+
+		& .field {
+			display: flex;
+			flex-flow: column nowrap;
+			row-gap: 12px;
+			align-items: stretch;
+		}
+
+		& .value {
+			margin: 0;
+			padding: 8px 10px;
+			background-color: #f5f5f5;
+			border-radius: 3px;
+			font-size: 12px;
+			line-height: 1.5;
+			white-space: pre-wrap;
+			word-wrap: anywhere;
+			box-sizing: border-box;
+		}
+	}
+}

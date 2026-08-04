@@ -21,6 +21,7 @@ builder
 			"/popups": { page: () => import("./pages/popups") },
 			"/textbox": { page: () => import("./pages/textbox") },
 			"/richeditor": { page: () => import("./pages/richeditor") },
+			"/messageeditor": { page: () => import("./pages/messageeditor") },
 			"/dropdown": { page: () => import("./pages/dropdown") },
 		},
 		notfound: { page: () => import("./pages/error/notfound") },

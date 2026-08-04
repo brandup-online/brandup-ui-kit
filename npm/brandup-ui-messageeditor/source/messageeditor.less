@@ -1,0 +1,161 @@
+// Плашка сообщения в чате: скруглённый пузырь,
+// растущий по содержимому. Переменные наследуются от полей ввода кита, но имеют
+// собственные умолчания — компонент должен выглядеть цельно и без темы кита.
+
+:root {
+	// Исходящее сообщение — заливка своя, а не как у полей ввода: на белой странице белая
+	// плашка держится только на тени и почти не читается.
+	--messageeditor-fill: #e7f3ff;
+	// рамка в цвет заливки — не видна в покое и темнеет в фокусе.
+	// color-mix подмешивает чёрный, поэтому оттенок следует за заливкой, какой бы её ни задали
+	--messageeditor-border: var(--messageeditor-fill);
+	--messageeditor-border-width: 1px;
+	--messageeditor-border-focus: color-mix(in srgb, var(--messageeditor-fill) 88%, #000);
+	--messageeditor-color: var(--input-color, #222);
+	--messageeditor-radius: 18px;
+	--messageeditor-maxheight: 220px;
+	// Вертикальные отступы считаются от высоты полей ввода кита, как в textbox: пустая плашка
+	// ровно --input-height, а единственная строка стоит в ней по центру. Рамка входит в высоту
+	// (box-sizing: border-box), поэтому вычитается.
+	--messageeditor-padding: calc(
+			(var(--input-height, 46px) - var(--messageeditor-minheight) - var(--messageeditor-border-width) * 2) / 2
+		)
+		14px;
+	--messageeditor-gap: 8px;
+	--messageeditor-minheight: var(--input-line-height, 1.2rem);
+	--messageeditor-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+	--messageeditor-accent: var(--focus--input-border-color, #4a9eff);
+	--messageeditor-button-size: 32px;
+	--messageeditor-button-icon: 20px;
+	--messageeditor-button-color: var(--placeholder-color, #999);
+}
+
+.ui-messageeditor {
+	display: block;
+	// панель форматирования и панель смайликов монтируются внутрь и позиционируются от этого элемента
+	position: relative;
+	font-size: var(--input-font-size, 14px);
+	font-weight: var(--input-font-weight, inherit);
+	line-height: var(--input-line-height, 1.4);
+	color: var(--messageeditor-color);
+
+	& .bubble {
+		// кнопка смайлика всегда внизу, на уровне последней строки: её коробка сведена
+		// к высоте строки (см. margin-block ниже), поэтому flex-end совмещает их по центру
+		display: flex;
+		flex-flow: row nowrap;
+		align-items: flex-end;
+		column-gap: var(--messageeditor-gap);
+		position: relative;
+		padding: var(--messageeditor-padding);
+		box-sizing: border-box;
+		// пол по высоте на случай переопределённых отступов — плашка не ниже полей ввода кита
+		min-height: var(--input-height, 46px);
+		cursor: text;
+		background-color: var(--messageeditor-fill);
+		border: var(--messageeditor-border-width) solid var(--messageeditor-border);
+		box-shadow: var(--messageeditor-shadow);
+		border-radius: var(--messageeditor-radius);
+		transition: border-color ease 120ms;
+
+		// Прокручивается текст, а не плашка целиком — иначе кнопка смайлика уезжала бы
+		// вместе с содержимым. Минимальная высота — чтобы пустое сообщение занимало строку:
+		// у пустого редактируемого элемента высота нулевая, а плейсхолдер выводится абсолютно
+		// и её не создаёт, отчего плашка схлопывалась в одни отступы.
+		& .ui-richeditor {
+			flex: 1 1 auto;
+			min-width: 0;
+			min-height: var(--messageeditor-minheight);
+			max-height: var(--messageeditor-maxheight);
+			overflow-y: auto;
+			scrollbar-width: thin;
+
+			// в мессенджерах абзацы идут строка за строкой, без вертикальных отступов
+			& p {
+				padding: 0;
+			}
+
+			&::-webkit-scrollbar {
+				width: 6px;
+				background: none;
+			}
+
+			&::-webkit-scrollbar-thumb {
+				background-color: rgba(0, 0, 0, 0.2);
+				border-radius: 3px;
+			}
+		}
+	}
+
+	// кнопка вставки смайлика — внутри плашки справа, доступна не дожидаясь фокуса
+	& .messageeditor-emoji {
+		flex: 0 0 auto;
+		width: var(--messageeditor-button-size);
+		height: var(--messageeditor-button-size);
+		// кнопка выше строки текста, поэтому её эффективная высота сводится к строке —
+		// иначе она раздувала бы плашку и сбивала выравнивание по одной линии
+		margin-block: calc((var(--messageeditor-minheight) - var(--messageeditor-button-size)) / 2);
+		margin-right: -6px; // утапливаем в правый отступ плашки
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		background: transparent;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+
+		& svg {
+			width: var(--messageeditor-button-icon);
+			height: var(--messageeditor-button-icon);
+			fill: var(--messageeditor-button-color);
+			pointer-events: none;
+		}
+
+		&:hover svg,
+		&.ui-popup-expanded svg {
+			fill: var(--messageeditor-accent);
+		}
+	}
+
+	// панель смайликов раскрывается вверх от кнопки, а не вниз от компонента
+	& .ui-richeditor-emoji {
+		top: auto;
+		left: auto;
+		right: 0;
+		bottom: 100%;
+		margin: 0 0 6px;
+	}
+
+	// Состояния показываем цветом рамки. Переопределяем саму переменную, а не border-color,
+	// чтобы цвет состояния задавался в одном месте.
+	&.focused .bubble {
+		--messageeditor-border: var(--messageeditor-border-focus);
+	}
+
+	&.invalid .bubble {
+		--messageeditor-border: var(--invalid--input-border-color, #e66c6c);
+	}
+
+	&.disabled {
+		opacity: 0.6;
+
+		& .bubble {
+			cursor: default;
+		}
+	}
+
+	&.readonly .bubble {
+		cursor: default;
+	}
+}
+
+// носитель значения участвует в форме, но не показывается (как и у textbox)
+.messageeditor-input {
+	opacity: 0;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	outline: none;
+	visibility: collapse;
+}
