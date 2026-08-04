@@ -28,14 +28,14 @@
 	"main": "source/index.ts",
 	"types": "source/index.ts",
 	"dependencies": {
-		"@brandup/ui": "^2.0.5",
-		"@brandup/ui-helpers": "^2.0.5",
+		"@brandup/ui": "^2.0.7",
+		"@brandup/ui-helpers": "^2.0.7",
 		"@brandup/ui-input": "file:../brandup-ui-input",
 		"@brandup/ui-kit": "file:../brandup-ui-kit"
 	},
 	"devDependencies": {
 		"less": "^4.8.1",
-		"typescript": "^6.0.3"
+		"typescript": "^7.0.2"
 	},
 	"files": [
 		"source",
