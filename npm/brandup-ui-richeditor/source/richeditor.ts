@@ -199,6 +199,28 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.__emitChange();
 	}
 
+	/**
+	 * Вставляет текст в каретку (или вместо выделения) с учётом ожидающих форматов режима набора.
+	 * Каретка сохраняется и после потери фокуса, поэтому метод работает и при вызове из кода —
+	 * например, кнопкой панели, которая не должна забирать фокус у редактора.
+	 */
+	insertText(text: string): void {
+		if (this.readonly || !text || !this.__innerSelection()) return;
+
+		// вставка — такой же ввод, как с клавиатуры, поэтому проходит через filterChar хоста
+		// (ограничения по типу поля и длине). Обход символов идёт по кодпойнтам, чтобы эмодзи
+		// проверялся целиком; длина сверяется с текущим содержимым, так что многосимвольная
+		// вставка ограничивается по первому символу — для одного символа проверка точная.
+		const filterChar = this.__opts.filterChar;
+		if (filterChar && !Array.from(text).every((char) => filterChar(char))) {
+			this.__reject();
+			return;
+		}
+
+		this.__history?.record("op");
+		this.__insertText(text);
+	}
+
 	getLength(): number {
 		// textContent (а не innerText) корректно считает multiline и работает в jsdom
 		return this.editable.textContent?.length ?? 0;
@@ -345,6 +367,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			case "redo":
 				this.redo();
 				break;
+			case "emoji":
+				// панель вставки открывает тулбар: ей нужна кнопка как якорь попапа.
+				// Вставка символа приходит сюда через insertText.
+				break;
 		}
 	}
 
@@ -357,6 +383,8 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				return this.canRedo;
 			case "erase":
 				return this.__hasFormatting();
+			case "emoji":
+				return !this.readonly;
 		}
 	}
 
@@ -746,7 +774,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (this.__pendingFormats.size > 0 && e.inputType === "insertText" && e.data != null) {
 			e.preventDefault();
 			this.__history?.record("op");
-			this.__insertPendingText(e.data);
+			this.__insertText(e.data);
 			return;
 		}
 
@@ -760,9 +788,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		formatToolbar.refresh();
 	}
 
-	private __insertPendingText(data: string) {
-		const selection = window.getSelection();
-		if (!selection || !this.editable.contains(selection.anchorNode)) return;
+	private __insertText(data: string) {
+		const selection = this.__innerSelection();
+		if (!selection) return;
 
 		insertFormattedText(this.editable, data, Array.from(this.__pendingFormats), selection);
 

@@ -1,7 +1,10 @@
 /**
  * @jest-environment jsdom
  */
+import { PopupManager } from "@brandup/ui-kit";
 import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS } from "../source/richeditor";
+import { EMOJI_PICKER_CLASS } from "../source/toolbar";
+import { EMOJIS } from "../source/emoji";
 import { expandRangeToWords } from "../source/editing";
 import { selectionCharBounds } from "../source/selection";
 
@@ -887,6 +890,23 @@ describe("RichEditor toolbar actions", () => {
 		expect(editor.editable.innerHTML).toBe("barbaz");
 	});
 
+	// disabled-кнопка событий не получает, и клик по ней приходит на сам тулбар (там же
+	// оказывается клик по фону между кнопками). Не погасить его — редактор потеряет фокус,
+	// а blur спрячет панель прямо под курсором.
+	it("does not take focus when the click lands on the toolbar itself", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["erase", "undo"], value: "barbaz" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+		caretAt(editor.editable.firstChild!, 0);
+
+		expect(actionButton("undo")!.disabled).toBe(true);
+
+		const toolbar = document.querySelector<HTMLElement>(`.${TOOLBAR_CLASS}`)!;
+		const e = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+		toolbar.dispatchEvent(e);
+
+		expect(e.defaultPrevented).toBe(true);
+	});
+
 	it("ignores actions that are not enabled for the editor", () => {
 		const editor = makeEditor({ tools: ["bold"], actions: ["undo"], value: "<b>bold</b>" });
 		selectAll(editor);
@@ -894,6 +914,123 @@ describe("RichEditor toolbar actions", () => {
 		editor.applyAction("erase"); // не входит в actions
 
 		expect(editor.editable.innerHTML).toBe("<b>bold</b>");
+	});
+});
+
+describe("RichEditor emoji picker", () => {
+	const picker = () => document.querySelector<HTMLElement>(`.${EMOJI_PICKER_CLASS}`);
+	const emojiButtons = () => document.querySelectorAll<HTMLButtonElement>(`.${EMOJI_PICKER_CLASS} .emoji`);
+
+	afterEach(() => PopupManager.close());
+
+	it("adds an emoji action button and builds the picker on first open", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "abc" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		expect(actionButton("emoji")).not.toBeNull();
+		expect(picker()).toBeNull(); // ~700 кнопок собираются только при первом открытии
+
+		actionButton("emoji")!.click();
+
+		expect(picker()).not.toBeNull();
+		expect(emojiButtons().length).toBe(EMOJIS.length);
+	});
+
+	// PopupManager вешает слушатель закрытия на body внутри open(), то есть во время того же
+	// клика: без остановки всплытия он получил бы его и сразу закрыл панель.
+	it("stays open after the click that opened it", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "abc" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		actionButton("emoji")!.click();
+
+		expect(picker()!.classList.contains("opened")).toBe(true);
+	});
+
+	it("closes on a second click of the same button", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "abc" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		actionButton("emoji")!.click();
+		actionButton("emoji")!.click();
+
+		expect(picker()!.classList.contains("opened")).toBe(false);
+	});
+
+	it("inserts the picked emoji at the caret and closes", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "abc" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+		caretAt(editor.editable.firstChild!, 1);
+
+		actionButton("emoji")!.click();
+		emojiButtons()[0].click();
+
+		expect(editor.editable.textContent).toBe(`a${EMOJIS[0]}bc`);
+		expect(picker()!.classList.contains("opened")).toBe(false);
+	});
+
+	// вставка кнопкой — тот же ввод, что и с клавиатуры: хост ограничивает его через filterChar
+	// (в TextBox это maxlength и тип поля), иначе панель обходит эти ограничения
+	it("respects filterChar and reports a rejected insert", () => {
+		const onReject = jest.fn();
+		const editor = makeEditor({
+			tools: ["bold"],
+			actions: ["emoji"],
+			value: "abc",
+			filterChar: () => false, // как при достигнутом лимите длины
+			onReject,
+		});
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+		caretAt(editor.editable.firstChild!, 3);
+
+		actionButton("emoji")!.click();
+		emojiButtons()[0].click();
+
+		expect(editor.editable.textContent).toBe("abc");
+		expect(onReject).toHaveBeenCalled();
+	});
+
+	it("keeps the editor focus: the button and the picker suppress mousedown", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "abc" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+		actionButton("emoji")!.click();
+
+		const onButton = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+		actionButton("emoji")!.dispatchEvent(onButton);
+		const onEmoji = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+		emojiButtons()[0].dispatchEvent(onEmoji);
+
+		expect(onButton.defaultPrevented).toBe(true);
+		expect(onEmoji.defaultPrevented).toBe(true);
+	});
+
+	// тулбар прячется на blur, вместе с ним пропадает и панель — состояние попапа должно совпасть
+	it("closes when the toolbar detaches", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "abc" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+		actionButton("emoji")!.click();
+		expect(picker()!.classList.contains("opened")).toBe(true);
+
+		editor.editable.dispatchEvent(new FocusEvent("blur"));
+
+		expect(picker()!.classList.contains("opened")).toBe(false);
+		expect(PopupManager.isOpened()).toBe(false);
+	});
+
+	it("survives a toolbar rebuild for another editor", () => {
+		const first = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "abc" });
+		first.editable.dispatchEvent(new FocusEvent("focus"));
+		first.editable.dispatchEvent(new FocusEvent("blur"));
+
+		// другой состав кнопок — тулбар пересобирается, панель не должна потеряться
+		const second = makeEditor({ tools: ["bold", "italic"], actions: ["emoji", "undo"], value: "abc" });
+		second.editable.dispatchEvent(new FocusEvent("focus"));
+		caretAt(second.editable.firstChild!, 3);
+
+		actionButton("emoji")!.click();
+
+		expect(picker()!.parentElement).toBe(document.querySelector(`.${TOOLBAR_CLASS}`));
+		expect(emojiButtons().length).toBe(EMOJIS.length);
 	});
 });
 
