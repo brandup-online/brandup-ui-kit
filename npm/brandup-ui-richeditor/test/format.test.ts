@@ -140,6 +140,45 @@ describe("custom markdown markers", () => {
 	});
 });
 
+// Разметка распознаётся по правилам мессенджеров: маркер на границе слова, содержимое без
+// пробелов по краям и в пределах одной строки. Иначе редактор показывал бы форматирование
+// там, где получатель увидит обычный текст.
+describe("markdown boundaries", () => {
+	const md = defaultFormatMarkers();
+	const parse = (text: string) => deserialize(text, "markdown", ["bold", "italic"], md);
+
+	it("ignores markers glued to word characters", () => {
+		expect(parse("5**4 = 20, 3**2 = 6")).toBe("5**4 = 20, 3**2 = 6");
+		expect(parse("файл_имя_файла.txt")).toBe("файл_имя_файла.txt");
+	});
+
+	it("ignores markers with whitespace next to the content", () => {
+		expect(parse("2 ** 2 ** 2")).toBe("2 ** 2 ** 2");
+		expect(parse("_  внутри  _")).toBe("_  внутри  _");
+		expect(parse("маска _.txt и _.log")).toBe("маска _.txt и _.log");
+	});
+
+	it("does not let a format cross a line break", () => {
+		expect(parse("через _две\nстроки_ нельзя")).toBe("через _две<br>строки_ нельзя");
+	});
+
+	// маркер вокруг пробела не сработает ни у нас, ни у мессенджера — получатель увидел бы
+	// сами маркеры, поэтому краевые пробелы выносятся за них при сериализации
+	it("moves edge whitespace out of the markers", () => {
+		expect(serialize(makeRoot("<b> слово </b>дальше"), "markdown", ["bold"], md)).toBe("**слово** дальше");
+		expect(serialize(makeRoot("а<b>б </b>в"), "markdown", ["bold"], md)).toBe("а**б** в");
+		expect(serialize(makeRoot("а<b> </b>в"), "markdown", ["bold"], md)).toBe("а в");
+	});
+
+	it("accepts markers at word boundaries and next to punctuation", () => {
+		expect(parse("цена _от_ 100")).toBe("цена <i>от</i> 100");
+		expect(parse("_начало_ строки")).toBe("<i>начало</i> строки");
+		expect(parse("конец _строки_")).toBe("конец <i>строки</i>");
+		expect(parse("(_в скобках_), _с запятой_.")).toBe("(<i>в скобках</i>), <i>с запятой</i>.");
+		expect(parse("**жирный** и _курсив_")).toBe("<b>жирный</b> и <i>курсив</i>");
+	});
+});
+
 describe("paragraphs (multiline)", () => {
 	const md = defaultFormatMarkers();
 

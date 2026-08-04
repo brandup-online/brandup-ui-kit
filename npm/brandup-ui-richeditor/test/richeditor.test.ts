@@ -136,6 +136,30 @@ describe("RichEditor value", () => {
 		expect(handler).toHaveBeenCalledWith(expect.objectContaining({ value: "typed" }));
 	});
 
+	// Правила разбора markdown строгие (граница слова, без пробелов по краям), поэтому то,
+	// что редактор сохранил, обязано разобраться обратно — иначе значение теряет форматирование
+	// при следующем открытии.
+	it.each([
+		["один два три", 5, 8, "**два**"],
+		["один два три", 0, 4, "**один**"],
+		["один два три", 9, 12, "**три**"],
+		["слово, ещё", 0, 5, "**слово,**"],
+		["(в скобках)", 1, 3, "**(в скобках)**"],
+		["цена 100 руб", 5, 8, "**100**"],
+		["из-за угла", 0, 5, "**из-за**"],
+	])("markdown round-trips formatting of %j", (text, from, to, expected) => {
+		const editor = makeEditor({ storage: "markdown", value: text });
+		selectRange(editor.editable.firstChild!, from as number, to as number);
+		editor.applyFormat("bold");
+
+		const html = editor.editable.innerHTML;
+		const markdown = editor.getValue();
+		expect(markdown).toContain(expected);
+
+		const reopened = makeEditor({ storage: "markdown", value: markdown });
+		expect(reopened.editable.innerHTML).toBe(html);
+	});
+
 	// содержимое заменено целиком — прежняя каретка к нему не относится
 	it("puts the caret at the end of the new value when it was inside the editor", () => {
 		const editor = makeEditor({ value: "old text" });
