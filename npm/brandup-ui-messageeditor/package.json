@@ -1,0 +1,48 @@
+{
+	"publishConfig": {
+		"access": "public"
+	},
+	"name": "@brandup/ui-messageeditor",
+	"description": "Message editor styled as a chat bubble.",
+	"keywords": [
+		"brandup",
+		"javascript",
+		"typescript",
+		"ui"
+	],
+	"author": {
+		"name": "Dmitry Kovyazin",
+		"email": "it@brandup.online"
+	},
+	"homepage": "https://github.com/brandup-online/brandup-ui-kit/npm/brandup-ui-messageeditor",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/brandup-online/brandup-ui-kit.git"
+	},
+	"bugs": {
+		"url": "https://github.com/brandup-online/brandup-ui-kit/issues",
+		"email": "it@brandup.online"
+	},
+	"license": "Apache-2.0",
+	"version": "1.0.0",
+	"main": "source/index.ts",
+	"types": "source/index.ts",
+	"dependencies": {
+		"@brandup/ui": "^2.0.5",
+		"@brandup/ui-input": "file:../brandup-ui-input",
+		"@brandup/ui-richeditor": "file:../brandup-ui-richeditor"
+	},
+	"devDependencies": {
+		"less": "^4.8.1",
+		"typescript": "^6.0.3"
+	},
+	"files": [
+		"source",
+		"svg",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsc",
+		"watch": "tsc -w"
+	}
+}

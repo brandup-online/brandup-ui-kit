@@ -12,6 +12,7 @@
 | [@brandup/ui-input](npm/brandup-ui-input/README.md) | Абстрактный базовый класс для элементов ввода |
 | [@brandup/ui-richeditor](npm/brandup-ui-richeditor/README.md) | Редактор текста на базе `contenteditable`: форматирование, панель инструментов, HTML/Markdown |
 | [@brandup/ui-textbox](npm/brandup-ui-textbox/README.md) | Компонент текстового поля (`input`, `textarea`) |
+| [@brandup/ui-messageeditor](npm/brandup-ui-messageeditor/README.md) | Ввод сообщения в виде плашки чата |
 | [@brandup/ui-dropdown](npm/brandup-ui-dropdown/README.md) | Компонент выпадающего списка (`select`) |
 
 ## Пример

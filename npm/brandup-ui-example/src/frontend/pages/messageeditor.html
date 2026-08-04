@@ -1,0 +1,58 @@
+<section class="page-block messageeditors">
+	<div class="part">
+		<h2>Плашка сообщения</h2>
+		<p class="note">
+			Поле ввода оформлено как сообщение в чате. Устроено как <code>TextBox</code>: значение хранит скрытое поле
+			формы, ввод ведёт <code>RichEditor</code>. Панель форматирования со вставкой смайлика показывается над
+			плашкой при фокусе, <b>Enter</b> создаёт новый абзац, а не отправляет форму.
+		</p>
+		<div class="chat">
+			<div class="field">
+				<textarea data-content-script="messageeditor" placeholder="Напишите сообщение"></textarea>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>С готовым значением</h2>
+		<p class="note">
+			Значение хранится разметкой мессенджеров, а не HTML: <code>**жирный**</code>, <code>_курсив_</code>,
+			<code>~зачёркнутый~</code>, <code>__подчёркнутый__</code>. <b>Enter</b> даёт один перенос
+			(<code>\n</code>), два нажатия — пустую строку (<code>\n\n</code>).
+		</p>
+		<div class="chat">
+			<div class="field">
+				<textarea data-content-script="messageeditor" placeholder="Напишите сообщение">
+Привет! Это **жирный** и _курсив_.
+Вторая строка — один перенос.
+
+А это пустая строка выше — два переноса.</textarea
+				>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>Состояния</h2>
+		<p class="note">
+			<code>required</code>, <code>readonly</code> и <code>disabled</code> берутся у поля-носителя, как у
+			остальных контролов кита. Кнопка проверяет валидацию формы.
+		</p>
+		<div class="chat">
+			<form class="field">
+				<textarea data-content-script="messageeditor" placeholder="Обязательное поле" required></textarea>
+				<button type="submit" class="app-button">Отправить</button>
+			</form>
+			<div class="field">
+				<textarea data-content-script="messageeditor" placeholder="Только чтение" readonly>
+Сообщение доступно только для чтения.</textarea
+				>
+			</div>
+			<div class="field">
+				<textarea data-content-script="messageeditor" placeholder="Недоступно" disabled></textarea>
+			</div>
+		</div>
+	</div>
+</section>
