@@ -23,6 +23,7 @@ import {
 	type EditorAction,
 	type FormatMarkers,
 	type FormatStorage,
+	type ParagraphMode,
 	type FormatTool,
 } from "./format";
 import {
@@ -84,6 +85,8 @@ export interface RichEditorOptions {
 	placeholder?: string | null;
 	/** Многострочный режим. */
 	multiline?: boolean;
+	/** Что делает Enter: новый абзац (по умолчанию) или мягкий перенос, как в мессенджерах. */
+	paragraph?: ParagraphMode;
 	/** Только для чтения — запрещает ввод и изменение текста (но не выделение/копирование). */
 	readonly?: boolean;
 	/** Контейнер для панели форматирования; по умолчанию document.body (position: fixed над редактором). */
@@ -119,6 +122,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	readonly formatStorage: FormatStorage;
 	readonly formatMarkers: FormatMarkers;
 	readonly multiline: boolean;
+	readonly paragraph: ParagraphMode;
 	readonly toolbarContainer: HTMLElement | null;
 
 	private __opts: RichEditorOptions;
@@ -151,6 +155,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.formatStorage = options.storage === "markdown" ? "markdown" : "html";
 		this.formatMarkers = Object.assign(defaultFormatMarkers(), options.markers);
 		this.multiline = multiline;
+		this.paragraph = options.paragraph ?? "block";
 		this.toolbarContainer = options.toolbarContainer ?? null;
 		// история включается вместе с форматированием
 		this.__history = format ? new EditorHistory(editable) : null;
@@ -219,6 +224,21 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 		this.__history?.record("op");
 		this.__insertText(text);
+	}
+
+	/**
+	 * Показать панель вставки смайлика у своей кнопки — когда она живёт не в тулбаре, а в разметке
+	 * хоста (например справа от поля ввода). Вызывать из обработчика `click`, погасив всплытие:
+	 * иначе попап закроется тем же кликом, которым открылся.
+	 *
+	 * @param initiator Кнопка, у которой показывается панель.
+	 * @param container Куда монтировать панель; по умолчанию — родитель кнопки.
+	 */
+	openEmojiPicker(initiator: HTMLElement, container?: HTMLElement): void {
+		if (this.readonly) return;
+
+		const target = container ?? initiator.parentElement;
+		if (target) formatToolbar.openEmoji(this, initiator, target);
 	}
 
 	getLength(): number {
@@ -432,14 +452,23 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		DOM.empty(this.editable);
 		if (!value) return;
 
-		// multiline → <p>-абзацы; single-line → инлайновое содержимое
+		// multiline → <p>-абзацы; single-line → инлайновое содержимое.
+		// В режиме break абзацных блоков нет: значение — плоский текст, где каждый \n это <br>.
+		// Иначе `a\n\nb` рисовалось бы двумя <p>, а на экране (без отступов между абзацами)
+		// это неотличимо от одного переноса — значение расходилось бы с видимым текстом.
+		const paragraphs = this.multiline && this.paragraph === "block";
+
 		this.editable.innerHTML = deserialize(
 			value,
 			this.__valueStorage,
 			this.__valueTools,
 			this.formatMarkers,
-			this.multiline
+			paragraphs
 		);
+
+		// в break инлайновое содержимое оборачивается в единственный абзац — модель абзацев
+		// нужна редактированию (каретка, вставка), а разделителем строк остаётся <br>
+		if (this.multiline && !paragraphs) ensureParagraphs(this.editable);
 	}
 
 	private __emitChange() {
@@ -623,9 +652,14 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				return;
 			}
 
-			// Shift/Ctrl/Cmd+Enter — мягкий перенос (<br>) внутри абзаца; Enter — новый абзац (<p>)
+			// В режиме block Enter — новый абзац (<p>), модификатор — мягкий перенос (<br>).
+			// В режиме break наоборот: Enter переносит строку, как в мессенджерах, а абзац
+			// набирается двумя переносами.
+			const withModifier = e.shiftKey || e.ctrlKey || e.metaKey;
+			const soft = this.paragraph === "break" ? !withModifier : withModifier;
+
 			this.__history?.record("op");
-			if (e.shiftKey || e.ctrlKey || e.metaKey) insertSoftBreak(this.editable);
+			if (soft) insertSoftBreak(this.editable);
 			else insertParagraph(this.editable);
 
 			this.__clearPendingFormats();
