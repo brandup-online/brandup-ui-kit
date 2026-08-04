@@ -3,7 +3,7 @@
 		"access": "public"
 	},
 	"name": "@brandup/ui-kit",
-	"description": "Input control type and styles.",
+	"description": "Base UI kit: reset, typography, form field styles, PopupManager and app middleware.",
 	"keywords": [
 		"brandup",
 		"javascript",
