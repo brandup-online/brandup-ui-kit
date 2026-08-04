@@ -13,6 +13,7 @@ import {
 	hasFormatting,
 	insertFormattedText,
 	isFormatActive,
+	mapCharOffset,
 	normalizeParagraphs,
 	normalizeWhitespace,
 	restoreSelection,
@@ -188,8 +189,13 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	}
 
 	setValue(value: string): void {
+		// каретка внутри относилась к прежнему содержимому — после замены ставим её в конец
+		const hadCaret = !!this.__innerSelection();
+
 		this.__render(value ?? "");
 		this.__normalize(false);
+		if (hadCaret) caretToEnd(this.editable, this.multiline);
+
 		this.__emitChange();
 	}
 
@@ -207,6 +213,17 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	}
 
 	/**
+	 * Выделение, если оно находится внутри этого редактора. Браузер сохраняет выделение и после
+	 * blur, поэтому проверка работает и когда фокус ушёл на кнопку страницы.
+	 */
+	private __innerSelection(): Selection | null {
+		const selection = window.getSelection();
+		if (!selection || selection.rangeCount === 0 || !this.editable.contains(selection.anchorNode)) return null;
+
+		return selection;
+	}
+
+	/**
 	 * Цель правки форматирования: выделение, расширенное до целых слов, плюс исходные границы
 	 * для восстановления. Диапазон отдельный от выделения — пока операция не решила, что будет
 	 * править, каретка пользователя не двигается. null — правка недоступна или выделение вне редактора.
@@ -214,9 +231,8 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	private __formatTarget(): { selection: Selection; range: Range; original: [number, number] } | null {
 		if (!this.format || this.readonly) return null;
 
-		const selection = window.getSelection();
-		if (!selection || selection.rangeCount === 0) return null;
-		if (!this.editable.contains(selection.anchorNode)) return null;
+		const selection = this.__innerSelection();
+		if (!selection) return null;
 
 		const current = selection.getRangeAt(0);
 
@@ -281,11 +297,8 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (!hasAnyFormatting(this.editable)) return;
 
 		// разворачивание тегов рвёт выделение — запоминаем по текстовым смещениям
-		const selection = window.getSelection();
-		const bounds =
-			selection && selection.rangeCount > 0 && this.editable.contains(selection.anchorNode)
-				? selectionCharBounds(this.editable, selection.getRangeAt(0))
-				: null;
+		const selection = this.__innerSelection();
+		const bounds = selection ? selectionCharBounds(this.editable, selection.getRangeAt(0)) : null;
 
 		this.__history?.record("op");
 		clearAllFormat(this.editable);
@@ -367,8 +380,8 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	isToolActive(tool: FormatTool): boolean {
 		if (this.__pendingFormats.has(tool)) return true;
 
-		const selection = window.getSelection();
-		if (!selection || selection.rangeCount === 0 || !this.editable.contains(selection.anchorNode)) return false;
+		const selection = this.__innerSelection();
+		if (!selection) return false;
 
 		return isFormatActive(this.editable, selection.getRangeAt(0), tool);
 	}
@@ -415,10 +428,23 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	private __normalize(notify: boolean) {
 		if (this.readonly) return;
 
+		// правка текстовых узлов рвёт живые Range — запоминаем выделение по текстовым смещениям
+		const selection = this.__innerSelection();
+		const bounds = selection ? selectionCharBounds(this.editable, selection.getRangeAt(0)) : null;
+
 		const before = this.editable.innerHTML;
+		const textBefore = this.editable.textContent ?? "";
 		normalizeWhitespace(this.editable);
 		if (this.multiline) normalizeParagraphs(this.editable);
 		if (this.editable.innerHTML === before) return;
+
+		if (bounds && selection) {
+			// схлопнутые пробелы сдвигают смещения — переносим их на новый текст
+			const textAfter = this.editable.textContent ?? "";
+			const start = mapCharOffset(textBefore, textAfter, bounds[0]);
+			const end = bounds[1] === bounds[0] ? start : mapCharOffset(textBefore, textAfter, bounds[1]);
+			restoreSelection(this.editable, start, end, selection);
+		}
 
 		if (notify) this.__emitChange();
 	}
@@ -450,7 +476,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				if (this.format && (this.formatTools.length || this.editorActions.length)) formatToolbar.attach(this);
 
 				if (this.readonly) selectAllContent(this.editable);
-				else if (!this.__hasInputClick) caretToEnd(this.editable, this.multiline);
+				// Каретку в конец ставим только когда её нет: клик ставит сам, а уже стоящую
+				// (фокус вернули из кода после вызова метода) двигать нельзя — уедет в конец текста.
+				else if (!this.__hasInputClick && !this.__innerSelection()) caretToEnd(this.editable, this.multiline);
 			},
 			{ signal }
 		);

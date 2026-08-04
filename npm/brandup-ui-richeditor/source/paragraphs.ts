@@ -12,6 +12,13 @@ export function normalizeWhitespace(root: HTMLElement) {
 	type Item = { kind: "text"; node: Text } | { kind: "break" };
 	const items: Item[] = [];
 
+	// Присваивание Text.data — это «replace data» по всему узлу, а оно схлопывает границы
+	// живых Range внутри узла в его начало: каретка уезжает в начало строки. Нормализация
+	// чаще всего ничего не меняет (вызывается на blur), поэтому пишем только при отличии.
+	const setData = (node: Text, text: string) => {
+		if (node.data !== text) node.data = text;
+	};
+
 	const flatten = (node: Node) => {
 		for (const child of Array.from(node.childNodes)) {
 			if (child.nodeType === Node.TEXT_NODE) {
@@ -38,7 +45,7 @@ export function normalizeWhitespace(root: HTMLElement) {
 	for (const item of items) {
 		if (item.kind === "break") {
 			if (pendingSpaceNode) {
-				pendingSpaceNode.data = pendingSpaceNode.data.replace(/ $/, "");
+				setData(pendingSpaceNode, pendingSpaceNode.data.replace(/ $/, ""));
 				pendingSpaceNode = null;
 			}
 			atLineStart = true;
@@ -49,14 +56,14 @@ export function normalizeWhitespace(root: HTMLElement) {
 		if (atLineStart) text = text.replace(/^ /, ""); // пробел в начале строки
 		if (pendingSpaceNode && text.startsWith(" ")) text = text.slice(1); // двойной пробел на границе узлов
 
-		item.node.data = text;
+		setData(item.node, text);
 		if (text.length === 0) continue;
 
 		atLineStart = false;
 		pendingSpaceNode = text.endsWith(" ") ? item.node : null;
 	}
 
-	if (pendingSpaceNode) pendingSpaceNode.data = pendingSpaceNode.data.replace(/ $/, ""); // хвост последней строки
+	if (pendingSpaceNode) setData(pendingSpaceNode, pendingSpaceNode.data.replace(/ $/, "")); // хвост последней строки
 
 	cleanupFormatting(root); // убрать опустевшие теги, склеить узлы
 }

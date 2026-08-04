@@ -22,6 +22,7 @@ export { serialize, deserialize } from "./serialize";
 export {
 	selectionCharBounds,
 	restoreSelection,
+	mapCharOffset,
 	toggleFormat,
 	clearFormat,
 	clearAllFormat,
