@@ -34,7 +34,16 @@ function wrap(storage: FormatStorage, tool: FormatTool, inner: string, markers: 
 	if (storage === "html") return `<${def.tag}>${inner}</${def.tag}>`;
 
 	const marker = markers[tool];
-	return `${marker}${inner}${marker}`;
+
+	// Маркер не сработает, если содержимое начинается или заканчивается пробелом, — ни у нас
+	// при разборе, ни у мессенджера. Выносим краевые пробелы наружу: разметка сохраняется,
+	// а иначе получатель увидел бы сами маркеры.
+	const leading = /^\s*/.exec(inner)![0];
+	const trailing = /\s*$/.exec(inner.slice(leading.length))![0];
+	const core = inner.slice(leading.length, inner.length - trailing.length);
+	if (!core) return inner; // одни пробелы — оборачивать нечего
+
+	return `${leading}${marker}${core}${marker}${trailing}`;
 }
 
 // Сериализует инлайновое содержимое (текст, форматирование, <br> как мягкий перенос).
@@ -146,24 +155,59 @@ export function serialize(
 	return inline.replace(/^\n+/, "").replace(/\n+$/, "").trim();
 }
 
-// Markdown-разметка одного абзаца → инлайновый HTML (escape, \n→<br>, маркеры).
-function markdownInline(text: string, tools: FormatTool[], markers: FormatMarkers): string {
-	let html = escapeHtml(text).replace(/\r?\n/g, "<br>");
+/**
+ * Маркеры в порядке применения: длинный (`**`) раньше короткого-префикса (`*`), иначе
+ * короткий съест половину длинного. Считается один раз на разбор — `markdownInline`
+ * вызывается на каждый абзац.
+ */
+function orderedMarkers(tools: FormatTool[], markers: FormatMarkers): Array<[FormatTool, string]> {
+	return tools
+		.filter((tool) => markers[tool])
+		.sort((a, b) => markers[b].length - markers[a].length)
+		.map((tool) => [tool, markers[tool]]);
+}
 
-	// Маркеры применяем по убыванию длины: длинный (**) раньше короткого-префикса (*).
-	const order = tools.slice().sort((a, b) => markers[b].length - markers[a].length);
-	for (const tool of order) {
-		const marker = markers[tool];
-		if (!marker) continue;
+// Markdown-разметка одного абзаца → инлайновый HTML (escape, маркеры, \n→<br>).
+function markdownInline(text: string, order: Array<[FormatTool, string]>): string {
+	let html = escapeHtml(text);
 
+	for (const [tool, marker] of order) {
 		const def = FORMAT_TOOLS[tool];
-		const escaped = escapeRegExp(marker);
-		const re = new RegExp(`${escaped}([\\s\\S]+?)${escaped}`, "g");
-		html = html.replace(re, `<${def.tag}>$1</${def.tag}>`);
+		html = html.replace(markerPattern(marker), `$1<${def.tag}>$2</${def.tag}>`);
 	}
 
-	return html;
+	// переносы — после маркеров: пока это \n, запрет на пересечение строки работает
+	return html.replace(/\r?\n/g, "<br>");
 }
+
+/**
+ * Разметка распознаётся по правилам мессенджеров: маркер стоит на границе слова, содержимое
+ * не начинается и не заканчивается пробелом и не пересекает перенос строки. Иначе `5**4 = 20`
+ * или `2 ** 2 ** 2` превращались бы в текст с форматированием, которого получатель не увидит.
+ *
+ * Граница — всё, что не буква и не цифра (включая `_`). Именно `\p{L}\p{N}`, а не `\W`:
+ * в JavaScript `\w` — только ASCII, поэтому с `\W` каждая кириллическая буква считалась бы
+ * границей и `файл_имя_файла` разбирался бы как разметка.
+ *
+ * Левая граница захватывается группой и возвращается на место — lookbehind не используется,
+ * его нет в Safari до 16.4.
+ */
+function markerPattern(marker: string): RegExp {
+	let pattern = markerPatterns.get(marker);
+	if (pattern) return pattern;
+
+	const escaped = escapeRegExp(marker);
+	const boundary = "[^\\p{L}\\p{N}]";
+
+	pattern = new RegExp(`(^|${boundary})${escaped}(\\S|\\S[^\\n]*?\\S)${escaped}(?=$|${boundary})`, "gu");
+	markerPatterns.set(marker, pattern);
+
+	return pattern;
+}
+
+// Набор маркеров за разбор не меняется, а разбор идёт по абзацам — компилируем каждую
+// регулярку один раз. Флаг `g` переиспользовать безопасно: `replace` сбрасывает lastIndex.
+const markerPatterns = new Map<string, RegExp>();
 
 /**
  * Готовит сохранённое значение к отображению в редакторе (возвращает HTML).
@@ -180,10 +224,12 @@ export function deserialize(
 	if (!value) return "";
 
 	if (storage === "markdown") {
-		if (!paragraphs) return markdownInline(value, tools, markers);
+		const order = orderedMarkers(tools, markers);
+
+		if (!paragraphs) return markdownInline(value, order);
 		return value
 			.split(/\n{2,}/)
-			.map((p) => `<p>${markdownInline(p, tools, markers) || "<br>"}</p>`)
+			.map((p) => `<p>${markdownInline(p, order) || "<br>"}</p>`)
 			.join("");
 	}
 
