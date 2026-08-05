@@ -97,7 +97,21 @@ describe("activeFormats invariants", () => {
 	// Прямолинейный эталон: обходим ВСЁ содержимое и ищем предка по именам тегов. Оптимизированная
 	// версия сужает обход до общего предка границ и выходит раньше, поэтому сверять её есть с чем.
 	function activeToolsReference(root: HTMLElement, range: Range): FormatTool[] {
-		const touched = textNodes(root).filter((n) => n.length && range.intersectsNode(n));
+		// Узел входит в выделение, если оно покрывает хоть один его символ. Касания одной лишь
+		// границей мало: выделение кончается там, где узел начинается, или наоборот — выделенного
+		// текста в нём нет, и оформление такого соседа к выделению отношения не имеет.
+		const covered = (n: Text) => {
+			const nr = document.createRange();
+			nr.selectNodeContents(n);
+
+			// начало выделения не раньше конца узла либо конец выделения не позже его начала
+			if (range.compareBoundaryPoints(Range.END_TO_START, nr) >= 0) return false;
+			if (range.compareBoundaryPoints(Range.START_TO_END, nr) <= 0) return false;
+
+			return true;
+		};
+
+		const touched = textNodes(root).filter((n) => n.length && covered(n));
 
 		const formatted = (node: Node, tags: string[]) => {
 			for (let el = node.parentElement; el && el !== root; el = el.parentElement)

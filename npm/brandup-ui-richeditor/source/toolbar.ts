@@ -111,7 +111,9 @@ class FormatToolbar {
 	private __emojiInitiator: HTMLElement | null = null; // кнопка, у которой открыта панель
 	private __buttons: Array<[FormatTool, HTMLButtonElement]> = [];
 	private __actionButtons: Array<[EditorAction, HTMLButtonElement]> = [];
-	private __hostButtons: Array<[ToolbarButton, HTMLButtonElement]> = [];
+	// имя, а не сама кнопка хоста: панель одна на все редакторы и переиспользует разметку между
+	// ними, а поведение принадлежит текущему — держать здесь ссылку значит звать чужой обработчик
+	private __hostButtons: Array<[string, HTMLButtonElement]> = [];
 	private __active: ToolbarHost | null = null;
 	private __suspended: ToolbarHost | null = null; // показ придержан на время панели смайликов
 	private __toolsKey = "";
@@ -218,9 +220,12 @@ class FormatToolbar {
 		const emojiHost = this.__emojiHost === host;
 		if (!emojiHost && this.__active !== host) return;
 
-		this.__closeEmoji();
-
+		// Закрываем только свою панель. Открытие у кнопки другого редактора само переводит туда
+		// фокус, и этот уход приходит уже после — панель к тому времени принадлежит соседу, и
+		// закрыть её значило бы гасить только что открытое: она требовала бы второго нажатия.
 		if (emojiHost) {
+			this.__closeEmoji();
+
 			this.__emojiHost = null;
 			this.__emojiInitiator = null;
 		}
@@ -261,7 +266,12 @@ class FormatToolbar {
 
 		// хост может не реализовывать isActionEnabled — тогда кнопка всегда доступна
 		for (const [action, btn] of this.__actionButtons) setDisabled(btn, host.isActionEnabled?.(action) === false);
-		for (const [button, btn] of this.__hostButtons) setDisabled(btn, button.isEnabled?.() === false);
+		for (const [name, btn] of this.__hostButtons) setDisabled(btn, this.__hostButton(name)?.isEnabled?.() === false);
+	}
+
+	/** Кнопка хоста по имени — у активного редактора, а не у того, кто собрал разметку панели. */
+	private __hostButton(name: string): ToolbarButton | undefined {
+		return this.__active?.toolbarButtons?.find((button) => button.name === name);
 	}
 
 	/** Пересчитать позицию над активным редактором (только для режима body/fixed). */
@@ -347,10 +357,10 @@ class FormatToolbar {
 				{ type: "button", class: "host-button", "data-toolbar-button": button.name, title: button.title },
 				button.icon
 			);
-			btn.addEventListener("click", () => button.run());
+			btn.addEventListener("click", () => this.__hostButton(button.name)?.run());
 
 			elem.appendChild(btn);
-			this.__hostButtons.push([button, btn]);
+			this.__hostButtons.push([button.name, btn]);
 		}
 
 		// панель пережила перестройку кнопок — возвращаем её в тулбар, чтобы не собирать заново.
