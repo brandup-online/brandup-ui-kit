@@ -28,6 +28,7 @@ export interface ModalOptions {
 export default abstract class Modal extends UIElement {
 	private readonly __body: HTMLElement;
 	private readonly __onKeyDown: (e: KeyboardEvent) => void;
+	private readonly __closeHandlers: Array<() => void> = [];
 	private __closed = false;
 	private __disposed = false;
 
@@ -85,6 +86,18 @@ export default abstract class Modal extends UIElement {
 		// по умолчанию ничего
 	}
 
+	/**
+	 * Подписка на закрытие окна: вызывается ровно один раз, чем бы оно ни кончилось — крестиком,
+	 * Esc, подложкой, применением или удалением элемента из DOM. Нужна тому, кто придержал что-то
+	 * на время работы окна и обязан отпустить это в любом исходе.
+	 *
+	 * Подписка на уже закрытое окно срабатывает сразу: иначе придержанное не отпустил бы никто.
+	 */
+	onClosed(handler: () => void): void {
+		if (this.__disposed) handler();
+		else this.__closeHandlers.push(handler);
+	}
+
 	protected get body(): HTMLElement {
 		return this.__body;
 	}
@@ -108,6 +121,17 @@ export default abstract class Modal extends UIElement {
 		document.body.classList.remove(MODAL_OPENED_CLASS);
 
 		this.element?.remove();
+
+		// После того как окна не стало: подписчик обычно возвращает себе фокус и каретку.
+		// Ошибка одного не должна лишать остальных их уборки и рвать разрушение окна.
+		const handlers = this.__closeHandlers.splice(0);
+		for (const handler of handlers) {
+			try {
+				handler();
+			} catch (error) {
+				console.error("Modal: обработчик закрытия завершился ошибкой.", error);
+			}
+		}
 
 		super.destroy();
 	}
