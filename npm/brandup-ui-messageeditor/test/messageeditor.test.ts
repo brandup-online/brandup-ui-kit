@@ -274,18 +274,18 @@ describe("MessageEditor", () => {
 	// Разметку может отдавать сервер — тогда передать список в опциях неоткуда.
 	it("takes the variables from the data-variables attribute", () => {
 		const { input } = setup();
-		input.setAttribute("data-variables", '[{"name":"ИМЯ","title":"Имя подписчика"},"ГОРОД"]');
+		input.setAttribute("data-variables", '[{"key":"ИМЯ","name":"Имя подписчика"},"ГОРОД"]');
 		const editor = new MessageEditor(input);
 
-		expect(editor.variables).toEqual([{ name: "ИМЯ", title: "Имя подписчика" }, { name: "ГОРОД" }]);
+		expect(editor.variables).toEqual([{ key: "ИМЯ", name: "Имя подписчика" }, { key: "ГОРОД" }]);
 	});
 
 	it("prefers the variables passed in options over the attribute", () => {
 		const { input } = setup();
 		input.setAttribute("data-variables", "ИЗ_РАЗМЕТКИ");
-		const editor = new MessageEditor(input, { variables: [{ name: "ИЗ_КОДА" }] });
+		const editor = new MessageEditor(input, { variables: [{ key: "ИЗ_КОДА" }] });
 
-		expect(editor.variables).toEqual([{ name: "ИЗ_КОДА" }]);
+		expect(editor.variables).toEqual([{ key: "ИЗ_КОДА" }]);
 	});
 
 	// список из атрибута должен доходить до окна выбора, а не оставаться полем компонента
@@ -298,7 +298,7 @@ describe("MessageEditor", () => {
 		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
 
 		const buttons = document.querySelectorAll(".messageeditor-variables .variables .variable");
-		expect(Array.from(buttons).map((b) => b.querySelector(".name")!.textContent)).toEqual(["{ИМЯ}", "{ГОРОД}"]);
+		expect(Array.from(buttons).map((b) => b.querySelector(".preview")!.textContent)).toEqual(["{ИМЯ}", "{ГОРОД}"]);
 
 		document.querySelector<HTMLButtonElement>(".ui-modal .modal-close")!.click();
 	});

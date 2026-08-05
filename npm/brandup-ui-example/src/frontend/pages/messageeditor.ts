@@ -5,10 +5,10 @@ import MessageEditor from "@brandup/ui-messageeditor";
 
 // переменные персонализации знает приложение, а не компонент
 const VARIABLES = [
-	{ name: "ИМЯ", title: "Имя подписчика" },
-	{ name: "ФАМИЛИЯ", title: "Фамилия подписчика" },
-	{ name: "ГОРОД", title: "Город из профиля" },
-	{ name: "КОМПАНИЯ", title: "Название компании" },
+	{ key: "ИМЯ", name: "Имя подписчика" },
+	{ key: "ФАМИЛИЯ", name: "Фамилия подписчика" },
+	{ key: "ГОРОД", name: "Город из профиля" },
+	{ key: "КОМПАНИЯ", name: "Название компании" },
 ];
 
 export default class MessageEditorPage extends Page {

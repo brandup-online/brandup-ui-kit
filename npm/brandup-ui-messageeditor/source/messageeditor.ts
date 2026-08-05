@@ -4,7 +4,7 @@ import { InputControl } from "@brandup/ui-input";
 import type { Modal } from "@brandup/ui-kit";
 import { DOM } from "@brandup/ui";
 import RichEditor, { ALL_FORMAT_TOOLS, preserveCaret, type ToolbarButton } from "@brandup/ui-richeditor";
-import { highlight, markupAt, MARKUP_SELECTOR, VARIABLE_CLASS } from "./highlight";
+import { highlight, markupAt, MARKUP_SELECTOR, VARIABLE_CLASS, type VariableNames } from "./highlight";
 import RandomizerModal from "./randomizer";
 import VariablesModal, { parseVariables, type MessageVariable } from "./variables";
 import emojiIcon from "../svg/emoji.svg";
@@ -55,6 +55,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	private __inputElem: HTMLElement; // редактируемый элемент (им владеет RichEditor)
 	private __listenerAbort = new AbortController();
 	private __composing = false; // идёт IME-ввод — подсветку откладываем
+	private __names: VariableNames; // названия переменных по ключу — для подсветки
 
 	readonly placeholder: string | null;
 	readonly variables: MessageVariable[];
@@ -100,6 +101,8 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		this.placeholder = placeholder;
 		this.variables = options.variables ?? parseVariables(valueElem.getAttribute("data-variables"));
 		this.variablesEmpty = options.variablesEmpty ?? valueElem.getAttribute("data-variables-empty");
+		// в тексте показываем название, а не ключ — если оно задано
+		this.__names = new Map(this.variables.filter((v) => v.name).map((v) => [v.key, v.name!]));
 		this.__inputElem = inputElem;
 
 		this.__editor = new RichEditor(inputElem, {
@@ -212,7 +215,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	private __highlight() {
 		if (this.__composing) return;
 
-		preserveCaret(this.__inputElem, () => highlight(this.__inputElem));
+		preserveCaret(this.__inputElem, () => highlight(this.__inputElem, this.__names));
 
 		this.__escapeMarkup();
 	}
@@ -237,8 +240,13 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		const span = markupAt(node);
 		if (!span) return;
 
-		// с какого края вышли, туда и ставим: иначе каретка перед конструкцией перепрыгнула бы её
-		const atStart = selection.anchorOffset === 0 && (node === span || node === span.firstChild);
+		// С какого края вышли, туда и ставим: иначе каретка перед конструкцией перепрыгнула бы её.
+		// Первый текст ищем в глубину: у переменной с названием ключ лежит в своей обёртке,
+		// и firstChild — это она, а не текстовый узел.
+		let first: Node = span;
+		while (first.firstChild) first = first.firstChild;
+
+		const atStart = selection.anchorOffset === 0 && (node === span || node === first);
 		const neighbour = atStart ? span.previousSibling : span.nextSibling;
 
 		const range = this.__inputElem.ownerDocument.createRange();

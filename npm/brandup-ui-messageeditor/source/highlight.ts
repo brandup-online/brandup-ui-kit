@@ -2,8 +2,17 @@
 // Обёртки — обычные <span>, редактор их не знает и при сериализации отбрасывает, оставляя
 // текст, поэтому в значение подсветка не попадает.
 
+import { DOM } from "@brandup/ui";
+import { SPINTAX_OPEN } from "./randomizer";
+import { buildVariable } from "./variables";
+
 export const SPINTAX_CLASS = "spintax";
 export const VARIABLE_CLASS = "variable";
+/** Ключ переменной внутри обёртки: на экране его подменяет название, но в тексте он остаётся. */
+export const KEY_CLASS = "key";
+
+/** Названия переменных по ключу — что показывать в тексте вместо `{КЛЮЧ}`. */
+export type VariableNames = ReadonlyMap<string, string>;
 
 /** Обёртки подсвеченных конструкций — по нему их находят и подсветка, и правки редактора. */
 export const MARKUP_SELECTOR = `span.${SPINTAX_CLASS}, span.${VARIABLE_CLASS}`;
@@ -30,7 +39,7 @@ const PATTERN = /\[[^[\]\n]*\|[^[\]\n]*\]|\{[^{}\n]+\}/g;
  * этого прежнее выделение указывает на узлы, которых в дереве уже нет, даже когда разметка вышла
  * ровно такой же. Текст при перестройке не меняется, поэтому смещения совпадают точно.
  */
-export function highlight(root: HTMLElement): boolean {
+export function highlight(root: HTMLElement, names?: VariableNames): boolean {
 	// В тексте нет ни конструкций, ни прежних обёрток — трогать DOM незачем. Проверка дешёвая
 	// и снимает работу с обычного набора, где ни спинтакса, ни переменных нет вовсе.
 	const hasMarkup = PATTERN.test(root.textContent ?? "");
@@ -38,7 +47,7 @@ export function highlight(root: HTMLElement): boolean {
 	if (!hasMarkup && !root.querySelector(MARKUP_SELECTOR)) return false;
 
 	unwrap(root);
-	wrap(root);
+	wrap(root, names);
 
 	return true;
 }
@@ -46,7 +55,9 @@ export function highlight(root: HTMLElement): boolean {
 /** Снимает прежние обёртки: разметка могла разъехаться после правки текста. */
 function unwrap(root: HTMLElement) {
 	root.querySelectorAll<HTMLElement>(MARKUP_SELECTOR).forEach((span) => {
-		span.replaceWith(...Array.from(span.childNodes));
+		// Разворачиваем в один текстовый узел, а не в детей: у переменной с названием внутри
+		// лежит ещё и обёртка ключа, и она осталась бы посреди текста.
+		span.replaceWith(document.createTextNode(span.textContent ?? ""));
 	});
 
 	// после разворачивания соседние текстовые узлы надо склеить, иначе конструкция,
@@ -54,7 +65,7 @@ function unwrap(root: HTMLElement) {
 	root.normalize();
 }
 
-function wrap(root: HTMLElement) {
+function wrap(root: HTMLElement, names?: VariableNames) {
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	const targets: Text[] = [];
 
@@ -65,10 +76,10 @@ function wrap(root: HTMLElement) {
 		node = walker.nextNode() as Text | null;
 	}
 
-	targets.forEach(wrapNode);
+	targets.forEach((target) => wrapNode(target, names));
 }
 
-function wrapNode(node: Text) {
+function wrapNode(node: Text, names?: VariableNames) {
 	const text = node.data;
 	const fragment = document.createDocumentFragment();
 	let last = 0;
@@ -77,14 +88,7 @@ function wrapNode(node: Text) {
 		const start = match.index;
 		if (start > last) fragment.appendChild(document.createTextNode(text.slice(last, start)));
 
-		const span = document.createElement("span");
-		span.className = match[0].startsWith("[") ? SPINTAX_CLASS : VARIABLE_CLASS;
-		// Конструкция атомарна: править её текст в поле нельзя, только через своё окно — иначе
-		// разметку легко испортить, стерев одну скобку. Ставим атрибутом, а не свойством:
-		// свойство не отражается в разметку, и состояние было бы не видно ни в DOM, ни в тестах.
-		span.setAttribute("contenteditable", "false");
-		span.textContent = match[0];
-		fragment.appendChild(span);
+		fragment.appendChild(buildMarkup(match[0], names));
 
 		last = start + match[0].length;
 	}
@@ -92,4 +96,36 @@ function wrapNode(node: Text) {
 	if (last < text.length) fragment.appendChild(document.createTextNode(text.slice(last)));
 
 	node.replaceWith(fragment);
+}
+
+/**
+ * Обёртка конструкции. Текст внутри — всегда сама конструкция: из него собирается значение
+ * сообщения, и подсветка его не меняет.
+ *
+ * У переменной с названием ключ прячется, а на экран выводится оформлением подпись из атрибута
+ * (см. `data-label` в messageeditor.less) — так текст остаётся нетронутым. Скобки в подпись
+ * кладём здесь же: конструкция должна быть узнаваема, а собираются они там же, где и всегда.
+ */
+function buildMarkup(text: string, names?: VariableNames): HTMLElement {
+	const span = document.createElement("span");
+	const spintax = text.startsWith(SPINTAX_OPEN);
+
+	span.className = spintax ? SPINTAX_CLASS : VARIABLE_CLASS;
+	// Конструкция атомарна: править её текст в поле нельзя, только через своё окно — иначе
+	// разметку легко испортить, стерев одну скобку. Ставим атрибутом, а не свойством:
+	// свойство не отражается в разметку, и состояние было бы не видно ни в DOM, ни в тестах.
+	span.setAttribute("contenteditable", "false");
+
+	const name = spintax ? undefined : names?.get(text.slice(1, -1));
+	if (!name) {
+		span.textContent = text;
+		return span;
+	}
+
+	span.setAttribute("data-label", buildVariable(name));
+	// ключ спрятан, а знать его иногда нужно — например когда у двух переменных одно название
+	span.setAttribute("title", text);
+	span.appendChild(DOM.tag("span", { class: KEY_CLASS }, text));
+
+	return span;
 }

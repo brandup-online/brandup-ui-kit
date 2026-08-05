@@ -1,3 +1,5 @@
+import "./variables.less"; // стили окна
+
 import { DOM } from "@brandup/ui";
 import { Modal } from "@brandup/ui-kit";
 
@@ -8,10 +10,10 @@ const PICK_COMMAND = "variables-pick";
 
 /** Переменная персонализации: подставляется приложением при отправке. */
 export interface MessageVariable {
-	/** Имя внутри фигурных скобок, например `ИМЯ`. */
-	name: string;
-	/** Пояснение в списке; по умолчанию показывается только имя. */
-	title?: string;
+	/** Ключ внутри фигурных скобок, например `ИМЯ`. Он и уходит в значение сообщения. */
+	key: string;
+	/** Название: показывается вместо ключа и в тексте, и в списке. Без него виден ключ. */
+	name?: string;
 }
 
 /**
@@ -61,10 +63,14 @@ export default class VariablesModal extends Modal {
 			list.appendChild(
 				DOM.tag(
 					"button",
-					{ type: "button", class: "variable", "data-command": PICK_COMMAND, "data-variable": variable.name },
+					{ type: "button", class: "variable", "data-command": PICK_COMMAND, "data-variable": variable.key },
+					// Сначала — как переменная будет выглядеть в сообщении, следом ключ: выбирают
+					// по виду, а ключ лишь уточняет, что уйдёт в текст. Без названия показывать
+					// ключ дважды незачем — вид и есть ключ.
 					[
-						DOM.tag("span", { class: "name" }, buildVariable(variable.name)),
-						variable.title ? DOM.tag("span", { class: "title" }, variable.title) : null,
+						DOM.tag("span", { class: "preview" }, buildVariable(variable.name ?? variable.key)),
+						// ключ без скобок: он не образец для вставки, а пометка — что именно уйдёт в текст
+						variable.name ? DOM.tag("span", { class: "key" }, variable.key) : null,
 					]
 				)
 			)
@@ -72,24 +78,24 @@ export default class VariablesModal extends Modal {
 	}
 }
 
-/** Оборачивает имя в разметку переменной. */
-export function buildVariable(name: string): string {
-	return `${VARIABLE_OPEN}${name}${VARIABLE_CLOSE}`;
+/** Оборачивает ключ (или показываемое вместо него название) в разметку переменной. */
+export function buildVariable(key: string): string {
+	return `${VARIABLE_OPEN}${key}${VARIABLE_CLOSE}`;
 }
 
 /**
  * Разбирает список переменных из атрибута `data-variables` — когда разметку отдаёт сервер
  * и передавать список в опциях неоткуда.
  *
- * Две формы. Имена через запятую, если пояснения не нужны: `data-variables="ИМЯ, ГОРОД"`.
- * Массив JSON, если нужны: элемент — строка либо объект `{ "name": "ИМЯ", "title": "Имя" }`.
- * Разделитель только запятая: имя переменной может содержать пробелы (`{ИМЯ КЛИЕНТА}`),
- * и по пробелу такое имя развалилось бы на два.
+ * Две формы. Ключи через запятую, если названия не нужны: `data-variables="ИМЯ, ГОРОД"`.
+ * Массив JSON, если нужны: элемент — строка либо объект `{ "key": "ИМЯ", "name": "Имя клиента" }`.
+ * Разделитель только запятая: ключ может содержать пробелы (`{ИМЯ КЛИЕНТА}`), и по пробелу
+ * такой ключ развалился бы на два.
  *
  * Негодный JSON — пустой список и сообщение в консоль: молча потерянный список выглядит
  * как «переменные не заданы», и причину пришлось бы искать в разметке.
  *
- * Записи без имени и с символами разметки в имени (`{}[]|`) отбрасываются: такое имя не свернётся
+ * Записи без ключа и с символами разметки в ключе (`{}[]|`) отбрасываются: такой ключ не свернётся
  * в цельную конструкцию.
  */
 export function parseVariables(value: string | null): MessageVariable[] {
@@ -113,35 +119,35 @@ function isVariable(item: MessageVariable | null): item is MessageVariable {
 	return !!item;
 }
 
-// Символы разметки в имени: с ними `{ИМЯ}` перестаёт быть цельной конструкцией — подсветка
+// Символы разметки в ключе: с ними `{ИМЯ}` перестаёт быть цельной конструкцией — подсветка
 // поймает только кусок, а в значение уйдёт мусор, который подстановка на бэкенде не разберёт.
-const FORBIDDEN_NAME = /[{}[\]|\n]/;
+const FORBIDDEN_KEY = /[{}[\]|\n]/;
 
 /**
- * Годное ли имя. Пустое вставлять нечего, с символами разметки — нельзя.
+ * Годный ли ключ. Пустой вставлять нечего, с символами разметки — нельзя.
  * Оба случая молча отбрасываются: список приходит из разметки, и одна кривая запись
  * не повод лишать пользователя остальных.
  */
-function toName(value: unknown): string {
-	const name = typeof value === "string" ? value.trim() : "";
+function toKey(value: unknown): string {
+	const key = typeof value === "string" ? value.trim() : "";
 
-	return name && !FORBIDDEN_NAME.test(name) ? name : "";
+	return key && !FORBIDDEN_KEY.test(key) ? key : "";
 }
 
-// Переменная без годного имени бессмысленна, поэтому такие элементы отбрасываются.
+// Переменная без годного ключа бессмысленна, поэтому такие элементы отбрасываются.
 function toVariable(item: unknown): MessageVariable | null {
 	if (typeof item === "string") {
-		const name = toName(item);
-		return name ? { name } : null;
+		const key = toKey(item);
+		return key ? { key } : null;
 	}
 
 	if (!item || typeof item !== "object") return null;
 
-	const source = item as { name?: unknown; title?: unknown };
-	const name = toName(source.name);
-	if (!name) return null;
+	const source = item as { key?: unknown; name?: unknown };
+	const key = toKey(source.key);
+	if (!key) return null;
 
-	const title = typeof source.title === "string" ? source.title.trim() : "";
+	const name = typeof source.name === "string" ? source.name.trim() : "";
 
-	return title ? { name, title } : { name };
+	return name ? { key, name } : { key };
 }
