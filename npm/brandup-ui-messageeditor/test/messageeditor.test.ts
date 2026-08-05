@@ -68,6 +68,15 @@ describe("MessageEditor", () => {
 		expect(input.form).not.toBeNull();
 	});
 
+	// оформление полосы прокрутки живёт в ките и цепляется классом: без него текст сообщения
+	// прокручивался бы системной полосой
+	it("marks the scrolling text as scrollable", () => {
+		const { input } = setup();
+		const editor = new MessageEditor(input);
+
+		expect(editor.editor.editable.classList.contains("ui-scrollable")).toBe(true);
+	});
+
 	it("passes the placeholder through to the editor", () => {
 		const { input } = setup({ placeholder: "Напишите сообщение" });
 		const editor = new MessageEditor(input);

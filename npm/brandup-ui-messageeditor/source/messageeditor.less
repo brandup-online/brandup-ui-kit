@@ -69,22 +69,11 @@
 			min-width: 0;
 			min-height: var(--messageeditor-minheight);
 			max-height: var(--messageeditor-maxheight);
-			overflow-y: auto;
-			scrollbar-width: thin;
+			overflow-y: auto; // полоса прокрутки — общая, от .ui-scrollable кита
 
 			// в мессенджерах абзацы идут строка за строкой, без вертикальных отступов
 			& p {
 				padding: 0;
-			}
-
-			&::-webkit-scrollbar {
-				width: 6px;
-				background: none;
-			}
-
-			&::-webkit-scrollbar-thumb {
-				background-color: rgba(0, 0, 0, 0.2);
-				border-radius: 3px;
 			}
 		}
 	}

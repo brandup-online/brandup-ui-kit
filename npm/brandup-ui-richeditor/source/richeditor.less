@@ -183,18 +183,10 @@
 	& .emoji-list {
 		max-height: 220px;
 		overflow-y: auto;
-		// в панели больше семисот кнопок — полоса заметная, а не волосяная
-		scrollbar-width: auto;
-
-		&::-webkit-scrollbar {
-			width: 8px;
-			background: none;
-		}
-
-		&::-webkit-scrollbar-thumb {
-			background-color: rgba(0, 0, 0, 0.2);
-			border-radius: 6px;
-		}
+		// В панели больше семисот кнопок — полоса заметнее общей. Оформление берётся
+		// от .ui-scrollable кита, здесь только размер.
+		--scrollbar-size: 8px;
+		--scrollbar-thumb-radius: 6px;
 	}
 
 	// Смысловая группа смайликов, отбитая линией. Она же — кусок, который браузер вправе не

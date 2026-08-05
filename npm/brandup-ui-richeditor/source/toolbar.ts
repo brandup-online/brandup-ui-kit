@@ -6,7 +6,7 @@
 // т.к. тулбар находится вне привязанных UIElement).
 
 import { DOM } from "@brandup/ui";
-import { POPUP_CLASS, PopupManager } from "@brandup/ui-kit";
+import { POPUP_CLASS, PopupManager, SCROLLABLE_CLASS } from "@brandup/ui-kit";
 import { EDITOR_ACTIONS, FORMAT_TOOLS, type EditorAction, type FormatTool } from "./format";
 import { EMOJI_GROUPS, type EmojiGroup } from "./emoji";
 import boldIcon from "../svg/bold.svg";
@@ -428,7 +428,7 @@ class FormatToolbar {
 
 		// Прокручивается список, а не сам попап: полоса прокрутки рисуется по краю коробки
 		// и перекрывала бы скругление рамки — угол выглядел бы срезанным.
-		const list = DOM.tag("div", { class: "emoji-list" });
+		const list = DOM.tag("div", { class: ["emoji-list", SCROLLABLE_CLASS] });
 		picker.appendChild(list);
 
 		for (const group of EMOJI_GROUPS) list.appendChild(buildEmojiGroup(group));

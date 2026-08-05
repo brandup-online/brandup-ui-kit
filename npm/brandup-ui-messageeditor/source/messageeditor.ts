@@ -1,7 +1,7 @@
 import "./messageeditor.less"; // стили компонента
 
 import { InputControl } from "@brandup/ui-input";
-import type { Modal } from "@brandup/ui-kit";
+import { SCROLLABLE_CLASS, type Modal } from "@brandup/ui-kit";
 import { DOM } from "@brandup/ui";
 import RichEditor, { ALL_FORMAT_TOOLS, preserveCaret, type ToolbarButton } from "@brandup/ui-richeditor";
 import { highlight, markupAt, MARKUP_SELECTOR, VARIABLE_CLASS, type VariableNames } from "./highlight";
@@ -67,7 +67,8 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		const disabled = valueElem.disabled;
 		const readonly = valueElem.hasAttribute("readonly") || valueElem.hasAttribute("data-readonly");
 
-		const inputElem = DOM.tag("div");
+		// текст сообщения прокручивается сам — полоса оформляется общим классом кита
+		const inputElem = DOM.tag("div", { class: SCROLLABLE_CLASS });
 		// кнопка смайлика — часть компонента, а не тулбара: она нужна рядом с плашкой и доступна
 		// сразу, не дожидаясь фокуса (тулбар появляется только по нему)
 		const emojiElem = disabled

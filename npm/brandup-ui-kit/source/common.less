@@ -46,6 +46,11 @@
 	--popup-border-color: @popup-border-color;
 	--popup-border-radius: @popup-border-radius;
 	--popup-box-shadow: @popup-box-shadow;
+
+	// scrollable
+	--scrollbar-size: @scrollbar-size;
+	--scrollbar-thumb: @scrollbar-thumb;
+	--scrollbar-thumb-radius: @scrollbar-thumb-radius;
 }
 
 // Body styles
@@ -145,5 +150,32 @@ svg {
 .ui-popup-expanded {
 	& ~ .ui-popup {
 		visibility: visible;
+	}
+}
+// Scrollable styles
+
+// Прокручиваемая область с оформленной полосой: везде в ките она выглядит одинаково,
+// а размер и цвет при надобности переопределяются переменными на самом элементе.
+//
+// Полоса рисуется по краю коробки, поэтому у элемента со скруглением её лучше уводить внутрь —
+// на вложенный прокручиваемый элемент, иначе угол выглядит срезанным.
+.ui-scrollable {
+	// Firefox размером не управляется, у него только thin/auto; толщину задаёт webkit-правило ниже
+	scrollbar-width: thin;
+	scrollbar-color: var(--scrollbar-thumb) transparent;
+
+	&::-webkit-scrollbar {
+		width: var(--scrollbar-size);
+		height: var(--scrollbar-size);
+		background: none;
+	}
+
+	&::-webkit-scrollbar-track {
+		background-color: transparent;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		background-color: var(--scrollbar-thumb);
+		border-radius: var(--scrollbar-thumb-radius);
 	}
 }

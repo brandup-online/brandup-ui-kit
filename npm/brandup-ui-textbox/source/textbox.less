@@ -49,26 +49,7 @@
 		z-index: 2;
 		margin-right: 5px;
 		padding-right: calc(var(--input-padding-lr) - 5px);
-		scrollbar-width: 6px;
-		overflow-y: auto;
-
-		&::-webkit-scrollbar {
-			width: 6px;
-			background: none;
-		}
-
-		&::-webkit-scrollbar-track {
-			border-radius: 3px;
-			background-color: transparent;
-			margin: 6px 0;
-			cursor: default;
-		}
-
-		&::-webkit-scrollbar-thumb {
-			background-color: #8696a0;
-			border-radius: 3px;
-			cursor: default;
-		}
+		overflow-y: auto; // полоса прокрутки — общая, от .ui-scrollable кита
 	}
 
 	// редактор (@brandup/ui-richeditor) — занимает доступное место; внутреннее оформление в richeditor.less
