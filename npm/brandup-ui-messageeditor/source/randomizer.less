@@ -1,0 +1,144 @@
+// Окно рандомизации: список вариантов и кнопки под ним. Рамка и подложка — от базового окна
+// кита, поля ввода оформляются его же общими правилами, здесь только раскладка и кнопки.
+
+:root {
+	--messageeditor-randomizer-gap: 12px;
+	--messageeditor-randomizer-accent: var(--messageeditor-accent, var(--focus--input-border-color, #4a9eff));
+	--messageeditor-randomizer-button-size: 24px; // по высоте строки текста: кнопка стоит у первой строки
+	--messageeditor-randomizer-icon-size: 18px;
+	// зазор от текста варианта до подчёркивания
+	--messageeditor-randomizer-field-padding: 10px;
+}
+
+.messageeditor-randomizer {
+	& .variants {
+		display: flex;
+		flex-flow: column nowrap;
+		gap: var(--messageeditor-randomizer-gap);
+	}
+
+	& .variant {
+		// Кнопка удаления лежит поверх поля у правого края, а не рядом с ним. В саму
+		// редактируемую область её не поставить: она стала бы частью правимого содержимого.
+		position: relative;
+
+		// Это редактируемая область, а не поле ввода: длинный вариант переносится по словам,
+		// и высота идёт за текстом — у поля ввода конец строки уезжал бы за край.
+		//
+		// Вид — строка с подчёркиванием, а не коробка: рамка только снизу, по краям отступов нет,
+		// снизу остаётся зазор до черты.
+		& .editable {
+			padding: 0 calc(var(--messageeditor-randomizer-button-size) + var(--messageeditor-randomizer-field-padding)) var(--messageeditor-randomizer-field-padding) 0;
+			box-sizing: border-box;
+			border: 0;
+			border-bottom: var(--input-border-width, 1px) var(--input-border-type, solid)
+				var(--input-border-color, #aaa);
+			border-radius: 0;
+			background: transparent;
+			outline: none;
+			word-wrap: anywhere; // слово длиннее строки тоже переносится, а не распирает окно
+
+			&:hover {
+				border-color: var(--hover--input-border-color, var(--input-border-color, #aaa));
+			}
+
+			&:focus {
+				border-color: var(--focus--input-border-color, #4a9eff);
+			}
+
+			// Заглушка у пустого варианта. Пустым он остаётся только пока в него не печатали:
+			// стерев набранное, браузер может оставить перенос, и заглушка не вернётся —
+			// зато строка уже понятна по соседям.
+			&:empty::before {
+				content: attr(data-placeholder);
+				color: var(--placeholder-color, #999);
+			}
+		}
+
+		// Убрать вариант: действие второстепенное, поэтому без рамки и заливки — как крестик окна.
+		// У хвостового пустого кнопки нет вовсе (убирать нечего), и поле там во всю ширину.
+		& .remove {
+			// у первой строки поля: содержимое растёт вниз, а кнопка остаётся на месте
+			position: absolute;
+			top: 0;
+			right: 0;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			width: var(--messageeditor-randomizer-button-size);
+			height: var(--messageeditor-randomizer-button-size);
+			border: 0;
+			background: transparent;
+			cursor: pointer;
+
+			& svg {
+				width: var(--messageeditor-randomizer-icon-size);
+				height: var(--messageeditor-randomizer-icon-size);
+				fill: var(--placeholder-color, #999);
+				pointer-events: none; // цель клика — кнопка, иначе команда искалась бы от svg
+			}
+
+			// кнопка лежит поверх поля, и подложка под ней резала бы подчёркивание —
+			// наведение показываем цветом значка
+			&:hover svg {
+				fill: var(--input-color, #222);
+			}
+		}
+	}
+
+	// Хвостовой пустой вариант — приглашение набрать следующий, а не запись: убирать его нечего
+	& .variant.blank .remove {
+		display: none;
+	}
+
+	// действия окна слева: сначала сохранение, рядом отмена; пояснение про предел — справа
+	& .actions {
+		display: flex;
+		flex-flow: row wrap;
+		align-items: center;
+		gap: var(--messageeditor-randomizer-gap);
+		margin-top: calc(var(--messageeditor-randomizer-gap) * 2);
+
+		& button {
+			min-height: var(--input-height, 46px);
+			padding: 0 var(--input-padding-lr, 15px);
+			border-style: var(--input-border-type, solid);
+			border-width: var(--input-border-width, 1px);
+			border-color: var(--input-border-color, #aaa);
+			border-radius: var(--input-border-radius, 0);
+			background: var(--input-fill, #fff);
+			cursor: pointer;
+
+			&:hover {
+				border-color: var(--hover--input-border-color, var(--input-border-color, #aaa));
+			}
+
+			// сохранять нечего, пока не набран ни один вариант
+			&[disabled] {
+				opacity: 0.5;
+				cursor: default;
+			}
+		}
+
+		// Почему список перестал расти: пустого варианта внизу больше нет, и без пояснения
+		// это выглядело бы поломкой. Показывается только на пределе — класс ставит окно.
+		& .limit {
+			margin-left: auto; // кнопки слева, пояснение уходит к правому краю
+			color: var(--placeholder-color, #999);
+			font-size: 0.9em;
+			display: none;
+		}
+
+		// главное действие окна — залито акцентом
+		& .apply {
+			border-color: var(--messageeditor-randomizer-accent);
+			background: var(--messageeditor-randomizer-accent);
+			color: #fff;
+		}
+	}
+
+	// набрано предельное число вариантов — объясняем, почему список больше не растёт
+	&.max-variants .actions .limit {
+		display: block;
+	}
+}
