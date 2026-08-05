@@ -27,7 +27,12 @@ export default class MessageEditorPage extends Page {
 		container
 			.querySelectorAll<HTMLTextAreaElement>('textarea[data-content-script="messageeditor"]')
 			.forEach((elem) => {
-				const editor = new MessageEditor(elem, { variables: VARIABLES });
+				// переменные объявлены в разметке — пусть компонент разберёт их сам, иначе переданные
+				// в опциях имеют приоритет и атрибуты в примере ничего бы не показали
+				const fromMarkup =
+					elem.hasAttribute("data-variables") || elem.hasAttribute("data-variables-empty");
+				const options = fromMarkup ? {} : { variables: VARIABLES };
+				const editor = new MessageEditor(elem, options);
 				this.__editors.push(editor);
 
 				this.__bindValue(editor);

@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { selectionCharBounds } from "@brandup/ui-richeditor";
+import { formatToolbar, selectionCharBounds } from "@brandup/ui-richeditor";
 import MessageEditor from "../source/messageeditor";
 import { buildSpintax, parseSpintax } from "../source/randomizer";
 import { buildVariable } from "../source/variables";
@@ -156,7 +156,7 @@ describe("MessageEditor markup is atomic", () => {
 			editor.element.querySelector<HTMLButtonElement>(`[data-toolbar-button="${name}"]`)!;
 
 		caretInside(editor, "span.variable");
-		editor.editor.applyFormat("bold"); // любое действие, обновляющее панель
+		formatToolbar.refresh(); // как по движению каретки; правкой обновлять нельзя — она выносит каретку наружу
 		expect(button("variable").disabled).toBe(true);
 		expect(button("randomize").disabled).toBe(true);
 	});

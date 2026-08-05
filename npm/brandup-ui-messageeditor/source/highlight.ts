@@ -4,7 +4,19 @@
 
 export const SPINTAX_CLASS = "spintax";
 export const VARIABLE_CLASS = "variable";
-const HIGHLIGHT_SELECTOR = `span.${SPINTAX_CLASS}, span.${VARIABLE_CLASS}`;
+
+/** Обёртки подсвеченных конструкций — по нему их находят и подсветка, и правки редактора. */
+export const MARKUP_SELECTOR = `span.${SPINTAX_CLASS}, span.${VARIABLE_CLASS}`;
+
+/**
+ * Конструкция, внутри которой лежит узел (обычно — якорь выделения), или null.
+ * Узлом может быть и текст, и сам элемент: выделение указывает то на одно, то на другое.
+ */
+export function markupAt(node: Node | null | undefined): HTMLElement | null {
+	const elem = node?.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node?.parentElement;
+
+	return elem?.closest<HTMLElement>(MARKUP_SELECTOR) ?? null;
+}
 
 // Спинтакс — только с разделителем: `[текст]` без `|` вариантов не содержит.
 // Ни одна из конструкций не пересекает строку и не вкладывается друг в друга.
@@ -23,7 +35,7 @@ export function highlight(root: HTMLElement): boolean {
 	// и снимает работу с обычного набора, где ни спинтакса, ни переменных нет вовсе.
 	const hasMarkup = PATTERN.test(root.textContent ?? "");
 	PATTERN.lastIndex = 0;
-	if (!hasMarkup && !root.querySelector(HIGHLIGHT_SELECTOR)) return false;
+	if (!hasMarkup && !root.querySelector(MARKUP_SELECTOR)) return false;
 
 	unwrap(root);
 	wrap(root);
@@ -33,7 +45,7 @@ export function highlight(root: HTMLElement): boolean {
 
 /** Снимает прежние обёртки: разметка могла разъехаться после правки текста. */
 function unwrap(root: HTMLElement) {
-	root.querySelectorAll<HTMLElement>(HIGHLIGHT_SELECTOR).forEach((span) => {
+	root.querySelectorAll<HTMLElement>(MARKUP_SELECTOR).forEach((span) => {
 		span.replaceWith(...Array.from(span.childNodes));
 	});
 
