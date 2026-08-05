@@ -274,7 +274,21 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (this.readonly) return;
 
 		const target = container ?? initiator.parentElement;
-		if (target) formatToolbar.openEmoji(this, initiator, target);
+		if (!target) return;
+
+		formatToolbar.openEmoji(this, initiator, target);
+
+		// По кнопке могли нажать, ни разу не заходя в поле, — тогда каретки нет и вставлять символ
+		// некуда. Фокусировать вслепую нельзя: focus() сбросил бы уже стоящую каретку, и символ
+		// уехал бы не туда. Конец содержимого назначаем сами: фокус ставит каретку в начало,
+		// и дописанный к сообщению символ оказался бы перед текстом.
+		//
+		// Строго после открытия панели: фокус показывает тулбар, а придержать его панель успевает
+		// только когда открыта сама.
+		if (!this.selection) {
+			this.focus();
+			caretToEnd(this.editable, this.multiline);
+		}
 	}
 
 	getLength(): number {
@@ -907,6 +921,18 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (!selection) return;
 
 		insertFormattedText(this.editable, data, Array.from(this.__pendingFormats), selection);
+
+		// В пустом поле абзацев ещё нет, и каретке некуда встать внутрь — вставка из кода
+		// (смайлик, переменная) ложится прямо в редактор. Приводим к модели абзацев тем же
+		// способом, что и обработчик input при печати: он на программную вставку не приходит,
+		// а без <p> следующий Enter правит текст мимо абзаца.
+		if (this.multiline)
+			preserveCaret(this.editable, () => {
+				const before = this.editable.innerHTML;
+				ensureParagraphs(this.editable);
+
+				return this.editable.innerHTML !== before;
+			});
 
 		this.__emitChange();
 		formatToolbar.refresh();
