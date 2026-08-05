@@ -1,0 +1,94 @@
+@import (reference) "../vars.less";
+
+// Модальное окно: затемнение на весь экран, окно по центру. Оформление берётся от popup —
+// это та же всплывающая поверхность, только перекрывающая страницу.
+
+:root {
+	--modal-fill: var(--popup-fill);
+	--modal-color: var(--popup-color);
+	--modal-border-radius: var(--popup-border-radius);
+	--modal-box-shadow: var(--popup-box-shadow);
+	--modal-backdrop: rgba(0, 0, 0, 0.45);
+	--modal-width: 480px;
+	--modal-padding: 20px;
+	--modal-z-index: 2000; // выше popup (1000): окно перекрывает и его
+}
+
+.ui-modal {
+	position: fixed;
+	inset: 0;
+	z-index: var(--modal-z-index);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	box-sizing: border-box;
+
+	& .modal-backdrop {
+		position: absolute;
+		inset: 0;
+		background-color: var(--modal-backdrop);
+	}
+
+	& .modal-window {
+		position: relative; // над подложкой
+		display: flex;
+		flex-flow: column nowrap;
+		width: 100%;
+		max-width: var(--modal-width);
+		max-height: 100%;
+		box-sizing: border-box;
+		background: var(--modal-fill);
+		color: var(--modal-color);
+		border-radius: var(--modal-border-radius);
+		box-shadow: var(--modal-box-shadow);
+	}
+
+	& .modal-header {
+		flex: 0 0 auto;
+		display: flex;
+		flex-flow: row nowrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		padding: var(--modal-padding);
+		padding-bottom: 0;
+	}
+
+	& .modal-title {
+		font-size: var(--h5-font-size);
+		font-weight: var(--h5-font-weight);
+		line-height: var(--h-line-height);
+	}
+
+	& .modal-close {
+		flex: 0 0 auto;
+		margin-left: auto; // без заголовка крестик всё равно справа
+		width: 28px;
+		height: 28px;
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		background: transparent;
+		color: inherit;
+		font-size: 22px;
+		line-height: 1;
+		cursor: pointer;
+
+		&:hover {
+			background-color: rgba(0, 0, 0, 0.06);
+		}
+	}
+
+	// тело прокручивается само, шапка остаётся на месте
+	& .modal-body {
+		flex: 1 1 auto;
+		padding: var(--modal-padding);
+		overflow-y: auto;
+	}
+}
+
+// страница под открытым окном не прокручивается
+body.ui-modal-opened {
+	overflow: hidden;
+}
