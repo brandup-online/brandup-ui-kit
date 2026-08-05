@@ -38,6 +38,7 @@
 	"files": [
 		"source",
 		"build",
+		"svg",
 		"vars.less",
 		"README.md"
 	],

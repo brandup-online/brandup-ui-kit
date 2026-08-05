@@ -64,6 +64,9 @@
 	& .modal-close {
 		flex: 0 0 auto;
 		margin-left: auto; // без заголовка крестик всё равно справа
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		width: 28px;
 		height: 28px;
 		padding: 0;
@@ -71,9 +74,15 @@
 		border-radius: 50%;
 		background: transparent;
 		color: inherit;
-		font-size: 22px;
-		line-height: 1;
 		cursor: pointer;
+		// Размер значка — общий, но переопределён на месте: крестик вспомогательный, и в полный
+		// размер он забивает кнопку. Размеры берёт общее правило для svg, повторять их незачем.
+		--svg-size: 12px;
+
+		& svg {
+			fill: currentColor; // крестик следует за цветом окна, а не за общей заливкой значков
+			pointer-events: none; // цель клика — сама кнопка, иначе команда искалась бы от svg
+		}
 
 		&:hover {
 			background-color: rgba(0, 0, 0, 0.06);
