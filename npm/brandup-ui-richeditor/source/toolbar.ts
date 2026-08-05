@@ -35,6 +35,24 @@ const ACTION_ICONS: Record<EditorAction, string> = {
 export const TOOLBAR_CLASS = "ui-richeditor-toolbar";
 export const EMOJI_PICKER_CLASS = "ui-richeditor-emoji";
 
+/**
+ * Кнопка хоста в общей панели — для действий, которых редактор не знает: рандомизация,
+ * вставка переменных и прочее доменное. Иконку и поведение задаёт хост, панель отвечает
+ * только за отрисовку, доступность и то, что фокус не уходит из редактора.
+ */
+export interface ToolbarButton {
+	/** Уникальное имя: идёт в data-атрибут и в ключ перестройки панели. */
+	name: string;
+	/** Подсказка на кнопке. */
+	title: string;
+	/** Разметка иконки (svg). */
+	icon: string;
+	/** Нажатие. */
+	run(): void;
+	/** false — кнопка недоступна; проверяется на каждом refresh, как у действий. */
+	isEnabled?(): boolean;
+}
+
 /** Редактор, которым управляет общий тулбар. */
 export interface ToolbarHost {
 	readonly editable: HTMLElement;
@@ -50,6 +68,8 @@ export interface ToolbarHost {
 	isActionEnabled?(action: EditorAction): boolean;
 	/** Вставка текста в каретку — для панели смайликов. */
 	insertText?(text: string): void;
+	/** Собственные кнопки хоста; пусто/undefined — только штатные. */
+	readonly toolbarButtons?: ToolbarButton[];
 }
 
 const MARGIN = 6;
@@ -61,6 +81,7 @@ class FormatToolbar {
 	private __emojiInitiator: HTMLElement | null = null; // кнопка, у которой открыта панель
 	private __buttons: Array<[FormatTool, HTMLButtonElement]> = [];
 	private __actionButtons: Array<[EditorAction, HTMLButtonElement]> = [];
+	private __hostButtons: Array<[ToolbarButton, HTMLButtonElement]> = [];
 	private __active: ToolbarHost | null = null;
 	private __toolsKey = "";
 	private __inContainer = false;
@@ -76,10 +97,11 @@ class FormatToolbar {
 	/** Показать тулбар для редактора (на фокусе): перестроить кнопки, спозиционировать, показать. */
 	attach(host: ToolbarHost) {
 		const actions = host.editorActions ?? [];
-		if (!host.formatTools.length && !actions.length) return;
+		const buttons = host.toolbarButtons ?? [];
+		if (!host.formatTools.length && !actions.length && !buttons.length) return;
 
 		this.__active = host;
-		this.__build(host.formatTools, actions);
+		this.__build(host.formatTools, actions, buttons);
 		this.refresh();
 
 		const elem = this.__ensure();
@@ -126,6 +148,7 @@ class FormatToolbar {
 		for (const [tool, btn] of this.__buttons) btn.classList.toggle("active", host.isToolActive(tool));
 		// хост может не реализовывать isActionEnabled — тогда кнопка всегда доступна
 		for (const [action, btn] of this.__actionButtons) btn.disabled = host.isActionEnabled?.(action) === false;
+		for (const [button, btn] of this.__hostButtons) btn.disabled = button.isEnabled?.() === false;
 	}
 
 	/** Пересчитать позицию над активным редактором (только для режима body/fixed). */
@@ -160,8 +183,8 @@ class FormatToolbar {
 		return this.__elem;
 	}
 
-	private __build(tools: FormatTool[], actions: EditorAction[]) {
-		const key = `${tools.join(",")}|${actions.join(",")}`;
+	private __build(tools: FormatTool[], actions: EditorAction[], buttons: ToolbarButton[]) {
+		const key = `${tools.join(",")}|${actions.join(",")}|${buttons.map((b) => b.name).join(",")}`;
 		const elem = this.__ensure();
 		if (key === this.__toolsKey && elem.firstChild) return; // тот же состав — переиспользуем кнопки
 
@@ -170,6 +193,7 @@ class FormatToolbar {
 		DOM.empty(elem);
 		this.__buttons = [];
 		this.__actionButtons = [];
+		this.__hostButtons = [];
 
 		for (const tool of tools) {
 			const def = FORMAT_TOOLS[tool];
@@ -198,6 +222,21 @@ class FormatToolbar {
 
 			elem.appendChild(btn);
 			this.__actionButtons.push([action, btn]);
+		}
+
+		if ((tools.length || actions.length) && buttons.length) elem.appendChild(DOM.tag("div", { class: "split" }));
+
+		// кнопки хоста — последними, чтобы штатные не переезжали при их появлении
+		for (const button of buttons) {
+			const btn = DOM.tag(
+				"button",
+				{ type: "button", class: "host-button", "data-toolbar-button": button.name, title: button.title },
+				button.icon
+			);
+			btn.addEventListener("click", () => button.run());
+
+			elem.appendChild(btn);
+			this.__hostButtons.push([button, btn]);
 		}
 
 		// панель пережила перестройку кнопок — возвращаем её в тулбар, чтобы не собирать заново.

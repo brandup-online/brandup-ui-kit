@@ -10,6 +10,8 @@ export {
 	parseFormatTools,
 	defaultFormatMarkers,
 	normalizeWhitespace,
+	selectionCharBounds,
+	restoreSelection,
 	type EditorAction,
 	type FormatTool,
 	type FormatStorage,

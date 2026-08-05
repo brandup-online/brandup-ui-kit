@@ -37,9 +37,9 @@ import {
 	trimSelectionWhitespace,
 } from "./editing";
 import { EditorHistory } from "./history";
-import { formatToolbar } from "./toolbar";
+import { formatToolbar, type ToolbarButton } from "./toolbar";
 
-export { TOOLBAR_CLASS, formatToolbar, type ToolbarHost } from "./toolbar";
+export { TOOLBAR_CLASS, formatToolbar, type ToolbarHost, type ToolbarButton } from "./toolbar";
 
 export const ROOT_CLASS = "ui-richeditor"; // редактируемый элемент, к нему привязан UIElement
 export const CHANGE_EVENT = "richeditor-change";
@@ -91,6 +91,8 @@ export interface RichEditorOptions {
 	readonly?: boolean;
 	/** Контейнер для панели форматирования; по умолчанию document.body (position: fixed над редактором). */
 	toolbarContainer?: HTMLElement | null;
+	/** Собственные кнопки хоста в панели — для действий, которых редактор не знает. */
+	buttons?: ToolbarButton[];
 	/** Начальное значение. */
 	value?: string;
 
@@ -124,6 +126,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	readonly multiline: boolean;
 	readonly paragraph: ParagraphMode;
 	readonly toolbarContainer: HTMLElement | null;
+	readonly toolbarButtons: ToolbarButton[];
 
 	private __opts: RichEditorOptions;
 	private __abort = new AbortController();
@@ -157,6 +160,8 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.multiline = multiline;
 		this.paragraph = options.paragraph ?? "block";
 		this.toolbarContainer = options.toolbarContainer ?? null;
+		// кнопки хоста живут и без форматирования, но не в readonly — там панели нет вовсе
+		this.toolbarButtons = readonly ? [] : (options.buttons ?? []);
 		// история включается вместе с форматированием
 		this.__history = format ? new EditorHistory(editable) : null;
 
