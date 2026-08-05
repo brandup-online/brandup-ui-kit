@@ -17,10 +17,9 @@
 	// Вертикальные отступы считаются от высоты полей ввода кита, как в textbox: пустая плашка
 	// ровно --input-height, а единственная строка стоит в ней по центру. Рамка входит в высоту
 	// (box-sizing: border-box), поэтому вычитается.
-	--messageeditor-padding: calc(
+	--messageeditor-padding-tb: calc(
 			(var(--input-height, 46px) - var(--messageeditor-minheight) - var(--messageeditor-border-width) * 2) / 2
-		)
-		14px;
+		);
 	--messageeditor-gap: 8px;
 	--messageeditor-minheight: var(--input-line-height, 1.2rem);
 	--messageeditor-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
@@ -47,7 +46,10 @@
 		align-items: flex-end;
 		column-gap: var(--messageeditor-gap);
 		position: relative;
-		padding: var(--messageeditor-padding);
+		padding-top: var(--messageeditor-padding-tb);
+		padding-bottom: var(--messageeditor-padding-tb);
+		padding-left: var(--input-padding-lr);
+		padding-right: var(--input-padding-lr);
 		box-sizing: border-box;
 		// пол по высоте на случай переопределённых отступов — плашка не ниже полей ввода кита
 		min-height: var(--input-height, 46px);
