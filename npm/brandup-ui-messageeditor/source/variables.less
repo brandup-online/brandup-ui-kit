@@ -1,0 +1,66 @@
+// Окно персонализации: список переменных для вставки. Оформление рамки и подложки берётся
+// от базового окна кита, здесь — только содержимое тела.
+
+:root {
+	--messageeditor-variables-gap: 2px;
+	// Запись выглядит так же, как вставленная переменная в тексте: связь видна без пояснений
+	--messageeditor-variables-preview-fill: var(--messageeditor-variable-fill, rgba(76, 175, 80, 0.24));
+}
+
+.messageeditor-variables {
+	& .variables {
+		display: flex;
+		flex-flow: column nowrap;
+		gap: var(--messageeditor-variables-gap);
+	}
+
+	// Строка списка — кнопка во всю ширину: попасть в неё легко, а имя и пояснение читаются
+	// как одна запись. При нехватке ширины пояснение переносится под имя.
+	& .variable {
+		display: flex;
+		flex-flow: row wrap;
+		align-items: baseline;
+		gap: 2px 10px;
+		width: 100%;
+		padding: 8px 10px;
+		box-sizing: border-box;
+		border: var(--input-border-type, solid) var(--input-border-width, 1px) transparent;
+		border-radius: var(--input-border-radius, 0);
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+
+		&:hover,
+		&:focus-visible {
+			background-color: var(--hover--input-toolbar-button-fill, rgba(0, 0, 0, 0.06));
+			border-color: var(--input-border-color, #aaa);
+		}
+
+		// Главное в записи — как переменная будет выглядеть в сообщении: тот же вид, что
+		// и подсветка в тексте, поэтому выбор не требует пояснений.
+		& .preview {
+			flex: 0 1 auto;
+			padding: 0 3px;
+			border-radius: 3px;
+			background-color: var(--messageeditor-variables-preview-fill);
+		}
+
+		// ключ лишь уточняет, что уйдёт в текст, — мельче и приглушён
+		& .key {
+			flex: 0 0 auto;
+			margin-left: auto; // ключ у правого края записи, виды выстраиваются в столбец
+			color: var(--placeholder-color, #999);
+			font-size: 0.9em;
+			white-space: nowrap; // `{ИМЯ КЛИЕНТА}` читается как один знак
+		}
+	}
+
+	// список пуст — объяснение занимает место записей, чтобы окно не выглядело сломанным
+	& .empty {
+		padding: 12px 0;
+		color: var(--placeholder-color, #999);
+		text-align: center;
+	}
+}

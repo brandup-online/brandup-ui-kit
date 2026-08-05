@@ -96,9 +96,25 @@ describe("RandomizerModal", () => {
 });
 
 describe("VariablesModal", () => {
+	// В списке показывается то, что будет видно в сообщении: с названием — оно, иначе ключ.
+	// Ключ идёт отдельной подписью, без скобок и только когда отличается от показанного.
+	it("shows each variable as it will look in the message, with its key aside", () => {
+		const modal = open(
+			new VariablesModal([{ key: "ИМЯ", name: "Имя подписчика" }, { key: "ГОРОД" }], () => {})
+		);
+
+		const rows = modal.element!.querySelectorAll(".variables .variable");
+		expect(Array.from(rows).map((r) => r.querySelector(".preview")!.textContent)).toEqual([
+			"{Имя подписчика}",
+			"{ГОРОД}",
+		]);
+		expect(rows[0].querySelector(".key")!.textContent).toBe("ИМЯ"); // ключ без скобок
+		expect(rows[1].querySelector(".key")).toBeNull();
+	});
+
 	it("lists the variables and inserts the picked one", () => {
 		const apply = jest.fn();
-		const modal = open(new VariablesModal([{ name: "ИМЯ", title: "Имя подписчика" }, { name: "ГОРОД" }], apply));
+		const modal = open(new VariablesModal([{ key: "ИМЯ", name: "Имя подписчика" }, { key: "ГОРОД" }], apply));
 
 		const buttons = modal.element!.querySelectorAll<HTMLButtonElement>(".variables .variable");
 		expect(buttons).toHaveLength(2);
@@ -132,31 +148,31 @@ describe("VariablesModal", () => {
 });
 
 describe("parseVariables", () => {
-	it("reads a comma separated list of names", () => {
-		expect(parseVariables("ИМЯ, ГОРОД ,КОМПАНИЯ")).toEqual([{ name: "ИМЯ" }, { name: "ГОРОД" }, { name: "КОМПАНИЯ" }]);
+	it("reads a comma separated list of keys", () => {
+		expect(parseVariables("ИМЯ, ГОРОД ,КОМПАНИЯ")).toEqual([{ key: "ИМЯ" }, { key: "ГОРОД" }, { key: "КОМПАНИЯ" }]);
 	});
 
-	// имя может содержать пробелы — по ним список не режется
-	it("keeps spaces inside a name", () => {
-		expect(parseVariables("ИМЯ КЛИЕНТА")).toEqual([{ name: "ИМЯ КЛИЕНТА" }]);
+	// ключ может содержать пробелы — по ним список не режется
+	it("keeps spaces inside a key", () => {
+		expect(parseVariables("ИМЯ КЛИЕНТА")).toEqual([{ key: "ИМЯ КЛИЕНТА" }]);
 	});
 
-	it("reads a JSON array with titles", () => {
-		const value = '[{"name":"ИМЯ","title":"Имя подписчика"},"ГОРОД"]';
+	it("reads a JSON array with names", () => {
+		const value = '[{"key":"ИМЯ","name":"Имя подписчика"},"ГОРОД"]';
 
-		expect(parseVariables(value)).toEqual([{ name: "ИМЯ", title: "Имя подписчика" }, { name: "ГОРОД" }]);
+		expect(parseVariables(value)).toEqual([{ key: "ИМЯ", name: "Имя подписчика" }, { key: "ГОРОД" }]);
 	});
 
-	// имя со скобками не свернётся в цельную конструкцию: подсветка поймает кусок,
+	// ключ со скобками не свернётся в цельную конструкцию: подсветка поймает кусок,
 	// а в значение уйдёт мусор
-	it.each([["А{Б"], ["А}Б"], ["А[Б"], ["А]Б"], ["А|Б"]])("drops the name %j with markup characters", (name) => {
-		expect(parseVariables(name)).toEqual([]);
-		expect(parseVariables(JSON.stringify([{ name, title: "Пояснение" }]))).toEqual([]);
+	it.each([["А{Б"], ["А}Б"], ["А[Б"], ["А]Б"], ["А|Б"]])("drops the key %j with markup characters", (key) => {
+		expect(parseVariables(key)).toEqual([]);
+		expect(parseVariables(JSON.stringify([{ key, name: "Название" }]))).toEqual([]);
 	});
 
-	it("drops entries without a name", () => {
-		expect(parseVariables('[{"title":"Без имени"},"",{"name":"  "},{"name":"ГОРОД"}]')).toEqual([
-			{ name: "ГОРОД" },
+	it("drops entries without a key", () => {
+		expect(parseVariables('[{"name":"Без ключа"},"",{"key":"  "},{"key":"ГОРОД"}]')).toEqual([
+			{ key: "ГОРОД" },
 		]);
 	});
 
@@ -168,14 +184,14 @@ describe("parseVariables", () => {
 	it("reports broken JSON instead of failing", () => {
 		const error = jest.spyOn(console, "error").mockImplementation(() => {});
 
-		expect(parseVariables('[{"name":]')).toEqual([]);
+		expect(parseVariables('[{"key":]')).toEqual([]);
 		expect(error).toHaveBeenCalled();
 
 		error.mockRestore();
 	});
 
 	it("ignores JSON that is not an array", () => {
-		expect(parseVariables('{"name":"ИМЯ"}')).toEqual([]); // не массив — разбор как имени, а оно со скобками
+		expect(parseVariables('{"key":"ИМЯ"}')).toEqual([]); // не массив — разбор как ключа, а он со скобками
 		expect(parseVariables("[1, true, null]")).toEqual([]);
 	});
 });
