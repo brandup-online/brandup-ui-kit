@@ -147,6 +147,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	private __abort = new AbortController();
 	private __pendingFormats = new Set<FormatTool>();
 	private __hasInputClick = false;
+	private __editHolds = 0; // правка продолжается в окне хоста — см. holdEditing
+	// Компонент снят. Удержание правки переживает снятие (окно хоста закрывается позже), и по его
+	// снятию трогать содержимое уже нельзя — редактора нет.
+	private __disposed = false;
 	private __changeTimer = 0; // отложенное change по печати — см. __emitChange/flushChange
 	// Окно редактируемого элемента, взятое при создании. Таймер отложенного change переживает
 	// снятие компонента и гасится в destroy, а тот случается когда угодно — к этому моменту
@@ -296,8 +300,65 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		return this.editable.textContent?.length ?? 0;
 	}
 
+	/**
+	 * Фокус в поле. Каретку, стоящую в содержимом, не двигает: правку продолжают там, где её
+	 * прервали. Своей защиты обработчика фокуса для этого мало — браузер успевает поставить
+	 * при фокусе собственную каретку (в начало содержимого), и она выглядит как «уже стоявшая».
+	 */
 	focus(): void {
+		const bounds = this.caretSnapshot();
+
+		if (bounds) this.restoreCaret(bounds);
+		else this.editable.focus();
+	}
+
+	/**
+	 * Снимок каретки текстовыми смещениями — пережить работу окна хоста. Пока оно открыто, фокус
+	 * уходит туда, а с ним и выделение документа: в окне могут быть свои поля ввода, и каретка
+	 * встанет уже в них. Снимать нужно до открытия, возвращать — через {@link restoreCaret}.
+	 *
+	 * Смещения остаются верными, потому что на это время содержимое не меняется (см. {@link holdEditing}).
+	 */
+	caretSnapshot(): [number, number] | null {
+		const selection = this.selection;
+
+		return selection ? selectionCharBounds(this.editable, selection.getRangeAt(0)) : null;
+	}
+
+	/** Возвращает в поле фокус и каретку по снимку {@link caretSnapshot}. */
+	restoreCaret(bounds: [number, number]): void {
 		this.editable.focus();
+
+		const selection = documentSelection(this.editable);
+		if (selection) restoreSelection(this.editable, bounds[0], bounds[1], selection);
+	}
+
+	/**
+	 * Сообщает, что правка продолжается снаружи: хост открыл своё окно, фокус ушёл туда, но ввод
+	 * не закончен. Пока удержание живо, `blur` не считается концом ввода и содержимое не приводится
+	 * к нормальному виду — иначе пробел на границе каретки был бы срезан как краевой, а сама каретка
+	 * съехала бы на пересчёте смещений, и текст из окна встал бы не туда и вплотную к соседнему слову.
+	 *
+	 * Возвращает снятие удержания: повторные вызовы ничего не делают. Если к этому моменту фокус
+	 * в поле не вернулся, содержимое доводится сразу — другого `blur` уже не будет.
+	 */
+	holdEditing(): () => void {
+		this.__editHolds++;
+
+		let released = false;
+
+		return () => {
+			if (released) return;
+			released = true;
+
+			this.__editHolds--;
+			if (this.__editHolds > 0 || this.__disposed) return;
+
+			if (this.editable.ownerDocument.activeElement !== this.editable) {
+				this.__normalize(true);
+				this.flushChange();
+			}
+		};
 	}
 
 	onChange(handler: (e: RichEditorChangeData) => void) {
@@ -511,6 +572,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	}
 
 	override destroy(): void {
+		this.__disposed = true;
 		this.flushChange(); // хост не должен остаться с устаревшей копией значения
 		this.__abort.abort();
 		formatToolbar.detach(this);
@@ -654,6 +716,12 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 				this.element.classList.remove("focused");
 				formatToolbar.detach(this);
+
+				// правку продолжают в окне хоста — этот blur не конец ввода, содержимое трогать нельзя
+				if (this.__editHolds > 0) {
+					this.flushChange();
+					return;
+				}
 
 				// удаляем висящий BR, чтобы появился placeholder
 				if (editable.firstChild?.nodeName === "BR") DOM.empty(editable);
@@ -920,7 +988,17 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const selection = this.selection;
 		if (!selection) return;
 
-		insertFormattedText(this.editable, data, Array.from(this.__pendingFormats), selection);
+		// Замена выделенного не должна терять его оформление. Физически вставка часто оказывается
+		// снаружи тега: границы выделения восстанавливаются по текстовым смещениям, а смещение на
+		// стыке узлов достаётся соседнему — тому, что вне тега; сам же тег после удаления текста
+		// остаётся пустым и убирается. Поэтому форматы, покрывавшие выделение целиком, переносим
+		// на вставляемый текст явно. Каретке без выделения это не нужно: там вставка и так попадает
+		// внутрь тега, а на его границе принадлежность неочевидна.
+		const range = selection.getRangeAt(0);
+		const inherited = range.collapsed ? [] : activeFormats(this.editable, range, this.formatTools);
+		const formats = new Set([...this.__pendingFormats, ...inherited]);
+
+		insertFormattedText(this.editable, data, Array.from(formats), selection);
 
 		// В пустом поле абзацев ещё нет, и каретке некуда встать внутрь — вставка из кода
 		// (смайлик, переменная) ложится прямо в редактор. Приводим к модели абзацев тем же

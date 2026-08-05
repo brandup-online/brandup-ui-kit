@@ -217,8 +217,18 @@ function nodeWithinRange(node: Node, range: Range): boolean {
 function* touchedTextNodes(root: HTMLElement, range: Range): Generator<Text> {
 	const walker = document.createTreeWalker(rangeScope(root, range), NodeFilter.SHOW_TEXT);
 
-	for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null)
-		if (n.length && range.intersectsNode(n)) yield n;
+	for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
+		if (!n.length || !range.intersectsNode(n)) continue;
+
+		// Узел, задетый одной лишь границей, не входит в диапазон ни одним символом: выделение
+		// кончается там, где он начинается, или начинается там, где он кончается. Учитывать его
+		// нельзя — соседний по тексту узел лежит уже вне тегов выделенного, и от него состояние
+		// всего выделения выглядело бы неотформатированным.
+		if (range.startContainer === n && range.startOffset === n.length) continue;
+		if (range.endContainer === n && range.endOffset === 0) continue;
+
+		yield n;
+	}
 }
 
 /** Узел под схлопнутой кареткой — от него и ищется формат. */
