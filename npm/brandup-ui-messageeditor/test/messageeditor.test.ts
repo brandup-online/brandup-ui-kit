@@ -181,6 +181,70 @@ describe("MessageEditor", () => {
 		expect(picker.classList.contains("opened")).toBe(false);
 	});
 
+	// Кнопка смайлика доступна без фокуса, и клик по ней должен поднимать один слой, а не два:
+	// панель сама переводит фокус в поле, поэтому тулбар придерживается до её закрытия.
+	it("opens only the picker when the field was not focused", () => {
+		const { input } = setup({ value: "привет" });
+		const editor = new MessageEditor(input);
+
+		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+
+		const picker = editor.element.querySelector<HTMLElement>(".ui-richeditor-emoji")!;
+		expect(picker.classList.contains("opened")).toBe(true);
+		expect(document.querySelector(".ui-richeditor-toolbar.visible")).toBeNull();
+		// каретка всё же поставлена — иначе вставлять символ было бы некуда
+		expect(document.activeElement).toBe(editor.editor.editable);
+
+		picker.querySelector<HTMLButtonElement>(".emoji")!.click();
+
+		// панель закрылась, поле осталось в фокусе — тулбар показывается, как при обычном входе
+		expect(picker.classList.contains("opened")).toBe(false);
+		expect(editor.getValue().startsWith("привет")).toBe(true);
+		expect(document.querySelector(".ui-richeditor-toolbar.visible")).not.toBeNull();
+	});
+
+	// В пустом поле абзацев ещё нет, и вставка из кода легко ложится мимо них: значение выходит
+	// верным, а следующий Enter правит текст вне <p>.
+	it("keeps the paragraph model when inserting into an empty field", () => {
+		const { input } = setup();
+		const editor = new MessageEditor(input);
+
+		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		editor.element.querySelector<HTMLButtonElement>(".ui-richeditor-emoji .emoji")!.click();
+
+		const paragraphs = editor.editor.editable.querySelectorAll("p");
+		expect(paragraphs).toHaveLength(1);
+		expect(editor.editor.editable.firstElementChild).toBe(paragraphs[0]);
+		expect(editor.getValue()).toBe(paragraphs[0].textContent);
+
+		// набранное следом остаётся в том же абзаце
+		editor.editor.insertText("а");
+		expect(editor.editor.editable.querySelectorAll("p")).toHaveLength(1);
+		expect(editor.getValue().endsWith("а")).toBe(true);
+	});
+
+	// Тулбар и панель смайликов — два всплывающих слоя над одним полем: вместе они не показываются
+	// ни при каком порядке действий. Пришли из поля — тулбар уходит на время работы панели.
+	it("hides the already shown toolbar while the picker is open", () => {
+		const { input } = setup({ value: "привет" });
+		const editor = new MessageEditor(input);
+
+		editor.editor.editable.focus();
+		expect(document.querySelector(".ui-richeditor-toolbar.visible")).not.toBeNull();
+
+		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+
+		const picker = editor.element.querySelector<HTMLElement>(".ui-richeditor-emoji")!;
+		expect(picker.classList.contains("opened")).toBe(true);
+		expect(document.querySelector(".ui-richeditor-toolbar.visible")).toBeNull();
+
+		picker.querySelector<HTMLButtonElement>(".emoji")!.click();
+
+		// панель закрылась, поле осталось в фокусе — тулбар возвращается сам
+		expect(picker.classList.contains("opened")).toBe(false);
+		expect(document.querySelector(".ui-richeditor-toolbar.visible")).not.toBeNull();
+	});
+
 	// Значение не должно расходиться с тем, что видно: каждый \n — ровно один перенос на экране.
 	// Абзацными блоками `a\n\nb` рисовалось бы двумя <p>, а без отступов между ними это
 	// неотличимо от одного переноса.

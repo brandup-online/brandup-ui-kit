@@ -261,11 +261,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 				// без этого PopupManager получит тот же клик своим слушателем на body и закроет панель
 				e.stopPropagation();
 
-				// По кнопке могли кликнуть, ни разу не заходя в поле — тогда каретки нет и вставлять
-				// символ некуда; focus() поставит её в конец сообщения. Но фокусировать вслепую
-				// нельзя: focus() сбрасывает уже стоящую каретку в начало, и смайлик уезжает туда же.
-				if (!this.__editor.selection) this.__editor.focus();
-
+				// каретку редактор ставит сам, если её не было, — и в нужном порядке с показом панели
 				this.__editor.openEmojiPicker(button, container);
 			},
 			{ signal }

@@ -85,6 +85,7 @@ class FormatToolbar {
 	private __actionButtons: Array<[EditorAction, HTMLButtonElement]> = [];
 	private __hostButtons: Array<[ToolbarButton, HTMLButtonElement]> = [];
 	private __active: ToolbarHost | null = null;
+	private __suspended: ToolbarHost | null = null; // показ придержан на время панели смайликов
 	private __toolsKey = "";
 	private __inContainer = false;
 	private readonly __reposition = () => this.__schedule("position");
@@ -140,6 +141,9 @@ class FormatToolbar {
 
 	/** Показать тулбар для редактора (на фокусе): перестроить кнопки, спозиционировать, показать. */
 	attach(host: ToolbarHost) {
+		// открыта панель смайликов у собственной кнопки хоста — показ отложен до её закрытия
+		if (this.__suspended === host) return;
+
 		const actions = host.editorActions ?? [];
 		const buttons = host.toolbarButtons ?? [];
 		if (!host.formatTools.length && !actions.length && !buttons.length) return;
@@ -177,6 +181,10 @@ class FormatToolbar {
 
 	/** Скрыть тулбар, если он обслуживает этот редактор (на blur/destroy). */
 	detach(host: ToolbarHost) {
+		// Придержанный показ снимаем первым делом, до закрытия панели: иначе её onClose поднял бы
+		// тулбар над редактором, который как раз уходит (в том числе разрушается).
+		if (this.__suspended === host) this.__suspended = null;
+
 		// панель смайликов могла быть открыта не для активного редактора (у своей кнопки хоста) —
 		// ссылку на него всё равно отпускаем, иначе уничтоженный редактор держится синглтоном
 		const emojiHost = this.__emojiHost === host;
@@ -191,6 +199,11 @@ class FormatToolbar {
 
 		if (this.__active !== host) return;
 
+		this.__hide();
+	}
+
+	/** Убрать панель с экрана и отпустить активный редактор (позиционирование, подсветка). */
+	private __hide() {
 		this.__active = null;
 		this.__cancelScheduled();
 		if (this.__elem) this.__elem.classList.remove("visible");
@@ -335,7 +348,28 @@ class FormatToolbar {
 		this.__emojiHost = host;
 		this.__emojiInitiator = initiator;
 
-		PopupManager.open(this.__ensureEmojiPicker(container), { initiator });
+		// Панель у собственной кнопки хоста — самостоятельный слой, и показывать её вместе с тулбаром
+		// нельзя: это два всплывающих окна над одним полем. Тулбар придерживаем на всё время работы
+		// панели, а показанный убираем с экрана; вернётся он сам при её закрытии, если поле осталось
+		// в фокусе. Панель самого тулбара (container === __elem) — его собственный выпадающий слой,
+		// прятать её носителя незачем и нечем.
+		if (container !== this.__elem) {
+			this.__suspended = host;
+			if (this.__active === host) this.__hide();
+		}
+
+		PopupManager.open(this.__ensureEmojiPicker(container), { initiator, onClose: () => this.__resume() });
+	}
+
+	/** Панель смайликов закрылась — показываем придержанный тулбар, если редактор ещё в фокусе. */
+	private __resume() {
+		const host = this.__suspended;
+		if (!host) return;
+
+		this.__suspended = null;
+
+		// панель могло закрыть и движение мимо поля — тогда показывать нечего
+		if (host.editable.ownerDocument.activeElement === host.editable) this.attach(host);
 	}
 
 	private __toggleEmoji(initiator: HTMLButtonElement, e: MouseEvent) {
