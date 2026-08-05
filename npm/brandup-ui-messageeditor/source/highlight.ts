@@ -122,7 +122,7 @@ function buildMarkup(text: string, names?: VariableNames): HTMLElement {
 		return span;
 	}
 
-	span.setAttribute("data-label", buildVariable(name));
+	span.dataset.label = buildVariable(name);
 	// ключ спрятан, а знать его иногда нужно — например когда у двух переменных одно название
 	span.setAttribute("title", text);
 	span.appendChild(DOM.tag("span", { class: KEY_CLASS }, text));

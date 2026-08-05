@@ -323,7 +323,7 @@ class FormatToolbar {
 			const def = FORMAT_TOOLS[tool];
 			const btn = DOM.tag(
 				"button",
-				{ type: "button", class: "format-button", "data-format-tool": tool, title: def.title },
+				{ type: "button", class: "format-button", dataset: { formatTool: tool }, title: def.title },
 				FORMAT_ICONS[tool]
 			);
 			btn.addEventListener("click", () => this.__active?.applyFormat(tool));
@@ -338,7 +338,7 @@ class FormatToolbar {
 			const def = EDITOR_ACTIONS[action];
 			const btn = DOM.tag(
 				"button",
-				{ type: "button", class: "action-button", "data-editor-action": action, title: def.title },
+				{ type: "button", class: "action-button", dataset: { editorAction: action }, title: def.title },
 				ACTION_ICONS[action]
 			);
 			if (action === "emoji") btn.addEventListener("click", (e) => this.__toggleEmoji(btn, e));
@@ -354,7 +354,7 @@ class FormatToolbar {
 		for (const button of buttons) {
 			const btn = DOM.tag(
 				"button",
-				{ type: "button", class: "host-button", "data-toolbar-button": button.name, title: button.title },
+				{ type: "button", class: "host-button", dataset: { toolbarButton: button.name }, title: button.title },
 				button.icon
 			);
 			btn.addEventListener("click", () => this.__hostButton(button.name)?.run());

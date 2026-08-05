@@ -44,14 +44,14 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	readonly searchOn: number | boolean;
 
 	constructor(selectElem: HTMLSelectElement) {
-		const placeholder = selectElem.getAttribute("data-placeholder") || "Select";
-		const emptyText = selectElem.getAttribute("data-emptytext") || "Empty list";
-		const searchPlaceholder = selectElem.getAttribute("data-search-placeholder") || "Search";
-		const searchEmpty = selectElem.getAttribute("data-search-empty") || "Not found";
-		const cancelText = selectElem.getAttribute("data-cancel") || "Cancel";
+		const placeholder = selectElem.dataset.placeholder || "Select";
+		const emptyText = selectElem.dataset.emptytext || "Empty list";
+		const searchPlaceholder = selectElem.dataset.searchPlaceholder || "Search";
+		const searchEmpty = selectElem.dataset.searchEmpty || "Not found";
+		const cancelText = selectElem.dataset.cancel || "Cancel";
 
 		let searchOn: number | boolean = 15;
-		const se = selectElem.getAttribute("data-search-on");
+		const se = selectElem.dataset.searchOn;
 		if (se) {
 			switch (se.toLowerCase()) {
 				case "true":

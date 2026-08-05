@@ -102,15 +102,16 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		// форматирование доступно только для обычного текстового ввода
 		const format = type === "text" && valueElem.hasAttribute("data-format");
 		const formatStorage: FormatStorage =
-			valueElem.getAttribute("data-format-storage") === "markdown" ? "markdown" : "html";
-		const formatTools = format ? parseFormatTools(valueElem.getAttribute("data-format-tools")) : [];
+			valueElem.dataset.formatStorage === "markdown" ? "markdown" : "html";
+		const formatTools = format ? parseFormatTools(valueElem.dataset.formatTools ?? null) : [];
 		// кнопки действий панели (очистка формата, отмена, повтор) — подключаются явно
-		const editorActions = format ? parseEditorActions(valueElem.getAttribute("data-editor-actions")) : [];
+		const editorActions = format ? parseEditorActions(valueElem.dataset.editorActions ?? null) : [];
 
 		// markdown-маркеры с дефолтами, переопределяются атрибутами data-format-md-<tool>
 		const formatMarkers = defaultFormatMarkers();
 		if (format) {
 			for (const tool of Object.keys(formatMarkers) as FormatTool[]) {
+				// имя атрибута собирается на ходу: у dataset оно потребовало бы ручного camelCase
 				const marker = valueElem.getAttribute(`data-format-md-${tool}`)?.trim();
 				if (marker) formatMarkers[tool] = marker;
 			}
@@ -139,7 +140,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			// команда объявляется атрибутом data-command — по нему её ищет обработчик @brandup/ui
 			const buttonElem = DOM.tag(
 				"button",
-				{ "data-command": "copy-text", title: "Скопировать в буфер обмена" },
+				{ command: "copy-text", title: "Скопировать в буфер обмена" },
 				copyIcon
 			);
 			if (disabled) buttonElem.disabled = true;
