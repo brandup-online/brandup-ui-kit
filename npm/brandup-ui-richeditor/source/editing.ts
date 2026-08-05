@@ -1,13 +1,11 @@
 // Низкоуровневые операции редактирования на чистом Selection/Range: абзацы, мягкие переносы,
-// каретка, расширение/обрезка выделения. Без состояния редактора и без истории —
-// вызывающий сам решает, когда записывать undo-шаг.
+// каретка, расширение/обрезка выделения, разбор вставляемого содержимого. Без состояния
+// редактора и без истории — вызывающий сам решает, когда записывать undo-шаг.
 
-function isBlock(node: Node): boolean {
-	return (
-		node.nodeType === Node.ELEMENT_NODE &&
-		((node as Element).tagName === "P" || (node as Element).tagName === "DIV")
-	);
-}
+import { deserialize } from "./serialize";
+import { isBlock } from "./paragraphs";
+import { documentSelection, innerSelection } from "./selection";
+import type { FormatMarkers, FormatTool } from "./format-config";
 
 function emptyParagraph(): HTMLParagraphElement {
 	const p = document.createElement("p");
@@ -25,7 +23,7 @@ function caretToStart(node: Node) {
 	const range = document.createRange();
 	range.setStart(node, 0);
 	range.collapse(true);
-	const selection = window.getSelection();
+	const selection = documentSelection(node);
 	if (selection) {
 		selection.removeAllRanges();
 		selection.addRange(range);
@@ -40,7 +38,7 @@ export function caretToEnd(editable: HTMLElement, multiline: boolean) {
 	const last = multiline ? editable.lastElementChild : null;
 	range.selectNodeContents(last && isBlock(last) ? last : editable);
 	range.collapse(false);
-	const sel = window.getSelection();
+	const sel = documentSelection(editable);
 	if (sel) {
 		sel.removeAllRanges();
 		sel.addRange(range);
@@ -50,13 +48,13 @@ export function caretToEnd(editable: HTMLElement, multiline: boolean) {
 /** Фокус и выделение всего содержимого (например, readonly-режим). */
 export function selectAllContent(editable: HTMLElement) {
 	editable.focus();
-	window.getSelection()?.selectAllChildren(editable);
+	documentSelection(editable)?.selectAllChildren(editable);
 }
 
 /** Enter в multiline: разбить текущий абзац по каретке на два <p>. */
 export function insertParagraph(editable: HTMLElement) {
-	const selection = window.getSelection();
-	if (!selection || selection.rangeCount === 0 || !editable.contains(selection.anchorNode)) return;
+	const selection = innerSelection(editable);
+	if (!selection) return;
 
 	const range = selection.getRangeAt(0);
 	range.deleteContents();
@@ -101,8 +99,8 @@ export function insertParagraph(editable: HTMLElement) {
 
 /** Shift/Ctrl+Enter в multiline: вставить мягкий перенос <br>. */
 export function insertSoftBreak(editable: HTMLElement) {
-	const selection = window.getSelection();
-	if (!selection || selection.rangeCount === 0 || !editable.contains(selection.anchorNode)) return;
+	const selection = innerSelection(editable);
+	if (!selection) return;
 
 	const range = selection.getRangeAt(0);
 	range.deleteContents();
@@ -168,15 +166,80 @@ export function insertPastedParagraphs(editable: HTMLElement, paras: HTMLElement
 }
 
 /** Обрезает пробелы по краям абзаца (после схлопывания) — у крайних текстовых узлов. */
-export function trimParagraphEdges(p: HTMLElement) {
+function trimParagraphEdges(p: HTMLElement) {
 	const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
 	const texts: Text[] = [];
 	for (let t = walker.nextNode() as Text | null; t; t = walker.nextNode() as Text | null) texts.push(t);
 	if (!texts.length) return;
 
-	texts[0].textContent = (texts[0].textContent ?? "").replace(/^ /, "");
+	// неразрывный пробел режем наравне с обычным — из буфера обмена он приходит регулярно
+	texts[0].textContent = (texts[0].textContent ?? "").replace(/^[ \u00A0]/, "");
 	const last = texts[texts.length - 1];
-	last.textContent = (last.textContent ?? "").replace(/ $/, "");
+	last.textContent = (last.textContent ?? "").replace(/[ \u00A0]$/, "");
+}
+
+/**
+ * Строки вставляемого текста → абзацы `<p>` с мягкими переносами `<br>` внутри.
+ *
+ * При `blocks` абзацы разделяет пустая строка (режим `block` многострочного редактора);
+ * иначе весь текст — один абзац, а все переносы мягкие: так вставка ложится в ту же модель,
+ * которую даёт Enter, и значение после неё разбирается обратно.
+ */
+export function buildParagraphs(lines: string[], blocks: boolean): HTMLElement[] {
+	const groups: string[][] = [];
+
+	if (blocks) {
+		let group: string[] = [];
+		for (const line of lines) {
+			if (line !== "") group.push(line);
+			else if (group.length) {
+				groups.push(group);
+				group = [];
+			}
+		}
+		if (group.length) groups.push(group);
+	} else if (lines.length) groups.push(lines);
+
+	return groups.map((group) => {
+		const p = document.createElement("p");
+		group.forEach((line, index) => {
+			if (index > 0) p.appendChild(document.createElement("br"));
+			p.appendChild(document.createTextNode(line));
+		});
+
+		return p;
+	});
+}
+
+/**
+ * Разбирает HTML из буфера обмена в абзацы `<p>`, оставляя только разрешённые инструменты.
+ * Пустой результат — вставлять нечего (вызывающий откатится на простой текст).
+ */
+export function sanitizePastedHtml(html: string, tools: FormatTool[], markers: FormatMarkers): HTMLElement[] {
+	// убираем мусорные элементы (Word/браузер: стили, скрипты, заголовок документа)
+	const source = document.createElement("template");
+	source.innerHTML = html;
+	source.content.querySelectorAll("script, style, head, meta, link, title, noscript").forEach((el) => el.remove());
+
+	// единый источник санитизации — deserialize (теги-синонимы → канонические, лишнее развёрнуто)
+	const holder = document.createElement("template");
+	holder.innerHTML = deserialize(source.innerHTML, "html", tools, markers, true);
+
+	// внешний HTML: пробелы/переводы строк между тегами не значимы — схлопываем,
+	// иначе литеральные \n (pre-wrap) и отступы дают лишние переносы
+	const walker = document.createTreeWalker(holder.content, NodeFilter.SHOW_TEXT);
+	for (let t = walker.nextNode(); t; t = walker.nextNode())
+		t.textContent = (t.textContent ?? "").replace(/\s+/g, " ");
+
+	const paras = Array.from(holder.content.children) as HTMLElement[];
+	for (const p of paras) trimParagraphEdges(p);
+
+	// отбрасываем пустые краевые абзацы (ведущие/хвостовые \n и <br>-обёртки из буфера),
+	// иначе перед и после вставленного текста появляются пустые строки
+	while (paras.length && (paras[0].textContent ?? "").trim() === "") paras.shift();
+	while (paras.length && (paras[paras.length - 1].textContent ?? "").trim() === "") paras.pop();
+
+	return paras;
 }
 
 /**
@@ -207,9 +270,10 @@ export function expandRangeToWords(editable: HTMLElement, range: Range): Range {
 
 /** Убирает пробелы по краям выделения (например, после двойного клика по слову). */
 export function trimSelectionWhitespace(editable: HTMLElement) {
-	const selection = window.getSelection();
-	if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+	const selection = innerSelection(editable);
+	if (!selection || selection.isCollapsed) return;
 
+	// внутри редактора должно быть не только начало выделения, но и его конец
 	const range = selection.getRangeAt(0);
 	if (!editable.contains(range.startContainer) || !editable.contains(range.endContainer)) return;
 

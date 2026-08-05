@@ -2,12 +2,7 @@ import "./messageeditor.less"; // стили компонента
 
 import { InputControl } from "@brandup/ui-input";
 import { DOM } from "@brandup/ui";
-import RichEditor, {
-	ALL_FORMAT_TOOLS,
-	restoreSelection,
-	selectionCharBounds,
-	type ToolbarButton,
-} from "@brandup/ui-richeditor";
+import RichEditor, { ALL_FORMAT_TOOLS, preserveCaret, type ToolbarButton } from "@brandup/ui-richeditor";
 import { highlight, SPINTAX_CLASS, VARIABLE_CLASS } from "./highlight";
 import RandomizerModal from "./randomizer";
 import VariablesModal, { type MessageVariable } from "./variables";
@@ -49,9 +44,8 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	readonly variables: MessageVariable[];
 
 	constructor(valueElem: HTMLInputElement | HTMLTextAreaElement, options: MessageEditorOptions = {}) {
-		valueElem.classList.add(INPUT_CLASS);
-
 		const placeholder = valueElem.getAttribute("placeholder");
+		const tabIndexAttr = valueElem.getAttribute("tabindex");
 		const disabled = valueElem.disabled;
 		const readonly = valueElem.hasAttribute("readonly") || valueElem.hasAttribute("data-readonly");
 
@@ -62,11 +56,11 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			? null
 			: DOM.tag("button", { type: "button", class: EMOJI_CLASS, title: "Вставить смайлик" }, emojiIcon);
 
-		const container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(valueElem.classList)) }, [
+		const container = DOM.tag("div", { class: ROOT_CLASS }, [
 			DOM.tag("div", { class: "bubble" }, [inputElem, emojiElem]),
 		]);
 
-		container.classList.remove(INPUT_CLASS);
+		MessageEditor.prepareValueElem(valueElem, container, INPUT_CLASS);
 
 		// в фокус попадает редактируемый элемент, а не скрытый носитель значения
 		inputElem.tabIndex = disabled ? -1 : valueElem.tabIndex;
@@ -75,7 +69,11 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		valueElem.insertAdjacentElement("afterend", container);
 		container.insertAdjacentElement("afterbegin", valueElem);
 
-		super("BrandUp.MessageEditor", container, valueElem);
+		// класс и подменённый tabindex вернёт базовый класс при destroy
+		super("BrandUp.MessageEditor", container, valueElem, {
+			class: INPUT_CLASS,
+			attrs: [["tabindex", tabIndexAttr]],
+		});
 
 		this.placeholder = placeholder;
 		this.variables = options.variables ?? [];
@@ -101,7 +99,8 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			// панель показывается над плашкой, а не над document.body
 			toolbarContainer: container,
 			value: valueElem.value,
-			onEnter: () => this.__submitForm(),
+			// onEnter здесь не нужен: он про однострочный режим, а сообщение всегда многострочное —
+			// Enter переносит строку и форму не отправляет
 		});
 
 		// RichEditor про disabled не знает — запрещаем правку на своей стороне
@@ -130,6 +129,11 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 
 			this.trigger(CHANGE_EVENT, <ChangeEventData>{ editor: this, value: this.getValue() });
 		});
+
+		// Подсветка — на каждый ввод, а не только по change: событие изменения при печати
+		// троттлится, а конструкция должна подсвечиваться сразу, как дописана закрывающая скобка.
+		// Сама highlight() дёшево выходит, когда ни конструкций, ни прежних обёрток нет.
+		editable.addEventListener("input", () => this.__highlight(), { signal });
 
 		// состояние фокуса — на корневом элементе, плашка подсвечивается целиком
 		editable.addEventListener("focus", () => !this.disabled && this.element.classList.add("focused"), { signal });
@@ -168,36 +172,31 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		);
 	}
 
+	// Редактор откладывает событие изменения при печати, поэтому копия значения в поле формы
+	// отстаёт. Базовый класс зовёт этот хук перед каждым чтением значения снаружи —
+	// валидация, отправка формы, сбор FormData.
+	protected override __syncValue(): void {
+		this.__editor.flushChange();
+	}
+
 	/**
 	 * Подсветка спинтакса и переменных. Текст от неё не меняется, поэтому каретка
-	 * восстанавливается по смещениям точно; трогаем DOM только когда разметка реально
-	 * изменилась, иначе на каждое нажатие клавиши каретка переставлялась бы впустую.
+	 * восстанавливается по смещениям точно; возвращаем её всякий раз, когда разметку
+	 * перестраивали, — обёртки собираются заново, и старое выделение указывало бы в никуда.
 	 *
 	 * Во время IME-композиции не вмешиваемся: перестановка каретки прервала бы набор.
 	 */
 	private __highlight() {
 		if (this.__composing) return;
 
-		const selection = window.getSelection();
-		const inside = !!selection?.rangeCount && this.__inputElem.contains(selection.anchorNode);
-		const bounds = inside ? selectionCharBounds(this.__inputElem, selection!.getRangeAt(0)) : null;
-
-		if (!highlight(this.__inputElem)) return;
-		if (bounds && selection) restoreSelection(this.__inputElem, bounds[0], bounds[1], selection);
+		preserveCaret(this.__inputElem, () => highlight(this.__inputElem));
 	}
 
 	/** Открывает окно правки конструкции; результат заменяет её целиком. */
 	private __editMarkup(span: HTMLElement) {
 		const replace = (text: string) => {
-			const selection = window.getSelection();
-			if (!selection) return;
-
 			// выделяем конструкцию целиком — insertText заменит выделенное
-			const range = document.createRange();
-			range.selectNode(span);
-			selection.removeAllRanges();
-			selection.addRange(range);
-
+			this.__editor.selectNode(span);
 			this.__editor.insertText(text);
 		};
 
@@ -207,8 +206,8 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 
 	/** Стоит ли выделение внутри готовой конструкции — вкладывать их друг в друга нельзя. */
 	private __inMarkup(): boolean {
-		const selection = window.getSelection();
-		if (!selection?.rangeCount || !this.__inputElem.contains(selection.anchorNode)) return false;
+		const selection = this.__editor.selection;
+		if (!selection) return false;
 
 		const node = selection.anchorNode;
 		const elem = node?.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node?.parentElement;
@@ -228,7 +227,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 				icon: randomIcon,
 				isEnabled: () => !this.__inMarkup(),
 				run: () => {
-					const selected = window.getSelection()?.toString() ?? "";
+					const selected = this.__editor.selection?.toString() ?? "";
 					new RandomizerModal(selected, (spintax) => this.__replaceSelection(spintax));
 				},
 			},
@@ -265,9 +264,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 				// По кнопке могли кликнуть, ни разу не заходя в поле — тогда каретки нет и вставлять
 				// символ некуда; focus() поставит её в конец сообщения. Но фокусировать вслепую
 				// нельзя: focus() сбрасывает уже стоящую каретку в начало, и смайлик уезжает туда же.
-				const selection = window.getSelection();
-				const hasCaret = !!selection?.rangeCount && this.__inputElem.contains(selection.anchorNode);
-				if (!hasCaret) this.__editor.focus();
+				if (!this.__editor.selection) this.__editor.focus();
 
 				this.__editor.openEmojiPicker(button, container);
 			},
@@ -289,6 +286,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	}
 
 	getValue(): string {
+		this.__syncValue(); // значение читают снаружи — отложенное изменение сюда обязано попасть
 		return this.__valueElem.value.trim();
 	}
 
@@ -298,7 +296,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	}
 
 	override validate(): boolean {
-		let isValid = super.validate();
+		let isValid = super.validate(); // super синхронизирует значение сам, через __syncValue
 		if (isValid && this.required && !this.getValue()) isValid = false;
 
 		this.element.classList.toggle("invalid", !isValid);
@@ -310,11 +308,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		this.__listenerAbort.abort();
 		this.__editor.destroy();
 
-		this.__valueElem.tabIndex = this.__inputElem.tabIndex;
-		this.element.insertAdjacentElement("afterend", this.__valueElem);
-		this.element.remove();
-
-		super.destroy();
+		super.destroy(); // снимет слушатели формы и вернёт поле-носитель в исходный вид
 	}
 }
 

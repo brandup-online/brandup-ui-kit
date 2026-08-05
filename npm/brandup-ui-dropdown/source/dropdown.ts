@@ -44,8 +44,6 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	readonly searchOn: number | boolean;
 
 	constructor(selectElem: HTMLSelectElement) {
-		selectElem.classList.add(INPUT_CLASS);
-
 		const placeholder = selectElem.getAttribute("data-placeholder") || "Select";
 		const emptyText = selectElem.getAttribute("data-emptytext") || "Empty list";
 		const searchPlaceholder = selectElem.getAttribute("data-search-placeholder") || "Search";
@@ -97,12 +95,12 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			]),
 		]);
 
-		const container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(selectElem.classList)) }, [
+		const container = DOM.tag("div", { class: ROOT_CLASS }, [
 			DOM.tag("button", { class: "view", command: "open-popup" }, [textElem, arrowBottomIcon]),
 			popupElem,
 		]);
 
-		container.classList.remove(INPUT_CLASS);
+		DropDown.prepareValueElem(selectElem, container, INPUT_CLASS);
 
 		if (selectElem.nextElementSibling) {
 			const nextElem = selectElem.nextElementSibling as HTMLElement;
@@ -112,7 +110,8 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		selectElem.insertAdjacentElement("beforebegin", container);
 		container.insertAdjacentElement("beforeend", selectElem);
 
-		super("BrandUp.DropDown", container, selectElem);
+		// класс вернёт базовый класс при destroy — без этого поле осталось бы скрытым
+		super("BrandUp.DropDown", container, selectElem, { class: INPUT_CLASS });
 
 		this.placeholder = placeholder;
 		this.emptyText = emptyText;
@@ -505,10 +504,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	override destroy(): void {
 		this.__closePopup();
 
-		this.element.insertAdjacentElement("afterend", this.__valueElem);
-		this.element.remove();
-
-		super.destroy();
+		super.destroy(); // снимет слушатели формы и вернёт поле-носитель в исходный вид
 	}
 }
 

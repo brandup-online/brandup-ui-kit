@@ -5,7 +5,7 @@
 // хуже того, ломается при смешивании с ручными мутациями. Поэтому ведём свою историю снимков
 // (innerHTML + позиция выделения). Используется только при включённом форматировании.
 
-import { restoreSelection, selectionCharBounds } from "./format";
+import { documentSelection, innerSelection, restoreSelection, selectionCharBounds } from "./format";
 
 interface Snapshot {
 	html: string;
@@ -18,6 +18,9 @@ export type HistoryKind = "type" | "op";
 
 const COALESCE_MS = 300; // печать в пределах паузы — один шаг отмены
 const MAX_DEPTH = 100; // ограничение глубины истории (память)
+// Снимок — это весь innerHTML редактора, поэтому глубины мало: сто шагов на длинном тексте
+// это мегабайты на одно поле. Ограничиваем ещё и суммарный объём, отбрасывая самые старые шаги.
+const MAX_CHARS = 512 * 1024;
 
 export class EditorHistory {
 	private readonly __root: HTMLElement;
@@ -25,6 +28,7 @@ export class EditorHistory {
 	private __redo: Snapshot[] = [];
 	private __lastKind: HistoryKind | null = null;
 	private __lastTime = 0;
+	private __chars = 0; // суммарный объём снимков отмены — см. MAX_CHARS
 
 	constructor(root: HTMLElement) {
 		this.__root = root;
@@ -41,11 +45,8 @@ export class EditorHistory {
 	}
 
 	private __snapshot(): Snapshot {
-		const sel = window.getSelection();
-		let start = 0;
-		let end = 0;
-		if (sel && sel.rangeCount > 0 && this.__root.contains(sel.anchorNode))
-			[start, end] = selectionCharBounds(this.__root, sel.getRangeAt(0));
+		const sel = innerSelection(this.__root);
+		const [start, end] = sel ? selectionCharBounds(this.__root, sel.getRangeAt(0)) : [0, 0];
 
 		return { html: this.__root.innerHTML, start, end };
 	}
@@ -68,7 +69,10 @@ export class EditorHistory {
 		if (top && top.html === snap.html) return; // состояние не изменилось — не дублируем
 
 		this.__undo.push(snap);
-		if (this.__undo.length > MAX_DEPTH) this.__undo.shift();
+		this.__chars += snap.html.length;
+		while (this.__undo.length > MAX_DEPTH || (this.__chars > MAX_CHARS && this.__undo.length > 1))
+			this.__chars -= this.__undo.shift()!.html.length;
+
 		this.__redo = [];
 	}
 
@@ -77,6 +81,7 @@ export class EditorHistory {
 		const prev = this.__undo.pop();
 		if (!prev) return false;
 
+		this.__chars -= prev.html.length;
 		this.__redo.push(this.__snapshot());
 		this.__restore(prev);
 		this.__lastKind = null; // следующая печать начнёт новый шаг
@@ -88,7 +93,9 @@ export class EditorHistory {
 		const next = this.__redo.pop();
 		if (!next) return false;
 
-		this.__undo.push(this.__snapshot());
+		const current = this.__snapshot();
+		this.__undo.push(current);
+		this.__chars += current.html.length;
 		this.__restore(next);
 		this.__lastKind = null;
 		return true;
@@ -96,7 +103,9 @@ export class EditorHistory {
 
 	private __restore(snap: Snapshot): void {
 		this.__root.innerHTML = snap.html;
-		const sel = window.getSelection();
+
+		// содержимое заменено целиком — выделение восстанавливаем, где бы оно ни стояло
+		const sel = documentSelection(this.__root);
 		if (sel) restoreSelection(this.__root, snap.start, snap.end, sel);
 	}
 }

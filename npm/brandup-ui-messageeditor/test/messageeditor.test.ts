@@ -231,6 +231,53 @@ describe("MessageEditor", () => {
 		expect(editor.element.classList.contains("focused")).toBe(false);
 	});
 
+	describe("value sync (change is throttled while typing)", () => {
+		beforeEach(() => jest.useFakeTimers());
+		afterEach(() => jest.useRealTimers());
+
+		const type = (editor: MessageEditor, text: string) => {
+			const editable = editor.editor.editable;
+			editable.textContent = text;
+			editable.dispatchEvent(new Event("input", { bubbles: true }));
+		};
+
+		// самое важное: отправка формы не должна унести устаревшее значение
+		it("syncs the value before submit even when validation is disabled", () => {
+			const { input, form } = setup({ value: "привет" });
+			form.noValidate = true;
+			const editor = new MessageEditor(input);
+
+			type(editor, "привет всем");
+			expect(input.value).toBe("привет");
+
+			form.dispatchEvent(new SubmitEvent("submit", { cancelable: true }));
+
+			expect(input.value).toBe("привет всем");
+		});
+
+		it("getValue() sees the pending edit", () => {
+			const { input } = setup({ value: "привет" });
+			const editor = new MessageEditor(input);
+
+			type(editor, "привет всем");
+
+			expect(editor.getValue()).toBe("привет всем");
+		});
+
+		it("delivers messageeditor-change after the throttle window", () => {
+			const { input } = setup();
+			const editor = new MessageEditor(input);
+			const handler = jest.fn();
+			editor.onChange(handler);
+
+			type(editor, "текст");
+			expect(handler).not.toHaveBeenCalled();
+
+			jest.advanceTimersByTime(150);
+			expect(handler).toHaveBeenCalledWith(expect.objectContaining({ value: "текст" }));
+		});
+	});
+
 	it("puts the value element back on destroy", () => {
 		const { input, form } = setup({ value: "текст" });
 		const editor = new MessageEditor(input);
@@ -240,5 +287,24 @@ describe("MessageEditor", () => {
 
 		expect(form.querySelector(`.${ROOT_CLASS}`)).toBeNull();
 		expect(input.parentElement).toBe(form);
+	});
+
+	// класс уводит поле с экрана (position/opacity/visibility), а tabindex подменяется на -1 —
+	// без снятия того и другого после destroy поле остаётся невидимым и недоступным с клавиатуры
+	it("restores the value element to its original state on destroy", () => {
+		const { input } = setup({ value: "текст" });
+		new MessageEditor(input).destroy();
+
+		expect(input.classList.contains(INPUT_CLASS)).toBe(false);
+		expect(input.hasAttribute("tabindex")).toBe(false);
+	});
+
+	it("restores an explicit tabindex, including for a disabled field", () => {
+		const { input } = setup({ disabled: true });
+		input.setAttribute("tabindex", "3");
+
+		new MessageEditor(input).destroy();
+
+		expect(input.getAttribute("tabindex")).toBe("3");
 	});
 });

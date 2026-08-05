@@ -4,9 +4,29 @@
 import { cleanupFormatting } from "./selection";
 
 /**
+ * Что в содержимом редактора считается абзацем. Единственное определение модели абзацев:
+ * по нему идут и разбор с сериализацией, и правки каретки, и нормализация. `<div>` признаём
+ * наравне с `<p>` — его приносят вставка и чужой contenteditable, а нормализация приводит к `<p>`.
+ */
+export function isBlock(node: Node): boolean {
+	if (node.nodeType !== Node.ELEMENT_NODE) return false;
+
+	const tag = (node as Element).tagName;
+	return tag === "P" || tag === "DIV";
+}
+
+// Пробел, таб и неразрывный пробел (U+00A0) — всё это «пробел» при наборе; см. normalizeWhitespace.
+// После схлопывания в тексте остаются только обычные пробелы, поэтому дальше по коду хватает " ".
+const SPACE_RUN = /[ \t\u00A0]+/g;
+
+/**
  * Нормализует пробелы в редакторе: схлопывает повторяющиеся пробелы/табы в один
  * и обрезает пробелы по краям каждой строки. BR и блочные элементы (DIV/P) —
  * границы строк; инлайновое форматирование (b/i/s/u) на строки не влияет.
+ *
+ * Неразрывный пробел (U+00A0) считается обычным: браузер сам подставляет его в contenteditable
+ * вместо пробела, который иначе схлопнулся бы при отображении. Без этого набранные подряд
+ * пробелы не схлопывались бы вовсе, а U+00A0 уезжал бы в сохраняемое значение.
  */
 export function normalizeWhitespace(root: HTMLElement) {
 	type Item = { kind: "text"; node: Text } | { kind: "break" };
@@ -27,7 +47,7 @@ export function normalizeWhitespace(root: HTMLElement) {
 				const el = child as HTMLElement;
 				if (el.tagName === "BR") {
 					items.push({ kind: "break" });
-				} else if (el.tagName === "DIV" || el.tagName === "P") {
+				} else if (isBlock(el)) {
 					items.push({ kind: "break" });
 					flatten(el);
 					items.push({ kind: "break" });
@@ -52,7 +72,7 @@ export function normalizeWhitespace(root: HTMLElement) {
 			continue;
 		}
 
-		let text = item.node.data.replace(/[ \t]+/g, " ");
+		let text = item.node.data.replace(SPACE_RUN, " ");
 		if (atLineStart) text = text.replace(/^ /, ""); // пробел в начале строки
 		if (pendingSpaceNode && text.startsWith(" ")) text = text.slice(1); // двойной пробел на границе узлов
 
@@ -96,7 +116,7 @@ export function ensureParagraphs(root: HTMLElement) {
 	for (const node of Array.from(root.childNodes)) {
 		const el = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
 
-		if (el && (el.tagName === "P" || el.tagName === "DIV")) {
+		if (el && isBlock(el)) {
 			flushRun(node);
 			if (el.tagName === "DIV") {
 				const p = document.createElement("p");

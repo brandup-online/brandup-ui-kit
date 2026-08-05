@@ -81,9 +81,7 @@ describe("RandomizerModal", () => {
 describe("VariablesModal", () => {
 	it("lists the variables and inserts the picked one", () => {
 		const apply = jest.fn();
-		const modal = open(
-			new VariablesModal([{ name: "ИМЯ", title: "Имя подписчика" }, { name: "ГОРОД" }], apply)
-		);
+		const modal = open(new VariablesModal([{ name: "ИМЯ", title: "Имя подписчика" }, { name: "ГОРОД" }], apply));
 
 		const buttons = modal.element!.querySelectorAll<HTMLButtonElement>(".variables .variable");
 		expect(buttons).toHaveLength(2);

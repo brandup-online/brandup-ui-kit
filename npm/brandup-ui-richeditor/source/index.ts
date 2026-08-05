@@ -12,6 +12,7 @@ export {
 	normalizeWhitespace,
 	selectionCharBounds,
 	restoreSelection,
+	preserveCaret,
 	type EditorAction,
 	type FormatTool,
 	type FormatStorage,

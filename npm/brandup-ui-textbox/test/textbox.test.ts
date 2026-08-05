@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import TextBox, { ROOT_CLASS } from "../source/textbox";
+import TextBox, { ROOT_CLASS, INPUT_CLASS, MAX_EMAIL_LENGTH } from "../source/textbox";
 
 function setup(
 	opts: { value?: string; required?: boolean; type?: string; maxlength?: number; copyButton?: boolean } = {}
@@ -28,6 +28,21 @@ describe("TextBox", () => {
 		expect(container.classList.contains(ROOT_CLASS)).toBe(true);
 		// the contenteditable .input div exists inside the container
 		expect(container.querySelector(".ui-richeditor")).not.toBeNull();
+	});
+
+	// оформление из разметки должно применяться к тому, что видно, — то есть к контейнеру,
+	// а не к уведённому с экрана полю
+	it("moves the author's classes to the container and hides the input", () => {
+		const { input } = setup();
+		input.className = "wide accent";
+
+		const tb = new TextBox(input);
+
+		expect(tb.element!.classList.contains("wide")).toBe(true);
+		expect(tb.element!.classList.contains("accent")).toBe(true);
+		expect(tb.element!.classList.contains(ROOT_CLASS)).toBe(true);
+		expect(tb.element!.classList.contains(INPUT_CLASS)).toBe(false);
+		expect(input.classList.contains(INPUT_CLASS)).toBe(true);
 	});
 
 	it("getValue() returns the trimmed underlying value", () => {
@@ -191,6 +206,207 @@ describe("TextBox", () => {
 
 		expect(container.isConnected).toBe(false);
 		expect(input.isConnected).toBe(true);
+	});
+
+	// класс уводит поле с экрана (position/opacity/visibility), а tabindex подменяется на -1 —
+	// без снятия того и другого после destroy поле остаётся невидимым и недоступным с клавиатуры
+	it("destroy() restores the input to its original state", () => {
+		const { input } = setup({ value: "текст" });
+		new TextBox(input).destroy();
+
+		expect(input.classList.contains(INPUT_CLASS)).toBe(false);
+		expect(input.hasAttribute("tabindex")).toBe(false);
+	});
+
+	it("destroy() restores an explicit tabindex, including for a disabled field", () => {
+		const { input } = setup();
+		input.disabled = true;
+		input.setAttribute("tabindex", "3");
+
+		new TextBox(input).destroy();
+
+		expect(input.getAttribute("tabindex")).toBe("3");
+	});
+
+	// компонент нормализует ограничения типа под себя — после снятия поле не должно остаться с ними
+	it("destroy() restores the type constraints it normalized", () => {
+		const { input: email } = setup({ type: "email" });
+		new TextBox(email).destroy();
+		expect(email.hasAttribute("maxlength")).toBe(false);
+
+		const { input: number } = setup({ type: "number" });
+		new TextBox(number).destroy();
+		expect(number.hasAttribute("step")).toBe(false);
+	});
+
+	// у поля без атрибута maxlength свойство равно -1, а не 0 — на этом ограничение RFC терялось
+	it("caps the email length even when maxlength is not set", () => {
+		const { input } = setup({ type: "email" });
+		const tb = new TextBox(input);
+
+		expect(input.maxLength).toBe(MAX_EMAIL_LENGTH);
+		expect(tb.maxlength).toBe(MAX_EMAIL_LENGTH);
+	});
+
+	it("keeps a stricter maxlength for email and lowers a larger one", () => {
+		const { input: strict } = setup({ type: "email", maxlength: 64 });
+		expect(new TextBox(strict).maxlength).toBe(64);
+
+		const { input: loose } = setup({ type: "email", maxlength: 1000 });
+		expect(new TextBox(loose).maxlength).toBe(MAX_EMAIL_LENGTH);
+	});
+
+	// подадреса вида user+tag@example.com иначе нельзя было бы набрать
+	it("accepts a plus sign in an email", () => {
+		const { input } = setup({ type: "email", value: "user" });
+		const tb = new TextBox(input);
+		const editable = tb.editor.editable;
+
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		const r = document.createRange();
+		r.selectNodeContents(editable);
+		r.collapse(false);
+		sel.addRange(r);
+
+		const e = new KeyboardEvent("keydown", { key: "+", cancelable: true, bubbles: true });
+		editable.dispatchEvent(e);
+
+		expect(e.defaultPrevented).toBe(false);
+	});
+
+	// ввод символа на пределе мигает ошибкой — вставка не должна молча ничего не делать
+	it("rejects a paste that does not fit at all and flashes the incorrect state", () => {
+		const { input } = setup({ value: "abcde", maxlength: 5 });
+		const tb = new TextBox(input);
+
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		const r = document.createRange();
+		r.selectNodeContents(tb.editor.editable);
+		r.collapse(false);
+		sel.addRange(r);
+
+		const e = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
+		e.clipboardData = { getData: (t: string) => (t === "text/plain" ? "xyz" : "") };
+		tb.editor.editable.dispatchEvent(e);
+
+		expect(tb.getValue()).toBe("abcde");
+		expect(tb.element!.classList.contains("incorrect")).toBe(true);
+	});
+
+	describe("value sync (change is throttled while typing)", () => {
+		beforeEach(() => jest.useFakeTimers());
+		afterEach(() => jest.useRealTimers());
+
+		const type = (tb: TextBox, text: string) => {
+			tb.editor.editable.textContent = text;
+			tb.editor.editable.dispatchEvent(new Event("input", { bubbles: true }));
+		};
+
+		// самое важное: отправка формы не должна унести устаревшее значение
+		it("syncs the value before submit even when validation is disabled", () => {
+			const { input, form } = setup({ value: "a" });
+			form.noValidate = true; // до validate() дело не дойдёт — сброс обязан быть отдельным
+			const tb = new TextBox(input);
+
+			type(tb, "abc");
+			expect(input.value).toBe("a"); // ещё не синхронизировано
+
+			form.dispatchEvent(new SubmitEvent("submit", { cancelable: true }));
+
+			expect(input.value).toBe("abc");
+		});
+
+		// приложение часто вешает обработчик формы до инициализации контролов — он всё равно
+		// должен увидеть актуальное значение, поэтому синхронизация идёт в фазе перехвата
+		it("syncs the value before a submit handler registered earlier than the control", () => {
+			const { input, form } = setup({ value: "a" });
+
+			let seenByForm: string | null = null;
+			form.addEventListener("submit", () => (seenByForm = input.value));
+
+			const tb = new TextBox(input); // контрол создан ПОСЛЕ обработчика формы
+			type(tb, "abc");
+
+			form.dispatchEvent(new SubmitEvent("submit", { cancelable: true }));
+
+			expect(seenByForm).toBe("abc");
+		});
+
+		it("syncs the value before submit with validation enabled", () => {
+			const { input, form } = setup({ value: "a" });
+			const tb = new TextBox(input);
+
+			type(tb, "abc");
+			form.dispatchEvent(new SubmitEvent("submit", { cancelable: true }));
+
+			expect(input.value).toBe("abc");
+		});
+
+		it("getValue() and validate() see the pending edit", () => {
+			const { input } = setup({ value: "a" });
+			const tb = new TextBox(input);
+
+			type(tb, "abc");
+
+			expect(tb.getValue()).toBe("abc");
+			expect(input.value).toBe("abc"); // чтение значения синхронизировало поле
+		});
+
+		it("required field is not reported empty because of a pending edit", () => {
+			const { input } = setup({ required: true });
+			const tb = new TextBox(input);
+
+			type(tb, "abc");
+
+			expect(tb.validate()).toBe(true);
+		});
+
+		// счётчик идёт по textContent, поэтому обновляется сразу, не дожидаясь сериализации
+		it("updates the symbol counter immediately while typing", () => {
+			document.body.innerHTML = "";
+			const input = document.createElement("input");
+			input.type = "text";
+			input.maxLength = 10;
+			input.setAttribute("data-symbolcounter", "");
+			document.body.appendChild(input);
+
+			const tb = new TextBox(input);
+			const counter = tb.element!.querySelector(".symbols")!;
+
+			type(tb, "abc");
+
+			expect(counter.textContent).toBe("3/10");
+		});
+
+		// validate() синхронизирует значение, синхронизация доставляет change, а его обработчик
+		// в состоянии "invalid" снова зовёт validate() — рекурсия обязана останавливаться
+		it("does not recurse when validating an invalid control with a pending edit", () => {
+			const { input } = setup({ required: true });
+			const tb = new TextBox(input);
+
+			expect(tb.validate()).toBe(false);
+			expect(tb.element!.classList.contains("invalid")).toBe(true);
+
+			type(tb, "abc");
+
+			expect(tb.validate()).toBe(true);
+			expect(tb.element!.classList.contains("invalid")).toBe(false);
+		});
+
+		it("delivers textbox-change after the throttle window", () => {
+			const { input } = setup({ value: "" });
+			const tb = new TextBox(input);
+			const handler = jest.fn();
+			tb.onChange(handler);
+
+			type(tb, "abc");
+			expect(handler).not.toHaveBeenCalled();
+
+			jest.advanceTimersByTime(150);
+			expect(handler).toHaveBeenCalledWith(expect.objectContaining({ value: "abc" }));
+		});
 	});
 
 	it("multiline contenteditable preserves <br> between pasted lines but does not over-count newlines", () => {

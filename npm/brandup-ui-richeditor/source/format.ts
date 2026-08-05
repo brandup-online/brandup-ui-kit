@@ -21,9 +21,13 @@ export {
 } from "./format-config";
 export { serialize, deserialize } from "./serialize";
 export {
+	documentSelection,
+	innerSelection,
+	preserveCaret,
 	selectionCharBounds,
 	restoreSelection,
 	mapCharOffset,
+	activeFormats,
 	toggleFormat,
 	clearFormat,
 	clearAllFormat,
@@ -32,4 +36,4 @@ export {
 	insertFormattedText,
 	isFormatActive,
 } from "./selection";
-export { normalizeWhitespace, normalizeParagraphs, ensureParagraphs } from "./paragraphs";
+export { isBlock, normalizeWhitespace, normalizeParagraphs, ensureParagraphs } from "./paragraphs";

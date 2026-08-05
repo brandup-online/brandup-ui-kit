@@ -162,6 +162,9 @@
 	flex-flow: row wrap;
 
 	& .emoji {
+		// в панели больше семисот кнопок: за пределами прокрутки браузер их не раскладывает
+		content-visibility: auto;
+		contain-intrinsic-size: 32px 32px;
 		width: 32px;
 		height: 32px;
 		padding: 0;

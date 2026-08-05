@@ -187,6 +187,19 @@ describe("markdown boundaries", () => {
 		expect(serialize(makeRoot("а<b> </b>в"), "markdown", ["bold"], md)).toBe("а в");
 	});
 
+	// пересекающиеся пары дали бы `<b>a <i>b</b> c</i>` — браузер перестроил бы такой HTML
+	// по-своему, и форматирование протекло бы за пределы разметки
+	// длинный маркер применяется первым, поэтому пересечение всегда отбрасывает короткий
+	it("leaves crossing marker pairs as plain text", () => {
+		expect(parse("**a _b** c_")).toBe("<b>a _b</b> c_");
+		expect(parse("_a **b_ c**")).toBe("_a <b>b_ c</b>");
+	});
+
+	it("still allows properly nested pairs", () => {
+		expect(parse("_a **b** c_")).toBe("<i>a <b>b</b> c</i>");
+		expect(parse("**весь _текст_ жирный**")).toBe("<b>весь <i>текст</i> жирный</b>");
+	});
+
 	it("accepts markers at word boundaries and next to punctuation", () => {
 		expect(parse("цена _от_ 100")).toBe("цена <i>от</i> 100");
 		expect(parse("_начало_ строки")).toBe("<i>начало</i> строки");
@@ -253,6 +266,21 @@ describe("normalizeWhitespace", () => {
 		normalizeWhitespace(root);
 		expect(root.querySelector("b")).toBeNull();
 		expect(root.textContent).toBe("x");
+	});
+
+	// contenteditable подставляет U+00A0 вместо пробела, который иначе схлопнулся бы при
+	// отображении, — без этого набранные подряд пробелы не схлопывались бы, а U+00A0 уезжал
+	// бы в сохраняемое значение
+	it("treats a non-breaking space as an ordinary one", () => {
+		const root = makeRoot("a \u00A0b\u00A0 c\u00A0");
+		normalizeWhitespace(root);
+		expect(root.textContent).toBe("a b c");
+	});
+
+	it("collapses non-breaking spaces per line", () => {
+		const root = makeRoot("a\u00A0\u00A0b<br>\u00A0c\u00A0");
+		normalizeWhitespace(root);
+		expect(root.innerHTML).toBe("a b<br>c");
 	});
 });
 
