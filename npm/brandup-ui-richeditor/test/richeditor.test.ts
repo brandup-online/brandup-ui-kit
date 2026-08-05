@@ -1078,6 +1078,9 @@ describe("RichEditor emoji picker", () => {
 		expect(picker()).not.toBeNull();
 		expect(emojiButtons().length).toBe(EMOJIS.length);
 
+		// оформление полосы прокрутки — общий класс кита, а не своё правило
+		expect(picker()!.querySelector(".emoji-list")!.classList.contains("ui-scrollable")).toBe(true);
+
 		// смайлики разложены по группам: каждая отбивается линией и рисуется по мере прокрутки
 		const groups = document.querySelectorAll(`.${EMOJI_PICKER_CLASS} .emoji-group`);
 		expect(groups).toHaveLength(EMOJI_GROUPS.length);

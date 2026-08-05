@@ -1,5 +1,6 @@
 import { InputControl } from "@brandup/ui-input";
 import { DOM } from "@brandup/ui";
+import { SCROLLABLE_CLASS } from "@brandup/ui-kit";
 import { detectLanguage, transcriptText } from "./utils/utilities";
 
 import "./dropdown.less"; // стили компонента
@@ -80,7 +81,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		cancelButton.textContent = cancelText;
 
 		const searchInput = DOM.tag("input", { type: "search", maxlength: 50, placeholder: searchPlaceholder });
-		const listElem = DOM.tag("ul");
+		const listElem = DOM.tag("ul", { class: SCROLLABLE_CLASS });
 
 		const popupElem = DOM.tag("div", { class: "popup", tabindex: 0 }, [
 			DOM.tag("div", { class: "content" }, [

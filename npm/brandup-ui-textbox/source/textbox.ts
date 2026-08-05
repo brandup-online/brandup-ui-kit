@@ -1,7 +1,7 @@
 import "./textbox.less"; // стили компонента
 
 import { InputControl } from "@brandup/ui-input";
-import { IS_TOUCH_DEVICE } from "@brandup/ui-kit";
+import { IS_TOUCH_DEVICE, SCROLLABLE_CLASS } from "@brandup/ui-kit";
 import { DOM } from "@brandup/ui";
 import { FuncHelper } from "@brandup/ui-helpers";
 import RichEditor, {
@@ -123,7 +123,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 
 		const container = DOM.tag("div", { class: ROOT_CLASS }, [
 			DOM.tag("div", { class: "decorator" }),
-			DOM.tag("div", { class: "editor" }, [inputElem, symbolsCountElem]),
+			DOM.tag("div", { class: ["editor", SCROLLABLE_CLASS] }, [inputElem, symbolsCountElem]),
 			actionsElem,
 		]);
 
