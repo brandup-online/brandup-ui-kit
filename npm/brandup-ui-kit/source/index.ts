@@ -1,5 +1,6 @@
 import { UiKitMiddleware } from "./middleware";
 export * from "./popup";
+export { default as Modal, MODAL_CLASS, MODAL_OPENED_CLASS, MODAL_CLOSE_COMMAND, type ModalOptions } from "./modal";
 export { IS_TOUCH_DEVICE } from "./utils/compatibility";
 import "./styles.less";
 
