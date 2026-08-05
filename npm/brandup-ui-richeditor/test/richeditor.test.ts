@@ -4,7 +4,7 @@
 import { PopupManager } from "@brandup/ui-kit";
 import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS } from "../source/richeditor";
 import { EMOJI_PICKER_CLASS } from "../source/toolbar";
-import { EMOJIS } from "../source/emoji";
+import { EMOJIS, EMOJI_GROUPS } from "../source/emoji";
 import { expandRangeToWords } from "../source/editing";
 import { selectionCharBounds } from "../source/selection";
 
@@ -1077,6 +1077,22 @@ describe("RichEditor emoji picker", () => {
 
 		expect(picker()).not.toBeNull();
 		expect(emojiButtons().length).toBe(EMOJIS.length);
+
+		// смайлики разложены по группам: каждая отбивается линией и рисуется по мере прокрутки
+		const groups = document.querySelectorAll(`.${EMOJI_PICKER_CLASS} .emoji-group`);
+		expect(groups).toHaveLength(EMOJI_GROUPS.length);
+		expect(Array.from(groups).map((g) => g.querySelectorAll(".emoji").length)).toEqual(
+			EMOJI_GROUPS.map((group) => group.emojis.length)
+		);
+	});
+
+	// набор перекладывали по группам скриптом — символы не должны потеряться или задвоиться
+	it("keeps every emoji exactly once across the groups", () => {
+		const fromGroups = EMOJI_GROUPS.flatMap((group) => group.emojis);
+
+		expect(fromGroups).toEqual(EMOJIS);
+		expect(new Set(EMOJIS).size).toBe(EMOJIS.length);
+		expect(EMOJI_GROUPS.every((group) => group.title && group.emojis.length)).toBe(true);
 	});
 
 	// PopupManager вешает слушатель закрытия на body внутри open(), то есть во время того же

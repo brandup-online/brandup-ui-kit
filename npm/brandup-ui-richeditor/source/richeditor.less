@@ -82,6 +82,8 @@
 	border: var(--input-border-type, solid) var(--input-border-width, 1px) var(--input-border-color, #aaa);
 	border-radius: var(--input-border-radius, 0);
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	// панель тоже монтируется в разметку хоста — курсор поля ввода ей не наследовать
+	cursor: default;
 
 	--svg-size: 18px;
 	--svg-fill: var(--input-color, #222);
@@ -155,18 +157,54 @@
 	left: 0;
 	margin-top: 4px;
 	width: 296px;
-	max-height: 220px;
-	overflow-y: auto;
-	padding: 4px;
-	display: flex;
-	flex-flow: row wrap;
+	padding: 6px;
+	// прокрутка живёт на списке внутри — см. .emoji-list
+	overflow: hidden;
+	// Курсор задаём свой: панель монтируется в разметку хоста и наследует его курсор — рядом
+	// с полем ввода это текстовый, и он же показывался бы над полосой прокрутки и фоном панели.
+	cursor: default;
+
+	// Прокручивается список, а не сам попап: полоса рисуется по краю коробки и перекрывала бы
+	// скругление рамки — угол выглядел бы срезанным. Заодно полоса отступает от краёв на
+	// внутренний отступ попапа — сверху, снизу и справа, — а не упирается в рамку.
+	& .emoji-list {
+		max-height: 220px;
+		overflow-y: auto;
+		// в панели больше семисот кнопок — полоса заметная, а не волосяная
+		scrollbar-width: auto;
+
+		&::-webkit-scrollbar {
+			width: 8px;
+			background: none;
+		}
+
+		&::-webkit-scrollbar-thumb {
+			background-color: rgba(0, 0, 0, 0.2);
+			border-radius: 6px;
+		}
+	}
+
+	// Смысловая группа смайликов, отбитая линией. Она же — кусок, который браузер вправе не
+	// рисовать, пока до него не долистали: поэлементно это было бы семьсот отслеживаемых
+	// поддеревьев, и слежение за ними съедает весь выигрыш от пропуска.
+	& .emoji-group {
+		display: flex;
+		flex-flow: row wrap;
+		content-visibility: auto;
+		// высота ненарисованной группы; auto — дальше браузер помнит фактическую
+		contain-intrinsic-size: auto calc(var(--emoji-rows, 8) * var(--richeditor-emoji-size, 32px));
+	}
+
+	& .emoji-group + .emoji-group {
+		margin-top: 6px;
+		padding-top: 6px;
+		border-top: var(--input-border-type, solid) var(--input-border-width, 1px)
+			var(--input-border-color, #aaa);
+	}
 
 	& .emoji {
-		// в панели больше семисот кнопок: за пределами прокрутки браузер их не раскладывает
-		content-visibility: auto;
-		contain-intrinsic-size: 32px 32px;
-		width: 32px;
-		height: 32px;
+		width: var(--richeditor-emoji-size, 32px);
+		height: var(--richeditor-emoji-size, 32px);
 		padding: 0;
 		border: 0;
 		background: transparent;
