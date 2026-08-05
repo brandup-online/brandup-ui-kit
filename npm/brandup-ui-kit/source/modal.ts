@@ -1,6 +1,7 @@
 import "./modal.less"; // стили окна
 
 import { DOM, UIElement } from "@brandup/ui";
+import closeIcon from "../svg/x.svg";
 
 export const MODAL_CLASS = "ui-modal";
 export const MODAL_OPENED_CLASS = "ui-modal-opened"; // на <body>, чтобы страница не прокручивалась
@@ -56,7 +57,7 @@ export default abstract class Modal extends UIElement {
 					DOM.tag(
 						"button",
 						{ type: "button", class: "modal-close", title: "Закрыть", "data-command": MODAL_CLOSE_COMMAND },
-						"×"
+						closeIcon
 					),
 				]),
 				body,
