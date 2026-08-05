@@ -49,14 +49,14 @@ export default abstract class Modal extends UIElement {
 				"div",
 				options.closeOnBackdrop === false
 					? { class: "modal-backdrop" }
-					: { class: "modal-backdrop", "data-command": MODAL_CLOSE_COMMAND }
+					: { class: "modal-backdrop", command: MODAL_CLOSE_COMMAND }
 			),
 			DOM.tag("div", { class: "modal-window", role: "dialog", "aria-modal": "true" }, [
 				DOM.tag("div", { class: "modal-header" }, [
 					options.title ? DOM.tag("div", { class: "modal-title" }, options.title) : null,
 					DOM.tag(
 						"button",
-						{ type: "button", class: "modal-close", title: "Закрыть", "data-command": MODAL_CLOSE_COMMAND },
+						{ type: "button", class: "modal-close", title: "Закрыть", command: MODAL_CLOSE_COMMAND },
 						closeIcon
 					),
 				]),

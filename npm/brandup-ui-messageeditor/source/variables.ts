@@ -40,10 +40,10 @@ export default class VariablesModal extends Modal {
 		this.__emptyText = emptyText?.trim() || VARIABLES_EMPTY_TEXT;
 
 		this.registerCommand(PICK_COMMAND, (context) => {
-			const name = context.target.getAttribute("data-variable");
-			if (!name) return;
+			const key = context.target.dataset.variable;
+			if (!key) return;
 
-			this.__apply(buildVariable(name));
+			this.__apply(buildVariable(key));
 			this.close();
 		});
 
@@ -63,7 +63,7 @@ export default class VariablesModal extends Modal {
 			list.appendChild(
 				DOM.tag(
 					"button",
-					{ type: "button", class: "variable", "data-command": PICK_COMMAND, "data-variable": variable.key },
+					{ type: "button", class: "variable", command: PICK_COMMAND, dataset: { variable: variable.key } },
 					// Сначала — как переменная будет выглядеть в сообщении, следом ключ: выбирают
 					// по виду, а ключ лишь уточняет, что уйдёт в текст. Без названия показывать
 					// ключ дважды незачем — вид и есть ключ.
@@ -98,7 +98,7 @@ export function buildVariable(key: string): string {
  * Записи без ключа и с символами разметки в ключе (`{}[]|`) отбрасываются: такой ключ не свернётся
  * в цельную конструкцию.
  */
-export function parseVariables(value: string | null): MessageVariable[] {
+export function parseVariables(value: string | null | undefined): MessageVariable[] {
 	const text = value?.trim();
 	if (!text) return [];
 

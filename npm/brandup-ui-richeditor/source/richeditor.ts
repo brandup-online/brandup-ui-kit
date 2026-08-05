@@ -196,7 +196,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// при этом остаётся возможность фокуса, выделения и копирования
 		editable.contentEditable = "true";
 
-		if (options.placeholder != null) editable.setAttribute("data-placeholder", options.placeholder);
+		if (options.placeholder != null) editable.dataset.placeholder = options.placeholder;
 		if (multiline) editable.classList.add("multiline");
 		if (readonly) editable.classList.add("readonly");
 
@@ -582,7 +582,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// элемент передан хостом — не удаляем его, только снимаем оформление редактора
 		this.editable.classList.remove(ROOT_CLASS, UNSELECTABLE_CLASS, "multiline", "readonly", "focused");
 		this.editable.removeAttribute("contenteditable");
-		this.editable.removeAttribute("data-placeholder");
+		delete this.editable.dataset.placeholder;
 
 		super.destroy();
 	}

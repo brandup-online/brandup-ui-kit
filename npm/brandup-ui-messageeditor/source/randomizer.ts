@@ -36,8 +36,8 @@ export default class RandomizerModal extends Modal {
 		this.body.appendChild(this.__list);
 		this.body.appendChild(
 			DOM.tag("div", { class: "actions" }, [
-				DOM.tag("button", { type: "button", class: "add", "data-command": ADD_COMMAND }, "Добавить вариант"),
-				DOM.tag("button", { type: "button", class: "apply", "data-command": APPLY_COMMAND }, "Вставить"),
+				DOM.tag("button", { type: "button", class: "add", command: ADD_COMMAND }, "Добавить вариант"),
+				DOM.tag("button", { type: "button", class: "apply", command: APPLY_COMMAND }, "Вставить"),
 			])
 		);
 
@@ -50,7 +50,7 @@ export default class RandomizerModal extends Modal {
 
 		this.registerCommand(REMOVE_COMMAND, (context) => {
 			this.__collect();
-			const index = Number(context.target.getAttribute("data-index"));
+			const index = Number(context.target.dataset.index);
 			this.__variants.splice(index, 1);
 			this.__renderVariants();
 		});
@@ -93,8 +93,8 @@ export default class RandomizerModal extends Modal {
 									type: "button",
 									class: "remove",
 									title: "Убрать вариант",
-									"data-command": REMOVE_COMMAND,
-									"data-index": String(index),
+									command: REMOVE_COMMAND,
+									dataset: { index: String(index) },
 								},
 								"×"
 							)

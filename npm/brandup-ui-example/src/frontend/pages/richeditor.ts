@@ -32,7 +32,7 @@ export default class RichEditorPage extends Page {
 			const editor = elem ? this.__editors.get(elem) : null;
 			if (!editor) return;
 
-			switch (button.getAttribute("data-method")) {
+			switch (button.dataset.method) {
 				case "clear":
 					editor.clearFormat();
 					break;
@@ -57,7 +57,7 @@ export default class RichEditorPage extends Page {
 	// Параметры редактора берутся из data-атрибутов — разбор такой же, как делает TextBox.
 	private __create(elem: HTMLElement) {
 		const format = elem.hasAttribute("data-format");
-		const storage: FormatStorage = elem.getAttribute("data-format-storage") === "markdown" ? "markdown" : "html";
+		const storage: FormatStorage = elem.dataset.formatStorage === "markdown" ? "markdown" : "html";
 
 		const markers: Partial<FormatMarkers> = {};
 		for (const tool of ALL_FORMAT_TOOLS) {
@@ -67,14 +67,14 @@ export default class RichEditorPage extends Page {
 
 		const options: RichEditorOptions = {
 			format,
-			tools: parseFormatTools(elem.getAttribute("data-format-tools")),
-			actions: parseEditorActions(elem.getAttribute("data-editor-actions")),
+			tools: parseFormatTools(elem.dataset.formatTools ?? null),
+			actions: parseEditorActions(elem.dataset.editorActions ?? null),
 			storage,
 			markers,
 			multiline: elem.hasAttribute("data-multiline"),
 			readonly: elem.hasAttribute("data-readonly"),
-			placeholder: elem.getAttribute("data-placeholder"),
-			value: elem.getAttribute("data-value") ?? "",
+			placeholder: elem.dataset.placeholder,
+			value: elem.dataset.value ?? "",
 		};
 
 		// панель по умолчанию живёт в body; с контейнером — позиционируется относительно него

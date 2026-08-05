@@ -99,8 +99,8 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		});
 
 		this.placeholder = placeholder;
-		this.variables = options.variables ?? parseVariables(valueElem.getAttribute("data-variables"));
-		this.variablesEmpty = options.variablesEmpty ?? valueElem.getAttribute("data-variables-empty");
+		this.variables = options.variables ?? parseVariables(valueElem.dataset.variables);
+		this.variablesEmpty = options.variablesEmpty ?? valueElem.dataset.variablesEmpty ?? null;
 		// в тексте показываем название, а не ключ — если оно задано
 		this.__names = new Map(this.variables.filter((v) => v.name).map((v) => [v.key, v.name!]));
 		this.__inputElem = inputElem;
