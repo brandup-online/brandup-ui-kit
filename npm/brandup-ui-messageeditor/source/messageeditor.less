@@ -159,3 +159,29 @@
 	outline: none;
 	visibility: collapse;
 }
+
+// подсветка доменной разметки в тексте: спинтакс и переменные персонализации
+.ui-messageeditor .bubble .ui-richeditor {
+	& .spintax,
+	& .variable {
+		border-radius: 3px;
+		padding: 0 1px;
+	}
+
+	& .spintax {
+		background-color: var(--messageeditor-spintax-fill, rgba(255, 193, 7, 0.28));
+	}
+
+	& .variable {
+		background-color: var(--messageeditor-variable-fill, rgba(76, 175, 80, 0.24));
+	}
+}
+
+// конструкции атомарны и правятся кликом — курсор указывает на это
+.ui-messageeditor .bubble .ui-richeditor {
+	& .spintax,
+	& .variable {
+		cursor: pointer;
+		user-select: none;
+	}
+}

@@ -30,6 +30,7 @@
 	"dependencies": {
 		"@brandup/ui": "^2.0.7",
 		"@brandup/ui-input": "file:../brandup-ui-input",
+		"@brandup/ui-kit": "file:../brandup-ui-kit",
 		"@brandup/ui-richeditor": "file:../brandup-ui-richeditor"
 	},
 	"devDependencies": {
