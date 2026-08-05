@@ -8,7 +8,7 @@
 import { DOM } from "@brandup/ui";
 import { POPUP_CLASS, PopupManager } from "@brandup/ui-kit";
 import { EDITOR_ACTIONS, FORMAT_TOOLS, type EditorAction, type FormatTool } from "./format";
-import { EMOJIS } from "./emoji";
+import { EMOJI_GROUPS, type EmojiGroup } from "./emoji";
 import boldIcon from "../svg/bold.svg";
 import italicIcon from "../svg/italic.svg";
 import strikeIcon from "../svg/strike.svg";
@@ -75,6 +75,34 @@ export interface ToolbarHost {
 }
 
 const MARGIN = 6;
+
+// Сколько кнопок помещается в ряд при ширине панели (см. .ui-richeditor-emoji в richeditor.less).
+// Точность нужна только для оценки высоты нерисованной группы: ошибка сдвинет ползунок прокрутки,
+// но не саму раскладку — группа переносит кнопки сама.
+const EMOJI_COLUMNS = 8;
+
+/**
+ * Группа смайликов: и смысловое деление в панели (отбивается линией), и кусок, к которому
+ * применяется пропуск отрисовки. Поэлементно это было бы семьсот отслеживаемых поддеревьев,
+ * и слежение за ними съедает выигрыш от пропуска.
+ */
+function buildEmojiGroup(group: EmojiGroup): HTMLElement {
+	const rows = Math.ceil(group.emojis.length / EMOJI_COLUMNS);
+	const elem = DOM.tag("div", {
+		class: "emoji-group",
+		role: "group",
+		"aria-label": group.title,
+		// высота, пока группа не нарисована: без неё список схлопнулся бы, а прокрутка скакала
+		style: `--emoji-rows: ${rows}`,
+	});
+
+	const fragment = document.createDocumentFragment();
+	for (const emoji of group.emojis)
+		fragment.appendChild(DOM.tag("button", { type: "button", class: "emoji", tabindex: "-1" }, emoji));
+	elem.appendChild(fragment);
+
+	return elem;
+}
 
 class FormatToolbar {
 	private __elem: HTMLElement | null = null;
@@ -388,10 +416,12 @@ class FormatToolbar {
 	private __buildEmojiPicker(): HTMLElement {
 		const picker = DOM.tag("div", { class: `${POPUP_CLASS} ${EMOJI_PICKER_CLASS}` });
 
-		const fragment = document.createDocumentFragment();
-		for (const emoji of EMOJIS)
-			fragment.appendChild(DOM.tag("button", { type: "button", class: "emoji", tabindex: "-1" }, emoji));
-		picker.appendChild(fragment);
+		// Прокручивается список, а не сам попап: полоса прокрутки рисуется по краю коробки
+		// и перекрывала бы скругление рамки — угол выглядел бы срезанным.
+		const list = DOM.tag("div", { class: "emoji-list" });
+		picker.appendChild(list);
+
+		for (const group of EMOJI_GROUPS) list.appendChild(buildEmojiGroup(group));
 
 		// панель может висеть и вне тулбара, поэтому гасит фокус сама
 		picker.addEventListener("mousedown", (e) => e.preventDefault());

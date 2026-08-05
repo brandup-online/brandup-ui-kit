@@ -1,6 +1,6 @@
 export { default } from "./richeditor";
 export * from "./richeditor";
-export { EMOJIS } from "./emoji";
+export { EMOJIS, EMOJI_GROUPS, type EmojiGroup } from "./emoji";
 export {
 	ALL_EDITOR_ACTIONS,
 	ALL_FORMAT_TOOLS,
