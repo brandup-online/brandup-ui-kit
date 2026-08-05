@@ -1486,3 +1486,111 @@ describe("RichEditor host character filter", () => {
 		expect(e.defaultPrevented).toBe(false);
 	});
 });
+
+// Протяжка по странице не должна затягивать содержимое редактора. Правится выделяемость,
+// а не само выделение: оно в документе одно, и когда протяжка идёт мимо редактора, оба её конца
+// снаружи — середину из одного диапазона не вырезать. jsdom про user-select ничего не знает,
+// поэтому проверяем то, чем управляем: класс на время чужой протяжки.
+describe("RichEditor selection isolation", () => {
+	function withNeighbour() {
+		document.body.innerHTML = "";
+		const outside = document.createElement("p");
+		outside.textContent = "текст страницы";
+		const div = document.createElement("div");
+		div.tabIndex = 0; // иначе jsdom не отдаёт фокус голому div, а он нужен одному из случаев
+		document.body.append(outside, div);
+
+		return { editor: new RichEditor(div, { format: true, multiline: true, value: "внутри" }), outside };
+	}
+
+	const unselectable = (editor: RichEditor) => editor.editable.classList.contains("unselectable");
+	const press = (target: Node) => target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+
+	const release = () => document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+	it("makes the content unselectable while a drag started outside is going on", () => {
+		const { editor, outside } = withNeighbour();
+
+		press(outside);
+		expect(unselectable(editor)).toBe(true);
+
+		release();
+		expect(unselectable(editor)).toBe(false);
+	});
+
+	// Диапазон остаётся протянутым через редактор и после отпускания кнопки: вернуть содержимому
+	// выделяемость — значит тут же его выделить, будто запрета и не было.
+	it("keeps the hold while the finished selection still runs across the editor", () => {
+		const { editor, outside } = withNeighbour();
+		const after = document.createElement("p");
+		after.textContent = "текст ниже";
+		document.body.appendChild(after);
+
+		press(outside);
+		const selection = window.getSelection()!;
+		selection.removeAllRanges();
+		selection.setBaseAndExtent(outside.firstChild!, 0, after.firstChild!, 10);
+
+		release();
+		expect(unselectable(editor)).toBe(true);
+
+		// следующая протяжка мимо редактора — держать больше нечего
+		press(outside);
+		selection.collapse(after.firstChild!, 0);
+		release();
+		expect(unselectable(editor)).toBe(false);
+	});
+
+	// запрет держится до следующего нажатия, но в поле заходят и клавишей, и из кода —
+	// иначе оно осталось бы нередактируемым
+	it("drops the hold as soon as the editor takes the focus", () => {
+		const { editor, outside } = withNeighbour();
+
+		press(outside);
+		expect(unselectable(editor)).toBe(true);
+
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		expect(unselectable(editor)).toBe(false);
+	});
+
+	// нажатие по панели или кнопке хоста приходит мимо редактора, но выделение страницы тут ни при чём:
+	// запрет лишил бы поле редактируемости до следующего клика внутрь
+	it("does not hold while the editor itself is at work", () => {
+		const { editor, outside } = withNeighbour();
+		editor.editable.focus();
+
+		press(outside);
+
+		expect(unselectable(editor)).toBe(false);
+	});
+
+	it("keeps its own content selectable when the drag starts inside", () => {
+		const { editor } = withNeighbour();
+
+		press(editor.editable.querySelector("p")!.firstChild!);
+		expect(unselectable(editor)).toBe(false);
+	});
+
+	// протяжка снаружи, следом клик внутрь — состояние не должно залипнуть
+	it("clears the hold when the next press lands inside", () => {
+		const { editor, outside } = withNeighbour();
+
+		press(outside);
+		press(editor.editable);
+
+		expect(unselectable(editor)).toBe(false);
+	});
+
+	it("leaves nothing on the element after destroy", () => {
+		const { editor, outside } = withNeighbour();
+		const editable = editor.editable;
+
+		press(outside);
+		editor.destroy();
+
+		expect(editable.classList.contains("unselectable")).toBe(false);
+		press(outside); // слушатели сняты — состояние не возвращается
+		expect(editable.classList.contains("unselectable")).toBe(false);
+	});
+});

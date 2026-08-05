@@ -47,6 +47,8 @@ import { formatToolbar, type ToolbarButton } from "./toolbar";
 export { TOOLBAR_CLASS, formatToolbar, type ToolbarHost, type ToolbarButton } from "./toolbar";
 
 export const ROOT_CLASS = "ui-richeditor"; // редактируемый элемент, к нему привязан UIElement
+// Содержимое временно невыделяемо: по странице тянут выделение, начатое вне редактора (см. __holdSelectable).
+export const UNSELECTABLE_CLASS = "unselectable";
 export const CHANGE_EVENT = "richeditor-change";
 
 const NAV_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Escape"];
@@ -578,7 +580,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		formatToolbar.detach(this);
 
 		// элемент передан хостом — не удаляем его, только снимаем оформление редактора
-		this.editable.classList.remove(ROOT_CLASS, "multiline", "readonly", "focused");
+		this.editable.classList.remove(ROOT_CLASS, UNSELECTABLE_CLASS, "multiline", "readonly", "focused");
 		this.editable.removeAttribute("contenteditable");
 		this.editable.removeAttribute("data-placeholder");
 
@@ -675,6 +677,47 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 	// --- обработчики ---
 
+	/**
+	 * Изоляция выделения: протяжка, начатая вне редактора, не должна затягивать его содержимое —
+	 * текст сообщения красился бы как часть страницы.
+	 *
+	 * Правим не выделение, а выделяемость: пока идёт чужая протяжка, содержимое редактора
+	 * невыделяемо, и браузер обходит его сам. Обрезать выделение из кода нельзя — оно в документе
+	 * одно, и когда протяжка проходит мимо редактора, оба её конца снаружи: середину из одного
+	 * диапазона не вырезать.
+	 */
+	private __holdSelectable(target: EventTarget | null) {
+		// Нажали в самом редакторе — или он в работе: нажатие по панели и кнопкам хоста приходит
+		// мимо него, но выделение страницы тут ни при чём, а запрет заодно лишил бы поле
+		// редактируемости до следующего клика внутрь. Фокус на этот момент ещё не ушёл.
+		const own =
+			this.editable.contains(target as Node | null) ||
+			this.editable.ownerDocument.activeElement === this.editable;
+
+		this.editable.classList.toggle(UNSELECTABLE_CLASS, !own);
+	}
+
+	/**
+	 * Снимает запрет, когда выделение перестало задевать редактор.
+	 *
+	 * Просто по отпусканию кнопки снимать нельзя: диапазон остаётся протянутым через редактор,
+	 * и стоит вернуть содержимому выделяемость, как оно тут же оказывается выделенным — будто
+	 * запрета и не было. Такой запрет держится до следующего нажатия: внутри редактора оно
+	 * снимет запрет, снаружи — начнёт новую протяжку.
+	 */
+	private __releaseSelectable() {
+		if (!this.editable.classList.contains(UNSELECTABLE_CLASS)) return;
+
+		const selection = documentSelection(this.editable);
+		const across =
+			!!selection &&
+			selection.rangeCount > 0 &&
+			!selection.isCollapsed &&
+			selection.getRangeAt(0).intersectsNode(this.editable);
+
+		if (!across) this.editable.classList.remove(UNSELECTABLE_CLASS);
+	}
+
 	private __initEvents() {
 		const { signal } = this.__abort;
 		const editable = this.editable;
@@ -682,6 +725,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// перетаскивание в редактор проходит мимо истории и фильтров хоста — гасим саму вставку.
 		// dragenter/dragover отменять нельзя: в модели DnD отмена как раз и означает «сюда можно бросить»
 		this.element.addEventListener("drop", (e) => e.preventDefault(), { signal });
+
+		// Выделение страницы не должно затягивать содержимое редактора — см. __holdSelectable.
+		// Слушаем на документе и в фазе перехвата: протяжка начинается где угодно, а обработчик
+		// по пути может погасить всплытие.
+		const doc = editable.ownerDocument;
+		doc.addEventListener("mousedown", (e) => this.__holdSelectable(e.target), { signal, capture: true });
+		// По изменению выделения проверять нельзя: пока запрет действует, выделение до редактора
+		// не доходит — проверка увидела бы «не задевает» и сняла запрет сама. Только по концу протяжки.
+		doc.addEventListener("mouseup", () => this.__releaseSelectable(), { signal, capture: true });
 
 		editable.addEventListener(
 			"mousedown",
@@ -696,6 +748,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			"focus",
 			() => {
 				this.element.classList.add("focused");
+
+				// Пришли править — держать запрет выделения не за чем, а с ним поле осталось бы
+				// нередактируемым. Мышью его снимает нажатие, но фокус берут и клавишей, и из кода.
+				this.element.classList.remove(UNSELECTABLE_CLASS);
 
 				// нужна ли панель этому редактору, решает она сама — иначе условие пришлось бы
 				// держать в двух местах, и стоило добавить кнопки хоста, как они разошлись бы
