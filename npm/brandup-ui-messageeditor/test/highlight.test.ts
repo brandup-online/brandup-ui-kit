@@ -53,6 +53,43 @@ describe("MessageEditor highlighting", () => {
 		expect(selectionCharBounds(editable, selection.getRangeAt(0))).toEqual([13, 13]);
 	});
 
+	// событие изменения при печати троттлится, а подсветка ждать не должна:
+	// конструкция обязана подсветиться сразу, как дописана закрывающая скобка
+	it("highlights on typing without waiting for the change event", () => {
+		jest.useFakeTimers();
+		try {
+			const editor = setup("");
+			const editable = editor.editor.editable;
+
+			editable.textContent = "Привет, {ИМЯ}!";
+			editable.dispatchEvent(new Event("input", { bubbles: true }));
+
+			expect(editable.querySelectorAll("span.variable")).toHaveLength(1);
+		} finally {
+			jest.useRealTimers();
+		}
+	});
+
+	// Обёртки строятся заново из новых текстовых узлов, поэтому прежнее выделение на них
+	// уже не указывает. Подсветка повторяется и без правки текста (ввод и отложенное change),
+	// и каретка обязана пережить такую перестройку.
+	it("keeps the caret when the markup is rebuilt unchanged", () => {
+		const editor = setup("Привет, {ИМЯ}!");
+		const editable = editor.editor.editable;
+
+		const selection = window.getSelection()!;
+		const range = document.createRange();
+		range.setStart(editable.querySelector("span.variable")!.previousSibling!, 3);
+		range.collapse(true);
+		selection.removeAllRanges();
+		selection.addRange(range);
+
+		editable.dispatchEvent(new Event("input", { bubbles: true })); // текст тот же
+
+		expect(editable.contains(window.getSelection()!.anchorNode)).toBe(true);
+		expect(selectionCharBounds(editable, window.getSelection()!.getRangeAt(0))).toEqual([3, 3]);
+	});
+
 	it("rebuilds the markup when the text stops matching", () => {
 		const editor = setup("{ИМЯ}");
 		expect(editor.editor.editable.querySelectorAll("span.variable")).toHaveLength(1);

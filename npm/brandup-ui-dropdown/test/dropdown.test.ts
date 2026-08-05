@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import DropDown, { ROOT_CLASS, CHANGE_EVENT } from "../source/dropdown";
+import DropDown, { ROOT_CLASS, INPUT_CLASS, CHANGE_EVENT } from "../source/dropdown";
 
 function makeSelect(options: Array<[value: string, text: string]>): HTMLSelectElement {
 	document.body.innerHTML = "";
@@ -249,5 +249,14 @@ describe("DropDown", () => {
 
 		expect(container.isConnected).toBe(false);
 		expect(select.isConnected).toBe(true);
+	});
+
+	// класс уводит select с экрана (position/opacity/visibility) — без его снятия
+	// вернувшийся в DOM элемент остаётся невидимым
+	it("destroy() makes the select visible again", () => {
+		const select = makeSelect([["a", "Alpha"]]);
+		new DropDown(select).destroy();
+
+		expect(select.classList.contains(INPUT_CLASS)).toBe(false);
 	});
 });

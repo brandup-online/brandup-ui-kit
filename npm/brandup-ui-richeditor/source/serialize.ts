@@ -1,5 +1,6 @@
 // Разбор и сериализация значения редактора (HTML | Markdown), модель абзацев и мягких переносов.
 
+import { isBlock } from "./paragraphs";
 import {
 	FORMAT_TOOLS,
 	defaultFormatMarkers,
@@ -112,11 +113,7 @@ function serializeParagraphs(
 	};
 
 	for (const node of Array.from(root.childNodes)) {
-		const isBlock =
-			node.nodeType === Node.ELEMENT_NODE &&
-			((node as Element).tagName === "P" || (node as Element).tagName === "DIV");
-
-		if (isBlock) {
+		if (isBlock(node)) {
 			flush();
 			paragraphs.push(serializeInline((node as Element).childNodes, storage, tagMap, markers));
 		} else {
@@ -182,13 +179,38 @@ function orderedMarkers(tools: FormatTool[], markers: FormatMarkers): MarkerRule
 	});
 }
 
+const TAG = /<(\/?)([a-z]+)>/g;
+
+/**
+ * Закрыт ли в содержимом каждый тег, который в нём открыт.
+ *
+ * Маркеры применяются по очереди к уже размеченному тексту, поэтому пара маркеров может
+ * пересечь чужой тег: `**a _b** c_` дал бы `<b>a <i>b</b> c</i>`, а такой HTML браузер
+ * перестроит по-своему, и форматирование «протечёт» за пределы разметки. Пересекающуюся
+ * пару оставляем текстом — так же поступают мессенджеры. Собственный текст пользователя
+ * сюда не попадает: `<` в нём уже заэкранирован, тег может быть только нашим.
+ */
+function balancedTags(inner: string): boolean {
+	if (!inner.includes("<")) return true;
+
+	const stack: string[] = [];
+	for (const [, closing, name] of inner.matchAll(TAG)) {
+		if (!closing) stack.push(name);
+		else if (stack.pop() !== name) return false;
+	}
+
+	return stack.length === 0;
+}
+
 // Markdown-разметка одного абзаца → инлайновый HTML (escape, маркеры, \n→<br>).
 function markdownInline(text: string, order: MarkerRule[]): string {
 	let html = escapeHtml(text);
 
 	for (const [tool, marker, standalone] of order) {
 		const def = FORMAT_TOOLS[tool];
-		html = html.replace(markerPattern(marker, standalone), `$1<${def.tag}>$2</${def.tag}>`);
+		html = html.replace(markerPattern(marker, standalone), (match, lead: string, inner: string) =>
+			balancedTags(inner) ? `${lead}<${def.tag}>${inner}</${def.tag}>` : match
+		);
 	}
 
 	// переносы — после маркеров: пока это \n, запрет на пересечение строки работает

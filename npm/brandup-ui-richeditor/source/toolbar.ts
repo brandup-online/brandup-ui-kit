@@ -63,6 +63,8 @@ export interface ToolbarHost {
 	readonly toolbarContainer?: HTMLElement | null;
 	applyFormat(tool: FormatTool): void;
 	isToolActive(tool: FormatTool): boolean;
+	/** Активные форматы всех инструментов сразу; нет реализации — панель опросит их поштучно. */
+	activeTools?(): ReadonlySet<FormatTool>;
 	applyAction?(action: EditorAction): void;
 	/** false — кнопка действия недоступна (нечего отменять/очищать). */
 	isActionEnabled?(action: EditorAction): boolean;
@@ -85,13 +87,55 @@ class FormatToolbar {
 	private __active: ToolbarHost | null = null;
 	private __toolsKey = "";
 	private __inContainer = false;
-	private readonly __reposition = () => this.reposition();
+	private readonly __reposition = () => this.__schedule("position");
 	private __resizeObserver: ResizeObserver | null = null;
+	private __selectionBound = false;
+	private __frame = 0;
+	private __pendingRefresh = false;
+	private __pendingPosition = false;
 
-	constructor() {
-		// единый листенер на весь app: подсветка активных инструментов по текущему выделению.
-		// refresh() сам проверяет наличие активного редактора, поэтому отдельных per-editor листенеров не нужно.
-		if (typeof document !== "undefined") document.addEventListener("selectionchange", () => this.refresh());
+	/**
+	 * Единый листенер на весь документ: подсветка активных инструментов по текущему выделению.
+	 * Вешается при первом показе панели, а не при загрузке модуля, и живёт до конца страницы —
+	 * refresh() сам проверяет наличие активного редактора.
+	 */
+	private __bindSelection() {
+		if (this.__selectionBound || typeof document === "undefined") return;
+
+		this.__selectionBound = true;
+		document.addEventListener("selectionchange", () => this.__schedule("refresh"));
+	}
+
+	/**
+	 * Откладывает обновление до кадра отрисовки. selectionchange и scroll приходят пачками,
+	 * а и подсветка (обход содержимого), и позиционирование (чтение геометрии) по событию
+	 * заметно дороже, чем раз в кадр. Прямые вызовы refresh()/reposition() остаются синхронными.
+	 */
+	private __schedule(kind: "refresh" | "position") {
+		if (!this.__active) return;
+
+		if (kind === "refresh") this.__pendingRefresh = true;
+		else this.__pendingPosition = true;
+
+		if (typeof requestAnimationFrame !== "function") this.__flush();
+		else this.__frame ||= requestAnimationFrame(() => this.__flush());
+	}
+
+	private __flush() {
+		const refresh = this.__pendingRefresh;
+		const position = this.__pendingPosition;
+		this.__cancelScheduled();
+
+		if (refresh) this.refresh();
+		if (position) this.reposition();
+	}
+
+	private __cancelScheduled() {
+		if (this.__frame && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.__frame);
+
+		this.__frame = 0;
+		this.__pendingRefresh = false;
+		this.__pendingPosition = false;
 	}
 
 	/** Показать тулбар для редактора (на фокусе): перестроить кнопки, спозиционировать, показать. */
@@ -100,6 +144,7 @@ class FormatToolbar {
 		const buttons = host.toolbarButtons ?? [];
 		if (!host.formatTools.length && !actions.length && !buttons.length) return;
 
+		this.__bindSelection();
 		this.__active = host;
 		this.__build(host.formatTools, actions, buttons);
 		this.refresh();
@@ -132,23 +177,50 @@ class FormatToolbar {
 
 	/** Скрыть тулбар, если он обслуживает этот редактор (на blur/destroy). */
 	detach(host: ToolbarHost) {
-		if (this.__active !== host) return;
+		// панель смайликов могла быть открыта не для активного редактора (у своей кнопки хоста) —
+		// ссылку на него всё равно отпускаем, иначе уничтоженный редактор держится синглтоном
+		const emojiHost = this.__emojiHost === host;
+		if (!emojiHost && this.__active !== host) return;
 
 		this.__closeEmoji();
+
+		if (emojiHost) {
+			this.__emojiHost = null;
+			this.__emojiInitiator = null;
+		}
+
+		if (this.__active !== host) return;
+
 		this.__active = null;
+		this.__cancelScheduled();
 		if (this.__elem) this.__elem.classList.remove("visible");
 		this.__removeViewportListeners();
 	}
 
-	/** Обновить подсветку активных инструментов и доступность действий по текущему состоянию. */
+	/**
+	 * Обновить подсветку активных инструментов и доступность действий по текущему состоянию.
+	 *
+	 * Пишем в DOM только при реальном изменении: обновление идёт на каждое движение каретки,
+	 * а на документе живёт MutationObserver (им UIElement следит за удалением элементов) —
+	 * повторная запись того же значения всё равно порождает запись мутации и его пробуждение.
+	 */
 	refresh() {
 		const host = this.__active;
 		if (!host) return;
 
-		for (const [tool, btn] of this.__buttons) btn.classList.toggle("active", host.isToolActive(tool));
+		const setDisabled = (btn: HTMLButtonElement, disabled: boolean) => {
+			if (btn.disabled !== disabled) btn.disabled = disabled;
+		};
+
+		const active = host.activeTools?.();
+		for (const [tool, btn] of this.__buttons) {
+			const isActive = active ? active.has(tool) : host.isToolActive(tool);
+			if (btn.classList.contains("active") !== isActive) btn.classList.toggle("active", isActive);
+		}
+
 		// хост может не реализовывать isActionEnabled — тогда кнопка всегда доступна
-		for (const [action, btn] of this.__actionButtons) btn.disabled = host.isActionEnabled?.(action) === false;
-		for (const [button, btn] of this.__hostButtons) btn.disabled = button.isEnabled?.() === false;
+		for (const [action, btn] of this.__actionButtons) setDisabled(btn, host.isActionEnabled?.(action) === false);
+		for (const [button, btn] of this.__hostButtons) setDisabled(btn, button.isEnabled?.() === false);
 	}
 
 	/** Пересчитать позицию над активным редактором (только для режима body/fixed). */
@@ -167,6 +239,7 @@ class FormatToolbar {
 		window.removeEventListener("scroll", this.__reposition);
 		window.removeEventListener("resize", this.__reposition);
 		this.__resizeObserver?.disconnect();
+		this.__cancelScheduled();
 	}
 
 	private __ensure(): HTMLElement {

@@ -16,3 +16,10 @@ package-lock.json
 .editorconfig
 .gitignore
 .browserslistrc
+
+# Таблица смайликов набрана сеткой по 16 в ряд — так её видно и правят;
+# prettier развернул бы её в семьсот строк по одному символу.
+npm/brandup-ui-richeditor/source/emoji.ts
+
+# локальные настройки инструментов, в репозиторий не попадают
+.claude

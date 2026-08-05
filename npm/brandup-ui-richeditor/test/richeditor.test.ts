@@ -856,6 +856,83 @@ describe("RichEditor undo/redo API", () => {
 	});
 });
 
+describe("RichEditor selection access", () => {
+	it("exposes the selection only while it sits inside the editor", () => {
+		const editor = makeEditor({ value: "abc" });
+		caretAt(editor.editable.firstChild!, 1);
+		expect(editor.selection).not.toBeNull();
+
+		// выделение ушло за пределы редактора — для хоста его как будто нет
+		const outside = document.createElement("div");
+		outside.textContent = "снаружи";
+		document.body.appendChild(outside);
+		caretAt(outside.firstChild!, 1);
+
+		expect(editor.selection).toBeNull();
+	});
+
+	// хост показывает своё окно, выделение за это время может уйти — узел никуда не делся
+	it("selectNode() selects a node regardless of where the selection was", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "раз <b>два</b> три" });
+		const bold = editor.editable.querySelector("b")!;
+
+		const outside = document.createElement("div");
+		outside.textContent = "снаружи";
+		document.body.appendChild(outside);
+		caretAt(outside.firstChild!, 1);
+
+		editor.selectNode(bold);
+
+		expect(editor.selection!.toString()).toBe("два");
+
+		// следующая вставка заменяет выделенное целиком
+		editor.insertText("ДВА");
+		expect(editor.editable.textContent).toBe("раз ДВА три");
+	});
+
+	it("selectNode() ignores a node outside the editor", () => {
+		const editor = makeEditor({ value: "abc" });
+		const outside = document.createElement("div");
+		outside.textContent = "снаружи";
+		document.body.appendChild(outside);
+
+		editor.selectNode(outside);
+
+		expect(editor.selection).toBeNull();
+	});
+});
+
+describe("RichEditor host buttons", () => {
+	const hostButton = () =>
+		document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} [data-toolbar-button="ping"]`);
+
+	// кнопки хоста не про форматирование — панель нужна и когда своих инструментов нет вовсе
+	it("shows the toolbar for host buttons alone, without formatting", () => {
+		const run = jest.fn();
+		const editor = makeEditor({ format: false, buttons: [{ name: "ping", title: "Ping", icon: "<svg/>", run }] });
+
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		expect(document.querySelector(`.${TOOLBAR_CLASS}.visible`)).not.toBeNull();
+		expect(editor.formatTools).toHaveLength(0);
+
+		hostButton()!.click();
+		expect(run).toHaveBeenCalled();
+	});
+
+	it("keeps host buttons out of a readonly editor", () => {
+		const editor = makeEditor({
+			readonly: true,
+			buttons: [{ name: "ping", title: "Ping", icon: "<svg/>", run: jest.fn() }],
+		});
+
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		expect(editor.toolbarButtons).toHaveLength(0);
+		expect(document.querySelector(`.${TOOLBAR_CLASS}.visible`)).toBeNull();
+	});
+});
+
 describe("RichEditor toolbar actions", () => {
 	it("adds no action buttons by default", () => {
 		const editor = makeEditor();
@@ -1098,6 +1175,20 @@ describe("RichEditor emoji picker", () => {
 		expect(picker()!.parentElement).toBe(document.querySelector(`.${TOOLBAR_CLASS}`));
 		expect(emojiButtons().length).toBe(EMOJIS.length);
 	});
+
+	// панель одна на все редакторы и живёт до конца страницы: пока она помнит уничтоженный
+	// редактор, тот не собирается сборщиком мусора, а выбранный символ уходит в мёртвое поле
+	it("forgets a destroyed editor instead of inserting into it", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "abc" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+		caretAt(editor.editable.firstChild!, 3);
+		actionButton("emoji")!.click();
+
+		editor.destroy();
+		emojiButtons()[0].click();
+
+		expect(editor.editable.textContent).toBe("abc");
+	});
 });
 
 describe("RichEditor readonly", () => {
@@ -1129,5 +1220,253 @@ describe("RichEditor readonly", () => {
 		const editor = makeEditor({ readonly: true, value: "abc" });
 		expect(editor.editable.contentEditable).toBe("true");
 		expect(editor.editable.classList.contains("readonly")).toBe(true);
+	});
+
+	it("does not add a paragraph on Enter (block mode)", () => {
+		const editor = makeEditor({ readonly: true, multiline: true, value: "hello" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 5);
+
+		editor.editable.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+		expect(editor.editable.innerHTML).toBe("<p>hello</p>");
+		expect(editor.getValue()).toBe("<p>hello</p>");
+	});
+
+	it("does not add a soft break on Enter (break mode)", () => {
+		const editor = makeEditor({
+			readonly: true,
+			multiline: true,
+			paragraph: "break",
+			storage: "markdown",
+			value: "hi",
+		});
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 2);
+
+		editor.editable.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+		expect(editor.editable.innerHTML).toBe("<p>hi</p>");
+		expect(editor.getValue()).toBe("hi");
+	});
+});
+
+describe("RichEditor change notification", () => {
+	beforeEach(() => jest.useFakeTimers());
+	afterEach(() => jest.useRealTimers());
+
+	const type = (editor: RichEditor, text: string) => {
+		editor.editable.textContent = text;
+		editor.editable.dispatchEvent(new Event("input", { bubbles: true }));
+	};
+
+	it("defers the event while typing but keeps getValue() accurate", () => {
+		const editor = makeEditor({ value: "a" });
+		const handler = jest.fn();
+		editor.onChange(handler);
+
+		type(editor, "ab");
+
+		expect(handler).not.toHaveBeenCalled();
+		expect(editor.getValue()).toBe("ab"); // значение считается по DOM и точно всегда
+
+		jest.advanceTimersByTime(150);
+		expect(handler).toHaveBeenCalledTimes(1);
+		expect(handler).toHaveBeenCalledWith(expect.objectContaining({ value: "ab" }));
+	});
+
+	// троттлинг, а не debounce: непрерывный набор не откладывает доставку до паузы
+	it("collapses a burst of input into one notification per window", () => {
+		const editor = makeEditor({ value: "" });
+		const handler = jest.fn();
+		editor.onChange(handler);
+
+		type(editor, "a");
+		type(editor, "ab");
+		type(editor, "abc");
+		expect(handler).not.toHaveBeenCalled();
+
+		jest.advanceTimersByTime(150);
+		expect(handler).toHaveBeenCalledTimes(1);
+		expect(handler).toHaveBeenCalledWith(expect.objectContaining({ value: "abc" }));
+	});
+
+	it("flushChange() delivers at once and leaves nothing to fire later", () => {
+		const editor = makeEditor({ value: "" });
+		const handler = jest.fn();
+		editor.onChange(handler);
+
+		type(editor, "abc");
+		editor.flushChange();
+
+		expect(handler).toHaveBeenCalledTimes(1);
+
+		jest.advanceTimersByTime(500);
+		expect(handler).toHaveBeenCalledTimes(1); // повторного события нет
+	});
+
+	it("flushChange() does nothing when there is nothing deferred", () => {
+		const editor = makeEditor({ value: "abc" });
+		const handler = jest.fn();
+		editor.onChange(handler);
+
+		editor.flushChange();
+
+		expect(handler).not.toHaveBeenCalled();
+	});
+
+	it("flushes on blur without waiting for the timer", () => {
+		const editor = makeEditor({ value: "" });
+		const handler = jest.fn();
+		editor.onChange(handler);
+
+		type(editor, "abc");
+		editor.editable.dispatchEvent(new FocusEvent("blur"));
+
+		expect(handler).toHaveBeenCalledTimes(1);
+		expect(handler).toHaveBeenCalledWith(expect.objectContaining({ value: "abc" }));
+	});
+
+	it("flushes on destroy", () => {
+		const editor = makeEditor({ value: "" });
+		const handler = jest.fn();
+		editor.onChange(handler);
+
+		type(editor, "abc");
+		editor.destroy();
+
+		expect(handler).toHaveBeenCalledWith(expect.objectContaining({ value: "abc" }));
+	});
+
+	// разовые правки не посимвольные — их откладывать незачем
+	it("reports discrete edits synchronously", () => {
+		const editor = makeEditor({ value: "слово" });
+		const handler = jest.fn();
+		editor.onChange(handler);
+
+		selectAll(editor);
+		editor.applyFormat("bold");
+		expect(handler).toHaveBeenCalledTimes(1);
+
+		editor.undo();
+		expect(handler).toHaveBeenCalledTimes(2);
+
+		editor.setValue("другое");
+		expect(handler).toHaveBeenCalledTimes(3);
+	});
+});
+
+describe("RichEditor paste (plain text)", () => {
+	const pastePlain = (editor: RichEditor, plain: string) => {
+		const e = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
+		e.clipboardData = { getData: (type: string) => (type === "text/plain" ? plain : "") };
+		editor.editable.dispatchEvent(e);
+	};
+
+	it("multiline: wraps pasted text into paragraphs, never leaves bare text in the root", () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown" });
+		caretAt(editor.editable, 0);
+
+		pastePlain(editor, "one\n\ntwo");
+
+		// каждая строка внутри <p> — модель абзацев не должна ломаться на простой вставке
+		expect(editor.editable.innerHTML).toBe("<p>one</p><p>two</p>");
+		expect(editor.getValue()).toBe("one\n\ntwo");
+	});
+
+	it("multiline: a single line break stays a soft break inside one paragraph", () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown" });
+		caretAt(editor.editable, 0);
+
+		pastePlain(editor, "one\ntwo");
+
+		expect(editor.editable.innerHTML).toBe("<p>one<br>two</p>");
+		expect(editor.getValue()).toBe("one\ntwo");
+	});
+
+	it("break mode: every line break is soft, paragraphs are not created", () => {
+		const editor = makeEditor({ multiline: true, paragraph: "break", storage: "markdown" });
+		caretAt(editor.editable, 0);
+
+		pastePlain(editor, "one\n\ntwo");
+
+		expect(editor.editable.innerHTML).toBe("<p>one<br><br>two</p>");
+		expect(editor.getValue()).toBe("one\n\ntwo");
+	});
+
+	it("multiline: splits the current paragraph and keeps the tail after the pasted text", () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown", value: "foobar" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 3);
+
+		pastePlain(editor, "A\n\nB");
+
+		expect(editor.editable.innerHTML).toBe("<p>fooA</p><p>Bbar</p>");
+	});
+
+	// в block-режиме одни переносы не дают ни одного абзаца — вставлять нечего, и тогда
+	// нельзя ни удалять выделение, ни писать шаг истории
+	it("multiline: leaves content untouched when there is nothing to insert", () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown", value: "abcdef" });
+		const handler = jest.fn();
+		editor.onChange(handler);
+
+		const text = editor.editable.querySelector("p")!.firstChild!;
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		const r = document.createRange();
+		r.setStart(text, 1);
+		r.setEnd(text, 4);
+		sel.addRange(r);
+
+		pastePlain(editor, "\n\n");
+
+		expect(editor.editable.innerHTML).toBe("<p>abcdef</p>");
+		expect(handler).not.toHaveBeenCalled();
+		expect(editor.canUndo).toBe(false);
+	});
+
+	it("single-line: joins lines with spaces and leaves the caret after the pasted text", () => {
+		const editor = makeEditor({ value: "foobar" });
+		caretAt(editor.editable.firstChild!, 3);
+
+		pastePlain(editor, "A\nB");
+
+		expect(editor.editable.textContent).toBe("fooA Bbar");
+		expect(selectionCharBounds(editor.editable, window.getSelection()!.getRangeAt(0))).toEqual([6, 6]);
+	});
+});
+
+describe("RichEditor host character filter", () => {
+	it("rejects composition/replacement input that bypasses keydown", () => {
+		const rejected: string[] = [];
+		const editor = makeEditor({
+			filterChar: (char) => /[0-9]/.test(char),
+			onReject: () => rejected.push("x"),
+			value: "12",
+		});
+		caretAt(editor.editable.firstChild!, 2);
+
+		for (const inputType of ["insertCompositionText", "insertReplacementText"]) {
+			const e = new InputEvent("beforeinput", { inputType, data: "ab", cancelable: true, bubbles: true });
+			editor.editable.dispatchEvent(e);
+
+			expect(e.defaultPrevented).toBe(true);
+		}
+
+		expect(rejected).toHaveLength(2);
+		expect(editor.getValue()).toBe("12");
+	});
+
+	it("lets allowed characters through the same path", () => {
+		const editor = makeEditor({ filterChar: (char) => /[0-9]/.test(char), value: "12" });
+		caretAt(editor.editable.firstChild!, 2);
+
+		const e = new InputEvent("beforeinput", {
+			inputType: "insertReplacementText",
+			data: "34",
+			cancelable: true,
+			bubbles: true,
+		});
+		editor.editable.dispatchEvent(e);
+
+		expect(e.defaultPrevented).toBe(false);
 	});
 });

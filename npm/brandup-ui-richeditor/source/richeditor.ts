@@ -4,6 +4,7 @@ import { DOM, UIElementBound } from "@brandup/ui";
 import {
 	ALL_FORMAT_TOOLS,
 	HOTKEY_TOOLS,
+	activeFormats,
 	clearAllFormat,
 	clearFormat,
 	defaultFormatMarkers,
@@ -13,7 +14,10 @@ import {
 	hasFormatting,
 	insertFormattedText,
 	isFormatActive,
+	documentSelection,
+	innerSelection,
 	mapCharOffset,
+	preserveCaret,
 	normalizeParagraphs,
 	normalizeWhitespace,
 	restoreSelection,
@@ -27,13 +31,14 @@ import {
 	type FormatTool,
 } from "./format";
 import {
+	buildParagraphs,
 	caretToEnd,
 	expandRangeToWords,
 	insertParagraph,
 	insertPastedParagraphs,
 	insertSoftBreak,
+	sanitizePastedHtml,
 	selectAllContent,
-	trimParagraphEdges,
 	trimSelectionWhitespace,
 } from "./editing";
 import { EditorHistory } from "./history";
@@ -58,6 +63,16 @@ const NATIVE_EDIT_TYPES = new Set([
 	"deleteWordForward",
 	"deleteByCut",
 ]);
+
+// Ввод текста, который не проходит через keydown (IME, автозамена, автодополнение, диктовка), —
+// к нему применяем фильтр символов хоста в beforeinput.
+const FILTERED_INPUT_TYPES = new Set(["insertText", "insertReplacementText", "insertCompositionText"]);
+
+// Максимальное отставание события change от печати. Сериализация значения — самая дорогая
+// операция редактора (обход всего содержимого), а печать даёт input на каждый символ.
+// Это троттлинг, а не debounce: при непрерывном наборе значение всё равно обновляется
+// каждые CHANGE_THROTTLE_MS, а не откладывается до паузы.
+const CHANGE_THROTTLE_MS = 150;
 
 // Буква физической клавиши (KeyA…KeyZ) — не зависит от раскладки. Для не-латинских раскладок
 // (например, кириллицы) e.key даёт другую букву, поэтому хоткеи сверяем и по e.code.
@@ -132,6 +147,11 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	private __abort = new AbortController();
 	private __pendingFormats = new Set<FormatTool>();
 	private __hasInputClick = false;
+	private __changeTimer = 0; // отложенное change по печати — см. __emitChange/flushChange
+	// Окно редактируемого элемента, взятое при создании. Таймер отложенного change переживает
+	// снятие компонента и гасится в destroy, а тот случается когда угодно — к этому моменту
+	// до глобального окружения может быть уже не добраться, да и элемент мог жить в iframe.
+	private readonly __window: Window;
 	// собственная история undo/redo — только при форматировании (см. ./history)
 	private __history: EditorHistory | null = null;
 
@@ -151,6 +171,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		super("BrandUp.RichEditor", editable);
 
 		this.editable = editable;
+		this.__window = editable.ownerDocument.defaultView ?? window;
 		this.__opts = options;
 		this.format = format;
 		this.formatTools = tools;
@@ -183,6 +204,16 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		return !!this.__opts.readonly;
 	}
 
+	/**
+	 * Работает ли редактор моделью абзацев. В режиме break абзацных блоков нет: значение — плоский
+	 * текст, где каждый \n это <br>. Иначе `a\n\nb` рисовалось бы двумя <p>, а на экране (без
+	 * отступов между абзацами) это неотличимо от одного переноса — значение расходилось бы
+	 * с видимым текстом.
+	 */
+	private get __blockParagraphs(): boolean {
+		return this.multiline && this.paragraph === "block";
+	}
+
 	// формат хранения значения: format → выбранный; plain → markdown без инструментов (\n\n/\n)
 	private get __valueStorage(): FormatStorage {
 		return this.format ? this.formatStorage : "markdown";
@@ -200,7 +231,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 	setValue(value: string): void {
 		// каретка внутри относилась к прежнему содержимому — после замены ставим её в конец
-		const hadCaret = !!this.__innerSelection();
+		const hadCaret = !!this.selection;
 
 		this.__render(value ?? "");
 		this.__normalize(false);
@@ -215,7 +246,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	 * например, кнопкой панели, которая не должна забирать фокус у редактора.
 	 */
 	insertText(text: string): void {
-		if (this.readonly || !text || !this.__innerSelection()) return;
+		if (this.readonly || !text || !this.selection) return;
 
 		// вставка — такой же ввод, как с клавиатуры, поэтому проходит через filterChar хоста
 		// (ограничения по типу поля и длине). Обход символов идёт по кодпойнтам, чтобы эмодзи
@@ -263,11 +294,25 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	 * Выделение, если оно находится внутри этого редактора. Браузер сохраняет выделение и после
 	 * blur, поэтому проверка работает и когда фокус ушёл на кнопку страницы.
 	 */
-	private __innerSelection(): Selection | null {
-		const selection = window.getSelection();
-		if (!selection || selection.rangeCount === 0 || !this.editable.contains(selection.anchorNode)) return null;
+	get selection(): Selection | null {
+		return innerSelection(this.editable);
+	}
 
-		return selection;
+	/**
+	 * Выделить узел внутри редактора — например, чтобы следующая вставка заменила его целиком.
+	 * Не зависит от того, где стоит выделение сейчас: оно могло уйти, пока хост показывал
+	 * своё окно, а сам узел никуда не делся.
+	 */
+	selectNode(node: Node): void {
+		if (!this.editable.contains(node)) return;
+
+		const selection = documentSelection(this.editable);
+		if (!selection) return;
+
+		const range = this.editable.ownerDocument.createRange();
+		range.selectNode(node);
+		selection.removeAllRanges();
+		selection.addRange(range);
 	}
 
 	/**
@@ -275,10 +320,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	 * для восстановления. Диапазон отдельный от выделения — пока операция не решила, что будет
 	 * править, каретка пользователя не двигается. null — правка недоступна или выделение вне редактора.
 	 */
-	private __formatTarget(): { selection: Selection; range: Range; original: [number, number] } | null {
+	private __formatTarget(): { selection: Selection; range: Range; original: () => [number, number] } | null {
 		if (!this.format || this.readonly) return null;
 
-		const selection = this.__innerSelection();
+		const selection = this.selection;
 		if (!selection) return null;
 
 		const current = selection.getRangeAt(0);
@@ -287,7 +332,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			selection,
 			// форматируем слова целиком: и при курсоре без выделения, и при выделении части слова
 			range: expandRangeToWords(this.editable, current),
-			original: selectionCharBounds(this.editable, current),
+			// границы считаем по требованию: они нужны только правкам, а цель вычисляется ещё и
+			// на каждое обновление панели, где сбор всего текста в строку — самая дорогая операция
+			original: () => selectionCharBounds(this.editable, current),
 		};
 	}
 
@@ -310,7 +357,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.__pendingFormats.clear();
 
 		this.__history?.record("op");
-		toggleFormat(this.editable, target.range, tool, target.selection, target.original);
+		toggleFormat(this.editable, target.range, tool, target.selection, target.original());
 
 		this.__emitChange();
 		formatToolbar.refresh();
@@ -330,7 +377,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (!hasFormatting(this.editable, target.range)) return;
 
 		this.__history?.record("op");
-		clearFormat(this.editable, target.range, target.selection, target.original);
+		clearFormat(this.editable, target.range, target.selection, target.original());
 
 		this.__emitChange();
 		formatToolbar.refresh();
@@ -343,14 +390,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.__clearPendingFormats();
 		if (!hasAnyFormatting(this.editable)) return;
 
-		// разворачивание тегов рвёт выделение — запоминаем по текстовым смещениям
-		const selection = this.__innerSelection();
-		const bounds = selection ? selectionCharBounds(this.editable, selection.getRangeAt(0)) : null;
-
 		this.__history?.record("op");
-		clearAllFormat(this.editable);
-
-		if (bounds && selection) restoreSelection(this.editable, bounds[0], bounds[1], selection);
+		// разворачивание тегов рвёт выделение — сохраняем его по текстовым смещениям
+		preserveCaret(this.editable, () => clearAllFormat(this.editable));
 
 		this.__emitChange();
 		formatToolbar.refresh();
@@ -433,13 +475,29 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	isToolActive(tool: FormatTool): boolean {
 		if (this.__pendingFormats.has(tool)) return true;
 
-		const selection = this.__innerSelection();
+		const selection = this.selection;
 		if (!selection) return false;
 
 		return isFormatActive(this.editable, selection.getRangeAt(0), tool);
 	}
 
+	/**
+	 * Активные форматы всех инструментов сразу — панель обновляется на каждое движение каретки,
+	 * а поинструментный опрос обходил бы содержимое столько раз, сколько кнопок.
+	 */
+	activeTools(): ReadonlySet<FormatTool> {
+		const selection = this.selection;
+		const active = selection
+			? activeFormats(this.editable, selection.getRangeAt(0), this.formatTools)
+			: new Set<FormatTool>();
+
+		for (const tool of this.__pendingFormats) active.add(tool);
+
+		return active;
+	}
+
 	override destroy(): void {
+		this.flushChange(); // хост не должен остаться с устаревшей копией значения
 		this.__abort.abort();
 		formatToolbar.detach(this);
 
@@ -457,11 +515,8 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		DOM.empty(this.editable);
 		if (!value) return;
 
-		// multiline → <p>-абзацы; single-line → инлайновое содержимое.
-		// В режиме break абзацных блоков нет: значение — плоский текст, где каждый \n это <br>.
-		// Иначе `a\n\nb` рисовалось бы двумя <p>, а на экране (без отступов между абзацами)
-		// это неотличимо от одного переноса — значение расходилось бы с видимым текстом.
-		const paragraphs = this.multiline && this.paragraph === "block";
+		// multiline → <p>-абзацы; single-line → инлайновое содержимое
+		const paragraphs = this.__blockParagraphs;
 
 		this.editable.innerHTML = deserialize(
 			value,
@@ -476,8 +531,39 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (this.multiline && !paragraphs) ensureParagraphs(this.editable);
 	}
 
-	private __emitChange() {
+	/**
+	 * Событие изменения. При `defer` (печать) доставка откладывается — иначе каждый символ
+	 * стоил бы полной сериализации содержимого. Все прочие правки (вставка, формат, отмена,
+	 * setValue) сообщаются сразу: они разовые, а не посимвольные.
+	 *
+	 * `getValue()` считает значение по DOM и точен всегда; отложено только уведомление
+	 * и, как следствие, копия значения у хоста — её сбрасывает {@link flushChange}.
+	 */
+	private __emitChange(defer = false) {
+		if (defer) {
+			// троттлинг: первый ввод заводит таймер, последующие в этом окне его не сдвигают
+			this.__changeTimer ||= this.__window.setTimeout(() => this.__emitChange(), CHANGE_THROTTLE_MS);
+			return;
+		}
+
+		this.__cancelChange();
 		this.trigger(CHANGE_EVENT, <RichEditorChangeData>{ editor: this, value: this.getValue() });
+	}
+
+	private __cancelChange() {
+		if (!this.__changeTimer) return;
+
+		this.__window.clearTimeout(this.__changeTimer);
+		this.__changeTimer = 0;
+	}
+
+	/**
+	 * Доставить отложенное изменение немедленно. Вызывать перед тем, как значение читают
+	 * извне: отправка формы, валидация, чтение значения хостом. Если ничего не отложено —
+	 * ничего и не делает, лишнего события не будет.
+	 */
+	flushChange(): void {
+		if (this.__changeTimer) this.__emitChange();
 	}
 
 	private __reject() {
@@ -491,7 +577,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (this.readonly) return;
 
 		// правка текстовых узлов рвёт живые Range — запоминаем выделение по текстовым смещениям
-		const selection = this.__innerSelection();
+		const selection = this.selection;
 		const bounds = selection ? selectionCharBounds(this.editable, selection.getRangeAt(0)) : null;
 
 		const before = this.editable.innerHTML;
@@ -517,8 +603,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const { signal } = this.__abort;
 		const editable = this.editable;
 
+		// перетаскивание в редактор проходит мимо истории и фильтров хоста — гасим саму вставку.
+		// dragenter/dragover отменять нельзя: в модели DnD отмена как раз и означает «сюда можно бросить»
 		this.element.addEventListener("drop", (e) => e.preventDefault(), { signal });
-		this.element.addEventListener("dragenter", (e) => e.preventDefault(), { signal });
 
 		editable.addEventListener(
 			"mousedown",
@@ -534,13 +621,14 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			() => {
 				this.element.classList.add("focused");
 
-				// показываем общий тулбар над этим редактором
-				if (this.format && (this.formatTools.length || this.editorActions.length)) formatToolbar.attach(this);
+				// нужна ли панель этому редактору, решает она сама — иначе условие пришлось бы
+				// держать в двух местах, и стоило добавить кнопки хоста, как они разошлись бы
+				formatToolbar.attach(this);
 
 				if (this.readonly) selectAllContent(this.editable);
 				// Каретку в конец ставим только когда её нет: клик ставит сам, а уже стоящую
 				// (фокус вернули из кода после вызова метода) двигать нельзя — уедет в конец текста.
-				else if (!this.__hasInputClick && !this.__innerSelection()) caretToEnd(this.editable, this.multiline);
+				else if (!this.__hasInputClick && !this.selection) caretToEnd(this.editable, this.multiline);
 			},
 			{ signal }
 		);
@@ -558,6 +646,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 				this.__clearPendingFormats();
 				this.__normalize(true); // редактирование завершено
+				this.flushChange(); // ввод закончен — отложенное изменение доставляем сразу
 			},
 			{ signal }
 		);
@@ -573,19 +662,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			"input",
 			() => {
 				if (this.multiline) {
-					// нормализация меняет структуру (обёртка в <p>, удаление <br>) и сбрасывает каретку —
-					// запоминаем её позицию по текстовому смещению и восстанавливаем после
-					const selection = window.getSelection();
-					const caret =
-						selection && selection.rangeCount > 0 && editable.contains(selection.anchorNode)
-							? selectionCharBounds(editable, selection.getRangeAt(0))
-							: null;
-					const before = editable.innerHTML;
+					// приведение к абзацам меняет структуру (обёртка в <p>, удаление <br>) и сбрасывает
+					// каретку — сохраняем её; если структура не менялась, выделение живо и переставлять
+					// его не нужно (лишний сброс способен прервать IME-набор)
+					preserveCaret(editable, () => {
+						const before = editable.innerHTML;
+						ensureParagraphs(editable); // блуждающий текст/div → <p>
 
-					ensureParagraphs(editable); // блуждающий текст/div → <p>
-
-					if (caret && selection && editable.innerHTML !== before)
-						restoreSelection(editable, caret[0], caret[1], selection);
+						return editable.innerHTML !== before;
+					});
 
 					// единственный пустой абзац → очищаем, чтобы показать placeholder
 					if (editable.children.length === 1) {
@@ -595,7 +680,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				} else if (editable.firstChild?.nodeName === "BR") {
 					editable.innerHTML = "";
 				}
-				this.__emitChange();
+				this.__emitChange(true); // печать — единственный посимвольный источник, его и откладываем
 			},
 			{ signal }
 		);
@@ -657,6 +742,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				return;
 			}
 
+			// Абзацы и переносы правятся вручную, мимо beforeinput, поэтому запрет на изменение
+			// текста проверяем здесь: иначе Enter добавлял бы строки и в режиме только для чтения.
+			if (this.readonly) return;
+
 			// В режиме block Enter — новый абзац (<p>), модификатор — мягкий перенос (<br>).
 			// В режиме break наоборот: Enter переносит строку, как в мессенджерах, а абзац
 			// набирается двумя переносами.
@@ -697,79 +786,55 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			if (filtered !== plain) plainOverride = filtered;
 		}
 
-		const selection = window.getSelection();
-		if (!selection || selection.rangeCount === 0) return;
+		// вставлять только в своё содержимое: выделение вне редактора нам не адресовано
+		const selection = this.selection;
+		if (!selection) return;
 
 		if (html && plainOverride == null && this.__pasteHtml(html, selection)) return;
 		this.__pastePlain(plainOverride ?? plain, selection);
 	}
 
-	// Простая вставка текста: переносы строк — мягкие <br> (multiline) или пробелы (single-line).
+	// Простая вставка текста: в multiline — та же модель абзацев и мягких переносов, что и при
+	// вставке форматированного (в режиме block пустая строка разделяет абзацы, в break все переносы
+	// мягкие); в single-line — одна строка через пробелы.
 	private __pastePlain(text: string, selection: Selection) {
 		if (!text) return;
 
-		const lines = text.split(/\n/);
-		const output = lines.map((line, index) => (index === 0 ? line.trimEnd() : line.trim()));
+		const lines = text.split(/\n/).map((line, index) => (index === 0 ? line.trimEnd() : line.trim()));
 
-		const fragment = document.createDocumentFragment();
-		if (!this.multiline) {
-			fragment.appendChild(document.createTextNode(output.join(" ")));
-		} else {
-			output.forEach((line, index) => {
-				if (index > 0) fragment.appendChild(document.createElement("br"));
-				fragment.appendChild(document.createTextNode(line));
-			});
-		}
-
-		const range = selection.getRangeAt(0);
-		this.__history?.record("op");
-		range.deleteContents();
-		range.insertNode(fragment);
-		selection.setPosition(selection.focusNode, selection.focusOffset);
-
-		this.__emitChange();
+		this.__insertPasted(buildParagraphs(lines, this.__blockParagraphs), selection);
 	}
 
-	// Вставка форматированного текста из text/html. Возвращает false, если вставлять нечего
-	// (тогда вызывающий откатывается на простую вставку). Санитизация до включённых инструментов;
-	// multiline сохраняет абзацы <p> и мягкие переносы <br>, single-line — инлайн с пробелами.
+	// Вставка форматированного текста из text/html. Возвращает false, если вставлять нечего —
+	// тогда вызывающий откатывается на простую вставку.
 	private __pasteHtml(html: string, selection: Selection): boolean {
-		// убираем мусорные элементы (Word/браузер: стили, скрипты, заголовок документа)
-		const source = document.createElement("template");
-		source.innerHTML = html;
-		source.content
-			.querySelectorAll("script, style, head, meta, link, title, noscript")
-			.forEach((el) => el.remove());
+		return this.__insertPasted(sanitizePastedHtml(html, this.formatTools, this.formatMarkers), selection);
+	}
 
-		// единый источник санитизации — deserialize (теги-синонимы → канонические, лишнее развёрнуто)
-		const clean = deserialize(source.innerHTML, "html", this.formatTools, this.formatMarkers, true);
-		const holder = document.createElement("template");
-		holder.innerHTML = clean;
-
-		// внешний HTML: пробелы/переводы строк между тегами не значимы — схлопываем,
-		// иначе литеральные \n (pre-wrap) и отступы дают лишние переносы
-		const textWalker = document.createTreeWalker(holder.content, NodeFilter.SHOW_TEXT);
-		for (let t = textWalker.nextNode(); t; t = textWalker.nextNode())
-			t.textContent = (t.textContent ?? "").replace(/\s+/g, " ");
-
-		const paras = Array.from(holder.content.children) as HTMLElement[];
-		for (const p of paras) trimParagraphEdges(p);
-
-		// отбрасываем пустые краевые абзацы (ведущие/хвостовые \n и <br>-обёртки из буфера),
-		// иначе перед и после вставленного текста появляются пустые строки
-		while (paras.length && (paras[0].textContent ?? "").trim() === "") paras.shift();
-		while (paras.length && (paras[paras.length - 1].textContent ?? "").trim() === "") paras.pop();
+	/**
+	 * Вставляет разобранные абзацы в каретку (или вместо выделения) и ставит каретку в конец
+	 * вставленного. Возвращает false, если вставлять было нечего: в этом случае содержимое
+	 * не трогается вовсе — иначе выделение оказалось бы удалено без замены и без уведомления.
+	 *
+	 * multiline сохраняет абзацы <p> и мягкие переносы <br>, single-line сводит их к пробелам.
+	 * Каретку адресуем текстовым смещением: узлы вставки при разбиении абзаца переезжают.
+	 */
+	private __insertPasted(paras: HTMLElement[], selection: Selection): boolean {
 		if (!paras.length) return false;
 
 		const range = selection.getRangeAt(0);
 		this.__history?.record("op");
 		range.deleteContents();
 
-		// каретку ставим по абсолютному текстовому смещению (длина вставки), не отслеживая узлы
 		const start = selectionCharBounds(this.editable, range)[0];
-		let caretOffset: number;
+		let caret: number;
 
-		if (!this.multiline) {
+		if (this.multiline) {
+			caret = start + paras.reduce((length, p) => length + (p.textContent ?? "").length, 0);
+
+			insertPastedParagraphs(this.editable, paras, range);
+			ensureParagraphs(this.editable); // заполнить пустые абзацы, убрать краевые <br>
+		} else {
 			// инлайн: абзацы и переносы → пробелы, форматирование сохраняем
 			const fragment = document.createDocumentFragment();
 			paras.forEach((p, index) => {
@@ -777,16 +842,14 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				while (p.firstChild) fragment.appendChild(p.firstChild);
 			});
 			fragment.querySelectorAll("br").forEach((br) => br.replaceWith(document.createTextNode(" ")));
-			caretOffset = start + (fragment.textContent ?? "").length;
+
+			caret = start + (fragment.textContent ?? "").length;
 			range.insertNode(fragment);
-		} else {
-			caretOffset = start + paras.map((p) => p.textContent ?? "").join("").length;
-			insertPastedParagraphs(this.editable, paras, range);
-			ensureParagraphs(this.editable); // заполнить пустые абзацы, убрать краевые <br>
 		}
 
-		restoreSelection(this.editable, caretOffset, caretOffset, selection);
+		restoreSelection(this.editable, caret, caret, selection);
 		this.__emitChange();
+
 		return true;
 	}
 
@@ -809,6 +872,18 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			return;
 		}
 
+		// Фильтр хоста на keydown видит только физические нажатия. IME, автозамена, автодополнение
+		// и голосовой ввод приходят сразу сюда, поэтому те же ограничения проверяем и на beforeinput —
+		// иначе через них в поле попадает что угодно.
+		const filterChar = this.__opts.filterChar;
+		if (filterChar && FILTERED_INPUT_TYPES.has(e.inputType) && e.data) {
+			if (!Array.from(e.data).every((char) => filterChar(char))) {
+				e.preventDefault();
+				this.__reject();
+				return;
+			}
+		}
+
 		// режим набора: оборачиваем вводимый текст в ожидающие форматы
 		if (this.__pendingFormats.size > 0 && e.inputType === "insertText" && e.data != null) {
 			e.preventDefault();
@@ -828,7 +903,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	}
 
 	private __insertText(data: string) {
-		const selection = this.__innerSelection();
+		const selection = this.selection;
 		if (!selection) return;
 
 		insertFormattedText(this.editable, data, Array.from(this.__pendingFormats), selection);

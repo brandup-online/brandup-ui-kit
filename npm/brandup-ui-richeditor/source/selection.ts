@@ -14,14 +14,79 @@ const MATCH_TAG_NAMES = Array.from(new Set(ALL_FORMAT_TOOLS.flatMap((t) => FORMA
 const FORMAT_SELECTOR = FORMAT_TAG_NAMES.join(",").toLowerCase();
 const MATCH_SELECTOR = MATCH_TAG_NAMES.join(",").toLowerCase();
 
+// Проверка тега идёт на каждого предка каждого текстового узла при каждом обходе — храним
+// множествами, а не массивами: подсветка панели опрашивает их на каждое движение каретки.
+const FORMAT_TAG_SET = new Set(FORMAT_TAG_NAMES);
+const MATCH_TAG_SET = new Set(MATCH_TAG_NAMES);
+const TOOL_TAG_SETS = ALL_FORMAT_TOOLS.reduce(
+	(map, tool) => {
+		map[tool] = new Set(FORMAT_TOOLS[tool].matchTags);
+		return map;
+	},
+	{} as Record<FormatTool, Set<string>>
+);
+
 /** Ближайший предок-элемент с одним из тегов (в пределах root, не включая root). */
-function formatAncestor(node: Node, tags: string[], root: HTMLElement): HTMLElement | null {
+function formatAncestor(node: Node, tags: ReadonlySet<string>, root: HTMLElement): HTMLElement | null {
 	let el = node.parentElement;
 	while (el && el !== root) {
-		if (tags.includes(el.tagName)) return el;
+		if (tags.has(el.tagName)) return el;
 		el = el.parentElement;
 	}
 	return null;
+}
+
+/**
+ * Поддерево, которого достаточно для обхода диапазона. Обход всего редактора на каждый
+ * запрос состояния панели стоит слишком дорого, а за пределами общего предка границ
+ * диапазона попасть в него нечему.
+ */
+function rangeScope(root: HTMLElement, range: Range): Node {
+	const scope = range.commonAncestorContainer;
+	if (!root.contains(scope)) return root;
+
+	// от текстового узла обходить нечего — берём его родителя (сам узел walker не вернёт)
+	return scope.nodeType === Node.TEXT_NODE ? (scope.parentNode ?? root) : scope;
+}
+
+/**
+ * Выделение документа, которому принадлежит узел, — для операций, которые выделение
+ * устанавливают, а не читают.
+ *
+ * Окно берём у самого узла, а не глобальное: редактор может жить в iframe, где глобальный
+ * `window` чужой и его выделение к нашему содержимому отношения не имеет; к тому же добраться
+ * до глобального окружения можно не всегда (например, при разрушении контрола).
+ */
+export function documentSelection(node: Node): Selection | null {
+	return node.ownerDocument?.defaultView?.getSelection() ?? null;
+}
+
+/**
+ * Выделение, если оно стоит внутри root, иначе null. Единственная проверка «правка относится
+ * к этому содержимому» — по ней работают и правки абзацев, и история, и хосты редактора.
+ */
+export function innerSelection(root: HTMLElement): Selection | null {
+	const selection = documentSelection(root);
+	if (!selection || selection.rangeCount === 0 || !root.contains(selection.anchorNode)) return null;
+
+	return selection;
+}
+
+/**
+ * Выполняет правку, сохраняя каретку: положение запоминается текстовым смещением до правки
+ * и возвращается после. Пропустить восстановление нельзя — правки пересоздают узлы, и прежнее
+ * выделение указывало бы на те, которых в дереве уже нет.
+ *
+ * Если правка вернула false, значит DOM она не трогала: выделение живо, и переставлять его
+ * незачем — лишний сброс способен прервать IME-набор.
+ */
+export function preserveCaret(root: HTMLElement, mutate: () => boolean | void): void {
+	const selection = innerSelection(root);
+	const bounds = selection ? selectionCharBounds(root, selection.getRangeAt(0)) : null;
+
+	const touched = mutate();
+
+	if (touched !== false && bounds && selection) restoreSelection(root, bounds[0], bounds[1], selection);
 }
 
 /** Абсолютные текстовые смещения границ выделения внутри root (для восстановления после правок DOM). */
@@ -30,9 +95,13 @@ export function selectionCharBounds(root: HTMLElement, range: Range): [number, n
 	probe.selectNodeContents(root);
 	probe.setEnd(range.startContainer, range.startOffset);
 	const start = probe.toString().length;
+	if (range.collapsed) return [start, start];
+
+	// длину выделения меряем от его начала, а не от начала редактора: иначе весь текст
+	// до каретки собирается в строку дважды
+	probe.setStart(range.startContainer, range.startOffset);
 	probe.setEnd(range.endContainer, range.endOffset);
-	const end = probe.toString().length;
-	return [start, end];
+	return [start, start + probe.toString().length];
 }
 
 /**
@@ -55,26 +124,42 @@ export function mapCharOffset(before: string, after: string, offset: number): nu
 	return j;
 }
 
-/** Находит текстовый узел и локальное смещение по абсолютному текстовому смещению. */
-function locateChar(root: HTMLElement, target: number): { node: Text; offset: number } | null {
+type CharPosition = { node: Text; offset: number };
+
+/**
+ * Находит текстовые узлы и локальные смещения для пары абсолютных смещений за один обход.
+ * Смещение за пределами текста прижимается к его концу.
+ */
+function locateChars(root: HTMLElement, lower: number, upper: number): [CharPosition, CharPosition] | null {
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	let count = 0;
 	let last: Text | null = null;
-	let n = walker.nextNode() as Text | null;
-	while (n) {
+	let low: CharPosition | null = null;
+	let high: CharPosition | null = null;
+
+	for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
 		last = n;
-		if (count + n.length >= target) return { node: n, offset: Math.max(0, target - count) };
+		if (!low && count + n.length >= lower) low = { node: n, offset: lower - count };
+		if (count + n.length >= upper) {
+			high = { node: n, offset: upper - count };
+			break;
+		}
 		count += n.length;
-		n = walker.nextNode() as Text | null;
 	}
-	return last ? { node: last, offset: last.length } : null;
+
+	if (!last) return null;
+
+	const tail: CharPosition = { node: last, offset: last.length };
+	return [low ?? tail, high ?? tail];
 }
 
 // Восстанавливает выделение по абсолютным текстовым смещениям (см. selectionCharBounds).
 export function restoreSelection(root: HTMLElement, start: number, end: number, selection: Selection) {
-	const s = locateChar(root, start);
-	const e = locateChar(root, end);
-	if (!s || !e) return;
+	const forward = start <= end;
+	const found = locateChars(root, forward ? start : end, forward ? end : start);
+	if (!found) return;
+
+	const [s, e] = forward ? found : [found[1], found[0]];
 
 	const range = document.createRange();
 	range.setStart(s.node, s.offset);
@@ -125,15 +210,29 @@ function nodeWithinRange(node: Node, range: Range): boolean {
 	);
 }
 
+/**
+ * Непустые текстовые узлы, задетые диапазоном. Единственный обход содержимого в модуле:
+ * по нему работают и правки формата, и опрос состояния для панели.
+ */
+function* touchedTextNodes(root: HTMLElement, range: Range): Generator<Text> {
+	const walker = document.createTreeWalker(rangeScope(root, range), NodeFilter.SHOW_TEXT);
+
+	for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null)
+		if (n.length && range.intersectsNode(n)) yield n;
+}
+
+/** Узел под схлопнутой кареткой — от него и ищется формат. */
+function caretProbe(range: Range): Node {
+	const node = range.startContainer;
+	return node.nodeType === Node.TEXT_NODE ? node : (node.childNodes[range.startOffset] ?? node);
+}
+
 /** Непустые текстовые узлы, целиком попавшие в диапазон (частично задетые правке не подлежат). */
 function collectTextNodes(root: HTMLElement, range: Range): Text[] {
 	const nodes: Text[] = [];
-	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-	let n = walker.nextNode() as Text | null;
-	while (n) {
-		if (n.length > 0 && nodeWithinRange(n, range)) nodes.push(n);
-		n = walker.nextNode() as Text | null;
-	}
+	// intersectsNode в обходе дешевле пары compareBoundaryPoints и отсекает почти всё лишнее
+	for (const n of touchedTextNodes(root, range)) if (nodeWithinRange(n, range)) nodes.push(n);
+
 	return nodes;
 }
 
@@ -163,7 +262,7 @@ function unwrapAround(fmt: HTMLElement, node: Node) {
 	if (!fmt.firstChild) parent.removeChild(fmt);
 }
 
-function removeFormatFromNode(node: Text, tags: string[], root: HTMLElement) {
+function removeFormatFromNode(node: Text, tags: ReadonlySet<string>, root: HTMLElement) {
 	let fmt = formatAncestor(node, tags, root);
 	while (fmt) {
 		unwrapAround(fmt, node);
@@ -178,38 +277,55 @@ function unwrapElement(el: HTMLElement) {
 	parent.removeChild(el);
 }
 
-/** Чистит разметку: убирает пустые теги, схлопывает вложенные и соседние одинаковые, склеивает текст. */
+/**
+ * Чистит разметку: убирает пустые теги, схлопывает вложенные и соседние одинаковые, склеивает текст.
+ *
+ * Правка одного тега может сделать «грязными» его соседей и потомков, поэтому обход идёт очередью:
+ * заново перебирается только затронутое, а не всё содержимое редактора. Вызывается на каждый символ
+ * в режиме набора, поэтому повторные выборки по всему дереву тут заметны.
+ */
 export function cleanupFormatting(root: HTMLElement) {
-	let changed = true;
-	while (changed) {
-		changed = false;
+	const queue: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>(FORMAT_SELECTOR));
 
-		for (const el of Array.from(root.querySelectorAll<HTMLElement>(FORMAT_SELECTOR))) {
-			if (!el.isConnected) continue;
+	const enqueue = (node: Node | null | undefined) => {
+		if (node && node.nodeType === Node.ELEMENT_NODE && FORMAT_TAG_SET.has((node as HTMLElement).tagName))
+			queue.push(node as HTMLElement);
+	};
 
-			// пустой тег
-			if (el.textContent === "") {
-				el.remove();
-				changed = true;
-				continue;
-			}
+	while (queue.length) {
+		const el = queue.pop()!;
+		if (!el.isConnected || !root.contains(el)) continue;
 
-			// вложен в такой же тег
-			const parent = el.parentElement;
-			if (parent && parent !== root && parent.tagName === el.tagName) {
-				unwrapElement(el);
-				changed = true;
-				continue;
-			}
+		// пустой тег: после удаления его соседи могут стать смежными одинаковыми,
+		// а родитель — опустеть
+		if (el.textContent === "") {
+			enqueue(el.nextSibling);
+			enqueue(el.parentElement);
+			el.remove();
+			continue;
+		}
 
-			// соседний такой же тег слева — склеиваем
-			const prev = el.previousSibling;
-			if (prev && prev.nodeType === Node.ELEMENT_NODE && (prev as HTMLElement).tagName === el.tagName) {
-				while (el.firstChild) prev.appendChild(el.firstChild);
-				el.remove();
-				changed = true;
-				continue;
-			}
+		// вложен в такой же тег — разворачиваем, поднятые дети попадают в новое окружение
+		const parent = el.parentElement;
+		if (parent && parent !== root && parent.tagName === el.tagName) {
+			const children = Array.from(el.children);
+			enqueue(el.nextSibling);
+			unwrapElement(el);
+			children.forEach(enqueue);
+			continue;
+		}
+
+		// соседний такой же тег слева — склеиваем
+		const prev = el.previousSibling;
+		if (prev && prev.nodeType === Node.ELEMENT_NODE && (prev as HTMLElement).tagName === el.tagName) {
+			const children = Array.from(el.children);
+			enqueue(el.nextSibling);
+			enqueue(el.parentElement);
+			while (el.firstChild) prev.appendChild(el.firstChild);
+			el.remove();
+			enqueue(prev);
+			children.forEach(enqueue);
+			continue;
 		}
 	}
 
@@ -257,7 +373,7 @@ export function toggleFormat(
 	restoreBounds?: [number, number]
 ) {
 	const def = FORMAT_TOOLS[tool];
-	const tags = def.matchTags;
+	const tags = TOOL_TAG_SETS[tool];
 
 	editSelection(root, range, selection, restoreBounds, (nodes) => {
 		const allFormatted = nodes.every((n) => formatAncestor(n, tags, root) !== null);
@@ -272,7 +388,7 @@ export function toggleFormat(
 /** Снимает всё форматирование с выделения (все инструменты сразу, включая теги-синонимы). */
 export function clearFormat(root: HTMLElement, range: Range, selection: Selection, restoreBounds?: [number, number]) {
 	editSelection(root, range, selection, restoreBounds, (nodes) => {
-		for (const n of nodes) removeFormatFromNode(n, MATCH_TAG_NAMES, root);
+		for (const n of nodes) removeFormatFromNode(n, MATCH_TAG_SET, root);
 	});
 }
 
@@ -290,34 +406,44 @@ export function clearAllFormat(root: HTMLElement) {
  * `some` — отформатирована хоть какая-то часть (доступность очистки).
  * Обход прерывается на первом узле, решающем исход.
  */
-function rangeFormatState(root: HTMLElement, range: Range, tags: string[], mode: "every" | "some"): boolean {
-	if (range.collapsed) {
-		const node = range.startContainer;
-		const probe = node.nodeType === Node.TEXT_NODE ? node : (node.childNodes[range.startOffset] ?? node);
-		return formatAncestor(probe, tags, root) !== null;
-	}
+/** Есть ли форматирование хоть на части выделения (или под кареткой) — доступность кнопки очистки. */
+export function hasFormatting(root: HTMLElement, range: Range): boolean {
+	if (range.collapsed) return formatAncestor(caretProbe(range), MATCH_TAG_SET, root) !== null;
 
-	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-	let found = false;
+	for (const node of touchedTextNodes(root, range)) if (formatAncestor(node, MATCH_TAG_SET, root)) return true;
 
-	for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
-		if (!n.length || !range.intersectsNode(n)) continue;
-
-		const formatted = formatAncestor(n, tags, root) !== null;
-		if (mode === "some") {
-			if (formatted) return true;
-		} else if (!formatted) return false;
-
-		found = true;
-	}
-
-	// every: пустое выделение — не «отформатировано целиком»; some: ни одного форматированного узла
-	return mode === "every" && found;
+	return false;
 }
 
-/** Есть ли форматирование на выделении (или под кареткой) — для доступности кнопки очистки. */
-export function hasFormatting(root: HTMLElement, range: Range): boolean {
-	return rangeFormatState(root, range, MATCH_TAG_NAMES, "some");
+/**
+ * Инструменты, которыми отформатировано всё выделение, — за один обход вместо обхода
+ * на каждый инструмент. Панель опрашивает это состояние на каждое движение каретки.
+ */
+export function activeFormats(root: HTMLElement, range: Range, tools: FormatTool[]): Set<FormatTool> {
+	const active = new Set<FormatTool>();
+	if (!tools.length) return active;
+
+	if (range.collapsed) {
+		const probe = caretProbe(range);
+		for (const tool of tools) if (formatAncestor(probe, TOOL_TAG_SETS[tool], root)) active.add(tool);
+
+		return active;
+	}
+
+	// инструмент остаётся кандидатом, пока каждый задетый узел им отформатирован
+	const pending = new Set(tools);
+	let found = false;
+
+	for (const node of touchedTextNodes(root, range)) {
+		found = true;
+		for (const tool of pending) if (!formatAncestor(node, TOOL_TAG_SETS[tool], root)) pending.delete(tool);
+		if (!pending.size) break; // все выбыли — дальше смотреть нечего
+	}
+
+	// пустое выделение не считается «отформатированным целиком»
+	if (found) for (const tool of pending) active.add(tool);
+
+	return active;
 }
 
 /** Есть ли форматирование хоть где-то в содержимом. */
@@ -351,7 +477,7 @@ export function insertFormattedText(root: HTMLElement, data: string, tools: Form
 	restoreSelection(root, offset, offset, selection);
 }
 
-/** Активен ли формат инструмента на текущем выделении (для подсветки кнопки). */
+/** Активен ли формат инструмента на текущем выделении (для подсветки одиночной кнопки). */
 export function isFormatActive(root: HTMLElement, range: Range, tool: FormatTool): boolean {
-	return rangeFormatState(root, range, FORMAT_TOOLS[tool].matchTags, "every");
+	return activeFormats(root, range, [tool]).has(tool);
 }

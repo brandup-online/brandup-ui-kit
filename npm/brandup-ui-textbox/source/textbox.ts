@@ -24,6 +24,11 @@ export const MAX_EMAIL_LENGTH = 256; // https://www.rfc-editor.org/rfc/rfc5321#s
 
 export type TextBoxType = "text" | "email" | "url" | "tel" | "number";
 
+// Атрибуты поля, которые компонент подменяет под себя (фокус уходит на редактируемый элемент,
+// ограничения типа нормализуются). При destroy возвращаем их ровно в исходное состояние —
+// иначе после снятия компонента поле остаётся с чужими ограничениями.
+const ATTRS_TO_RESTORE = ["tabindex", "maxlength", "step"];
+
 type TextBoxEvents = {
 	[CHANGE_EVENT]: (data: ChangeEventData) => void;
 };
@@ -49,6 +54,11 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	readonly formatMarkers: FormatMarkers;
 
 	constructor(valueElem: HTMLInputElement | HTMLTextAreaElement) {
+		// исходные атрибуты запоминаем до любых правок — компонент их подменяет, а destroy возвращает
+		const originalAttrs = ATTRS_TO_RESTORE.map(
+			(name) => [name, valueElem.getAttribute(name)] as [string, string | null]
+		);
+
 		// определяем тип ввода и нормализуем валидационные атрибуты до super()
 		let type: TextBoxType = "text";
 		if (valueElem instanceof HTMLInputElement) {
@@ -58,7 +68,9 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 					break;
 				case "email":
 					type = "email";
-					if (!valueElem.maxLength || valueElem.maxLength > MAX_EMAIL_LENGTH)
+					// у поля без атрибута maxlength свойство равно -1, а не 0, поэтому проверять
+					// нужно именно «не задан положительный предел», иначе ограничение RFC не применялось бы
+					if (valueElem.maxLength <= 0 || valueElem.maxLength > MAX_EMAIL_LENGTH)
 						valueElem.maxLength = MAX_EMAIL_LENGTH;
 					break;
 				case "url":
@@ -75,8 +87,6 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 					throw new Error(`Тип ввода ${valueElem.type} не поддерживается.`);
 			}
 		}
-
-		valueElem.classList.add(INPUT_CLASS);
 
 		const maxlength = valueElem.maxLength;
 		const symbolCounter = valueElem.hasAttribute("data-symbolcounter");
@@ -110,13 +120,13 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		const actionsElem = DOM.tag("div", { class: "actions" });
 		const symbolsCountElem = DOM.tag("div", { class: "symbols" });
 
-		const container = DOM.tag("div", { class: [ROOT_CLASS].concat(Array.from(valueElem.classList)) }, [
+		const container = DOM.tag("div", { class: ROOT_CLASS }, [
 			DOM.tag("div", { class: "decorator" }),
 			DOM.tag("div", { class: "editor" }, [inputElem, symbolsCountElem]),
 			actionsElem,
 		]);
 
-		container.classList.remove(INPUT_CLASS);
+		TextBox.prepareValueElem(valueElem, container, INPUT_CLASS);
 
 		inputElem.tabIndex = disabled ? -1 : valueElem.tabIndex;
 		valueElem.tabIndex = -1;
@@ -144,7 +154,8 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		valueElem.insertAdjacentElement("afterend", container);
 		container.insertAdjacentElement("afterbegin", valueElem);
 
-		super("BrandUp.TextBox", container, valueElem);
+		// класс и подменённые атрибуты вернёт базовый класс при destroy
+		super("BrandUp.TextBox", container, valueElem, { class: INPUT_CLASS, attrs: originalAttrs });
 
 		this.type = type;
 		this.maxlength = maxlength;
@@ -181,10 +192,12 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			onEnter: () => this.__submitForm(),
 		};
 
-		// допустим ли вводимый символ по типу
+		// допустим ли вводимый символ по типу.
+		// `+` в адресе — обычное дело (подадреса вида user+tag@example.com), без него такие
+		// адреса нельзя было бы набрать; остальные разрешённые в local-part символы редки
 		const typeAllowsChar = (char: string) => {
 			if (type === "number") return /\d/.test(char);
-			if (type === "email") return /[a-zA-Z\d.\-_@]/.test(char);
+			if (type === "email") return /[a-zA-Z\d.\-_+@]/.test(char);
 			return true;
 		};
 
@@ -213,7 +226,10 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 				if (maxlength > 0) {
 					const selectionLength = window.getSelection()?.toString().length ?? 0;
 					const left = maxlength - this.__editor.getLength() + selectionLength;
-					if (pasted.length > left) pasted = pasted.substring(0, Math.max(0, left));
+					// не влезает ни одного символа — это отказ, а не пустая вставка: иначе
+					// вставка молча не делала бы ничего, тогда как ввод символа на пределе мигает ошибкой
+					if (left <= 0) return null;
+					if (pasted.length > left) pasted = pasted.substring(0, left);
 				}
 
 				return pasted;
@@ -252,6 +268,10 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			this.__onChange();
 		});
 
+		// Счётчик — на каждый ввод, а не по change: длина считается по textContent и стоит копейки,
+		// тогда как значение поля синхронизируется реже (см. RichEditor.flushChange).
+		editable.addEventListener("input", () => this.__refreshSymbolsCount(), { signal });
+
 		// состояние фокуса контрола (рамка/заливка) — на корневом элементе
 		editable.addEventListener("focus", () => !this.disabled && this.element.classList.add("focused"), { signal });
 		editable.addEventListener("blur", () => !this.disabled && this.element.classList.remove("focused"), { signal });
@@ -280,7 +300,9 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		}
 
 		this.registerCommand("copy-text", async (context) => {
-			if (!window.navigator.clipboard || this.disabled) return;
+			// повторный клик, пока показана галочка, запомнил бы её как исходную иконку —
+			// после возврата кнопка так и осталась бы с галочкой
+			if (!window.navigator.clipboard || this.disabled || context.target.classList.contains("success")) return;
 
 			await window.navigator.clipboard.writeText(this.__valueElem.value);
 
@@ -288,12 +310,24 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			context.target.innerHTML = doneIcon;
 			context.target.classList.add("success");
 
-			const abort = new AbortController();
-			await FuncHelper.delay(2000, abort.signal);
+			// возврат иконки отменяем вместе с компонентом: иначе таймер переживает destroy
+			// и дописывает в уже отсоединённую кнопку
+			try {
+				await FuncHelper.delay(2000, signal);
+			} catch {
+				return;
+			}
 
 			context.target.innerHTML = prevHtml;
 			context.target.classList.remove("success");
 		});
+	}
+
+	// Редактор откладывает событие изменения при печати, поэтому копия значения в поле формы
+	// отстаёт. Базовый класс зовёт этот хук перед каждым чтением значения снаружи —
+	// валидация, отправка формы, сбор FormData.
+	protected override __syncValue(): void {
+		this.__editor.flushChange();
 	}
 
 	private __toIncorrect() {
@@ -342,6 +376,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	}
 
 	getValue(): string {
+		this.__syncValue(); // значение читают снаружи — отложенное изменение сюда обязано попасть
 		return this.__valueElem.value.trim();
 	}
 
@@ -351,7 +386,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	}
 
 	override validate(): boolean {
-		let isValid = super.validate();
+		let isValid = super.validate(); // super синхронизирует значение сам, через __syncValue
 		if (isValid) {
 			const value = this.getValue();
 
@@ -372,11 +407,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		this.__listenerAbort.abort();
 		this.__editor.destroy();
 
-		this.__valueElem.tabIndex = this.__inputElem.tabIndex;
-		this.element.insertAdjacentElement("afterend", this.__valueElem);
-		this.element.remove();
-
-		super.destroy();
+		super.destroy(); // снимет слушатели формы и вернёт поле-носитель в исходный вид
 	}
 }
 
