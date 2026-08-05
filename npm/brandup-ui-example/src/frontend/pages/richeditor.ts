@@ -3,6 +3,7 @@ import html from "./richeditor.html";
 import "./richeditor.less";
 import RichEditor, {
 	ALL_FORMAT_TOOLS,
+	parseBlockTypes,
 	parseEditorActions,
 	parseFormatTools,
 	type FormatMarkers,
@@ -72,6 +73,7 @@ export default class RichEditorPage extends Page {
 			storage,
 			markers,
 			multiline: elem.hasAttribute("data-multiline"),
+			blocks: parseBlockTypes(elem.dataset.blocks ?? null),
 			readonly: elem.hasAttribute("data-readonly"),
 			placeholder: elem.dataset.placeholder,
 			value: elem.dataset.value ?? "",

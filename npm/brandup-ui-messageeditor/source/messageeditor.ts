@@ -3,7 +3,13 @@ import "./messageeditor.less"; // стили компонента
 import { InputControl } from "@brandup/ui-input";
 import { SCROLLABLE_CLASS, type Modal } from "@brandup/ui-kit";
 import { DOM } from "@brandup/ui";
-import RichEditor, { ALL_FORMAT_TOOLS, preserveCaret, type ToolbarButton } from "@brandup/ui-richeditor";
+import RichEditor, {
+	ALL_FORMAT_TOOLS,
+	parseBlockTypes,
+	preserveCaret,
+	type BlockType,
+	type ToolbarButton,
+} from "@brandup/ui-richeditor";
 import { highlight, markupAt, MARKUP_SELECTOR, VARIABLE_CLASS, type VariableNames } from "./highlight";
 import RandomizerModal from "./randomizer";
 import VariablesModal, { parseVariables, type MessageVariable } from "./variables";
@@ -42,6 +48,13 @@ export interface MessageEditorOptions {
 	 * а могут быть не предусмотрены вовсе — и подсказка в этих случаях нужна разная.
 	 */
 	variablesEmpty?: string | null;
+	/**
+	 * Типы блоков сообщения: цитата, блок кода. По умолчанию только обычный текст —
+	 * их понимает не каждый канал, поэтому набор объявляет приложение.
+	 *
+	 * Без этой опции берётся из атрибута `data-blocks` поля-носителя (значения через пробел).
+	 */
+	blocks?: BlockType[];
 }
 
 type MessageEditorEvents = {
@@ -69,6 +82,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	readonly variables: MessageVariable[];
 	readonly variablesEmpty: string | null;
 	readonly personalization: boolean;
+	readonly blocks: BlockType[];
 
 	constructor(valueElem: HTMLInputElement | HTMLTextAreaElement, options: MessageEditorOptions = {}) {
 		const placeholder = valueElem.getAttribute("placeholder");
@@ -115,6 +129,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		this.personalization =
 			options.personalization ??
 			("personalization" in valueElem.dataset || !!this.variables.length || !!this.variablesEmpty);
+		this.blocks = options.blocks ?? parseBlockTypes(valueElem.dataset.blocks ?? null);
 		// в тексте показываем название, а не ключ — если оно задано
 		this.__names = new Map(this.variables.filter((v) => v.name).map((v) => [v.key, v.name!]));
 		this.__inputElem = inputElem;
@@ -125,6 +140,8 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			// Enter переносит строку, а не создаёт абзац: иначе каждое нажатие уходило бы
 			// в значение пустой строкой. Абзац набирается двумя переносами, как в мессенджерах.
 			paragraph: "break",
+			// цитата и блок кода — объявленным набором: их понимает не каждый канал
+			blocks: this.blocks,
 			// disabled для редактора — тот же запрет правок, что и readonly (сам он про disabled не знает)
 			readonly: readonly || disabled,
 			// набор мессенджера: жирный, курсив, зачёркнутый, подчёркнутый. Смайлики в тулбар
@@ -132,6 +149,9 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			// выключено целиком: без инструментов панель не строится и не показывается.
 			format: !disabled,
 			tools: ALL_FORMAT_TOOLS,
+			// Очистка формата: снять разметку разом нужнее всего там, где текст приносят
+			// вставкой. Отмену и повтор не выводим — на них есть привычные сочетания клавиш.
+			actions: ["erase"],
 			// доменные кнопки: редактор про рандомизацию и переменные не знает, только рисует их
 			buttons: disabled ? [] : this.__toolbarButtons(),
 			// значение хранится разметкой мессенджеров, а не HTML
@@ -365,9 +385,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 						icon: variableIcon,
 						isEnabled: () => !this.__inMarkup(),
 						run: () =>
-							this.__openModal(
-								(apply) => new VariablesModal(this.variables, apply, this.variablesEmpty)
-							),
+							this.__openModal((apply) => new VariablesModal(this.variables, apply, this.variablesEmpty)),
 					},
 				]
 			: [];

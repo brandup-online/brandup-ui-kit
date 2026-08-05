@@ -6,6 +6,7 @@ import { DOM } from "@brandup/ui";
 import { FuncHelper } from "@brandup/ui-helpers";
 import RichEditor, {
 	defaultFormatMarkers,
+	parseBlockTypes,
 	parseEditorActions,
 	parseFormatTools,
 	type FormatMarkers,
@@ -101,11 +102,12 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 
 		// форматирование доступно только для обычного текстового ввода
 		const format = type === "text" && valueElem.hasAttribute("data-format");
-		const formatStorage: FormatStorage =
-			valueElem.dataset.formatStorage === "markdown" ? "markdown" : "html";
+		const formatStorage: FormatStorage = valueElem.dataset.formatStorage === "markdown" ? "markdown" : "html";
 		const formatTools = format ? parseFormatTools(valueElem.dataset.formatTools ?? null) : [];
 		// кнопки действий панели (очистка формата, отмена, повтор) — подключаются явно
 		const editorActions = format ? parseEditorActions(valueElem.dataset.editorActions ?? null) : [];
+		// типы блоков (цитата, блок кода) — тоже явно и только в многострочном поле
+		const blocks = parseBlockTypes(multyline ? (valueElem.dataset.blocks ?? null) : null);
 
 		// markdown-маркеры с дефолтами, переопределяются атрибутами data-format-md-<tool>
 		const formatMarkers = defaultFormatMarkers();
@@ -185,6 +187,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			markers: formatMarkers,
 			placeholder,
 			multiline: multyline,
+			blocks,
 			readonly,
 			// тулбар позиционируется относительно контейнера TextBox (а не document.body)
 			toolbarContainer: container,

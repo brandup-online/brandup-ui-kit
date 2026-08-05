@@ -1,7 +1,7 @@
 // Переключение форматирования на выделении и вставка форматированного текста
 // на чистом Selection/Range API (без execCommand), плюс сохранение/восстановление выделения.
 
-import { ALL_FORMAT_TOOLS, FORMAT_TOOLS, type FormatTool } from "./format-config";
+import { ALL_FORMAT_TOOLS, FORMAT_TOOLS, blockTypeOfTag, type FormatTool } from "./format-config";
 
 /** Канонические теги форматирования (в верхнем регистре, как tagName). */
 const FORMAT_TAG_NAMES = ALL_FORMAT_TOOLS.map((t) => FORMAT_TOOLS[t].tag.toUpperCase());
@@ -13,6 +13,10 @@ const MATCH_TAG_NAMES = Array.from(new Set(ALL_FORMAT_TOOLS.flatMap((t) => FORMA
 // Селекторы считаем один раз: обе выборки идут на каждую правку формата и на каждое обновление панели.
 const FORMAT_SELECTOR = FORMAT_TAG_NAMES.join(",").toLowerCase();
 const MATCH_SELECTOR = MATCH_TAG_NAMES.join(",").toLowerCase();
+// Моноширинный: внутри него разметки не бывает (см. stripFormattingInCode)
+const CODE_SELECTOR = FORMAT_TOOLS.code.matchTags.join(",").toLowerCase();
+// Неделимые объекты хоста: конструкции сообщения объявляют себя нередактируемыми
+const ATOMIC_SELECTOR = '[contenteditable="false"]';
 
 // Проверка тега идёт на каждого предка каждого текстового узла при каждом обходе — храним
 // множествами, а не массивами: подсветка панели опрашивает их на каждое движение каретки.
@@ -89,19 +93,110 @@ export function preserveCaret(root: HTMLElement, mutate: () => boolean | void): 
 	if (touched !== false && bounds && selection) restoreSelection(root, bounds[0], bounds[1], selection);
 }
 
+/**
+ * Единица текстовых координат: символы текстового узла либо конец строки — мягкий перенос
+ * и граница блока. Перенос обязан занимать позицию: иначе конец строки и начало следующей
+ * неразличимы, и восстановленная по смещению каретка возвращается на строку выше (это видно
+ * сразу после Enter, когда содержимое перестраивают — например подсветкой конструкций).
+ */
+type CharUnit = { kind: "text"; node: Text } | { kind: "line"; node: Node; offset: number };
+
+/**
+ * Обходит содержимое в текстовых координатах по порядку. `visit` возвращает true — обход
+ * прекращается (границу нашли, дальше считать нечего).
+ *
+ * Позиция единицы «конец строки» — сразу ЗА переносом (или в начале следующего блока): именно
+ * её занимает каретка, оказавшись на новой строке.
+ */
+function walkChars(root: HTMLElement, visit: (unit: CharUnit) => boolean | void) {
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+	let blocks = 0;
+
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		if (node.nodeType === Node.TEXT_NODE) {
+			if (visit({ kind: "text", node: node as Text })) return;
+			continue;
+		}
+
+		const el = node as HTMLElement;
+
+		if (el.tagName === "BR") {
+			const parent = el.parentNode;
+			if (!parent) continue;
+
+			const index = Array.prototype.indexOf.call(parent.childNodes, el) + 1;
+			if (visit({ kind: "line", node: parent, offset: index })) return;
+			continue;
+		}
+
+		// граница блоков — только между ними: перед первым строка ещё не кончалась
+		if (el.parentNode === root && blockTypeOfTag(el.tagName)) {
+			blocks++;
+			if (blocks > 1 && visit({ kind: "line", node: el, offset: 0 })) return;
+		}
+	}
+}
+
+/**
+ * Содержимое в тех же координатах, в которых считается каретка: концы строк — переводом строки.
+ * Обычного `textContent` для этого мало — в нём переносов нет, и смещения по нему разъезжаются
+ * со смещениями каретки ровно на число строк.
+ */
+export function editorText(root: HTMLElement): string {
+	let text = "";
+	walkChars(root, (unit) => {
+		text += unit.kind === "text" ? unit.node.data : "\n";
+	});
+
+	return text;
+}
+
+/** Длина содержимого в координатах каретки (текст + концы строк внутри). */
+export function charLength(root: HTMLElement): number {
+	let length = 0;
+	walkChars(root, (unit) => {
+		length += unit.kind === "text" ? unit.node.length : 1;
+	});
+
+	return length;
+}
+
 /** Абсолютные текстовые смещения границ выделения внутри root (для восстановления после правок DOM). */
 export function selectionCharBounds(root: HTMLElement, range: Range): [number, number] {
 	const probe = document.createRange();
 	probe.selectNodeContents(root);
 	probe.setEnd(range.startContainer, range.startOffset);
-	const start = probe.toString().length;
+	const text = probe.toString().length;
+	const start = text + linesBefore(root, range.startContainer, range.startOffset);
 	if (range.collapsed) return [start, start];
 
 	// длину выделения меряем от его начала, а не от начала редактора: иначе весь текст
 	// до каретки собирается в строку дважды
 	probe.setStart(range.startContainer, range.startOffset);
 	probe.setEnd(range.endContainer, range.endOffset);
-	return [start, start + probe.toString().length];
+
+	return [start, text + probe.toString().length + linesBefore(root, range.endContainer, range.endOffset)];
+}
+
+// Сколько концов строк уже пройдено к моменту точки: единица считается, если её позиция
+// не позже самой точки. Строк на порядок меньше, чем символов, поэтому считаем их отдельно —
+// текст быстрее собрать одной строкой, чем обходить по узлам.
+function linesBefore(root: HTMLElement, container: Node, offset: number): number {
+	const point = document.createRange();
+	point.setStart(container, offset);
+	point.collapse(true);
+
+	let count = 0;
+	walkChars(root, (unit) => {
+		if (unit.kind === "text") return false;
+		// единицы идут по порядку: встретили позицию за точкой — дальше только такие же
+		if (point.comparePoint(unit.node, unit.offset) > 0) return true;
+
+		count++;
+		return false;
+	});
+
+	return count;
 }
 
 /**
@@ -124,32 +219,50 @@ export function mapCharOffset(before: string, after: string, offset: number): nu
 	return j;
 }
 
-type CharPosition = { node: Text; offset: number };
+type CharPosition = { node: Node; offset: number };
 
 /**
- * Находит текстовые узлы и локальные смещения для пары абсолютных смещений за один обход.
- * Смещение за пределами текста прижимается к его концу.
+ * Находит узлы и локальные смещения для пары абсолютных смещений за один обход.
+ * Смещение за пределами содержимого прижимается к его концу.
  */
 function locateChars(root: HTMLElement, lower: number, upper: number): [CharPosition, CharPosition] | null {
-	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	let count = 0;
-	let last: Text | null = null;
+	let last: CharPosition | null = null;
 	let low: CharPosition | null = null;
 	let high: CharPosition | null = null;
 
-	for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
-		last = n;
-		if (!low && count + n.length >= lower) low = { node: n, offset: lower - count };
-		if (count + n.length >= upper) {
-			high = { node: n, offset: upper - count };
-			break;
+	walkChars(root, (unit) => {
+		if (unit.kind === "text") {
+			const length = unit.node.length;
+
+			// конец текстового узла — это конец строки, а не её начало: смещение, равное ему,
+			// принадлежит тексту, а следующая позиция (+1) — уже переносу
+			if (!low && count + length >= lower) low = { node: unit.node, offset: lower - count };
+			if (count + length >= upper) {
+				high = { node: unit.node, offset: upper - count };
+				return true;
+			}
+
+			count += length;
+			last = { node: unit.node, offset: length };
+			return false;
 		}
-		count += n.length;
-	}
 
-	if (!last) return null;
+		count++;
+		if (!low && count === lower) low = { node: unit.node, offset: unit.offset };
+		if (count === upper) {
+			high = { node: unit.node, offset: unit.offset };
+			return true;
+		}
 
-	const tail: CharPosition = { node: last, offset: last.length };
+		last = { node: unit.node, offset: unit.offset };
+		return false;
+	});
+
+	if (!last && !low && !high) return null;
+
+	const tail: CharPosition = last ?? { node: root, offset: 0 };
+
 	return [low ?? tail, high ?? tail];
 }
 
@@ -237,16 +350,45 @@ function caretProbe(range: Range): Node {
 	return node.nodeType === Node.TEXT_NODE ? node : (node.childNodes[range.startOffset] ?? node);
 }
 
-/** Непустые текстовые узлы, целиком попавшие в диапазон (частично задетые правке не подлежат). */
-function collectTextNodes(root: HTMLElement, range: Range): Text[] {
-	const nodes: Text[] = [];
+/**
+ * Неделимый объект в тексте — элемент, объявленный нередактируемым (конструкции хоста:
+ * переменная, рандомизация). Разметка обязана оборачивать его целиком: внутрь него ни каретка,
+ * ни правка не заходят, а хост пересобирает его содержимое по-своему.
+ */
+function atomicAt(node: Node, root: HTMLElement): HTMLElement | null {
+	const elem = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
+	const atomic = elem?.closest<HTMLElement>(ATOMIC_SELECTOR) ?? null;
+
+	// сам редактор бывает нередактируемым (disabled у хоста) — он объектом не является
+	return atomic && atomic !== root && root.contains(atomic) ? atomic : null;
+}
+
+/**
+ * Узлы правки: непустые текстовые узлы, целиком попавшие в диапазон (частично задетые правке
+ * не подлежат), где текст внутри неделимого объекта заменён самим объектом.
+ *
+ * Иначе разметка ложилась бы внутрь конструкции, и вместо `**раз {ИМЯ} два**` в значение
+ * уходило бы `**раз** **{ИМЯ}** **два**` — три отдельных куска вместо одного.
+ */
+function collectTargets(root: HTMLElement, range: Range): Node[] {
+	const nodes: Node[] = [];
+	const seen = new Set<Node>();
+
 	// intersectsNode в обходе дешевле пары compareBoundaryPoints и отсекает почти всё лишнее
-	for (const n of touchedTextNodes(root, range)) if (nodeWithinRange(n, range)) nodes.push(n);
+	for (const n of touchedTextNodes(root, range)) {
+		if (!nodeWithinRange(n, range)) continue;
+
+		const target = atomicAt(n, root) ?? n;
+		if (seen.has(target)) continue;
+
+		seen.add(target);
+		nodes.push(target);
+	}
 
 	return nodes;
 }
 
-function wrapTextNode(node: Text, tag: string) {
+function wrapNode(node: Node, tag: string) {
 	const wrapper = document.createElement(tag);
 	node.parentNode?.insertBefore(wrapper, node);
 	wrapper.appendChild(node);
@@ -272,7 +414,7 @@ function unwrapAround(fmt: HTMLElement, node: Node) {
 	if (!fmt.firstChild) parent.removeChild(fmt);
 }
 
-function removeFormatFromNode(node: Text, tags: ReadonlySet<string>, root: HTMLElement) {
+function removeFormatFromNode(node: Node, tags: ReadonlySet<string>, root: HTMLElement) {
 	let fmt = formatAncestor(node, tags, root);
 	while (fmt) {
 		unwrapAround(fmt, node);
@@ -288,6 +430,18 @@ function unwrapElement(el: HTMLElement) {
 }
 
 /**
+ * Внутри моноширинного разметки нет — ни своей, ни чужой.
+ *
+ * Написанное в коде остаётся буквальным: значение берёт из него голый текст, и любое
+ * форматирование внутри до получателя не доедет. Оставлять его в поле — показывать то,
+ * чего в сообщении не будет, поэтому чистим сразу, а не при сохранении.
+ */
+function stripFormattingInCode(root: HTMLElement) {
+	for (const code of Array.from(root.querySelectorAll<HTMLElement>(CODE_SELECTOR)))
+		for (const el of Array.from(code.querySelectorAll<HTMLElement>(MATCH_SELECTOR))) unwrapElement(el);
+}
+
+/**
  * Чистит разметку: убирает пустые теги, схлопывает вложенные и соседние одинаковые, склеивает текст.
  *
  * Правка одного тега может сделать «грязными» его соседей и потомков, поэтому обход идёт очередью:
@@ -295,6 +449,8 @@ function unwrapElement(el: HTMLElement) {
  * в режиме набора, поэтому повторные выборки по всему дереву тут заметны.
  */
 export function cleanupFormatting(root: HTMLElement) {
+	stripFormattingInCode(root);
+
 	const queue: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>(FORMAT_SELECTOR));
 
 	const enqueue = (node: Node | null | undefined) => {
@@ -354,7 +510,7 @@ function editSelection(
 	range: Range,
 	selection: Selection,
 	restoreBounds: [number, number] | undefined,
-	mutate: (nodes: Text[]) => void
+	mutate: (nodes: Node[]) => void
 ) {
 	if (range.collapsed) return;
 
@@ -362,7 +518,7 @@ function editSelection(
 
 	splitBoundaries(range);
 
-	const nodes = collectTextNodes(root, range);
+	const nodes = collectTargets(root, range);
 	if (!nodes.length) return;
 
 	mutate(nodes);
@@ -390,7 +546,7 @@ export function toggleFormat(
 		if (allFormatted) {
 			for (const n of nodes) removeFormatFromNode(n, tags, root);
 		} else {
-			for (const n of nodes) if (!formatAncestor(n, tags, root)) wrapTextNode(n, def.tag);
+			for (const n of nodes) if (!formatAncestor(n, tags, root)) wrapNode(n, def.tag);
 		}
 	});
 }

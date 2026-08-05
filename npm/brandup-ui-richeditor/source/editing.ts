@@ -3,14 +3,12 @@
 // редактора и без истории — вызывающий сам решает, когда записывать undo-шаг.
 
 import { deserialize } from "./serialize";
-import { isBlock } from "./paragraphs";
+import { blockAt, blockTypeOf, blocksInRange, createBlock, isBlock } from "./paragraphs";
 import { documentSelection, innerSelection } from "./selection";
-import type { FormatMarkers, FormatTool } from "./format-config";
+import { BLOCK_TYPES, DEFAULT_BLOCK, type BlockType, type FormatMarkers, type FormatTool } from "./format-config";
 
 function emptyParagraph(): HTMLParagraphElement {
-	const p = document.createElement("p");
-	p.appendChild(document.createElement("br"));
-	return p;
+	return createBlock(DEFAULT_BLOCK) as HTMLParagraphElement;
 }
 
 // убирает пустые текст-узлы и ставит <br>-заполнитель в пустой абзац (для видимости и каретки)
@@ -51,21 +49,155 @@ export function selectAllContent(editable: HTMLElement) {
 	documentSelection(editable)?.selectAllChildren(editable);
 }
 
-/** Enter в multiline: разбить текущий абзац по каретке на два <p>. */
-export function insertParagraph(editable: HTMLElement) {
+/** Что сделала правка блоков: менялось ли содержимое и не появился ли блок из части строк. */
+export interface BlockChange {
+	changed: boolean;
+	/** Блок, собранный из выделенных строк (разделение); null — блоки меняли целиком. */
+	created: HTMLElement | null;
+}
+
+/**
+ * Меняет тип блоков, которых касается выделение. `changed: false` — менять было нечего:
+ * тогда ни содержимое, ни история не трогаются.
+ *
+ * У типа без инлайновой разметки (код) форматирование снимается: внутри него написанное
+ * остаётся буквальным, и сохранить его всё равно было бы негде.
+ */
+export function applyBlocks(editable: HTMLElement, range: Range, type: BlockType): BlockChange {
+	const blocks = blocksInRange(editable, range);
+
+	// Пустой редактор: блоков ещё нет, но тип задать можно — иначе в пустое поле его было бы
+	// не поставить вовсе, а набор блока обычно с этого и начинают.
+	if (!blocks.length && !editable.firstChild && type !== DEFAULT_BLOCK) {
+		const block = createBlock(type);
+		editable.appendChild(block);
+		caretToStart(block);
+
+		return { changed: true, created: block };
+	}
+
+	// Выделена часть строк блока — правим их, а не весь блок: иначе в мессенджерском режиме,
+	// где всё сообщение это один блок, кодом становился бы весь текст.
+	if (blocks.length === 1 && type !== DEFAULT_BLOCK && blockTypeOf(blocks[0]) !== type) {
+		const created = splitLines(blocks[0], range, type);
+		if (created) return { changed: true, created };
+	}
+
+	let changed = false;
+
+	for (const block of blocks) {
+		if (blockTypeOf(block) === type) continue;
+
+		const replacement = retagBlock(block, type);
+		if (!BLOCK_TYPES[type].inline) unwrapFormatting(replacement);
+
+		block.replaceWith(replacement);
+		fillEmptyParagraph(replacement);
+		changed = true;
+	}
+
+	return { changed, created: null };
+}
+
+/**
+ * Собирает блок нужного типа из строк, которых коснулось выделение; остальные строки остаются
+ * блоками прежнего типа до и после. Строки берутся целиком: код из половины строки — это уже
+ * моноширинный, а не блок.
+ *
+ * null — делить нечего: выделение и так захватило все строки блока.
+ */
+function splitLines(block: HTMLElement, range: Range, type: BlockType): HTMLElement | null {
+	const breaks = Array.from(block.querySelectorAll("br"));
+
+	// последний перенос перед выделением и первый после него — по ним и режем
+	const head = breaks.filter((br) => range.comparePoint(br, 0) < 0).pop();
+	const tail = breaks.find((br) => range.comparePoint(br, 0) > 0);
+	if (!head && !tail) return null;
+
+	const original = blockTypeOf(block) ?? DEFAULT_BLOCK;
+
+	// Хвост выносим первым: он дальше по дереву, и вынос головы сдвинул бы его границы.
+	// Сам перенос-разделитель уходит вместе с ним — строки разъезжаются по блокам.
+	const cut = (from: "before" | "after", br: HTMLElement): HTMLElement => {
+		const part = document.createRange();
+
+		if (from === "after") {
+			part.setStartAfter(br);
+			part.setEnd(block, block.childNodes.length);
+		} else {
+			part.setStart(block, 0);
+			part.setEndBefore(br);
+		}
+
+		const piece = document.createElement(BLOCK_TYPES[original].tag);
+		piece.appendChild(part.extractContents());
+		br.remove();
+		fillEmptyParagraph(piece);
+
+		return piece;
+	};
+
+	const after = tail ? cut("after", tail) : null;
+	const before = head ? cut("before", head) : null;
+
+	const created = retagBlock(block, type);
+	if (!BLOCK_TYPES[type].inline) unwrapFormatting(created);
+
+	block.replaceWith(created);
+	fillEmptyParagraph(created);
+
+	if (before) created.before(before);
+	if (after) created.after(after);
+
+	return created;
+}
+
+// Разворачивает инлайновые теги, оставляя текст и мягкие переносы. Список снимается заранее:
+// разворот внешнего тега поднимает вложенные к блоку, и обойти их нужно тоже.
+function unwrapFormatting(block: HTMLElement) {
+	for (const el of Array.from(block.querySelectorAll<HTMLElement>("*"))) {
+		if (el.tagName === "BR") continue;
+		el.replaceWith(...Array.from(el.childNodes));
+	}
+	block.normalize();
+}
+
+/**
+ * Стоит ли каретка в начале своего блока — по тексту до неё, а не по узлу: началом считается
+ * и позиция перед вложенным форматированием, и позиция в его первом текстовом узле.
+ */
+export function atBlockStart(editable: HTMLElement, range: Range): boolean {
+	if (!range.collapsed) return false;
+
+	const block = blockAt(editable, range.startContainer);
+	if (!block) return false;
+
+	const before = document.createRange();
+	before.selectNodeContents(block);
+	before.setEnd(range.startContainer, range.startOffset);
+
+	// Начало блока — это и начало его первой строки. Перед кареткой стоит перенос — значит
+	// строка не первая, и удалять нужно сам перенос, а не тип блока.
+	if (before.cloneContents().querySelector("br")) return false;
+
+	return before.toString().length === 0;
+}
+
+/** Enter в multiline: разбить текущий блок по каретке; хвост становится блоком типа `type`. */
+export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT_BLOCK) {
 	const selection = innerSelection(editable);
 	if (!selection) return;
 
 	const range = selection.getRangeAt(0);
 	range.deleteContents();
 
-	// текущий абзац (ближайший <p>/<div> внутри редактора)
+	// текущий блок (ближайший блочный предок внутри редактора)
 	let para: Node | null = range.startContainer;
 	while (para && para !== editable && !isBlock(para)) para = para.parentNode;
 
 	// каретка не внутри абзаца — создаём абзац сразу с видимым результатом (иначе Enter «срабатывает со 2-го раза»)
 	if (!para || para === editable) {
-		const next = emptyParagraph();
+		const next = createBlock(type);
 		if (editable.childNodes.length === 0) {
 			// пустой редактор: пустая строка-источник + новая строка с кареткой
 			editable.appendChild(emptyParagraph());
@@ -85,9 +217,12 @@ export function insertParagraph(editable: HTMLElement) {
 	tail.setStart(range.endContainer, range.endOffset);
 	const fragment = tail.extractContents();
 
-	const next = document.createElement("p");
+	const next = document.createElement(BLOCK_TYPES[type].tag);
 	next.appendChild(fragment);
 	(para as ChildNode).after(next);
+
+	// хвост уехал в блок другого типа — его правила распространяются и на содержимое
+	if (!BLOCK_TYPES[type].inline) unwrapFormatting(next);
 
 	// extractContents в конце абзаца оставляет пустой текст-узел → <p></p> без заполнителя
 	// (невидим/нефокусируем, каретка не встаёт). Чистим и ставим <br> в опустевшие абзацы.
@@ -141,12 +276,17 @@ export function insertPastedParagraphs(editable: HTMLElement, paras: HTMLElement
 	}
 
 	const block = para as HTMLElement;
+	// Вставка в цитату или код остаётся в них: разорвать блок посреди вставки — не то,
+	// чего ждут, а тип целевого блока диктует и правила его содержимого.
+	const type = blockTypeOf(block) ?? DEFAULT_BLOCK;
 
 	// хвост текущего абзаца после каретки — выносим, чтобы вернуть в конец вставки
 	const tailRange = document.createRange();
 	tailRange.selectNodeContents(block);
 	tailRange.setStart(range.startContainer, range.startOffset);
 	const tail = tailRange.extractContents();
+
+	if (!BLOCK_TYPES[type].inline) for (const p of paras) unwrapFormatting(p);
 
 	// первый вставляемый абзац вливается в текущий (после содержимого до каретки)
 	while (paras[0].firstChild) block.appendChild(paras[0].firstChild);
@@ -156,13 +296,25 @@ export function insertPastedParagraphs(editable: HTMLElement, paras: HTMLElement
 		return;
 	}
 
-	// остальные абзацы — отдельными <p> после текущего; хвост — в конец последнего
+	// остальные абзацы — отдельными блоками того же типа после текущего; хвост — в конец последнего
 	let anchor: ChildNode = block;
 	for (let i = 1; i < paras.length; i++) {
+		paras[i] = retagBlock(paras[i], type);
 		anchor.after(paras[i]);
 		anchor = paras[i];
 	}
 	paras[paras.length - 1].appendChild(tail);
+}
+
+// Тот же блок, но другим тегом. Содержимое переносится как есть — правила типа к нему
+// применяет вызывающий, он же знает, откуда это содержимое взялось.
+function retagBlock(block: HTMLElement, type: BlockType): HTMLElement {
+	if (blockTypeOf(block) === type) return block;
+
+	const replacement = document.createElement(BLOCK_TYPES[type].tag);
+	while (block.firstChild) replacement.appendChild(block.firstChild);
+
+	return replacement;
 }
 
 /** Обрезает пробелы по краям абзаца (после схлопывания) — у крайних текстовых узлов. */
@@ -215,7 +367,12 @@ export function buildParagraphs(lines: string[], blocks: boolean): HTMLElement[]
  * Разбирает HTML из буфера обмена в абзацы `<p>`, оставляя только разрешённые инструменты.
  * Пустой результат — вставлять нечего (вызывающий откатится на простой текст).
  */
-export function sanitizePastedHtml(html: string, tools: FormatTool[], markers: FormatMarkers): HTMLElement[] {
+export function sanitizePastedHtml(
+	html: string,
+	tools: FormatTool[],
+	markers: FormatMarkers,
+	types: BlockType[] = [DEFAULT_BLOCK]
+): HTMLElement[] {
 	// убираем мусорные элементы (Word/браузер: стили, скрипты, заголовок документа)
 	const source = document.createElement("template");
 	source.innerHTML = html;
@@ -223,7 +380,7 @@ export function sanitizePastedHtml(html: string, tools: FormatTool[], markers: F
 
 	// единый источник санитизации — deserialize (теги-синонимы → канонические, лишнее развёрнуто)
 	const holder = document.createElement("template");
-	holder.innerHTML = deserialize(source.innerHTML, "html", tools, markers, true);
+	holder.innerHTML = deserialize(source.innerHTML, "html", tools, markers, true, types);
 
 	// внешний HTML: пробелы/переводы строк между тегами не значимы — схлопываем,
 	// иначе литеральные \n (pre-wrap) и отступы дают лишние переносы

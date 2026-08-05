@@ -2,17 +2,77 @@
 // верхнего уровня к абзацам <p> (модель многострочного режима).
 
 import { cleanupFormatting } from "./selection";
+import { BLOCK_TYPES, DEFAULT_BLOCK, blockTypeOfTag, type BlockType } from "./format-config";
 
 /**
- * Что в содержимом редактора считается абзацем. Единственное определение модели абзацев:
- * по нему идут и разбор с сериализацией, и правки каретки, и нормализация. `<div>` признаём
- * наравне с `<p>` — его приносят вставка и чужой contenteditable, а нормализация приводит к `<p>`.
+ * Что в содержимом редактора считается блоком. Единственное определение модели: по нему идут
+ * и разбор с сериализацией, и правки каретки, и нормализация. `<div>` признаём наравне с `<p>` —
+ * его приносят вставка и чужой contenteditable, а нормализация приводит к `<p>`.
  */
 export function isBlock(node: Node): boolean {
-	if (node.nodeType !== Node.ELEMENT_NODE) return false;
+	return blockTypeOf(node) !== null;
+}
 
-	const tag = (node as Element).tagName;
-	return tag === "P" || tag === "DIV";
+/** Тип блока по элементу; null — не блок верхнего уровня. */
+export function blockTypeOf(node: Node | null | undefined): BlockType | null {
+	if (!node || node.nodeType !== Node.ELEMENT_NODE) return null;
+
+	return blockTypeOfTag((node as Element).tagName);
+}
+
+/** Блок, в котором лежит узел (обычно якорь выделения), в пределах редактора. */
+export function blockAt(root: HTMLElement, node: Node | null | undefined): HTMLElement | null {
+	let current: Node | null = node ?? null;
+	while (current && current !== root) {
+		if (current.parentNode === root && isBlock(current)) return current as HTMLElement;
+		current = current.parentNode;
+	}
+
+	return null;
+}
+
+/**
+ * Блоки, которых касается диапазон, по порядку. Границы берём по их блокам, а не перебором
+ * с проверкой пересечения: свёрнутая каретка на стыке пересекает сразу два соседних блока,
+ * и правка уходила бы в лишний.
+ */
+export function blocksInRange(root: HTMLElement, range: Range): HTMLElement[] {
+	// Контейнером может быть и сам редактор — тогда позиция адресует ребёнка по номеру.
+	// Позиция — это место ПЕРЕД ребёнком, поэтому конец выделения относится к предыдущему
+	// блоку: иначе правка захватывала бы блок, из которого не выделено ни символа.
+	const edge = (container: Node, offset: number, end: boolean): HTMLElement | null => {
+		const own = blockAt(root, container);
+		if (own) return own;
+		if (container !== root) return null;
+
+		const index = end && offset > 0 ? offset - 1 : offset;
+		const child = root.childNodes[index] ?? root.lastChild;
+
+		return blockAt(root, child) ?? (isBlock(child as Node) ? (child as HTMLElement) : null);
+	};
+
+	const first = edge(range.startContainer, range.startOffset, false);
+	if (!first) return [];
+
+	const last = edge(range.endContainer, range.endOffset, !range.collapsed) ?? first;
+
+	const blocks: HTMLElement[] = [];
+	for (let el: HTMLElement | null = first; el; el = el.nextElementSibling as HTMLElement | null) {
+		if (isBlock(el)) blocks.push(el);
+		if (el === last) return blocks;
+	}
+
+	// Конца не встретили — он лежит раньше начала (диапазон собран вручную и вывернут).
+	// Берём один блок: пройтись до конца содержимого значило бы править всё подряд.
+	return [first];
+}
+
+/** Пустой блок нужного типа с заполнителем: без него строка не видна и в неё не встать кареткой. */
+export function createBlock(type: BlockType): HTMLElement {
+	const block = document.createElement(BLOCK_TYPES[type].tag);
+	block.appendChild(document.createElement("br"));
+
+	return block;
 }
 
 // Пробел, таб и неразрывный пробел (U+00A0) — всё это «пробел» при наборе; см. normalizeWhitespace.
@@ -48,8 +108,10 @@ export function normalizeWhitespace(root: HTMLElement) {
 				if (el.tagName === "BR") {
 					items.push({ kind: "break" });
 				} else if (isBlock(el)) {
+					// у блока без инлайновой разметки (код) пробелы значимы: отступы там — часть текста
+					const type = blockTypeOf(el);
 					items.push({ kind: "break" });
-					flatten(el);
+					if (!type || BLOCK_TYPES[type].inline) flatten(el);
 					items.push({ kind: "break" });
 				} else {
 					flatten(el); // инлайновый тег — не разрывает строку
@@ -94,7 +156,9 @@ export function normalizeWhitespace(root: HTMLElement) {
  */
 export function normalizeParagraphs(root: HTMLElement) {
 	for (const el of Array.from(root.children)) {
-		if (el.tagName === "P" && (el.textContent ?? "").trim() === "") el.remove();
+		// Пустой блок другого типа не трогаем: его завели осознанно и в него сейчас будут писать,
+		// а пустая строка внутри кода вообще осмысленна сама по себе.
+		if (blockTypeOf(el) === DEFAULT_BLOCK && (el.textContent ?? "").trim() === "") el.remove();
 	}
 }
 
@@ -107,9 +171,9 @@ export function ensureParagraphs(root: HTMLElement) {
 
 	const flushRun = (before: Node | null) => {
 		if (!run.length) return;
-		const p = document.createElement("p");
-		for (const node of run) p.appendChild(node);
-		root.insertBefore(p, before);
+		const block = document.createElement(BLOCK_TYPES[DEFAULT_BLOCK].tag);
+		for (const node of run) block.appendChild(node);
+		root.insertBefore(block, before);
 		run = [];
 	};
 
@@ -118,8 +182,10 @@ export function ensureParagraphs(root: HTMLElement) {
 
 		if (el && isBlock(el)) {
 			flushRun(node);
+			// `<div>` — тот же абзац, только чужой: приводим к каноническому тегу.
+			// Блоки других типов оставляем как есть, их завели осознанно.
 			if (el.tagName === "DIV") {
-				const p = document.createElement("p");
+				const p = document.createElement(BLOCK_TYPES[DEFAULT_BLOCK].tag);
 				while (el.firstChild) p.appendChild(el.firstChild);
 				root.replaceChild(p, el);
 			}
@@ -129,7 +195,7 @@ export function ensureParagraphs(root: HTMLElement) {
 	}
 	flushRun(null);
 
-	for (const p of Array.from(root.querySelectorAll("p"))) {
+	for (const p of Array.from(root.children) as HTMLElement[]) {
 		if (!p.firstChild) {
 			p.appendChild(document.createElement("br")); // пустой абзац — заполнитель для видимости строки
 			continue;

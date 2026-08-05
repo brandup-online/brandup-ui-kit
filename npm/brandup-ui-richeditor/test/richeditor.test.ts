@@ -5,6 +5,7 @@ import { PopupManager } from "@brandup/ui-kit";
 import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS } from "../source/richeditor";
 import { EMOJI_PICKER_CLASS } from "../source/toolbar";
 import { EMOJIS, EMOJI_GROUPS } from "../source/emoji";
+import { ALL_FORMAT_TOOLS } from "../source/format-config";
 import { expandRangeToWords } from "../source/editing";
 import { selectionCharBounds } from "../source/selection";
 
@@ -50,6 +51,8 @@ function selectAll(editor: RichEditor) {
 }
 
 const toolbarButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .format-button`);
+// инструменты, у которых есть кнопка: спойлер и код пока скрыты (см. HIDDEN_TOOLS в ../source/toolbar)
+const VISIBLE_TOOLS = ALL_FORMAT_TOOLS.length - 2;
 const toolbarButton = (tool: string) =>
 	document.querySelector(`.${TOOLBAR_CLASS} .format-button[data-format-tool="${tool}"]`);
 const actionButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .action-button`);
@@ -70,8 +73,9 @@ describe("RichEditor structure", () => {
 
 		const toolbar = document.querySelector(`.${TOOLBAR_CLASS}`)!;
 		expect(toolbar.parentElement).toBe(document.body);
-		expect(editor.formatTools).toEqual(["bold", "italic", "strike", "underline"]);
-		expect(toolbarButtons()).toHaveLength(4);
+		expect(editor.formatTools).toEqual(ALL_FORMAT_TOOLS);
+		// часть кнопок временно скрыта (см. HIDDEN_TOOLS в ../source/toolbar)
+		expect(toolbarButtons()).toHaveLength(VISIBLE_TOOLS);
 	});
 
 	it("rebuilds the toolbar with only the editor's tools on focus", () => {
@@ -940,7 +944,7 @@ describe("RichEditor toolbar actions", () => {
 
 		expect(editor.editorActions).toHaveLength(0);
 		expect(actionButtons()).toHaveLength(0);
-		expect(toolbarButtons()).toHaveLength(4);
+		expect(toolbarButtons()).toHaveLength(VISIBLE_TOOLS);
 	});
 
 	it("renders requested action buttons after a separator", () => {
@@ -1595,5 +1599,45 @@ describe("RichEditor selection isolation", () => {
 		expect(editable.classList.contains("unselectable")).toBe(false);
 		press(outside); // слушатели сняты — состояние не возвращается
 		expect(editable.classList.contains("unselectable")).toBe(false);
+	});
+});
+
+// Спойлер и моноширинный — из словаря сообщений (docs/feature-message-formatting.md).
+describe("RichEditor spoiler and code", () => {
+	const parse = (value: string) =>
+		makeEditor({ storage: "markdown", multiline: true, value }).editable.querySelector("p")!.innerHTML;
+
+	it.each([
+		["||секрет||", "<spoiler>секрет</spoiler>"],
+		["`a + b`", "<code>a + b</code>"],
+		["до ||секрет|| после", "до <spoiler>секрет</spoiler> после"],
+	])("parses %j", (value, html) => {
+		expect(parse(value)).toBe(html);
+	});
+
+	// Содержимое кода — буквальный текст: маркеры внутри него разметкой не считаются,
+	// иначе написанное дословно уезжало бы получателю форматированным.
+	it("leaves markers inside code as text", () => {
+		expect(parse("`**не жирный**`")).toBe("<code>**не жирный**</code>");
+		expect(parse("`a` и **жирный**")).toBe("<code>a</code> и <b>жирный</b>");
+	});
+
+	// Значение обязано вернуться таким же: иначе открыть и сохранить сообщение уже меняет его.
+	it.each([["||секрет||"], ["`a + b`"], ["`**text**` и **жирный**"], ["||раз|| и `код`"]])(
+		"round-trips %j",
+		(value) => {
+			const editor = makeEditor({ storage: "markdown", multiline: true, value });
+
+			expect(editor.getValue()).toBe(value);
+		}
+	);
+
+	// Внутри кода разметки нет, поэтому вложенное форматирование при сохранении отбрасывается —
+	// иначе поле показывало бы жирный, которого в значении не будет.
+	it("drops formatting nested in code", () => {
+		const editor = makeEditor({ storage: "markdown", multiline: true });
+		editor.editable.innerHTML = "<p><code>a <b>b</b> c</code></p>";
+
+		expect(editor.getValue()).toBe("`a b c`");
 	});
 });

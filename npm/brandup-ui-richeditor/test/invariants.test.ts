@@ -5,7 +5,13 @@
  * (очередь затронутых узлов вместо пересбора по корню; один обход вместо обхода на инструмент),
  * и проверяются они на случайной разметке, а не на разобранных вручную случаях.
  */
-import { cleanupFormatting, activeFormats, isFormatActive } from "../source/selection";
+import {
+	cleanupFormatting,
+	activeFormats,
+	isFormatActive,
+	selectionCharBounds,
+	restoreSelection,
+} from "../source/selection";
 import { ALL_FORMAT_TOOLS, FORMAT_TOOLS, type FormatTool } from "../source/format-config";
 
 // Детерминированный ГПСЧ: падение воспроизводится по номеру итерации.
@@ -168,5 +174,108 @@ describe("activeFormats invariants", () => {
 		range.selectNodeContents(root);
 
 		expect(activeFormats(root, range, [] as FormatTool[]).size).toBe(0);
+	});
+});
+
+/**
+ * Координаты каретки: конец строки и начало следующей обязаны различаться, иначе восстановленная
+ * по смещениям каретка возвращается на строку выше (это видно сразу после Enter). Проверяется
+ * на случайном содержимом с переносами и блоками — именно их и считает модель.
+ */
+describe("char offsets invariants", () => {
+	const rand = rng(76543);
+
+	// Строки с мягкими переносами внутри блоков и пустыми строками — на них модель и спотыкалась.
+	function randomContent(): string {
+		const blocks: string[] = [];
+
+		for (let i = 0; i < 1 + Math.floor(rand() * 3); i++) {
+			const lines: string[] = [];
+			for (let j = 0; j < 1 + Math.floor(rand() * 3); j++) {
+				const text = "abcdef".slice(0, Math.floor(rand() * 6));
+				lines.push(rand() < 0.3 ? `<b>${text}</b>` : text);
+			}
+
+			const tag = rand() < 0.3 ? "blockquote" : "p";
+			blocks.push(`<${tag}>${lines.join("<br>")}</${tag}>`);
+		}
+
+		return blocks.join("");
+	}
+
+	// Все позиции каретки: внутри текста и на концах строк (после <br> и в начале блока).
+	function positions(root: HTMLElement): Array<[Node, number]> {
+		const list: Array<[Node, number]> = [];
+		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+
+		for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+			if (n.nodeType === Node.TEXT_NODE) {
+				for (let i = 0; i <= (n as Text).length; i++) list.push([n, i]);
+			} else if (n.nodeName === "BR" && n.parentNode) {
+				list.push([n.parentNode, Array.prototype.indexOf.call(n.parentNode.childNodes, n) + 1]);
+			}
+		}
+
+		return list;
+	}
+
+	it("tells the end of a line from the start of the next one", () => {
+		let checked = 0;
+
+		for (let i = 0; i < 300; i++) {
+			const root = makeRoot(randomContent());
+			const selection = window.getSelection()!;
+
+			for (const [node, offset] of positions(root)) {
+				const range = document.createRange();
+				range.setStart(node, offset);
+				range.collapse(true);
+
+				const [start] = selectionCharBounds(root, range);
+
+				selection.removeAllRanges();
+				selection.addRange(range);
+				restoreSelection(root, start, start, selection);
+
+				const restored = selection.getRangeAt(0);
+				expect(selectionCharBounds(root, restored)[0]).toBe(start);
+
+				// Вернулись ровно туда же: между исходной позицией и восстановленной нет ни
+				// символа, ни переноса. Одного совпадения смещений мало — пока конец строки
+				// и начало следующей были неразличимы, каретка «возвращалась» строкой выше,
+				// и смещение у неё, разумеется, совпадало.
+				const forward = range.compareBoundaryPoints(Range.START_TO_START, restored) <= 0;
+				const [from, to] = forward ? [range, restored] : [restored, range];
+
+				const gap = document.createRange();
+				gap.setStart(from.startContainer, from.startOffset);
+				gap.setEnd(to.startContainer, to.startOffset);
+
+				expect(gap.toString()).toBe("");
+				expect(gap.cloneContents().querySelector("br")).toBeNull();
+
+				checked++;
+			}
+		}
+
+		expect(checked).toBeGreaterThan(1000);
+	});
+});
+
+// Внутри моноширинного разметки нет: значение берёт оттуда голый текст, и всё, что попало
+// внутрь вставкой или правкой, обязано быть снято чисткой.
+describe("code content invariants", () => {
+	const rand = rng(24680);
+
+	it("leaves no formatting inside code", () => {
+		for (let i = 0; i < 500; i++) {
+			const root = makeRoot(`<code>${randomMarkup(rand)}</code>${randomMarkup(rand)}`);
+			const text = root.textContent;
+
+			cleanupFormatting(root);
+
+			expect(root.textContent).toBe(text); // текст неприкосновенен
+			expect(root.querySelector("code b, code i, code s, code u, code code")).toBeNull();
+		}
 	});
 });

@@ -1,9 +1,13 @@
 // Разбор и сериализация значения редактора (HTML | Markdown), модель абзацев и мягких переносов.
 
-import { isBlock } from "./paragraphs";
+import { blockTypeOf } from "./paragraphs";
 import {
+	ALL_BLOCK_TYPES,
+	BLOCK_TYPES,
+	DEFAULT_BLOCK,
 	FORMAT_TOOLS,
 	defaultFormatMarkers,
+	type BlockType,
 	type FormatMarkers,
 	type FormatStorage,
 	type FormatTool,
@@ -74,6 +78,16 @@ function serializeInline(
 			continue;
 		}
 
+		const tool = tagMap[tag];
+
+		// В коде разметки нет: при разборе его содержимое не размечается, и вложенное
+		// форматирование не вернулось бы — значение разошлось бы с тем, что было в поле.
+		if (tool === "code") {
+			const text = el.textContent ?? "";
+			result += wrap(storage, tool, storage === "html" ? escapeHtml(text) : text, markers);
+			continue;
+		}
+
 		const inner = serializeInline(el.childNodes, storage, tagMap, markers);
 
 		// вложенный блочный элемент (нестандарт) — без обёртки, просто содержимое
@@ -82,7 +96,6 @@ function serializeInline(
 			continue;
 		}
 
-		const tool = tagMap[tag];
 		// неизвестный или отключённый тег — отбрасываем обёртку, оставляем текст
 		result += tool ? wrap(storage, tool, inner, markers) : inner;
 	}
@@ -96,36 +109,89 @@ function trimTrailingBreaks(inline: string, storage: FormatStorage): string {
 	return storage === "html" ? inline.replace(/(?:<br>)+$/, "") : inline.replace(/\n+$/, "");
 }
 
-// Разбивает верхний уровень на абзацы: <p>/<div> — отдельный абзац, остальное — неявный абзац.
-// HTML: <p>содержимое</p>; Markdown/Plain: абзацы через \n\n, мягкие переносы внутри — \n.
+// Разбивает верхний уровень на блоки: у каждого свой тип, у не попавшего в блок содержимого —
+// тип по умолчанию. HTML: тег типа; Markdown: блоки через \n\n, мягкие переносы внутри — \n.
 function serializeParagraphs(
 	root: ParentNode,
 	storage: FormatStorage,
 	tagMap: Record<string, FormatTool>,
-	markers: FormatMarkers
+	markers: FormatMarkers,
+	types: BlockType[],
+	separate: boolean
 ): string {
-	const paragraphs: string[] = [];
+	const blocks: Array<[BlockType, string]> = [];
 	let buffer: ChildNode[] = [];
 
+	// Содержимое блока: у типа без инлайновой разметки (код) — буквальный текст, у остальных
+	// обычная сериализация. Дальше типы отличаются только оформлением готовых строк.
+	const content = (type: BlockType, nodes: ArrayLike<ChildNode>): string => {
+		if (BLOCK_TYPES[type].inline) return serializeInline(nodes, storage, tagMap, markers);
+
+		const text = Array.from(nodes)
+			.map((node) => (node.nodeName === "BR" ? "\n" : (node.textContent ?? "")))
+			.join("");
+
+		return storage === "html" ? escapeHtml(text) : text;
+	};
+
 	const flush = () => {
-		if (buffer.length) paragraphs.push(serializeInline(buffer, storage, tagMap, markers));
+		if (buffer.length) blocks.push([DEFAULT_BLOCK, content(DEFAULT_BLOCK, buffer)]);
 		buffer = [];
 	};
 
 	for (const node of Array.from(root.childNodes)) {
-		if (isBlock(node)) {
+		const found = blockTypeOf(node);
+
+		if (found) {
+			// Отключённый тип пришёл со стороны (вставка, чужое значение) — сохраняем как обычный
+			// блок: его разметки в значении всё равно не будет, а текст терять нельзя.
+			const type = types.includes(found) ? found : DEFAULT_BLOCK;
+
 			flush();
-			paragraphs.push(serializeInline((node as Element).childNodes, storage, tagMap, markers));
+			blocks.push([type, content(type, (node as Element).childNodes)]);
 		} else {
 			buffer.push(node);
 		}
 	}
 	flush();
 
-	const cleaned = paragraphs.map((p) => trimTrailingBreaks(p, storage));
+	const cleaned = blocks.map(([type, text]) => [type, trimTrailingBreaks(text, storage)] as const);
 
-	if (storage === "html") return cleaned.map((p) => `<p>${p}</p>`).join("");
-	return cleaned.join("\n\n");
+	if (storage === "html")
+		return cleaned
+			.map(([type, text]) => {
+				const tag = BLOCK_TYPES[type].tag;
+				return `<${tag}>${text}</${tag}>`;
+			})
+			.join("");
+
+	// Пустая строка между блоками нужна там, где она их и разделяет. Блок с собственной
+	// разметкой (цитата, код) узнаётся и без неё, а в режиме мягких переносов пустая строка —
+	// это пустая строка сообщения: поставив её от себя, редактор менял бы текст.
+	return cleaned
+		.map(([type, text], index) => {
+			if (!index) return markdownBlock(type, text);
+
+			const previous = cleaned[index - 1][0];
+			const blank = separate || (previous === DEFAULT_BLOCK && type === DEFAULT_BLOCK);
+
+			return `${blank ? "\n\n" : "\n"}${markdownBlock(type, text)}`;
+		})
+		.join("");
+}
+
+/** Оформляет готовое содержимое блока по правилам типа: ограждение, построчный маркер или ничего. */
+function markdownBlock(type: BlockType, text: string): string {
+	const def = BLOCK_TYPES[type];
+
+	if (def.fence) return `${def.fence}\n${text}\n${def.fence}`;
+	if (def.linePrefix)
+		return text
+			.split("\n")
+			.map((line) => `${def.linePrefix}${line}`.trimEnd())
+			.join("\n");
+
+	return text;
 }
 
 /**
@@ -137,11 +203,13 @@ export function serialize(
 	storage: FormatStorage,
 	tools: FormatTool[],
 	markers: FormatMarkers = defaultFormatMarkers(),
-	paragraphs = false
+	paragraphs = false,
+	types: BlockType[] = ALL_BLOCK_TYPES,
+	separate = true
 ): string {
 	const tagMap = buildTagMap(tools);
 
-	if (paragraphs) return serializeParagraphs(root, storage, tagMap, markers).trim();
+	if (paragraphs) return serializeParagraphs(root, storage, tagMap, markers, types, separate).trim();
 
 	const inline = serializeInline(root.childNodes, storage, tagMap, markers);
 	if (storage === "html")
@@ -202,15 +270,43 @@ function balancedTags(inner: string): boolean {
 	return stack.length === 0;
 }
 
+// Метка места кода на время разбора: содержимое кода разметкой не считается, поэтому выносится
+// до остальных маркеров и возвращается в конце.
+//
+// В тексте пользователя такой метки не бывает: он уже заэкранирован, и его `&` стал `&amp;`.
+// Границам соседних маркеров она не мешает — по краям не буква и не цифра, а угловых скобок,
+// на которые смотрит balancedTags, в ней нет.
+const STASH_MARK = "&#0;";
+const STASH_PATTERN = /&#0;(\d+)&#0;/g;
+
 // Markdown-разметка одного абзаца → инлайновый HTML (escape, маркеры, \n→<br>).
 function markdownInline(text: string, order: MarkerRule[]): string {
 	let html = escapeHtml(text);
 
+	// Код — первым: внутри него `*звёздочки*` остаются текстом, как у мессенджеров. Иначе
+	// содержимое кода размечалось бы, и то, что человек написал буквально, уезжало бы жирным.
+	const stash: string[] = [];
+	const code = order.find(([tool]) => tool === "code");
+	if (code) {
+		html = html.replace(markerPattern(code[1], code[2]), (_match, lead: string, inner: string) => {
+			stash.push(inner);
+
+			return `${lead}${STASH_MARK}${stash.length - 1}${STASH_MARK}`;
+		});
+	}
+
 	for (const [tool, marker, standalone] of order) {
+		if (tool === "code") continue; // уже вынесен
+
 		const def = FORMAT_TOOLS[tool];
 		html = html.replace(markerPattern(marker, standalone), (match, lead: string, inner: string) =>
 			balancedTags(inner) ? `${lead}<${def.tag}>${inner}</${def.tag}>` : match
 		);
+	}
+
+	if (stash.length) {
+		const def = FORMAT_TOOLS.code;
+		html = html.replace(STASH_PATTERN, (_match, index: string) => `<${def.tag}>${stash[+index]}</${def.tag}>`);
 	}
 
 	// переносы — после маркеров: пока это \n, запрет на пересечение строки работает
@@ -236,7 +332,7 @@ function markdownInline(text: string, order: MarkerRule[]): string {
  * маркера — см. {@link orderedMarkers}.
  */
 function markerPattern(marker: string, standalone: boolean): RegExp {
-	const key = standalone ? `${marker} ` : marker;
+	const key = standalone ? `${marker}` : marker;
 
 	let pattern = markerPatterns.get(key);
 	if (pattern) return pattern;
@@ -268,7 +364,9 @@ export function deserialize(
 	storage: FormatStorage,
 	tools: FormatTool[],
 	markers: FormatMarkers = defaultFormatMarkers(),
-	paragraphs = false
+	paragraphs = false,
+	types: BlockType[] = ALL_BLOCK_TYPES,
+	separate = true
 ): string {
 	if (!value) return "";
 
@@ -276,9 +374,14 @@ export function deserialize(
 		const order = orderedMarkers(tools, markers);
 
 		if (!paragraphs) return markdownInline(value, order);
-		return value
-			.split(/\n{2,}/)
-			.map((p) => `<p>${markdownInline(p, order) || "<br>"}</p>`)
+
+		return markdownBlocks(value, types, separate)
+			.map(([type, text]) => {
+				const def = BLOCK_TYPES[type];
+				const inner = def.inline ? markdownInline(text, order) : escapeHtml(text).replace(/\n/g, "<br>");
+
+				return `<${def.tag}>${inner || "<br>"}</${def.tag}>`;
+			})
 			.join("");
 	}
 
@@ -289,8 +392,88 @@ export function deserialize(
 
 	if (!paragraphs) return serializeInline(template.content.childNodes, "html", tagMap, defaultFormatMarkers());
 
-	return serializeParagraphs(template.content, "html", tagMap, defaultFormatMarkers()).replace(
-		/<p><\/p>/g,
-		"<p><br></p>"
+	return serializeParagraphs(template.content, "html", tagMap, defaultFormatMarkers(), types, separate).replace(
+		/<([a-z]+)><\/\1>/g,
+		"<$1><br></$1>"
 	);
+}
+
+/**
+ * Первый проход разбора: значение → последовательность блоков с их типом.
+ *
+ * Порядок проверок — от самой сильной разметки к самой слабой: огражденный блок забирает строки
+ * целиком (внутри него разметки нет, в том числе чужих маркеров начала строки), затем идут подряд
+ * идущие строки с построчным маркером, и лишь остаток разбивается на блоки по умолчанию пустой
+ * строкой. Незакрытое ограждение разметкой не считается — его строки остаются текстом, как
+ * у мессенджеров: иначе одна случайная кавычка съедала бы весь остаток сообщения.
+ *
+ * При `separate = false` пустая строка блоки не делит: в режиме мягких переносов она сама по себе
+ * строка сообщения, и разбиение съедало бы её.
+ */
+function markdownBlocks(value: string, types: BlockType[], separate: boolean): Array<[BlockType, string]> {
+	const fenced = types.filter((type) => BLOCK_TYPES[type].fence);
+	const prefixed = types.filter((type) => BLOCK_TYPES[type].linePrefix);
+
+	const lines = value.split(/\r?\n/);
+	const blocks: Array<[BlockType, string]> = [];
+	let buffer: string[] = [];
+
+	const flush = () => {
+		if (buffer.length) blocks.push([DEFAULT_BLOCK, buffer.join("\n")]);
+		buffer = [];
+	};
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+
+		const fence = fenced.find((type) => line.trimEnd() === BLOCK_TYPES[type].fence);
+		if (fence) {
+			let close = -1;
+			for (let at = i + 1; at < lines.length; at++)
+				if (lines[at].trimEnd() === BLOCK_TYPES[fence].fence) {
+					close = at;
+					break;
+				}
+
+			if (close > i) {
+				flush();
+				blocks.push([fence, lines.slice(i + 1, close).join("\n")]);
+				i = close;
+				continue;
+			}
+		}
+
+		// Маркер строки: пустая строка цитаты приходит без замыкающего пробела, поэтому
+		// узнаём и маркер без него.
+		const prefix = prefixed.find((type) => {
+			const marker = BLOCK_TYPES[type].linePrefix!;
+			return line.startsWith(marker) || line.trimEnd() === marker.trimEnd();
+		});
+		if (prefix) {
+			const marker = BLOCK_TYPES[prefix].linePrefix!;
+			const collected: string[] = [];
+
+			while (i < lines.length) {
+				const next = lines[i];
+				if (next.startsWith(marker)) collected.push(next.slice(marker.length));
+				else if (next.trimEnd() === marker.trimEnd()) collected.push("");
+				else break;
+
+				i++;
+			}
+			i--;
+
+			flush();
+			blocks.push([prefix, collected.join("\n")]);
+			continue;
+		}
+
+		// Пустая строка разделяет блоки по умолчанию и в значение не попадает: пустой блок
+		// сериализуется в пустую строку, поэтому сохранять его нечем и незачем.
+		if (separate && !line.trim()) flush();
+		else buffer.push(line);
+	}
+	flush();
+
+	return blocks;
 }

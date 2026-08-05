@@ -94,36 +94,36 @@ describe("MessageEditor highlighting", () => {
 	// Каретку выносит из конструкции наружу — с того края, с которого она в неё попала.
 	// У переменной с названием текст лежит глубже, в обёртке ключа, и край легко перепутать:
 	// тогда каретка перед конструкцией перепрыгивала бы её.
-	it.each([
-		[{ key: "ИМЯ", name: "Имя клиента" }],
-		[{ key: "ИМЯ" }],
-	])("keeps the caret on the left side of %j", (variable) => {
-		document.body.innerHTML = "";
-		const form = document.createElement("form");
-		const input = document.createElement("textarea");
-		input.value = "{ИМЯ} дальше"; // конструкция первая — слева от неё текста нет
-		form.appendChild(input);
-		document.body.appendChild(form);
+	it.each([[{ key: "ИМЯ", name: "Имя клиента" }], [{ key: "ИМЯ" }]])(
+		"keeps the caret on the left side of %j",
+		(variable) => {
+			document.body.innerHTML = "";
+			const form = document.createElement("form");
+			const input = document.createElement("textarea");
+			input.value = "{ИМЯ} дальше"; // конструкция первая — слева от неё текста нет
+			form.appendChild(input);
+			document.body.appendChild(form);
 
-		const editor = new MessageEditor(input, { variables: [variable] });
-		const editable = editor.editor.editable;
+			const editor = new MessageEditor(input, { variables: [variable] });
+			const editable = editor.editor.editable;
 
-		let first: Node = editable.querySelector("span.variable")!;
-		while (first.firstChild) first = first.firstChild;
+			let first: Node = editable.querySelector("span.variable")!;
+			while (first.firstChild) first = first.firstChild;
 
-		const selection = window.getSelection()!;
-		const range = document.createRange();
-		range.setStart(first, 0);
-		range.collapse(true);
-		selection.removeAllRanges();
-		selection.addRange(range);
+			const selection = window.getSelection()!;
+			const range = document.createRange();
+			range.setStart(first, 0);
+			range.collapse(true);
+			selection.removeAllRanges();
+			selection.addRange(range);
 
-		editable.dispatchEvent(new Event("input", { bubbles: true })); // перестройка выносит каретку
+			editable.dispatchEvent(new Event("input", { bubbles: true })); // перестройка выносит каретку
 
-		const span = editable.querySelector("span.variable")!; // узлы пересобраны
-		expect(span.contains(window.getSelection()!.anchorNode)).toBe(false);
-		expect(selectionCharBounds(editable, window.getSelection()!.getRangeAt(0))).toEqual([0, 0]);
-	});
+			const span = editable.querySelector("span.variable")!; // узлы пересобраны
+			expect(span.contains(window.getSelection()!.anchorNode)).toBe(false);
+			expect(selectionCharBounds(editable, window.getSelection()!.getRangeAt(0))).toEqual([0, 0]);
+		}
+	);
 
 	// Текст от подсветки не меняется, поэтому смещения каретки совпадают точно
 	it("keeps the caret when a construct becomes complete", () => {
@@ -250,5 +250,97 @@ describe("MessageEditor markup is atomic", () => {
 		formatToolbar.refresh(); // как по движению каретки; правкой обновлять нельзя — она выносит каретку наружу
 		expect(button("variable").disabled).toBe(true);
 		expect(button("randomize").disabled).toBe(true);
+	});
+});
+
+// Перестройка разметки пересобирает обёртки всего текста и заставляет возвращать каретку
+// по смещениям. Печать рядом с конструкцией давала это на каждый символ.
+describe("MessageEditor highlighting is idempotent", () => {
+	const editableOf = (editor: MessageEditor) => editor.editor.editable;
+	const type = (editor: MessageEditor) => editableOf(editor).dispatchEvent(new Event("input", { bubbles: true }));
+
+	it("keeps the same wrappers when nothing changed", () => {
+		const editor = setup("Привет, {ИМЯ} и [раз|два]");
+		const before = Array.from(editableOf(editor).querySelectorAll("span"));
+
+		type(editor);
+
+		expect(Array.from(editableOf(editor).querySelectorAll("span"))).toEqual(before);
+	});
+
+	it("wraps a construct completed by typing", () => {
+		const editor = setup("Привет, {ИМЯ");
+		expect(editableOf(editor).querySelector("span.variable")).toBeNull();
+
+		editableOf(editor).firstElementChild!.append("}");
+		type(editor);
+
+		expect(editableOf(editor).querySelector("span.variable")!.textContent).toBe("{ИМЯ}");
+	});
+
+	// правка вставляет соседние текстовые узлы — конструкция может оказаться разорванной
+	it("wraps a construct split across adjacent text nodes", () => {
+		const editor = setup("Привет, {ИМ");
+		const block = editableOf(editor).firstElementChild!;
+		block.appendChild(document.createTextNode("Я}"));
+
+		type(editor);
+
+		expect(block.querySelector("span.variable")!.textContent).toBe("{ИМЯ}");
+	});
+
+	it("unwraps a construct broken by an edit", () => {
+		const editor = setup("Привет, {ИМЯ}");
+		const span = editableOf(editor).querySelector("span.variable")!;
+		span.textContent = "{ИМЯ";
+
+		type(editor);
+
+		expect(editableOf(editor).querySelector("span.variable")).toBeNull();
+		expect(editor.getValue()).toBe("Привет, {ИМЯ");
+	});
+});
+
+// Конструкция неделима: разметка обязана оборачивать её целиком, иначе вместо
+// **test test {ИМЯ} test** в значение уходит **test test** **{ИМЯ}** **test**.
+describe("MessageEditor formatting over constructs", () => {
+	const selectAll = (editor: MessageEditor) => {
+		const selection = window.getSelection()!;
+		const range = document.createRange();
+		range.selectNodeContents(editor.editor.editable.firstElementChild!);
+		selection.removeAllRanges();
+		selection.addRange(range);
+
+		return selection;
+	};
+
+	it.each([["test test {ИМЯ} test"], ["test [раз|два] test"]])("wraps %j in one pair of markers", (value) => {
+		const editor = setup(value);
+		selectAll(editor);
+
+		editor.editor.applyFormat("bold");
+
+		expect(editor.getValue()).toBe(`**${value}**`);
+	});
+
+	it("does not put markup inside a construct", () => {
+		const editor = setup("test {ИМЯ} test");
+		selectAll(editor);
+
+		editor.editor.applyFormat("bold");
+
+		expect(editor.editor.editable.querySelector("span.variable b")).toBeNull();
+		expect(editor.editor.editable.querySelectorAll("b")).toHaveLength(1);
+	});
+
+	it("removes the format from the construct too", () => {
+		const editor = setup("test {ИМЯ} test");
+		selectAll(editor);
+
+		editor.editor.applyFormat("bold");
+		selectAll(editor);
+		editor.editor.applyFormat("bold");
+
+		expect(editor.getValue()).toBe("test {ИМЯ} test");
 	});
 });

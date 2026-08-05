@@ -25,6 +25,36 @@
 		}
 	}
 
+	// Цитата: линия слева, как её рисуют мессенджеры. Вертикальные поля те же, что у абзаца, —
+	// строка не должна прыгать при смене типа блока.
+	& blockquote {
+		margin: 0;
+		padding: 5px 0 5px 10px;
+		border-left: 3px solid var(--richeditor-quote-line, rgba(0, 0, 0, 0.2));
+	}
+
+	// Блок кода: подложка на всю строку и моноширинный шрифт. Собственные поля тут нужны —
+	// иначе текст упирался бы в край подложки; краевые правила абзаца на него не распространяются.
+	& pre {
+		margin: 5px 0;
+		padding: 5px 8px;
+		border-radius: 3px;
+		background-color: var(--richeditor-code-fill, rgba(0, 0, 0, 0.06));
+		font-family: var(--richeditor-code-font, ui-monospace, "Cascadia Mono", Consolas, monospace);
+		font-size: 0.92em;
+		// содержимое переносится по границе редактора, как и обычный текст
+		white-space: pre-wrap;
+		word-wrap: anywhere;
+
+		&:first-child {
+			margin-top: 0;
+		}
+
+		&:last-child {
+			margin-bottom: 0;
+		}
+	}
+
 	// видимые теги форматирования
 	& b,
 	& strong {
@@ -42,6 +72,29 @@
 	& u,
 	& ins {
 		text-decoration: underline;
+	}
+
+	// Спойлер: у получателя текст закрыт до нажатия, а в поле его прячут не от автора —
+	// показываем плашкой, чтобы было видно и что написано, и что оно будет скрыто.
+	& spoiler,
+	& tg-spoiler {
+		border-radius: 3px;
+		padding: 0 2px;
+		background-color: var(--richeditor-spoiler-fill, rgba(0, 0, 0, 0.14));
+	}
+
+	// Строку не раздвигает. Наследовать межстрочный интервал для этого мало: у моноширинного
+	// шрифта своя база, и коробка той же высоты садится относительно неё со сдвигом — строка
+	// вырастает на пару пикселей. Нулевой интервал убирает вклад кода в высоту строки совсем,
+	// а высоту строки задаёт сам абзац. Подложка от этого не страдает: она рисуется по буквам,
+	// а не по интервалу. По вертикали отступов у кода нет.
+	& code {
+		border-radius: 3px;
+		padding: 0 3px;
+		background-color: var(--richeditor-code-fill, rgba(0, 0, 0, 0.06));
+		font-family: var(--richeditor-code-font, ui-monospace, "Cascadia Mono", Consolas, monospace);
+		font-size: 0.92em;
+		line-height: 0;
 	}
 
 	&:empty:after {
@@ -122,6 +175,7 @@
 	}
 
 	& .format-button,
+	& .block-button,
 	& .host-button,
 	& .action-button {
 		width: calc(var(--input-height, 46px) - 12px);

@@ -5,14 +5,20 @@
 //   paragraphs    — нормализация пробелов и приведение к абзацам <p>
 
 export {
+	ALL_BLOCK_TYPES,
 	ALL_EDITOR_ACTIONS,
 	ALL_FORMAT_TOOLS,
+	BLOCK_TYPES,
+	DEFAULT_BLOCK,
 	EDITOR_ACTIONS,
 	FORMAT_TOOLS,
 	HOTKEY_TOOLS,
 	defaultFormatMarkers,
+	normalizeBlockTypes,
+	parseBlockTypes,
 	parseEditorActions,
 	parseFormatTools,
+	type BlockType,
 	type EditorAction,
 	type FormatMarkers,
 	type FormatStorage,
@@ -25,6 +31,8 @@ export {
 	innerSelection,
 	preserveCaret,
 	selectionCharBounds,
+	editorText,
+	charLength,
 	restoreSelection,
 	mapCharOffset,
 	activeFormats,
@@ -36,4 +44,13 @@ export {
 	insertFormattedText,
 	isFormatActive,
 } from "./selection";
-export { isBlock, normalizeWhitespace, normalizeParagraphs, ensureParagraphs } from "./paragraphs";
+export {
+	isBlock,
+	blockAt,
+	blockTypeOf,
+	blocksInRange,
+	createBlock,
+	normalizeWhitespace,
+	normalizeParagraphs,
+	ensureParagraphs,
+} from "./paragraphs";

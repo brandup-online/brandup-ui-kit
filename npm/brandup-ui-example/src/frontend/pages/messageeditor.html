@@ -71,6 +71,32 @@
 	</div>
 
 	<div class="part">
+		<h2>Цитата и блок кода</h2>
+		<p class="note">
+			Блоки по умолчанию выключены — их понимает не каждый канал. Здесь они объявлены атрибутом
+			<code>data-blocks="quote code"</code>. Кнопки кода в панели пока нет — она временно скрыта, но
+			значения с кодом разбираются и сохраняются. <b>Enter</b> внутри блока заканчивает его,
+			<b>Shift+Enter</b> переносит строку внутри, <b>Backspace</b> в начале блока возвращает обычный
+			текст. В значении цитата — это <code>&gt;</code> в начале каждой строки, блок кода — ограждение
+			из трёх обратных кавычек; внутри кода разметка не разбирается, а отступы сохраняются.
+		</p>
+		<div class="chat">
+			<div class="field">
+				<textarea data-content-script="messageeditor" placeholder="Напишите сообщение" data-blocks="quote code">
+Отвечаю на вопрос:
+&gt; Как включить блоки?
+&gt; Хотелось бы примером.
+Атрибутом на поле:
+```
+&lt;textarea data-blocks="quote code"&gt;&lt;/textarea&gt;
+```</textarea
+				>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
 		<h2>Состояния</h2>
 		<p class="note">
 			<code>required</code>, <code>readonly</code> и <code>disabled</code> берутся у поля-носителя, как у
