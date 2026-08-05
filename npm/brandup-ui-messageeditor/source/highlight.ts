@@ -61,10 +61,58 @@ export function highlight(root: HTMLElement, options: HighlightOptions = {}): bo
 	pattern.lastIndex = 0;
 	if (!hasMarkup && !root.querySelector(MARKUP_SELECTOR)) return false;
 
+	// Разметка уже на месте — а перестройка не бесплатна: она пересобирает обёртки всего текста
+	// и заставляет вызывающего возвращать каретку по смещениям. Печать рядом с конструкцией даёт
+	// это на каждый символ, и каждый раз каретка проходила бы через восстановление зря.
+	if (isHighlighted(root, pattern)) return false;
+
 	unwrap(root);
 	wrap(root, pattern, options.names);
 
 	return true;
+}
+
+/**
+ * Соответствует ли текущая разметка тексту: каждая обёртка содержит ровно одну конструкцию,
+ * а вне обёрток конструкций нет.
+ *
+ * Идущие подряд текстовые узлы проверяются вместе: конструкция могла разорваться между ними
+ * (правка вставляет узлы), и по отдельности такую не найти — как не находит её и {@link wrap},
+ * которому текст перед разбором склеивает {@link unwrap}.
+ */
+function isHighlighted(root: HTMLElement, pattern: RegExp): boolean {
+	const matches = (text: string) => {
+		pattern.lastIndex = 0;
+		const found = pattern.test(text);
+		pattern.lastIndex = 0;
+
+		return found;
+	};
+
+	for (const span of Array.from(root.querySelectorAll<HTMLElement>(MARKUP_SELECTOR))) {
+		const text = span.textContent ?? "";
+		pattern.lastIndex = 0;
+		const match = pattern.exec(text);
+		pattern.lastIndex = 0;
+
+		if (!match || match[0] !== text) return false;
+	}
+
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	let run = "";
+
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		// текст обёртки уже проверен; она же разрывает цепочку соседних узлов
+		if (markupAt(node)) {
+			if (matches(run)) return false;
+			run = "";
+			continue;
+		}
+
+		run += (node as Text).data;
+	}
+
+	return !matches(run);
 }
 
 /** Снимает прежние обёртки: разметка могла разъехаться после правки текста. */

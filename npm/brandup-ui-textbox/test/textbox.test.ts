@@ -450,7 +450,8 @@ describe("TextBox formatting", () => {
 		const tb = new TextBox(setupFormat());
 		expect(tb.format).toBe(true);
 		expect(tb.formatStorage).toBe("html");
-		expect(tb.formatTools).toEqual(["bold", "italic", "strike", "underline"]);
+		// без data-format-tools подключается весь словарь редактора
+		expect(tb.formatTools).toEqual(["bold", "italic", "strike", "underline", "spoiler", "code"]);
 	});
 
 	it("mounts the toolbar inside the textbox container on focus", () => {

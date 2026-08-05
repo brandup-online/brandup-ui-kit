@@ -160,9 +160,11 @@ describe("MessageEditor", () => {
 		const toolbar = editor.element.querySelector(".ui-richeditor-toolbar")!;
 		expect(toolbar).not.toBeNull(); // панель внутри компонента, а не в document.body
 		expect(toolbar.classList.contains("in-container")).toBe(true);
-		expect(toolbar.querySelectorAll(".format-button")).toHaveLength(4);
-		// смайлики вынесены в собственную кнопку компонента
-		expect(toolbar.querySelector(".action-button")).toBeNull();
+		expect(toolbar.querySelectorAll(".format-button")).toHaveLength(4); // словарь сообщений без скрытых спойлера и кода
+		// действие одно — очистка формата; смайлики вынесены в собственную кнопку компонента
+		expect(toolbar.querySelectorAll(".action-button")).toHaveLength(1);
+		expect(toolbar.querySelector('[data-editor-action="erase"]')).not.toBeNull();
+		expect(toolbar.querySelector('[data-editor-action="emoji"]')).toBeNull();
 	});
 
 	// кнопка живёт внутри плашки справа от текста и доступна сразу, не дожидаясь фокуса
@@ -681,5 +683,76 @@ describe("MessageEditor", () => {
 		new MessageEditor(input).destroy();
 
 		expect(input.getAttribute("tabindex")).toBe("3");
+	});
+});
+
+// Enter в конце строки с конструкцией: подсветка перестраивает разметку и возвращает каретку
+// по текстовым смещениям. Пока конец строки и начало следующей были неразличимы, каретка
+// возвращалась на строку выше — новая строка появлялась, а печать шла в прежнюю.
+describe("caret after a line with markup", () => {
+	const pressEnter = (editor: MessageEditor) =>
+		editor.editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "Enter", cancelable: true, bubbles: true })
+		);
+
+	it("stays on the new line", () => {
+		const { input } = setup({ value: "Привет, {ИМЯ}" });
+		const editor = new MessageEditor(input, { personalization: true });
+		const block = editor.editor.editable.firstElementChild!;
+
+		caretAt(block, block.childNodes.length); // конец строки, сразу за конструкцией
+		pressEnter(editor);
+
+		const selection = window.getSelection()!;
+		const breaks = block.querySelectorAll("br");
+		expect(breaks).toHaveLength(2); // сам перенос и заполнитель новой строки
+
+		// каретка между переносом и заполнителем — это и есть новая строка
+		expect(selection.anchorNode).toBe(block);
+		expect(selection.anchorOffset).toBe(Array.from(block.childNodes).indexOf(breaks[0]) + 1);
+	});
+
+	it("keeps typing on the new line", () => {
+		const { input } = setup({ value: "[раз|два]" });
+		const editor = new MessageEditor(input);
+
+		const block = editor.editor.editable.firstElementChild!;
+		caretAt(block, block.childNodes.length);
+		pressEnter(editor);
+
+		editor.editor.insertText("x");
+		expect(editor.getValue()).toBe("[раз|два]\nx");
+	});
+});
+
+// Снять разметку разом нужнее всего там, где текст приносят вставкой.
+describe("clear format action", () => {
+	const eraseButton = () =>
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-editor-action="erase"]')!;
+
+	it("clears the formatting of the selection", () => {
+		const { input } = setup({ value: "**раз** два" });
+		const editor = new MessageEditor(input);
+		editor.editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		const bold = editor.editor.editable.querySelector("b")!.firstChild!;
+		const selection = window.getSelection()!;
+		const range = document.createRange();
+		range.setStart(bold, 0);
+		range.setEnd(bold, 3);
+		selection.removeAllRanges();
+		selection.addRange(range);
+
+		eraseButton().dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+		expect(editor.getValue()).toBe("раз два");
+	});
+
+	it("is disabled while there is nothing to clear", () => {
+		const { input } = setup({ value: "раз два" });
+		const editor = new MessageEditor(input);
+		editor.editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		expect(eraseButton().disabled).toBe(true);
 	});
 });

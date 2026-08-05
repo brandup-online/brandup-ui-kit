@@ -7,12 +7,24 @@
 
 import { DOM } from "@brandup/ui";
 import { POPUP_CLASS, PopupManager, SCROLLABLE_CLASS } from "@brandup/ui-kit";
-import { EDITOR_ACTIONS, FORMAT_TOOLS, type EditorAction, type FormatTool } from "./format";
+import {
+	BLOCK_TYPES,
+	DEFAULT_BLOCK,
+	EDITOR_ACTIONS,
+	FORMAT_TOOLS,
+	type BlockType,
+	type EditorAction,
+	type FormatTool,
+} from "./format";
 import { EMOJI_GROUPS, type EmojiGroup } from "./emoji";
 import boldIcon from "../svg/bold.svg";
 import italicIcon from "../svg/italic.svg";
 import strikeIcon from "../svg/strike.svg";
 import underlineIcon from "../svg/underline.svg";
+import spoilerIcon from "../svg/spoiler.svg";
+import codeIcon from "../svg/mono.svg";
+import quoteIcon from "../svg/quote.svg";
+import codeblockIcon from "../svg/codeblock.svg";
 import emojiIcon from "../svg/emoji.svg";
 import eraseIcon from "../svg/erase.svg";
 import undoIcon from "../svg/undo.svg";
@@ -23,6 +35,14 @@ const FORMAT_ICONS: Record<FormatTool, string> = {
 	italic: italicIcon,
 	strike: strikeIcon,
 	underline: underlineIcon,
+	spoiler: spoilerIcon,
+	code: codeIcon,
+};
+
+// Обычный текст кнопки не имеет: повторное нажатие активной кнопки возвращает блок к нему.
+const BLOCK_ICONS: Partial<Record<BlockType, string>> = {
+	quote: quoteIcon,
+	code: codeblockIcon,
 };
 
 const ACTION_ICONS: Record<EditorAction, string> = {
@@ -31,6 +51,17 @@ const ACTION_ICONS: Record<EditorAction, string> = {
 	undo: undoIcon,
 	redo: redoIcon,
 };
+
+// Код есть и инструментом (моноширинный), и типом блока — панель сводит их в одну кнопку.
+const CODE_TOOL: FormatTool = "code";
+const CODE_BLOCK: BlockType = "code";
+const MERGED_CODE_TITLE = "Код";
+
+// Временно скрытые кнопки. Сами возможности работают: значение разбирается, показывается
+// и сохраняется, правку можно вызвать из кода — в панель они просто не выводятся.
+// Убрать отсюда, когда будут доведены.
+const HIDDEN_TOOLS: FormatTool[] = ["spoiler", "code"];
+const HIDDEN_BLOCKS: BlockType[] = ["code"];
 
 export const TOOLBAR_CLASS = "ui-richeditor-toolbar";
 export const EMOJI_PICKER_CLASS = "ui-richeditor-emoji";
@@ -61,8 +92,19 @@ export interface ToolbarHost {
 	readonly editorActions?: EditorAction[];
 	/** Контейнер для тулбара; null/undefined — document.body (position: fixed над редактором). */
 	readonly toolbarContainer?: HTMLElement | null;
+	/** Типы блоков многострочного режима; пусто/undefined — кнопок блоков нет. */
+	readonly blockTypes?: BlockType[];
 	applyFormat(tool: FormatTool): void;
 	isToolActive(tool: FormatTool): boolean;
+	/** false — инструмент сейчас недоступен (например, внутри кода): кнопка гасится. */
+	isToolEnabled?(tool: FormatTool): boolean;
+	/** Тип блока под кареткой — им подсвечивается активная кнопка блока. */
+	readonly currentBlock?: BlockType;
+	applyBlock?(type: BlockType): void;
+	/** Правка кода любого вида — для объединённой кнопки (моноширинный + блок кода). */
+	applyCode?(): void;
+	/** Активен ли код в любом виде — подсветка объединённой кнопки. */
+	isCodeActive?(): boolean;
 	/** Активные форматы всех инструментов сразу; нет реализации — панель опросит их поштучно. */
 	activeTools?(): ReadonlySet<FormatTool>;
 	applyAction?(action: EditorAction): void;
@@ -110,6 +152,8 @@ class FormatToolbar {
 	private __emojiHost: ToolbarHost | null = null; // куда уйдёт выбранный символ
 	private __emojiInitiator: HTMLElement | null = null; // кнопка, у которой открыта панель
 	private __buttons: Array<[FormatTool, HTMLButtonElement]> = [];
+	private __blockButtons: Array<[BlockType, HTMLButtonElement]> = [];
+	private __mergedCode = false; // кнопка кода делает и моноширинный, и блок (см. __build)
 	private __actionButtons: Array<[EditorAction, HTMLButtonElement]> = [];
 	// имя, а не сама кнопка хоста: панель одна на все редакторы и переиспользует разметку между
 	// ними, а поведение принадлежит текущему — держать здесь ссылку значит звать чужой обработчик
@@ -176,11 +220,16 @@ class FormatToolbar {
 
 		const actions = host.editorActions ?? [];
 		const buttons = host.toolbarButtons ?? [];
-		if (!host.formatTools.length && !actions.length && !buttons.length) return;
+		const tools = host.formatTools.filter((tool) => !HIDDEN_TOOLS.includes(tool));
+		// Обычный текст кнопки не имеет — он не «включается», а остаётся, когда выключены остальные.
+		const blocks = (host.blockTypes ?? []).filter(
+			(type) => type !== DEFAULT_BLOCK && !HIDDEN_BLOCKS.includes(type)
+		);
+		if (!tools.length && !blocks.length && !actions.length && !buttons.length) return;
 
 		this.__bindSelection();
 		this.__active = host;
-		this.__build(host.formatTools, actions, buttons);
+		this.__build(tools, blocks, actions, buttons);
 		this.refresh();
 
 		const elem = this.__ensure();
@@ -260,13 +309,33 @@ class FormatToolbar {
 
 		const active = host.activeTools?.();
 		for (const [tool, btn] of this.__buttons) {
-			const isActive = active ? active.has(tool) : host.isToolActive(tool);
+			// объединённая кнопка подсвечена и на блоке кода, а не только на моноширинном
+			const isActive =
+				this.__mergedCode && tool === CODE_TOOL
+					? !!host.isCodeActive?.()
+					: active
+						? active.has(tool)
+						: host.isToolActive(tool);
+
 			if (btn.classList.contains("active") !== isActive) btn.classList.toggle("active", isActive);
+			setDisabled(btn, host.isToolEnabled?.(tool) === false);
+		}
+
+		// тип под кареткой спрашиваем, только если есть что подсвечивать: обновление идёт
+		// на каждое её движение, а поиск блока — обход предков
+		if (this.__blockButtons.length) {
+			const block = host.currentBlock;
+
+			for (const [type, btn] of this.__blockButtons) {
+				const isActive = block === type;
+				if (btn.classList.contains("active") !== isActive) btn.classList.toggle("active", isActive);
+			}
 		}
 
 		// хост может не реализовывать isActionEnabled — тогда кнопка всегда доступна
 		for (const [action, btn] of this.__actionButtons) setDisabled(btn, host.isActionEnabled?.(action) === false);
-		for (const [name, btn] of this.__hostButtons) setDisabled(btn, this.__hostButton(name)?.isEnabled?.() === false);
+		for (const [name, btn] of this.__hostButtons)
+			setDisabled(btn, this.__hostButton(name)?.isEnabled?.() === false);
 	}
 
 	/** Кнопка хоста по имени — у активного редактора, а не у того, кто собрал разметку панели. */
@@ -307,8 +376,8 @@ class FormatToolbar {
 		return this.__elem;
 	}
 
-	private __build(tools: FormatTool[], actions: EditorAction[], buttons: ToolbarButton[]) {
-		const key = `${tools.join(",")}|${actions.join(",")}|${buttons.map((b) => b.name).join(",")}`;
+	private __build(tools: FormatTool[], blocks: BlockType[], actions: EditorAction[], buttons: ToolbarButton[]) {
+		const key = `${tools.join(",")}|${blocks.join(",")}|${actions.join(",")}|${buttons.map((b) => b.name).join(",")}`;
 		const elem = this.__ensure();
 		if (key === this.__toolsKey && elem.firstChild) return; // тот же состав — переиспользуем кнопки
 
@@ -316,23 +385,62 @@ class FormatToolbar {
 		const pickerInToolbar = !!this.__emojiPicker && this.__emojiPicker.parentElement === elem;
 		DOM.empty(elem);
 		this.__buttons = [];
+		this.__blockButtons = [];
 		this.__actionButtons = [];
 		this.__hostButtons = [];
 
+		// Код — одна кнопка на оба вида, как в мессенджерах: и моноширинный, и блок кода. Какой
+		// из них применить, решает редактор по выделению, поэтому отдельная кнопка блока не нужна.
+		this.__mergedCode = tools.includes(CODE_TOOL) && blocks.includes(CODE_BLOCK);
+		const blockTypes = this.__mergedCode ? blocks.filter((type) => type !== CODE_BLOCK) : blocks;
+
+		// Разделитель ставится только между непустыми группами — иначе панель начиналась бы
+		// с линии или показывала две подряд.
+		let filled = false;
+		const separate = (group: unknown[]) => {
+			if (filled && group.length) elem.appendChild(DOM.tag("div", { class: "split" }));
+			filled ||= group.length > 0;
+		};
+
+		separate(tools);
+
 		for (const tool of tools) {
+			const merged = this.__mergedCode && tool === CODE_TOOL;
 			const def = FORMAT_TOOLS[tool];
 			const btn = DOM.tag(
 				"button",
-				{ type: "button", class: "format-button", dataset: { formatTool: tool }, title: def.title },
+				{
+					type: "button",
+					class: "format-button",
+					dataset: { formatTool: tool },
+					title: merged ? MERGED_CODE_TITLE : def.title,
+				},
 				FORMAT_ICONS[tool]
 			);
-			btn.addEventListener("click", () => this.__active?.applyFormat(tool));
+			btn.addEventListener("click", () =>
+				merged ? this.__active?.applyCode?.() : this.__active?.applyFormat(tool)
+			);
 
 			elem.appendChild(btn);
 			this.__buttons.push([tool, btn]);
 		}
 
-		if (tools.length && actions.length) elem.appendChild(DOM.tag("div", { class: "split" }));
+		separate(blockTypes);
+
+		for (const type of blockTypes) {
+			const def = BLOCK_TYPES[type];
+			const btn = DOM.tag(
+				"button",
+				{ type: "button", class: "block-button", dataset: { blockType: type }, title: def.title },
+				BLOCK_ICONS[type] ?? ""
+			);
+			btn.addEventListener("click", () => this.__active?.applyBlock?.(type));
+
+			elem.appendChild(btn);
+			this.__blockButtons.push([type, btn]);
+		}
+
+		separate(actions);
 
 		for (const action of actions) {
 			const def = EDITOR_ACTIONS[action];
@@ -348,7 +456,7 @@ class FormatToolbar {
 			this.__actionButtons.push([action, btn]);
 		}
 
-		if ((tools.length || actions.length) && buttons.length) elem.appendChild(DOM.tag("div", { class: "split" }));
+		separate(buttons);
 
 		// кнопки хоста — последними, чтобы штатные не переезжали при их появлении
 		for (const button of buttons) {

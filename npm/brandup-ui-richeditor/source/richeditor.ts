@@ -3,8 +3,13 @@ import "./richeditor.less"; // стили редактора и панели ф�
 import { DOM, UIElementBound } from "@brandup/ui";
 import {
 	ALL_FORMAT_TOOLS,
+	BLOCK_TYPES,
+	DEFAULT_BLOCK,
 	HOTKEY_TOOLS,
 	activeFormats,
+	blockAt,
+	blockTypeOf,
+	blocksInRange,
 	clearAllFormat,
 	clearFormat,
 	defaultFormatMarkers,
@@ -17,6 +22,9 @@ import {
 	documentSelection,
 	innerSelection,
 	mapCharOffset,
+	normalizeBlockTypes,
+	editorText,
+	charLength,
 	preserveCaret,
 	normalizeParagraphs,
 	normalizeWhitespace,
@@ -24,6 +32,7 @@ import {
 	selectionCharBounds,
 	serialize,
 	toggleFormat,
+	type BlockType,
 	type EditorAction,
 	type FormatMarkers,
 	type FormatStorage,
@@ -31,6 +40,8 @@ import {
 	type FormatTool,
 } from "./format";
 import {
+	applyBlocks,
+	atBlockStart,
 	buildParagraphs,
 	caretToEnd,
 	expandRangeToWords,
@@ -52,6 +63,9 @@ export const UNSELECTABLE_CLASS = "unselectable";
 export const CHANGE_EVENT = "richeditor-change";
 
 const NAV_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Escape"];
+
+// Код — единственное, что есть и инструментом, и типом блока: имя одно на оба (см. applyCode).
+const CODE = "code";
 
 // нативные правки (печать/удаление), состояние до которых запоминаем для собственного undo;
 // вставка/перетаскивание и Enter обрабатываются отдельно, undo/redo — на keydown
@@ -104,6 +118,11 @@ export interface RichEditorOptions {
 	multiline?: boolean;
 	/** Что делает Enter: новый абзац (по умолчанию) или мягкий перенос, как в мессенджерах. */
 	paragraph?: ParagraphMode;
+	/**
+	 * Типы блоков в многострочном режиме: цитата, блок кода (по умолчанию только обычный текст).
+	 * Обычный текст в наборе есть всегда — в него блок возвращают.
+	 */
+	blocks?: BlockType[];
 	/** Только для чтения — запрещает ввод и изменение текста (но не выделение/копирование). */
 	readonly?: boolean;
 	/** Контейнер для панели форматирования; по умолчанию document.body (position: fixed над редактором). */
@@ -142,6 +161,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	readonly formatMarkers: FormatMarkers;
 	readonly multiline: boolean;
 	readonly paragraph: ParagraphMode;
+	readonly blockTypes: BlockType[];
 	readonly toolbarContainer: HTMLElement | null;
 	readonly toolbarButtons: ToolbarButton[];
 
@@ -186,6 +206,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.formatMarkers = Object.assign(defaultFormatMarkers(), options.markers);
 		this.multiline = multiline;
 		this.paragraph = options.paragraph ?? "block";
+		// Блоки — часть многострочной модели: в однострочном режиме верхнего уровня нет вовсе,
+		// а в readonly их не переключить, но разбор и показ значения обязаны работать и там.
+		this.blockTypes = multiline ? normalizeBlockTypes(options.blocks) : [DEFAULT_BLOCK];
 		this.toolbarContainer = options.toolbarContainer ?? null;
 		// кнопки хоста живут и без форматирования, но не в readonly — там панели нет вовсе
 		this.toolbarButtons = readonly ? [] : (options.buttons ?? []);
@@ -232,7 +255,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 	getValue(): string {
 		// multiline → модель абзацев (<p>/\n\n) и мягких переносов (<br>/\n)
-		return serialize(this.editable, this.__valueStorage, this.__valueTools, this.formatMarkers, this.multiline);
+		return serialize(
+			this.editable,
+			this.__valueStorage,
+			this.__valueTools,
+			this.formatMarkers,
+			this.multiline,
+			this.blockTypes,
+			this.__blockParagraphs
+		);
 	}
 
 	setValue(value: string): void {
@@ -415,11 +446,23 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		};
 	}
 
+	/**
+	 * Доступен ли инструмент в текущем месте. В коде разметки нет: и моноширинный, и блок кода
+	 * оставляют написанное буквальным, поэтому остальные инструменты там выключены — иначе
+	 * форматирование ставилось бы только чтобы пропасть при сохранении.
+	 */
+	isToolEnabled(tool: FormatTool): boolean {
+		if (this.readonly || !this.formatTools.includes(tool)) return false;
+		if (tool === CODE) return true;
+
+		return this.currentBlock !== CODE && !this.isToolActive(CODE);
+	}
+
 	/** Переключить форматирование инструмента (вызывается общим тулбаром и хоткеями). */
 	applyFormat(tool: FormatTool): void {
-		if (!this.formatTools.includes(tool)) return;
+		if (!this.isToolEnabled(tool)) return;
 
-		const target = this.__formatTarget();
+		let target = this.__formatTarget();
 		if (!target) return;
 
 		if (target.range.collapsed) {
@@ -434,10 +477,124 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.__pendingFormats.clear();
 
 		this.__history?.record("op");
+
+		// Код не уживается с другой разметкой: значение берёт из него голый текст. Снимаем всё,
+		// что было на этом куске, и только потом оборачиваем — иначе прежнее форматирование
+		// осталось бы снаружи кода и в поле выглядело бы рабочим.
+		if (
+			tool === CODE &&
+			!isFormatActive(this.editable, target.range, CODE) &&
+			hasFormatting(this.editable, target.range)
+		) {
+			clearFormat(this.editable, target.range, target.selection, target.original());
+
+			// правка перестроила узлы — прежний диапазон указывает в никуда
+			target = this.__formatTarget();
+			if (!target) return;
+		}
+
 		toggleFormat(this.editable, target.range, tool, target.selection, target.original());
 
 		this.__emitChange();
 		formatToolbar.refresh();
+	}
+
+	/**
+	 * Тип блока под кареткой. Без выделения (или вне блоков) — тип по умолчанию: именно им
+	 * станет то, что сейчас наберут.
+	 */
+	get currentBlock(): BlockType {
+		const selection = this.selection;
+		if (!selection) return DEFAULT_BLOCK;
+
+		const block = blockAt(this.editable, selection.getRangeAt(0).startContainer);
+
+		return blockTypeOf(block) ?? DEFAULT_BLOCK;
+	}
+
+	/**
+	 * Переключить тип блоков под выделением. Повторное применение того же типа возвращает
+	 * блок к обычному тексту — иначе выйти из цитаты можно было бы только через другую кнопку.
+	 */
+	applyBlock(type: BlockType): void {
+		if (!this.multiline || this.readonly || !this.blockTypes.includes(type)) return;
+
+		const selection = this.selection;
+		if (!selection) return;
+
+		const range = selection.getRangeAt(0);
+		const target = this.currentBlock === type ? DEFAULT_BLOCK : type;
+
+		// нечего менять — не пишем в историю пустой шаг и не трогаем выделение.
+		// В пустом редакторе блока ещё нет, но завести его можно (кроме типа по умолчанию —
+		// им пустое поле и так является).
+		const blocks = blocksInRange(this.editable, range);
+		const nothing = this.editable.firstChild
+			? !blocks.length || blocks.every((block) => blockTypeOf(block) === target)
+			: target === DEFAULT_BLOCK;
+
+		if (nothing) return;
+
+		this.__history?.record("op");
+
+		// Смена тега переносит содержимое в новый элемент — живые границы выделения этого
+		// не переживают, поэтому держим каретку по текстовым смещениям.
+		const bounds = selectionCharBounds(this.editable, range);
+		const { created } = applyBlocks(this.editable, range, target);
+
+		// Разделение блока добавило границы, а они в смещениях считаются — прежние уже не те.
+		// Выделяем то, что стало блоком: заодно видно, к каким строкам правка и относилась.
+		// В пустом блоке выделять нечего — там только каретка.
+		if (created) {
+			const inside = this.editable.ownerDocument.createRange();
+			inside.selectNodeContents(created);
+			if (!(created.textContent ?? "")) inside.collapse(true);
+
+			selection.removeAllRanges();
+			selection.addRange(inside);
+		} else {
+			restoreSelection(this.editable, bounds[0], bounds[1], selection);
+		}
+
+		this.__emitChange();
+		formatToolbar.refresh();
+	}
+
+	/** Код в любом виде: моноширинный на выделении или блок кода под кареткой. */
+	isCodeActive(): boolean {
+		return this.currentBlock === CODE || this.isToolActive(CODE);
+	}
+
+	/**
+	 * Единая правка кода — то, что в мессенджерах делает одна кнопка. Вид выбирается по объёму
+	 * правки: выделена одна строка или её часть — моноширинный, больше одной строки — блок.
+	 *
+	 * Блоком становится и правка без выделения: моноширинным там делать нечего, а иначе блок
+	 * оказался бы недостижим — в пустом поле не выделить строки, которых ещё нет.
+	 *
+	 * Повторное применение снимает тот вид, который сейчас и включён.
+	 */
+	applyCode(): void {
+		const inline = this.formatTools.includes(CODE);
+		const block = this.multiline && this.blockTypes.includes(CODE);
+		if (!inline && !block) return;
+
+		if (block && this.currentBlock === CODE) return this.applyBlock(CODE); // выйти из блока
+		if (inline && this.isToolActive(CODE)) return this.applyFormat(CODE); // снять моноширинный
+
+		const range = this.selection?.getRangeAt(0);
+		const part = !!range && !range.collapsed && !this.__coversLines(range);
+
+		if (inline && (part || !block)) this.applyFormat(CODE);
+		else if (block) this.applyBlock(CODE);
+	}
+
+	/**
+	 * Выделено больше одной строки: захвачено несколько блоков либо мягкий перенос внутри.
+	 * Одна строка — даже целиком — остаётся куском текста: код на ней это моноширинный.
+	 */
+	private __coversLines(range: Range): boolean {
+		return blocksInRange(this.editable, range).length > 1 || !!range.cloneContents().querySelector("br");
 	}
 
 	/**
@@ -593,20 +750,24 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		DOM.empty(this.editable);
 		if (!value) return;
 
-		// multiline → <p>-абзацы; single-line → инлайновое содержимое
-		const paragraphs = this.__blockParagraphs;
+		// multiline → <p>-абзацы; single-line → инлайновое содержимое. Блоки разбираются и в режиме
+		// мягких переносов: цитата и код узнаются по собственной разметке, а не по пустой строке.
+		const blocks = this.blockTypes.length > 1;
+		const paragraphs = this.__blockParagraphs || (this.multiline && blocks);
 
 		this.editable.innerHTML = deserialize(
 			value,
 			this.__valueStorage,
 			this.__valueTools,
 			this.formatMarkers,
-			paragraphs
+			paragraphs,
+			this.blockTypes,
+			this.__blockParagraphs
 		);
 
 		// в break инлайновое содержимое оборачивается в единственный абзац — модель абзацев
 		// нужна редактированию (каретка, вставка), а разделителем строк остаётся <br>
-		if (this.multiline && !paragraphs) ensureParagraphs(this.editable);
+		if (this.multiline && !this.__blockParagraphs) ensureParagraphs(this.editable);
 	}
 
 	/**
@@ -659,14 +820,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const bounds = selection ? selectionCharBounds(this.editable, selection.getRangeAt(0)) : null;
 
 		const before = this.editable.innerHTML;
-		const textBefore = this.editable.textContent ?? "";
+		// текст в координатах каретки (с концами строк) — иначе смещения разъедутся на число строк
+		const textBefore = editorText(this.editable);
 		normalizeWhitespace(this.editable);
 		if (this.multiline) normalizeParagraphs(this.editable);
 		if (this.editable.innerHTML === before) return;
 
 		if (bounds && selection) {
 			// схлопнутые пробелы сдвигают смещения — переносим их на новый текст
-			const textAfter = this.editable.textContent ?? "";
+			const textAfter = editorText(this.editable);
 			const start = mapCharOffset(textBefore, textAfter, bounds[0]);
 			const end = bounds[1] === bounds[0] ? start : mapCharOffset(textBefore, textAfter, bounds[1]);
 			restoreSelection(this.editable, start, end, selection);
@@ -886,16 +1048,37 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 			// В режиме block Enter — новый абзац (<p>), модификатор — мягкий перенос (<br>).
 			// В режиме break наоборот: Enter переносит строку, как в мессенджерах, а абзац
-			// набирается двумя переносами.
+			// набирается двумя переносами. Внутри блока правило берётся у его типа: в цитате
+			// и в коде Enter переносит строку, иначе одну цитату было бы не набрать.
 			const withModifier = e.shiftKey || e.ctrlKey || e.metaKey;
-			const soft = this.paragraph === "break" ? !withModifier : withModifier;
+			const current = this.currentBlock;
+			const breaks =
+				current === DEFAULT_BLOCK ? this.paragraph === "break" : BLOCK_TYPES[current].enter === "break";
+			const soft = breaks ? !withModifier : withModifier;
 
 			this.__history?.record("op");
+			// Из блока выходят тем же нажатием, что делит его: продолжать цитату или код
+			// новым таким же блоком незачем — для этого достаточно переноса строки.
 			if (soft) insertSoftBreak(this.editable);
-			else insertParagraph(this.editable);
+			else insertParagraph(this.editable, DEFAULT_BLOCK);
 
 			this.__clearPendingFormats();
 			this.__emitChange();
+			formatToolbar.refresh();
+			return;
+		}
+
+		// Backspace в начале блока возвращает его к обычному тексту — так из цитаты или кода
+		// выходят там же, где в них вошли, не трогая содержимого. Дальше по тексту Backspace
+		// работает как обычно.
+		if (e.key === "Backspace" && !this.readonly && this.multiline) {
+			const block = this.currentBlock;
+			const selection = block === DEFAULT_BLOCK ? null : this.selection;
+
+			if (selection && atBlockStart(this.editable, selection.getRangeAt(0))) {
+				e.preventDefault();
+				this.applyBlock(block); // тот же тип — переключение вернёт обычный текст
+			}
 		}
 	}
 
@@ -946,7 +1129,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	// Вставка форматированного текста из text/html. Возвращает false, если вставлять нечего —
 	// тогда вызывающий откатывается на простую вставку.
 	private __pasteHtml(html: string, selection: Selection): boolean {
-		return this.__insertPasted(sanitizePastedHtml(html, this.formatTools, this.formatMarkers), selection);
+		return this.__insertPasted(
+			sanitizePastedHtml(html, this.formatTools, this.formatMarkers, this.blockTypes),
+			selection
+		);
 	}
 
 	/**
@@ -968,7 +1154,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		let caret: number;
 
 		if (this.multiline) {
-			caret = start + paras.reduce((length, p) => length + (p.textContent ?? "").length, 0);
+			// длина вставки в координатах каретки: текст, переносы внутри абзацев и границы между
+			// ними (первый абзац вливается в текущий, поэтому границ на одну меньше)
+			caret = start + paras.reduce((length, p) => length + charLength(p), paras.length - 1);
 
 			insertPastedParagraphs(this.editable, paras, range);
 			ensureParagraphs(this.editable); // заполнить пустые абзацы, убрать краевые <br>
