@@ -486,19 +486,15 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		return (selected && selected.own.firstElementChild?.textContent?.trim()) || null;
 	}
 
+	// Правила проверяет браузер по атрибутам самого select; контрол отражает результат классом.
+	// Обязательность закрывает нативный required — для этого у пустого пункта value должно
+	// быть пустым, как и требует стандарт.
 	override validate(): boolean {
-		const value = this.getValue();
-		let isInvalid = !this.__valueElem.validity.valid;
+		const isValid = super.validate();
 
-		if (this.required && !value) isInvalid = true;
+		this.element.classList.toggle("invalid", !isValid);
 
-		const clearInvalid = () => this.element.classList.remove("invalid");
-
-		if (isInvalid) {
-			this.element.classList.add("invalid");
-		} else clearInvalid();
-
-		return !isInvalid;
+		return isValid;
 	}
 
 	override destroy(): void {

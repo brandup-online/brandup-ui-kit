@@ -68,34 +68,24 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 	protected __syncValue(): void {}
 
 	private __initForm() {
+		// Логика валидации — штатная: ограничения объявлены на поле-носителе, решение принимает
+		// браузер, он же блокирует отправку и поднимает invalid. Контрол только отражает это
+		// классом и своё событие submit не досылает — обработчики формы получают ровно то же,
+		// что и у обычных input/textarea.
+		//
+		// Гасим лишь показ подсказки: поле уведено с экрана, привязать её не к чему, и браузер
+		// вместо неё пишет в консоль «not focusable». Состояние видно по классу invalid.
 		this.__invalidEvent = (e: Event) => {
 			e.preventDefault();
 
-			this.__submitForm();
+			this.element.classList.add("invalid");
 		};
 		this.__valueElem.addEventListener("invalid", this.__invalidEvent);
 
-		this.__submitEvent = (e: SubmitEvent) => {
-			// Значение синхронизируем до любых проверок и независимо от них: при отключённой
-			// валидации обработчик выходит ниже, а форма всё равно отправится — уже с этим значением.
-			// Событие submit приходит до действия по умолчанию, поэтому успеваем.
-			this.__syncValue();
-
-			if ((e.submitter as HTMLButtonElement | null)?.formNoValidate || (<HTMLFormElement>e.target).noValidate)
-				return; // Не делаем валидацию, если она отключена в форме или в инициаторе события submit
-
-			if (this.disabled) return;
-
-			if (!this.validate()) {
-				if (!e.defaultPrevented) {
-					e.stopPropagation();
-					this.focus();
-				}
-
-				e.preventDefault();
-				return;
-			}
-		};
+		// Значение переносим в поле формы до отправки. Проверять здесь нечего: контрол объявляет
+		// свои ограничения через setCustomValidity, а решение принимает браузер — до submit он
+		// уже отказал бы. Синхронизация нужна и при отключённой валидации, поэтому она первым делом.
+		this.__submitEvent = () => this.__syncValue();
 
 		if (!this.form) return;
 
@@ -114,6 +104,32 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 			if (e.target === this.form) this.__syncValue();
 		};
 		this.__valueElem.ownerDocument.addEventListener("submit", this.__submitCaptureEvent, true);
+	}
+
+	/**
+	 * Отправка формы по Enter — как у обычного `input`: браузер сам проверит валидность,
+	 * поднимет отменяемый `submit` и отправит форму.
+	 *
+	 * Не то же, что {@link __submitForm}: тот лишь диспатчит событие, а синтетическое событие
+	 * вызывает обработчиков, но саму отправку не запускает — форма с `action` никуда не уходила.
+	 *
+	 * Неявная отправка в браузере равносильна нажатию первой кнопки отправки, поэтому её же
+	 * передаём инициатором: от неё зависят `formaction`, `formnovalidate` и `e.submitter`.
+	 */
+	protected __requestSubmit() {
+		const form = this.form;
+		if (this.readonly || this.disabled || !form) return;
+
+		if (typeof form.requestSubmit !== "function") {
+			this.__submitForm(); // движок без requestSubmit — хотя бы уведомим обработчиков
+			return;
+		}
+
+		const submitter = form.querySelector<HTMLButtonElement>(
+			"button[type=submit], input[type=submit], button:not([type])"
+		);
+
+		form.requestSubmit(submitter ?? undefined);
 	}
 
 	protected __submitForm() {
