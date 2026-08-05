@@ -295,9 +295,9 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		this.__editor.setValue(value?.trim() ?? "");
 	}
 
+	// Правила проверяет браузер по атрибутам поля-носителя; контрол отражает результат классом.
 	override validate(): boolean {
-		let isValid = super.validate(); // super синхронизирует значение сам, через __syncValue
-		if (isValid && this.required && !this.getValue()) isValid = false;
+		const isValid = super.validate(); // super синхронизирует значение сам, через __syncValue
 
 		this.element.classList.toggle("invalid", !isValid);
 

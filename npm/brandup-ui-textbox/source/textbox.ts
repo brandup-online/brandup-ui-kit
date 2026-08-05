@@ -189,7 +189,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			toolbarContainer: container,
 			value: valueElem.value,
 			onReject: () => this.__toIncorrect(),
-			onEnter: () => this.__submitForm(),
+			onEnter: () => this.__requestSubmit(),
 		};
 
 		// допустим ли вводимый символ по типу.
@@ -328,6 +328,23 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	// валидация, отправка формы, сбор FormData.
 	protected override __syncValue(): void {
 		this.__editor.flushChange();
+		this.__refreshValidity();
+	}
+
+	/**
+	 * Собственное ограничение контрола объявляем полю через setCustomValidity — дальше всё
+	 * делает браузер, как с нативными `required` и `pattern`: блокирует отправку и поднимает
+	 * invalid. Иначе правило работало бы только в нашем validate(), а форма уезжала бы.
+	 *
+	 * Длину меряем по видимому тексту, а не по значению: при format/html в нём теги, в multiline —
+	 * разделители абзацев. Нативный maxLength здесь не помощник: он ограничивает набор, но не
+	 * помечает значение, выставленное из кода.
+	 */
+	private __refreshValidity(): void {
+		if (this.maxlength <= 0) return;
+
+		const tooLong = this.maxlength < this.__editor.getLength();
+		this.__valueElem.setCustomValidity(tooLong ? `Не больше ${this.maxlength} символов.` : "");
 	}
 
 	private __toIncorrect() {

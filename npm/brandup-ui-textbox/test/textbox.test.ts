@@ -523,3 +523,97 @@ describe("TextBox formatting", () => {
 		expect(tb.validate()).toBe(true); // 5 ≤ 6 — валидно по видимому тексту, а не по тегам
 	});
 });
+
+// Enter в однострочном поле должен работать как у обычного input: браузер сам проверяет
+// валидность, поднимает отменяемый submit и отправляет форму. dispatchEvent так не умеет —
+// синтетическое событие вызывает обработчиков, но отправку не запускает.
+describe("TextBox implicit submission", () => {
+	const setup = (opts: { multiline?: boolean; button?: boolean; required?: boolean } = {}) => {
+		document.body.innerHTML = "";
+		const form = document.createElement("form");
+		const input = opts.multiline ? document.createElement("textarea") : document.createElement("input");
+		if (!opts.multiline) (input as HTMLInputElement).type = "text";
+		input.value = "текст";
+		if (opts.required) input.required = true;
+		form.appendChild(input);
+
+		if (opts.button) {
+			const button = document.createElement("button");
+			button.type = "submit";
+			button.textContent = "Отправить";
+			form.appendChild(button);
+		}
+
+		document.body.appendChild(form);
+
+		const submit = jest.fn((e: Event) => e.preventDefault());
+		form.addEventListener("submit", submit);
+
+		return { form, input, submit };
+	};
+
+	const pressEnter = (tb: TextBox) =>
+		tb.editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })
+		);
+
+	it("submits through the first submit button, as implicit submission does", () => {
+		const { input, submit } = setup({ button: true });
+		pressEnter(new TextBox(input as HTMLInputElement));
+
+		expect(submit).toHaveBeenCalledTimes(1);
+		expect((submit.mock.calls[0][0] as SubmitEvent).submitter).toBe(document.querySelector("button"));
+	});
+
+	it("submits a form without a submit button too", () => {
+		const { input, submit } = setup();
+		pressEnter(new TextBox(input as HTMLInputElement));
+
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+
+	// как у обычного input: браузер отказывает до события, поэтому обработчики формы
+	// вообще не вызываются, а контрол помечается классом
+	it("does not submit at all when the value is invalid", () => {
+		const { input, submit } = setup({ button: true, required: true });
+		const tb = new TextBox(input as HTMLInputElement);
+		tb.setValue("");
+
+		pressEnter(tb);
+
+		expect(submit).not.toHaveBeenCalled();
+		expect(tb.element.classList.contains("invalid")).toBe(true);
+	});
+
+	// собственное ограничение объявлено полю через setCustomValidity, значит его тоже
+	// проверяет браузер, а не только наш validate()
+	it("blocks submission when the visible text is longer than maxlength", () => {
+		const { input, submit } = setup({ button: true });
+		input.maxLength = 3;
+		const tb = new TextBox(input as HTMLInputElement);
+		tb.setValue("длинное значение");
+
+		pressEnter(tb);
+
+		expect(submit).not.toHaveBeenCalled();
+		expect(tb.validate()).toBe(false);
+	});
+
+	it("does not submit from a multiline textbox", () => {
+		const { input, submit } = setup({ multiline: true, button: true });
+		const tb = new TextBox(input as HTMLTextAreaElement);
+
+		const paragraph = tb.editor.editable.querySelector("p")!;
+		const selection = window.getSelection()!;
+		const range = document.createRange();
+		range.setStart(paragraph.firstChild!, 5);
+		range.collapse(true);
+		selection.removeAllRanges();
+		selection.addRange(range);
+
+		pressEnter(tb);
+
+		expect(submit).not.toHaveBeenCalled();
+		expect(tb.editor.editable.querySelectorAll("p")).toHaveLength(2);
+	});
+});
