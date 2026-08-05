@@ -383,8 +383,8 @@ describe("MessageEditor", () => {
 		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="randomize"]')!.click();
 		editor.editor.editable.blur();
 
-		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .add")!.click();
-		document.querySelectorAll<HTMLInputElement>(".messageeditor-randomizer input")[1].value = "подарок";
+		// второй вариант набирают в пустом, который окно предложило само
+		document.querySelectorAll<HTMLElement>(".messageeditor-randomizer .editable")[1].textContent = "подарок";
 		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .apply")!.click();
 
 		expect(editor.getValue()).toBe("Дарим **[скидку|подарок]** сегодня");
@@ -443,10 +443,9 @@ describe("MessageEditor", () => {
 		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="randomize"]')!.click();
 		editor.editor.editable.blur();
 
-		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .add")!.click();
-		const variants = document.querySelectorAll<HTMLInputElement>(".messageeditor-randomizer input");
+		const variants = document.querySelectorAll<HTMLElement>(".messageeditor-randomizer .editable");
 		variants[0].focus(); // правка идёт в поле окна
-		variants[1].value = "подарок";
+		variants[1].textContent = "подарок";
 
 		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .apply")!.click();
 

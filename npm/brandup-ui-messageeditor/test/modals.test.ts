@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import RandomizerModal from "../source/randomizer";
+import RandomizerModal, { MAX_VARIANTS } from "../source/randomizer";
 import VariablesModal, { parseVariables, VARIABLES_EMPTY_TEXT } from "../source/variables";
 
 const opened: Array<{ close(): void }> = [];
@@ -26,35 +26,156 @@ afterEach(() => {
 // поля наследника ещё не объявлены, и их объявления затирают присвоенное. Эти тесты
 // ловят как раз такую поломку — окно открывается пустым или падает.
 describe("RandomizerModal", () => {
-	it("renders the selected text as the first variant", () => {
-		open(new RandomizerModal("скидка", () => {}));
+	const fields = (modal: RandomizerModal) =>
+		Array.from(modal.element!.querySelectorAll<HTMLElement>(".editable"));
+	const texts = (modal: RandomizerModal) => fields(modal).map((f) => f.textContent);
 
-		const inputs = document.querySelectorAll<HTMLInputElement>(".messageeditor-randomizer input");
-		expect(inputs).toHaveLength(1);
-		expect(inputs[0].value).toBe("скидка");
+	// В набор печатают, а не заполняют форму: пока есть место, список кончается пустым вариантом,
+	// и он же приглашает набрать следующий.
+	const type = (field: HTMLElement, text: string) => {
+		field.textContent = text;
+		field.dispatchEvent(new Event("input", { bubbles: true }));
+	};
+	const leave = (field: HTMLElement) => field.dispatchEvent(new FocusEvent("blur", { bubbles: false }));
+
+	it("renders the selected text as the first variant, with a blank one after it", () => {
+		const modal = open(new RandomizerModal("скидка", () => {}));
+
+		expect(texts(modal)).toEqual(["скидка", ""]);
 	});
 
 	it("splits an existing spintax back into variants", () => {
-		open(new RandomizerModal("[раз|два]", () => {}));
+		const modal = open(new RandomizerModal("[раз|два]", () => {}));
 
-		const inputs = document.querySelectorAll<HTMLInputElement>(".messageeditor-randomizer input");
-		expect(Array.from(inputs).map((i) => i.value)).toEqual(["раз", "два"]);
+		expect(texts(modal)).toEqual(["раз", "два", ""]);
+	});
+
+	// пустой вариант внизу появляется сам, как только предыдущий перестал быть пустым
+	it("offers the next variant as soon as the last one is filled", () => {
+		const modal = open(new RandomizerModal("раз", () => {}));
+
+		type(fields(modal)[1], "два");
+
+		expect(texts(modal)).toEqual(["раз", "два", ""]);
 	});
 
 	it("collects the variants into a spintax and closes", () => {
 		const apply = jest.fn();
 		const modal = open(new RandomizerModal("раз", apply));
 
-		// добавляем второй вариант и заполняем оба
-		modal.element!.querySelector<HTMLButtonElement>(".add")!.click();
-		const inputs = document.querySelectorAll<HTMLInputElement>(".messageeditor-randomizer input");
-		inputs[0].value = "раз";
-		inputs[1].value = "два";
-
+		type(fields(modal)[1], "два");
 		modal.element!.querySelector<HTMLButtonElement>(".apply")!.click();
 
 		expect(apply).toHaveBeenCalledWith("[раз|два]");
 		expect(document.querySelector(".messageeditor-randomizer")).toBeNull();
+	});
+
+	// нажатие, которое ничего не делает, выглядит поломкой: пока варианта нет, сохранять нечего
+	it("keeps saving disabled until a variant is filled", () => {
+		const modal = open(new RandomizerModal("", () => {}));
+		const apply = modal.element!.querySelector<HTMLButtonElement>(".apply")!;
+
+		expect(apply.disabled).toBe(true);
+
+		type(fields(modal)[0], "раз");
+
+		expect(apply.disabled).toBe(false);
+	});
+
+	it("closes without applying on cancel", () => {
+		const apply = jest.fn();
+		const modal = open(new RandomizerModal("раз", apply));
+
+		modal.element!.querySelector<HTMLButtonElement>(".cancel")!.click();
+
+		expect(apply).not.toHaveBeenCalled();
+		expect(document.querySelector(".messageeditor-randomizer")).toBeNull();
+	});
+
+	// Очищенный вариант — не запись, а мусор в списке: убираем, как только из него ушли.
+	// Хвостовой пустой остаётся: он приглашение набрать следующий.
+	it("drops a cleared variant on blur but keeps the trailing blank one", () => {
+		const modal = open(new RandomizerModal("[раз|два]", () => {}));
+
+		const second = fields(modal)[1];
+		type(second, "");
+		leave(second);
+
+		expect(texts(modal)).toEqual(["раз", ""]);
+
+		const blank = fields(modal)[1];
+		leave(blank);
+
+		expect(texts(modal)).toEqual(["раз", ""]);
+	});
+
+	// у приглашения нечего убирать, поэтому кнопки удаления у него нет
+	it("hides the remove button on the trailing blank variant only", () => {
+		const modal = open(new RandomizerModal("раз", () => {}));
+
+		const rows = modal.element!.querySelectorAll(".variant");
+		expect(rows[0].classList.contains("blank")).toBe(false);
+		expect(rows[1].classList.contains("blank")).toBe(true);
+	});
+
+	it("removes a variant by its button", () => {
+		const modal = open(new RandomizerModal("[раз|два]", () => {}));
+
+		modal.element!.querySelectorAll<HTMLButtonElement>(".variant .remove")[0].click();
+
+		expect(texts(modal)).toEqual(["два", ""]);
+	});
+
+	// Вариант бывает длинным, поэтому это редактируемая область, а не поле ввода: она переносит
+	// текст. Скобки и разделитель внутри развалили бы саму конструкцию.
+	it("edits a variant in a wrapping field that refuses the construct characters", () => {
+		const modal = open(new RandomizerModal("скидка", () => {}));
+		const field = fields(modal)[0];
+
+		expect(field.getAttribute("contenteditable")).toBe("true");
+
+		const pressed = (key: string) => {
+			const e = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+			field.dispatchEvent(e);
+			return e.defaultPrevented;
+		};
+
+		expect(["[", "]", "|"].map(pressed)).toEqual([true, true, true]);
+		expect(pressed("а")).toBe(false);
+	});
+
+	// Enter не переносит строку внутри варианта, а переводит в следующий
+	it("moves to the next variant on Enter", () => {
+		const modal = open(new RandomizerModal("раз", () => {}));
+		const field = fields(modal)[0];
+
+		const e = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+		field.dispatchEvent(e);
+
+		expect(e.defaultPrevented).toBe(true);
+		expect(document.activeElement).toBe(fields(modal)[1]);
+	});
+
+	// набор не должен разрастаться: спинтакс уходит в текст сообщения целиком
+	it("stops offering new variants at the limit and says why", () => {
+		const spintax = `[${Array.from({ length: MAX_VARIANTS }, (_, i) => `в${i}`).join("|")}]`;
+		const modal = open(new RandomizerModal(spintax, () => {}));
+
+		// приглашения больше нет — список ровно в предел
+		expect(fields(modal)).toHaveLength(MAX_VARIANTS);
+		expect(modal.element!.classList.contains("max-variants")).toBe(true);
+
+		type(fields(modal)[MAX_VARIANTS - 1], "изменили");
+
+		expect(fields(modal)).toHaveLength(MAX_VARIANTS);
+	});
+
+	// лишнее из готового спинтакса отсекается сразу: набрать столько всё равно бы не дали
+	it("cuts an oversized spintax down to the limit", () => {
+		const spintax = `[${Array.from({ length: MAX_VARIANTS + 5 }, (_, i) => `в${i}`).join("|")}]`;
+		const modal = open(new RandomizerModal(spintax, () => {}));
+
+		expect(fields(modal)).toHaveLength(MAX_VARIANTS);
 	});
 
 	it("does not apply when every variant is empty", () => {
@@ -193,5 +314,16 @@ describe("parseVariables", () => {
 	it("ignores JSON that is not an array", () => {
 		expect(parseVariables('{"key":"ИМЯ"}')).toEqual([]); // не массив — разбор как ключа, а он со скобками
 		expect(parseVariables("[1, true, null]")).toEqual([]);
+	});
+});
+
+// Конструкция живёт в одной строке, а название подставляется вместо неё: перенос в названии
+// разорвал бы её. Запись не отбрасываем — смысл названия от схлопывания пробелов цел.
+describe("parseVariables names", () => {
+	it("collapses line breaks in a name", () => {
+		// в JSON перенос записан escape-последовательностью: сырой внутри строки недопустим
+		expect(parseVariables('[{"key":"ИМЯ","name":"Имя\\nклиента"}]')).toEqual([
+			{ key: "ИМЯ", name: "Имя клиента" },
+		]);
 	});
 });

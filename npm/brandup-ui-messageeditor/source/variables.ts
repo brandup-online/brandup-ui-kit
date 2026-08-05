@@ -147,7 +147,9 @@ function toVariable(item: unknown): MessageVariable | null {
 	const key = toKey(source.key);
 	if (!key) return null;
 
-	const name = typeof source.name === "string" ? source.name.trim() : "";
+	// Переносы в названии недопустимы: конструкция живёт в одной строке, а название подставляется
+	// вместо неё. Не отбрасываем всю запись — схлопываем пробелы, смысл названия от этого цел.
+	const name = typeof source.name === "string" ? source.name.replace(/\s+/g, " ").trim() : "";
 
 	return name ? { key, name } : { key };
 }
