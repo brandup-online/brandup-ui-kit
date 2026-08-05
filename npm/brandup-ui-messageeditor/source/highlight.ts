@@ -14,6 +14,13 @@ export const KEY_CLASS = "key";
 /** Названия переменных по ключу — что показывать в тексте вместо `{КЛЮЧ}`. */
 export type VariableNames = ReadonlyMap<string, string>;
 
+export interface HighlightOptions {
+	/** Названия переменных по ключу; без них показывается ключ. */
+	names?: VariableNames;
+	/** Подсвечивать ли переменные (по умолчанию да): выключенная персонализация их не выделяет. */
+	variables?: boolean;
+}
+
 /** Обёртки подсвеченных конструкций — по нему их находят и подсветка, и правки редактора. */
 export const MARKUP_SELECTOR = `span.${SPINTAX_CLASS}, span.${VARIABLE_CLASS}`;
 
@@ -29,7 +36,13 @@ export function markupAt(node: Node | null | undefined): HTMLElement | null {
 
 // Спинтакс — только с разделителем: `[текст]` без `|` вариантов не содержит.
 // Ни одна из конструкций не пересекает строку и не вкладывается друг в друга.
-const PATTERN = /\[[^[\]\n]*\|[^[\]\n]*\]|\{[^{}\n]+\}/g;
+const SPINTAX_PATTERN = /\[[^[\]\n]*\|[^[\]\n]*\]/;
+const VARIABLE_PATTERN = /\{[^{}\n]+\}/;
+
+// Выключенная персонализация не подсвечивает переменные вовсе: подсвеченная конструкция неделима,
+// и без своего окна её нельзя было бы ни поправить, ни разобрать по частям.
+const WITH_VARIABLES = new RegExp(`${SPINTAX_PATTERN.source}|${VARIABLE_PATTERN.source}`, "g");
+const SPINTAX_ONLY = new RegExp(SPINTAX_PATTERN.source, "g");
 
 /**
  * Перестраивает подсветку в редактируемом элементе.
@@ -39,15 +52,17 @@ const PATTERN = /\[[^[\]\n]*\|[^[\]\n]*\]|\{[^{}\n]+\}/g;
  * этого прежнее выделение указывает на узлы, которых в дереве уже нет, даже когда разметка вышла
  * ровно такой же. Текст при перестройке не меняется, поэтому смещения совпадают точно.
  */
-export function highlight(root: HTMLElement, names?: VariableNames): boolean {
+export function highlight(root: HTMLElement, options: HighlightOptions = {}): boolean {
+	const pattern = options.variables === false ? SPINTAX_ONLY : WITH_VARIABLES;
+
 	// В тексте нет ни конструкций, ни прежних обёрток — трогать DOM незачем. Проверка дешёвая
 	// и снимает работу с обычного набора, где ни спинтакса, ни переменных нет вовсе.
-	const hasMarkup = PATTERN.test(root.textContent ?? "");
-	PATTERN.lastIndex = 0;
+	const hasMarkup = pattern.test(root.textContent ?? "");
+	pattern.lastIndex = 0;
 	if (!hasMarkup && !root.querySelector(MARKUP_SELECTOR)) return false;
 
 	unwrap(root);
-	wrap(root, names);
+	wrap(root, pattern, options.names);
 
 	return true;
 }
@@ -65,26 +80,26 @@ function unwrap(root: HTMLElement) {
 	root.normalize();
 }
 
-function wrap(root: HTMLElement, names?: VariableNames) {
+function wrap(root: HTMLElement, pattern: RegExp, names?: VariableNames) {
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	const targets: Text[] = [];
 
 	let node = walker.nextNode() as Text | null;
 	while (node) {
-		if (PATTERN.test(node.data)) targets.push(node);
-		PATTERN.lastIndex = 0; // общий g-объект: сбрасываем позицию между узлами
+		if (pattern.test(node.data)) targets.push(node);
+		pattern.lastIndex = 0; // общий g-объект: сбрасываем позицию между узлами
 		node = walker.nextNode() as Text | null;
 	}
 
-	targets.forEach((target) => wrapNode(target, names));
+	targets.forEach((target) => wrapNode(target, pattern, names));
 }
 
-function wrapNode(node: Text, names?: VariableNames) {
+function wrapNode(node: Text, pattern: RegExp, names?: VariableNames) {
 	const text = node.data;
 	const fragment = document.createDocumentFragment();
 	let last = 0;
 
-	for (const match of text.matchAll(PATTERN)) {
+	for (const match of text.matchAll(pattern)) {
 		const start = match.index;
 		if (start > last) fragment.appendChild(document.createTextNode(text.slice(last, start)));
 

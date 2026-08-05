@@ -13,7 +13,8 @@ function setup(value = "") {
 	input.value = value;
 	form.appendChild(input);
 	document.body.appendChild(form);
-	return new MessageEditor(input);
+	// переменные подсвечиваются только при включённой персонализации
+	return new MessageEditor(input, { personalization: true });
 }
 
 describe("MessageEditor highlighting", () => {

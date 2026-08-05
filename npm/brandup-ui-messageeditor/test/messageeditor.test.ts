@@ -280,6 +280,37 @@ describe("MessageEditor", () => {
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).not.toBeNull();
 	});
 
+	// Персонализация нужна не всякому сообщению: без неё нет ни кнопки, ни подсветки,
+	// а `{ИМЯ}` остаётся обычным текстом, который правится как есть.
+	it("keeps personalization off until it is asked for", () => {
+		const { input } = setup({ value: "Привет, {ИМЯ}!" });
+		const editor = new MessageEditor(input);
+
+		expect(editor.personalization).toBe(false);
+		expect(editor.editor.editable.querySelector("span.variable")).toBeNull();
+
+		editor.editor.editable.focus();
+		expect(document.querySelector('[data-toolbar-button="variable"]')).toBeNull();
+		// рандомизация от этого не зависит
+		expect(document.querySelector('[data-toolbar-button="randomize"]')).not.toBeNull();
+	});
+
+	it.each([
+		["атрибутом", (input: HTMLTextAreaElement) => input.setAttribute("data-personalization", "")],
+		["объявленным списком", (input: HTMLTextAreaElement) => input.setAttribute("data-variables", "ИМЯ")],
+		["текстом пустого списка", (input: HTMLTextAreaElement) => input.setAttribute("data-variables-empty", "Позже")],
+	])("turns personalization on %s", (_, declare) => {
+		const { input } = setup({ value: "Привет, {ИМЯ}!" });
+		declare(input);
+		const editor = new MessageEditor(input);
+
+		expect(editor.personalization).toBe(true);
+		expect(editor.editor.editable.querySelector("span.variable")).not.toBeNull();
+
+		editor.editor.editable.focus();
+		expect(document.querySelector('[data-toolbar-button="variable"]')).not.toBeNull();
+	});
+
 	// Разметку может отдавать сервер — тогда передать список в опциях неоткуда.
 	it("takes the variables from the data-variables attribute", () => {
 		const { input } = setup();
@@ -424,7 +455,7 @@ describe("MessageEditor", () => {
 	// собирается прямо под кареткой
 	it("moves the caret out of a construct completed by typing", () => {
 		const { input } = setup({ value: "Привет, {ИМЯ" });
-		const editor = new MessageEditor(input);
+		const editor = new MessageEditor(input, { personalization: true });
 
 		editor.editor.editable.focus();
 		const text = editor.editor.editable.querySelector("p")!.firstChild!;
