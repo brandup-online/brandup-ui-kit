@@ -27,6 +27,14 @@ export interface MessageEditorOptions {
 	 */
 	variables?: MessageVariable[];
 	/**
+	 * Включает персонализацию: кнопку в панели, подсветку переменных и правку их окном.
+	 * По умолчанию выключена — без неё `{ИМЯ}` остаётся обычным текстом.
+	 *
+	 * Без этой опции берётся из разметки: атрибут `data-personalization` поля-носителя либо
+	 * объявленный там же список переменных — объявили, значит нужна.
+	 */
+	personalization?: boolean;
+	/**
 	 * Текст в окне персонализации, когда список пуст; по умолчанию — «Переменные не заданы.».
 	 * Без него берётся из атрибута `data-variables-empty` поля-носителя.
 	 *
@@ -60,6 +68,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	readonly placeholder: string | null;
 	readonly variables: MessageVariable[];
 	readonly variablesEmpty: string | null;
+	readonly personalization: boolean;
 
 	constructor(valueElem: HTMLInputElement | HTMLTextAreaElement, options: MessageEditorOptions = {}) {
 		const placeholder = valueElem.getAttribute("placeholder");
@@ -102,6 +111,10 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		this.placeholder = placeholder;
 		this.variables = options.variables ?? parseVariables(valueElem.dataset.variables);
 		this.variablesEmpty = options.variablesEmpty ?? valueElem.dataset.variablesEmpty ?? null;
+		// Объявленный список — тоже согласие: иначе переданные переменные молча никуда не вели бы.
+		this.personalization =
+			options.personalization ??
+			("personalization" in valueElem.dataset || !!this.variables.length || !!this.variablesEmpty);
 		// в тексте показываем название, а не ключ — если оно задано
 		this.__names = new Map(this.variables.filter((v) => v.name).map((v) => [v.key, v.name!]));
 		this.__inputElem = inputElem;
@@ -216,7 +229,9 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	private __highlight() {
 		if (this.__composing) return;
 
-		preserveCaret(this.__inputElem, () => highlight(this.__inputElem, this.__names));
+		preserveCaret(this.__inputElem, () =>
+			highlight(this.__inputElem, { names: this.__names, variables: this.personalization })
+		);
 
 		this.__escapeMarkup();
 	}
@@ -267,8 +282,12 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 
 	/** Открывает окно правки конструкции; результат заменяет её целиком. */
 	private __editMarkup(span: HTMLElement) {
+		const variable = span.classList.contains(VARIABLE_CLASS);
+		// без персонализации переменные и не подсвечиваются, но проверка дешевле, чем догадка
+		if (variable && !this.personalization) return;
+
 		this.__openModal(
-			span.classList.contains(VARIABLE_CLASS)
+			variable
 				? (apply) => new VariablesModal(this.variables, apply, this.variablesEmpty)
 				: (apply) => new RandomizerModal(span.textContent ?? "", apply),
 			span
@@ -337,6 +356,22 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	 * результат в каретку; выделение к этому моменту сохранено — панель не забирает фокус.
 	 */
 	private __toolbarButtons(): ToolbarButton[] {
+		// без персонализации кнопки нет вовсе: нажимать её было бы не за чем
+		const personalization: ToolbarButton[] = this.personalization
+			? [
+					{
+						name: "variable",
+						title: "Вставить переменную",
+						icon: variableIcon,
+						isEnabled: () => !this.__inMarkup(),
+						run: () =>
+							this.__openModal(
+								(apply) => new VariablesModal(this.variables, apply, this.variablesEmpty)
+							),
+					},
+				]
+			: [];
+
 		return [
 			{
 				name: "randomize",
@@ -348,14 +383,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 					this.__openModal((apply) => new RandomizerModal(selected, apply));
 				},
 			},
-			{
-				name: "variable",
-				title: "Вставить переменную",
-				icon: variableIcon,
-				isEnabled: () => !this.__inMarkup(),
-				run: () =>
-					this.__openModal((apply) => new VariablesModal(this.variables, apply, this.variablesEmpty)),
-			},
+			...personalization,
 		];
 	}
 
