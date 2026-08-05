@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import MessageEditor, { ROOT_CLASS, INPUT_CLASS, EMOJI_CLASS } from "../source/messageeditor";
+import MessageEditor, { ROOT_CLASS, INPUT_CLASS, EMOJI_CLASS, EMOJI_HOLDER_CLASS } from "../source/messageeditor";
 
 function setup(
 	opts: { value?: string; placeholder?: string; required?: boolean; readonly?: boolean; disabled?: boolean } = {}
@@ -17,6 +17,41 @@ function setup(
 	form.appendChild(input);
 	document.body.appendChild(form);
 	return { input, form };
+}
+
+function caretAt(node: Node, offset: number) {
+	const selection = window.getSelection()!;
+	const range = document.createRange();
+	range.setStart(node, offset);
+	range.collapse(true);
+	selection.removeAllRanges();
+	selection.addRange(range);
+}
+
+// Каретка сразу за конструкцией — снаружи обёртки, а не в конце её текста: обёртка
+// не редактируется, и внутри неё браузер каретку не рисует. Выражается позиция двояко:
+// началом соседнего текста, если он есть, иначе местом в родителе.
+function caretRightAfter(span: Element) {
+	const selection = window.getSelection()!;
+	const next = span.nextSibling;
+
+	expect(span.contains(selection.anchorNode)).toBe(false);
+
+	if (next?.nodeType === Node.TEXT_NODE) {
+		expect(selection.anchorNode).toBe(next);
+		expect(selection.anchorOffset).toBe(0);
+		return;
+	}
+
+	const parent = span.parentNode!;
+	expect(selection.anchorNode).toBe(parent);
+	expect(selection.anchorOffset).toBe(Array.from(parent.childNodes).indexOf(span) + 1);
+}
+
+// Окно правки забирает фокус — редактор теряет его, хотя ввод не закончен.
+function openVariables(editor: MessageEditor) {
+	document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
+	editor.editor.editable.blur();
 }
 
 describe("MessageEditor", () => {
@@ -128,9 +163,42 @@ describe("MessageEditor", () => {
 
 		const button = editor.element.querySelector(`.${EMOJI_CLASS}`)!;
 		expect(button).not.toBeNull();
-		expect(button.parentElement!.classList.contains("bubble")).toBe(true);
-		expect(button.previousElementSibling!.classList.contains("ui-richeditor")).toBe(true);
+
+		// собственная коробка кнопки — от неё раскрывается панель смайликов
+		const holder = button.parentElement!;
+		expect(holder.classList.contains(EMOJI_HOLDER_CLASS)).toBe(true);
+		expect(holder.parentElement!.classList.contains("bubble")).toBe(true);
+		expect(holder.previousElementSibling!.classList.contains("ui-richeditor")).toBe(true);
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).toBeNull(); // фокуса ещё не было
+	});
+
+	// панель одна на всю страницу, как и тулбар: она переезжает к той кнопке, что её открыла
+	it("shares a single emoji picker between editors", () => {
+		const first = new MessageEditor(setup({ value: "раз" }).input);
+		const form = document.createElement("form");
+		const second = document.createElement("textarea");
+		form.appendChild(second);
+		document.body.appendChild(form);
+		const other = new MessageEditor(second);
+
+		first.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		expect(first.element.querySelector(".ui-richeditor-emoji.opened")).not.toBeNull();
+
+		// Открытие у соседа само переводит туда фокус, и уход фокуса из первого приходит уже после:
+		// панель к тому времени принадлежит соседу. Закрытие её здесь стоило бы второго нажатия.
+		other.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+
+		expect(document.querySelectorAll(".ui-richeditor-emoji")).toHaveLength(1);
+		expect(other.element.querySelector(".ui-richeditor-emoji.opened")).not.toBeNull();
+		expect(first.element.querySelector(".ui-richeditor-emoji")).toBeNull();
+
+		// панель раскрывается от кнопки: её коробка и есть позиционированный предок
+		const picker = document.querySelector(".ui-richeditor-emoji")!;
+		expect(picker.parentElement!.classList.contains(EMOJI_HOLDER_CLASS)).toBe(true);
+
+		// повторное нажатие по той же кнопке закрывает
+		other.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		expect(document.querySelector(".ui-richeditor-emoji.opened")).toBeNull();
 	});
 
 	it("has no emoji button when disabled", () => {
@@ -201,6 +269,210 @@ describe("MessageEditor", () => {
 		expect(picker.classList.contains("opened")).toBe(false);
 		expect(editor.getValue().startsWith("привет")).toBe(true);
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).not.toBeNull();
+	});
+
+	// Разметку может отдавать сервер — тогда передать список в опциях неоткуда.
+	it("takes the variables from the data-variables attribute", () => {
+		const { input } = setup();
+		input.setAttribute("data-variables", '[{"name":"ИМЯ","title":"Имя подписчика"},"ГОРОД"]');
+		const editor = new MessageEditor(input);
+
+		expect(editor.variables).toEqual([{ name: "ИМЯ", title: "Имя подписчика" }, { name: "ГОРОД" }]);
+	});
+
+	it("prefers the variables passed in options over the attribute", () => {
+		const { input } = setup();
+		input.setAttribute("data-variables", "ИЗ_РАЗМЕТКИ");
+		const editor = new MessageEditor(input, { variables: [{ name: "ИЗ_КОДА" }] });
+
+		expect(editor.variables).toEqual([{ name: "ИЗ_КОДА" }]);
+	});
+
+	// список из атрибута должен доходить до окна выбора, а не оставаться полем компонента
+	it("shows the attribute variables in the picker window", () => {
+		const { input } = setup();
+		input.setAttribute("data-variables", "ИМЯ, ГОРОД");
+		const editor = new MessageEditor(input);
+
+		editor.editor.editable.focus();
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
+
+		const buttons = document.querySelectorAll(".messageeditor-variables .variables .variable");
+		expect(Array.from(buttons).map((b) => b.querySelector(".name")!.textContent)).toEqual(["{ИМЯ}", "{ГОРОД}"]);
+
+		document.querySelector<HTMLButtonElement>(".ui-modal .modal-close")!.click();
+	});
+
+	// Пустой список — не ошибка: переменные могут появиться позже, и объяснить это должно приложение.
+	it("shows its own empty text in the picker window", () => {
+		const { input } = setup();
+		input.setAttribute("data-variables-empty", "Переменные появятся после выбора аудитории.");
+		const editor = new MessageEditor(input);
+
+		expect(editor.variables).toEqual([]);
+
+		editor.editor.editable.focus();
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
+
+		expect(document.querySelector(".messageeditor-variables .variables .empty")!.textContent).toBe(
+			"Переменные появятся после выбора аудитории."
+		);
+
+		document.querySelector<HTMLButtonElement>(".ui-modal .modal-close")!.click();
+	});
+
+	it("prefers the empty text passed in options over the attribute", () => {
+		const { input } = setup();
+		input.setAttribute("data-variables-empty", "Из разметки");
+		const editor = new MessageEditor(input, { variablesEmpty: "Из кода" });
+
+		expect(editor.variablesEmpty).toBe("Из кода");
+	});
+
+	// Пока открыто окно, содержимое трогать нельзя: нормализация срезает краевые пробелы как
+	// лишние, а пересчёт смещений уводит каретку — вставленное вставало вплотную к слову.
+	it("keeps the space at the caret and returns the focus after the inserted variable", () => {
+		const { input } = setup({ value: "Привет," });
+		input.setAttribute("data-variables", "ИМЯ");
+		const editor = new MessageEditor(input);
+
+		editor.editor.editable.focus();
+		caretAt(editor.editor.editable.querySelector("p")!.firstChild!, 7);
+		editor.editor.insertText(" ");
+
+		openVariables(editor);
+		document.querySelector<HTMLButtonElement>(".messageeditor-variables .variable")!.click();
+
+		expect(editor.getValue()).toBe("Привет, {ИМЯ}");
+
+		// каретка сразу за вставленным, фокус вернулся в поле — правку продолжают там же
+		caretRightAfter(editor.editor.editable.querySelector("span.variable")!);
+		expect(document.activeElement).toBe(editor.editor.editable);
+	});
+
+	// обрезка краевого пробела сдвигала смещения, и вставка уходила на предыдущую строку
+	it("inserts on the right line when the caret is at the start of one", () => {
+		const { input } = setup({ value: "раз\nдва" });
+		input.setAttribute("data-variables", "ИМЯ");
+		const editor = new MessageEditor(input);
+
+		editor.editor.editable.focus();
+		caretAt(editor.editor.editable.querySelector("p")!.lastChild!, 0);
+		editor.editor.insertText(" ");
+
+		openVariables(editor);
+		document.querySelector<HTMLButtonElement>(".messageeditor-variables .variable")!.click();
+
+		expect(editor.getValue()).toBe("раз\n {ИМЯ}два");
+	});
+
+	// Замена не должна сбрасывать оформление заменяемого: физически вставка оказывается снаружи
+	// тега (границы восстанавливаются по смещениям, а опустевший тег убирается), поэтому формат
+	// переносится на неё явно.
+	it("keeps the formatting of the text the spintax replaces", () => {
+		const { input } = setup({ value: "Дарим **скидку** сегодня" });
+		const editor = new MessageEditor(input);
+
+		editor.editor.editable.focus();
+		const selection = window.getSelection()!;
+		const range = document.createRange();
+		range.selectNodeContents(editor.editor.editable.querySelector("b")!);
+		selection.removeAllRanges();
+		selection.addRange(range);
+
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="randomize"]')!.click();
+		editor.editor.editable.blur();
+
+		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .add")!.click();
+		document.querySelectorAll<HTMLInputElement>(".messageeditor-randomizer input")[1].value = "подарок";
+		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .apply")!.click();
+
+		expect(editor.getValue()).toBe("Дарим **[скидку|подарок]** сегодня");
+		expect(editor.editor.editable.querySelector("b span.spintax")).not.toBeNull();
+	});
+
+	// Окно правки открывают кликом по самой конструкции — каретка при этом внутри неё, а там
+	// браузер её не рисует: поле выглядит расфокусированным, хотя фокус есть.
+	it("leaves the caret outside the construct after closing its window", () => {
+		const { input } = setup({ value: "Привет, {ИМЯ} и всё" });
+		input.setAttribute("data-variables", "ИМЯ");
+		const editor = new MessageEditor(input);
+
+		const span = editor.editor.editable.querySelector<HTMLElement>("span.variable")!;
+		editor.editor.editable.focus();
+		caretAt(span.firstChild!, 2); // клик пришёлся внутрь конструкции
+		span.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		editor.editor.editable.blur();
+
+		expect(document.querySelector(".messageeditor-variables")).not.toBeNull();
+		document.querySelector<HTMLButtonElement>(".ui-modal .modal-close")!.click();
+
+		expect(document.activeElement).toBe(editor.editor.editable);
+		caretRightAfter(span);
+	});
+
+	// то же самое без всякого окна: закрывающая скобка дописана руками, и конструкция
+	// собирается прямо под кареткой
+	it("moves the caret out of a construct completed by typing", () => {
+		const { input } = setup({ value: "Привет, {ИМЯ" });
+		const editor = new MessageEditor(input);
+
+		editor.editor.editable.focus();
+		const text = editor.editor.editable.querySelector("p")!.firstChild!;
+		caretAt(text, text.textContent!.length);
+		editor.editor.insertText("}");
+
+		caretRightAfter(editor.editor.editable.querySelector("span.variable")!);
+	});
+
+	// у окна рандомизации есть свои поля ввода: выделение документа уезжает в них, и вернуть
+	// правку по нему уже нельзя — место запоминается до открытия
+	it("replaces the selected text with the spintax and leaves the caret after it", () => {
+		const { input } = setup({ value: "Дарим скидку" });
+		const editor = new MessageEditor(input);
+
+		editor.editor.editable.focus();
+		const text = editor.editor.editable.querySelector("p")!.firstChild!;
+		const selection = window.getSelection()!;
+		const range = document.createRange();
+		range.setStart(text, 6);
+		range.setEnd(text, 12);
+		selection.removeAllRanges();
+		selection.addRange(range);
+
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="randomize"]')!.click();
+		editor.editor.editable.blur();
+
+		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .add")!.click();
+		const variants = document.querySelectorAll<HTMLInputElement>(".messageeditor-randomizer input");
+		variants[0].focus(); // правка идёт в поле окна
+		variants[1].value = "подарок";
+
+		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .apply")!.click();
+
+		expect(editor.getValue()).toBe("Дарим [скидку|подарок]");
+		expect(document.activeElement).toBe(editor.editor.editable);
+		caretRightAfter(editor.editor.editable.querySelector("span.spintax")!);
+	});
+
+	// окно могли закрыть и ничего не выбрав — правку продолжают там же, где прервали
+	it("returns the focus and the caret when the window is closed without applying", () => {
+		const { input } = setup({ value: "Привет, мир" });
+		input.setAttribute("data-variables", "ИМЯ");
+		const editor = new MessageEditor(input);
+
+		editor.editor.editable.focus();
+		caretAt(editor.editor.editable.querySelector("p")!.firstChild!, 8);
+
+		openVariables(editor);
+		expect(document.activeElement).not.toBe(editor.editor.editable);
+
+		document.querySelector<HTMLButtonElement>(".ui-modal .modal-close")!.click();
+
+		expect(document.activeElement).toBe(editor.editor.editable);
+		const selection = window.getSelection()!;
+		expect(selection.anchorNode!.nodeValue).toBe("Привет, мир");
+		expect(selection.anchorOffset).toBe(8);
 	});
 
 	// В пустом поле абзацев ещё нет, и вставка из кода легко ложится мимо них: значение выходит
