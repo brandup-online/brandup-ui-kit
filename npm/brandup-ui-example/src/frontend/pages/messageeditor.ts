@@ -3,6 +3,14 @@ import html from "./messageeditor.html";
 import "./messageeditor.less";
 import MessageEditor from "@brandup/ui-messageeditor";
 
+// переменные персонализации знает приложение, а не компонент
+const VARIABLES = [
+	{ name: "ИМЯ", title: "Имя подписчика" },
+	{ name: "ФАМИЛИЯ", title: "Фамилия подписчика" },
+	{ name: "ГОРОД", title: "Город из профиля" },
+	{ name: "КОМПАНИЯ", title: "Название компании" },
+];
+
 export default class MessageEditorPage extends Page {
 	private __editors: MessageEditor[] = [];
 
@@ -19,7 +27,7 @@ export default class MessageEditorPage extends Page {
 		container
 			.querySelectorAll<HTMLTextAreaElement>('textarea[data-content-script="messageeditor"]')
 			.forEach((elem) => {
-				const editor = new MessageEditor(elem);
+				const editor = new MessageEditor(elem, { variables: VARIABLES });
 				this.__editors.push(editor);
 
 				this.__bindValue(editor);

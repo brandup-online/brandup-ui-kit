@@ -2,13 +2,28 @@ import "./messageeditor.less"; // стили компонента
 
 import { InputControl } from "@brandup/ui-input";
 import { DOM } from "@brandup/ui";
-import RichEditor, { ALL_FORMAT_TOOLS } from "@brandup/ui-richeditor";
+import RichEditor, {
+	ALL_FORMAT_TOOLS,
+	restoreSelection,
+	selectionCharBounds,
+	type ToolbarButton,
+} from "@brandup/ui-richeditor";
+import { highlight, SPINTAX_CLASS, VARIABLE_CLASS } from "./highlight";
+import RandomizerModal from "./randomizer";
+import VariablesModal, { type MessageVariable } from "./variables";
 import emojiIcon from "../svg/emoji.svg";
+import randomIcon from "../svg/random.svg";
+import variableIcon from "../svg/variable.svg";
 
 export const ROOT_CLASS = "ui-messageeditor";
 export const INPUT_CLASS = "messageeditor-input";
 export const EMOJI_CLASS = "messageeditor-emoji";
 export const CHANGE_EVENT = "messageeditor-change";
+
+export interface MessageEditorOptions {
+	/** Переменные персонализации для кнопки в панели; пусто — список в окне будет пустым. */
+	variables?: MessageVariable[];
+}
 
 type MessageEditorEvents = {
 	[CHANGE_EVENT]: (data: ChangeEventData) => void;
@@ -28,10 +43,12 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	private __editor: RichEditor;
 	private __inputElem: HTMLElement; // редактируемый элемент (им владеет RichEditor)
 	private __listenerAbort = new AbortController();
+	private __composing = false; // идёт IME-ввод — подсветку откладываем
 
 	readonly placeholder: string | null;
+	readonly variables: MessageVariable[];
 
-	constructor(valueElem: HTMLInputElement | HTMLTextAreaElement) {
+	constructor(valueElem: HTMLInputElement | HTMLTextAreaElement, options: MessageEditorOptions = {}) {
 		valueElem.classList.add(INPUT_CLASS);
 
 		const placeholder = valueElem.getAttribute("placeholder");
@@ -61,6 +78,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		super("BrandUp.MessageEditor", container, valueElem);
 
 		this.placeholder = placeholder;
+		this.variables = options.variables ?? [];
 		this.__inputElem = inputElem;
 
 		this.__editor = new RichEditor(inputElem, {
@@ -76,6 +94,8 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			// выключено целиком: без инструментов панель не строится и не показывается.
 			format: !disabled,
 			tools: ALL_FORMAT_TOOLS,
+			// доменные кнопки: редактор про рандомизацию и переменные не знает, только рисует их
+			buttons: disabled ? [] : this.__toolbarButtons(),
 			// значение хранится разметкой мессенджеров, а не HTML
 			storage: "markdown",
 			// панель показывается над плашкой, а не над document.body
@@ -93,6 +113,8 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 
 		this.__initLogic();
 		if (emojiElem) this.__initEmoji(emojiElem, container);
+
+		this.__highlight(); // начальное значение события change не поднимает
 	}
 
 	private __initLogic() {
@@ -101,6 +123,8 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 
 		this.__editor.onChange((data) => {
 			this.__valueElem.value = data.value;
+
+			this.__highlight();
 
 			if (this.element.classList.contains("invalid") && this.validate()) this.element.classList.remove("invalid");
 
@@ -111,6 +135,28 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		editable.addEventListener("focus", () => !this.disabled && this.element.classList.add("focused"), { signal });
 		editable.addEventListener("blur", () => !this.disabled && this.element.classList.remove("focused"), { signal });
 
+		// правка конструкций — только через своё окно: в тексте они атомарны
+		editable.addEventListener(
+			"click",
+			(e) => {
+				if (this.disabled || this.readonly) return;
+
+				const span = (e.target as HTMLElement).closest?.(`span.${VARIABLE_CLASS}, span.${SPINTAX_CLASS}`);
+				if (span) this.__editMarkup(span as HTMLElement);
+			},
+			{ signal }
+		);
+
+		editable.addEventListener("compositionstart", () => (this.__composing = true), { signal });
+		editable.addEventListener(
+			"compositionend",
+			() => {
+				this.__composing = false;
+				this.__highlight();
+			},
+			{ signal }
+		);
+
 		// гасим нативный change скрытого поля
 		this.__valueElem.addEventListener(
 			"change",
@@ -120,6 +166,87 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			},
 			{ signal }
 		);
+	}
+
+	/**
+	 * Подсветка спинтакса и переменных. Текст от неё не меняется, поэтому каретка
+	 * восстанавливается по смещениям точно; трогаем DOM только когда разметка реально
+	 * изменилась, иначе на каждое нажатие клавиши каретка переставлялась бы впустую.
+	 *
+	 * Во время IME-композиции не вмешиваемся: перестановка каретки прервала бы набор.
+	 */
+	private __highlight() {
+		if (this.__composing) return;
+
+		const selection = window.getSelection();
+		const inside = !!selection?.rangeCount && this.__inputElem.contains(selection.anchorNode);
+		const bounds = inside ? selectionCharBounds(this.__inputElem, selection!.getRangeAt(0)) : null;
+
+		if (!highlight(this.__inputElem)) return;
+		if (bounds && selection) restoreSelection(this.__inputElem, bounds[0], bounds[1], selection);
+	}
+
+	/** Открывает окно правки конструкции; результат заменяет её целиком. */
+	private __editMarkup(span: HTMLElement) {
+		const replace = (text: string) => {
+			const selection = window.getSelection();
+			if (!selection) return;
+
+			// выделяем конструкцию целиком — insertText заменит выделенное
+			const range = document.createRange();
+			range.selectNode(span);
+			selection.removeAllRanges();
+			selection.addRange(range);
+
+			this.__editor.insertText(text);
+		};
+
+		if (span.classList.contains(VARIABLE_CLASS)) new VariablesModal(this.variables, replace);
+		else new RandomizerModal(span.textContent ?? "", replace);
+	}
+
+	/** Стоит ли выделение внутри готовой конструкции — вкладывать их друг в друга нельзя. */
+	private __inMarkup(): boolean {
+		const selection = window.getSelection();
+		if (!selection?.rangeCount || !this.__inputElem.contains(selection.anchorNode)) return false;
+
+		const node = selection.anchorNode;
+		const elem = node?.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node?.parentElement;
+
+		return !!elem?.closest(`span.${VARIABLE_CLASS}, span.${SPINTAX_CLASS}`);
+	}
+
+	/**
+	 * Кнопки панели, которых нет в редакторе. Обе открывают модальное окно и вставляют
+	 * результат в каретку; выделение к этому моменту сохранено — панель не забирает фокус.
+	 */
+	private __toolbarButtons(): ToolbarButton[] {
+		return [
+			{
+				name: "randomize",
+				title: "Рандомизация текста",
+				icon: randomIcon,
+				isEnabled: () => !this.__inMarkup(),
+				run: () => {
+					const selected = window.getSelection()?.toString() ?? "";
+					new RandomizerModal(selected, (spintax) => this.__replaceSelection(spintax));
+				},
+			},
+			{
+				name: "variable",
+				title: "Вставить переменную",
+				icon: variableIcon,
+				isEnabled: () => !this.__inMarkup(),
+				run: () => new VariablesModal(this.variables, (text) => this.__editor.insertText(text)),
+			},
+		];
+	}
+
+	// Рандомизация заменяет то, что было выделено: insertText сам затирает выделение,
+	// но каретка могла уехать, пока было открыто окно, — восстанавливаем её на редакторе.
+	private __replaceSelection(text: string) {
+		this.__editor.focus();
+		this.__editor.insertText(text);
 	}
 
 	private __initEmoji(button: HTMLElement, container: HTMLElement) {
