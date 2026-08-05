@@ -160,10 +160,6 @@ svg {
 // Полоса рисуется по краю коробки, поэтому у элемента со скруглением её лучше уводить внутрь —
 // на вложенный прокручиваемый элемент, иначе угол выглядит срезанным.
 .ui-scrollable {
-	// Firefox размером не управляется, у него только thin/auto; толщину задаёт webkit-правило ниже
-	scrollbar-width: thin;
-	scrollbar-color: var(--scrollbar-thumb) transparent;
-
 	&::-webkit-scrollbar {
 		width: var(--scrollbar-size);
 		height: var(--scrollbar-size);
@@ -177,5 +173,20 @@ svg {
 	&::-webkit-scrollbar-thumb {
 		background-color: var(--scrollbar-thumb);
 		border-radius: var(--scrollbar-thumb-radius);
+	}
+
+	// кнопки-стрелки по концам полосы: полоса и так узкая, а нажимать их всё равно некому
+	&::-webkit-scrollbar-button {
+		display: none;
+	}
+}
+
+// Стандартные свойства — только там, где своей полосы не нарисовать (Firefox). В Blink они
+// отменяют всё оформление выше и возвращают системную полосу: тоньше заданной и со стрелками.
+// Размером Firefox не управляется, у него лишь thin/auto.
+@supports not selector(::-webkit-scrollbar) {
+	.ui-scrollable {
+		scrollbar-width: thin;
+		scrollbar-color: var(--scrollbar-thumb) transparent;
 	}
 }
