@@ -38,6 +38,8 @@ export {
 	activeFormats,
 	emptyFormatAt,
 	toggleFormat,
+	applyLink,
+	linkAt,
 	clearFormat,
 	clearAllFormat,
 	hasFormatting,

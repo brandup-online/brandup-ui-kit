@@ -1,6 +1,6 @@
 // Конфигурация форматирования: типы, набор инструментов, markdown-маркеры и Ctrl/Cmd-хоткеи.
 
-export type FormatTool = "bold" | "italic" | "strike" | "underline" | "spoiler" | "code";
+export type FormatTool = "bold" | "italic" | "strike" | "underline" | "spoiler" | "code" | "link";
 export type FormatStorage = "html" | "markdown";
 
 /**
@@ -93,7 +93,7 @@ export function blockTypeOfTag(tagName: string): BlockType | null {
 	return BLOCK_TAGS[tagName] ?? null;
 }
 
-export const ALL_FORMAT_TOOLS: FormatTool[] = ["bold", "italic", "strike", "underline", "spoiler", "code"];
+export const ALL_FORMAT_TOOLS: FormatTool[] = ["bold", "italic", "strike", "underline", "spoiler", "code", "link"];
 
 export const ALL_EDITOR_ACTIONS: EditorAction[] = ["emoji", "erase", "undo", "redo"];
 
@@ -169,6 +169,16 @@ export const FORMAT_TOOLS: Record<FormatTool, FormatToolDef> = {
 		literal: true,
 		hotkey: "",
 		title: "Моноширинный",
+	},
+	link: {
+		tag: "a",
+		matchTags: ["A"],
+		// Не парный маркер: адрес отдельной частью и в тексте не показывается. Пустой маркер
+		// выводит инструмент из маркерной машинерии (см. orderedMarkers в ./serialize), разбор
+		// и сборку он делает своими ветками — как и переносы с абзацами.
+		md: "",
+		hotkey: "k",
+		title: "Ссылка",
 	},
 };
 

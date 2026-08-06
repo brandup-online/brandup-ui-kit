@@ -6,7 +6,7 @@
 // т.к. тулбар находится вне привязанных UIElement).
 
 import { DOM } from "@brandup/ui";
-import { POPUP_CLASS, PopupManager, SCROLLABLE_CLASS } from "@brandup/ui-kit";
+import { PopupManager } from "@brandup/ui-kit";
 import {
 	BLOCK_TYPES,
 	DEFAULT_BLOCK,
@@ -16,13 +16,16 @@ import {
 	type EditorAction,
 	type FormatTool,
 } from "./format";
-import { EMOJI_GROUPS, type EmojiGroup } from "./emoji";
+import { createEmojiPicker } from "./emoji";
 import boldIcon from "../svg/bold.svg";
 import italicIcon from "../svg/italic.svg";
 import strikeIcon from "../svg/strike.svg";
 import underlineIcon from "../svg/underline.svg";
 import spoilerIcon from "../svg/spoiler.svg";
 import codeIcon from "../svg/mono.svg";
+import linkIcon from "../svg/link.svg";
+import unlinkIcon from "../svg/unlink.svg";
+import applyIcon from "../svg/apply.svg";
 import quoteIcon from "../svg/quote.svg";
 import codeblockIcon from "../svg/codeblock.svg";
 import emojiIcon from "../svg/emoji.svg";
@@ -37,6 +40,7 @@ const FORMAT_ICONS: Record<FormatTool, string> = {
 	underline: underlineIcon,
 	spoiler: spoilerIcon,
 	code: codeIcon,
+	link: linkIcon,
 };
 
 // Обычный текст кнопки не имеет: повторное нажатие активной кнопки возвращает блок к нему.
@@ -57,6 +61,13 @@ const CODE_TOOL: FormatTool = "code";
 const CODE_BLOCK: BlockType = "code";
 const MERGED_CODE_TITLE = "Код";
 
+// Ссылка — единственный инструмент, у которого есть данные: кнопка не переключает её, а
+// показывает в панели поле адреса вместо кнопок.
+const LINK_TOOL: FormatTool = "link";
+export const LINK_ROW_CLASS = "link-row";
+// панель показывает поле адреса вместо кнопок
+export const LINK_EDITING_CLASS = "link-editing";
+
 // Временно скрытые кнопки. Сами возможности работают: значение разбирается, показывается
 // и сохраняется, правку можно вызвать из кода — в панель они просто не выводятся.
 // Убрать отсюда, когда будут доведены.
@@ -64,7 +75,11 @@ const HIDDEN_TOOLS: FormatTool[] = ["spoiler"];
 const HIDDEN_BLOCKS: BlockType[] = [];
 
 export const TOOLBAR_CLASS = "ui-richeditor-toolbar";
-export const EMOJI_PICKER_CLASS = "ui-richeditor-emoji";
+// Общий класс всех кнопок панели: им они и оформляются. Свой класс у каждой остаётся —
+// по нему кнопку находят, а один на всех оформлять удобнее, чем перечислять их в стилях.
+export const BUTTON_CLASS = "toolbar-button";
+// Коробка с кнопками внутри обёртки: обёртку позиционируют, коробка держит вид и содержимое.
+export const BODY_CLASS = "toolbar-body";
 
 /**
  * Кнопка хоста в общей панели — для действий, которых редактор не знает: рандомизация,
@@ -88,6 +103,15 @@ export interface ToolbarButton {
 export interface ToolbarHost {
 	readonly editable: HTMLElement;
 	readonly formatTools: FormatTool[];
+	/** Адрес ссылки под кареткой; пусто — каретка не в ссылке. */
+	readonly currentLink?: string;
+	/** Поставить ссылку, поменять её адрес или снять её (пустым адресом). */
+	applyLink?(url: string): void;
+	/** Отпустить фокус — на время правки адреса. */
+	releaseFocus?(): void;
+	/** Снимок каретки в символах: поле адреса забирает фокус, и выделение вернётся по нему. */
+	caretSnapshot?(): [number, number] | null;
+	restoreCaret?(bounds: [number, number]): void;
 	/** Действия (очистка формата, отмена/повтор); пусто/undefined — кнопок действий нет. */
 	readonly editorActions?: EditorAction[];
 	/** Контейнер для тулбара; null/undefined — document.body (position: fixed над редактором). */
@@ -117,52 +141,25 @@ export interface ToolbarHost {
 	/** Вставка текста в каретку — для панели смайликов. */
 	insertText?(text: string): void;
 	/**
-	 * Открыть панель смайликов. Своя кнопка панели зовёт редактор, а не {@link openEmoji}
-	 * напрямую: он придерживает правку и отпускает фокус на её время — с кнопкой хоста это
-	 * должно работать одинаково.
+	 * Показать переданный попап смайликов у кнопки. Попап панели принадлежит ей самой, а всё
+	 * своё — удержание правки, каретку, фокус — редактор берёт на себя.
 	 */
-	openEmojiPicker?(initiator: HTMLElement, container: HTMLElement): void;
-	/** Панель смайликов закрылась — редактор возвращает себе то, что придержал на её время. */
-	onEmojiClosed?(): void;
+	openEmojiPicker?(picker: HTMLElement, initiator: HTMLElement): boolean;
 	/** Собственные кнопки хоста; пусто/undefined — только штатные. */
 	readonly toolbarButtons?: ToolbarButton[];
 }
 
 const MARGIN = 6;
 
-// Сколько кнопок помещается в ряд при ширине панели (см. .ui-richeditor-emoji в richeditor.less).
-// Точность нужна только для оценки высоты нерисованной группы: ошибка сдвинет ползунок прокрутки,
-// но не саму раскладку — группа переносит кнопки сама.
-const EMOJI_COLUMNS = 8;
-
-/**
- * Группа смайликов: и смысловое деление в панели (отбивается линией), и кусок, к которому
- * применяется пропуск отрисовки. Поэлементно это было бы семьсот отслеживаемых поддеревьев,
- * и слежение за ними съедает выигрыш от пропуска.
- */
-function buildEmojiGroup(group: EmojiGroup): HTMLElement {
-	const rows = Math.ceil(group.emojis.length / EMOJI_COLUMNS);
-	const elem = DOM.tag("div", {
-		class: "emoji-group",
-		role: "group",
-		"aria-label": group.title,
-		// высота, пока группа не нарисована: без неё список схлопнулся бы, а прокрутка скакала
-		style: `--emoji-rows: ${rows}`,
-	});
-
-	const fragment = document.createDocumentFragment();
-	for (const emoji of group.emojis)
-		fragment.appendChild(DOM.tag("button", { type: "button", class: "emoji", tabindex: "-1" }, emoji));
-	elem.appendChild(fragment);
-
-	return elem;
-}
-
 class FormatToolbar {
-	private __elem: HTMLElement | null = null;
+	private __elem: HTMLElement | null = null; // обёртка: её позиционируют
+	private __body: HTMLElement | null = null; // коробка с кнопками внутри обёртки
 	private __emojiPicker: HTMLElement | null = null;
-	private __emojiHost: ToolbarHost | null = null; // куда уйдёт выбранный символ
-	private __emojiInitiator: HTMLElement | null = null; // кнопка, у которой открыта панель
+	private __linkRow: HTMLElement | null = null;
+	private __linkEditing = false;
+	private __linkInput: HTMLInputElement | null = null;
+	private __linkRemove: HTMLElement | null = null;
+	private __linkCaret: [number, number] | null = null; // каретка, снятая на время правки адреса
 	private __buttons: Array<[FormatTool, HTMLButtonElement]> = [];
 	private __blockButtons: Array<[BlockType, HTMLButtonElement]> = [];
 	private __mergedCode = false; // кнопка кода делает и моноширинный, и блок (см. __build)
@@ -281,6 +278,11 @@ class FormatToolbar {
 	 * открыли из этого редактора, а фокус сняли как раз ради неё.
 	 */
 	suspend(host: ToolbarHost) {
+		// Фокус мог отпустить и сам тулбар — ради своего поля адреса. Убрав панель с экрана, мы
+		// убрали бы и его: кнопка нажата, а править негде. У панели смайликов слой чужой (она
+		// у кнопки хоста), поэтому там прятать и нужно.
+		if (this.__linkEditing) return;
+
 		if (this.__active === host) this.__hide();
 	}
 
@@ -290,23 +292,13 @@ class FormatToolbar {
 		// тулбар над редактором, который как раз уходит (в том числе разрушается).
 		if (this.__suspended === host) this.__suspended = null;
 
-		// панель смайликов могла быть открыта не для активного редактора (у своей кнопки хоста) —
-		// ссылку на него всё равно отпускаем, иначе уничтоженный редактор держится синглтоном
-		const emojiHost = this.__emojiHost === host;
-		if (!emojiHost && this.__active !== host) return;
-
-		// Закрываем только свою панель. Открытие у кнопки другого редактора само переводит туда
-		// фокус, и этот уход приходит уже после — панель к тому времени принадлежит соседу, и
-		// закрыть её значило бы гасить только что открытое: она требовала бы второго нажатия.
-		if (emojiHost) {
-			this.__closeEmoji();
-
-			this.__emojiHost = null;
-			this.__emojiInitiator = null;
-		}
-
 		if (this.__active !== host) return;
 
+		// попап смайликов панели уходит вместе с ней — он её собственный слой
+		this.__closeEmoji();
+
+		// правка адреса живёт в самой панели и заканчивается вместе с ней
+		this.__closeLink();
 		this.__hide();
 	}
 
@@ -390,13 +382,25 @@ class FormatToolbar {
 
 	private __ensure(): HTMLElement {
 		if (!this.__elem) {
+			// Обёртка и коробка внутри: обёртку позиционируют (fixed над редактором либо absolute
+			// над контейнером), коробка держит вид и кнопки. Порознь потому, что размер коробки
+			// меняется вместе с содержимым — на правку адреса, например, — а точка привязки от
+			// этого съезжать не должна. Выпадающие слои (панель смайликов) висят на обёртке:
+			// её коробка их и не растит, и не обрезает.
 			this.__elem = DOM.tag("div", { class: TOOLBAR_CLASS });
+			this.__body = DOM.tag("div", { class: BODY_CLASS });
+			this.__elem.appendChild(this.__body);
 
 			// Панель нигде не должна забирать фокус, иначе редактор теряет выделение, а blur
 			// прячет сам тулбар. Слушатель висит на корне, а не на кнопках: до disabled-кнопки
 			// событие не доходит (браузер их не диспатчит), да и клик по фону панели между
 			// кнопками иначе тоже уводил бы фокус. Дочерние элементы покрываются всплытием.
-			this.__elem.addEventListener("mousedown", (e) => e.preventDefault());
+			//
+			// Исключение одно — поле адреса ссылки: набирать в нём без фокуса негде. Каретку
+			// редактора это не теряет: её снимают до перевода фокуса, см. openLink.
+			this.__elem.addEventListener("mousedown", (e) => {
+				if (e.target !== this.__linkInput) e.preventDefault();
+			});
 		}
 
 		return this.__elem;
@@ -404,11 +408,12 @@ class FormatToolbar {
 
 	private __build(tools: FormatTool[], blocks: BlockType[], actions: EditorAction[], buttons: ToolbarButton[]) {
 		const key = `${tools.join(",")}|${blocks.join(",")}|${actions.join(",")}|${buttons.map((b) => b.name).join(",")}`;
-		const elem = this.__ensure();
+		this.__ensure();
+		const elem = this.__body!;
 		if (key === this.__toolsKey && elem.firstChild) return; // тот же состав — переиспользуем кнопки
 
 		this.__toolsKey = key;
-		const pickerInToolbar = !!this.__emojiPicker && this.__emojiPicker.parentElement === elem;
+		const linkInToolbar = !!this.__linkRow && this.__linkRow.parentElement === elem;
 		DOM.empty(elem);
 		this.__buttons = [];
 		this.__blockButtons = [];
@@ -427,14 +432,19 @@ class FormatToolbar {
 				"button",
 				{
 					type: "button",
-					class: "format-button",
+					class: [BUTTON_CLASS, "format-button"],
 					dataset: { formatTool: tool },
 					title: merged ? MERGED_CODE_TITLE : def.title,
 				},
 				FORMAT_ICONS[tool]
 			);
+			// у ссылки адрес спрашивается полем ввода в самой панели — переключать её кнопке нечем
 			btn.addEventListener("click", () =>
-				merged ? this.__active?.applyCode?.() : this.__active?.applyFormat(tool)
+				tool === LINK_TOOL
+					? this.openLink()
+					: merged
+						? this.__active?.applyCode?.()
+						: this.__active?.applyFormat(tool)
 			);
 
 			elem.appendChild(btn);
@@ -445,7 +455,12 @@ class FormatToolbar {
 			const def = BLOCK_TYPES[type];
 			const btn = DOM.tag(
 				"button",
-				{ type: "button", class: "block-button", dataset: { blockType: type }, title: def.title },
+				{
+					type: "button",
+					class: [BUTTON_CLASS, "block-button"],
+					dataset: { blockType: type },
+					title: def.title,
+				},
 				BLOCK_ICONS[type] ?? ""
 			);
 			btn.addEventListener("click", () => this.__active?.applyBlock?.(type));
@@ -458,7 +473,12 @@ class FormatToolbar {
 			const def = EDITOR_ACTIONS[action];
 			const btn = DOM.tag(
 				"button",
-				{ type: "button", class: "action-button", dataset: { editorAction: action }, title: def.title },
+				{
+					type: "button",
+					class: [BUTTON_CLASS, "action-button"],
+					dataset: { editorAction: action },
+					title: def.title,
+				},
 				ACTION_ICONS[action]
 			);
 			if (action === "emoji") btn.addEventListener("click", (e) => this.__toggleEmoji(btn, e));
@@ -478,7 +498,12 @@ class FormatToolbar {
 		for (const button of buttons) {
 			const btn = DOM.tag(
 				"button",
-				{ type: "button", class: "host-button", dataset: { toolbarButton: button.name }, title: button.title },
+				{
+					type: "button",
+					class: [BUTTON_CLASS, "host-button"],
+					dataset: { toolbarButton: button.name },
+					title: button.title,
+				},
 				button.icon
 			);
 			btn.addEventListener("click", () => this.__hostButton(button.name)?.run());
@@ -487,54 +512,16 @@ class FormatToolbar {
 			this.__hostButtons.push([button.name, btn]);
 		}
 
-		// панель пережила перестройку кнопок — возвращаем её в тулбар, чтобы не собирать заново.
-		// Если её забрал хост под свою кнопку, она остаётся у него.
-		if (pickerInToolbar && this.__emojiPicker) elem.appendChild(this.__emojiPicker);
+		// строка адреса живёт только в панели, но пережить перестройку кнопок обязана так же.
+		// Панель смайликов висит на обёртке и перестройки кнопок не замечает вовсе.
+		if (linkInToolbar && this.__linkRow) elem.appendChild(this.__linkRow);
 	}
 
 	/**
-	 * Открыть панель смайликов у произвольной кнопки — например у собственной кнопки хоста рядом
-	 * с полем ввода, а не в тулбаре. Панель одна на все редакторы и переезжает в `container`;
-	 * выбранный символ уходит в `host`, даже если тулбар сейчас обслуживает другой редактор.
-	 *
-	 * Вызывать из обработчика `click`, погасив всплытие: PopupManager вешает свой слушатель
-	 * закрытия на body прямо в open(), то есть во время этого же клика — до body событие ещё
-	 * не дошло, и слушатель закрыл бы панель сразу после открытия.
+	 * Панель смайликов закрылась — показываем придержанный тулбар, если редактор ещё в фокусе.
+	 * Зовёт редактор: попап у кнопки хоста принадлежит ему, а придерживает показ панель.
 	 */
-	openEmoji(host: ToolbarHost, initiator: HTMLElement, container: HTMLElement): boolean {
-		// повторный клик по той же кнопке закрывает панель (это делает toggle внутри PopupManager),
-		// а вот у другой кнопки её нужно сперва закрыть — иначе toggle сочтёт открытие повторным
-		if (this.__emojiInitiator !== initiator && this.__emojiPicker?.classList.contains("opened"))
-			PopupManager.close();
-
-		this.__emojiHost = host;
-		this.__emojiInitiator = initiator;
-
-		// Панель у собственной кнопки хоста — самостоятельный слой, и показывать её вместе с тулбаром
-		// нельзя: это два всплывающих окна над одним полем. Тулбар придерживаем на всё время работы
-		// панели, а показанный убираем с экрана; вернётся он сам при её закрытии, если поле осталось
-		// в фокусе. Панель самого тулбара (container === __elem) — его собственный выпадающий слой,
-		// прятать её носителя незачем и нечем.
-		if (container !== this.__elem) {
-			this.__suspended = host;
-			if (this.__active === host) this.__hide();
-		}
-
-		PopupManager.open(this.__ensureEmojiPicker(container), {
-			initiator,
-			onClose: () => {
-				this.__resume();
-				host.onEmojiClosed?.();
-			},
-		});
-
-		// Повторное нажатие по той же кнопке панель закрывает (это toggle внутри PopupManager) —
-		// вызывающему нужно знать исход: открытая панель ещё и придерживает правку редактора.
-		return !!this.__emojiPicker?.classList.contains("opened");
-	}
-
-	/** Панель смайликов закрылась — показываем придержанный тулбар, если редактор ещё в фокусе. */
-	private __resume() {
+	resume() {
 		const host = this.__suspended;
 		if (!host) return;
 
@@ -544,45 +531,24 @@ class FormatToolbar {
 		if (host.editable.ownerDocument.activeElement === host.editable) this.attach(host);
 	}
 
+	// Попап панели — её собственный: свой у неё, свой у хоста. Общий пришлось бы переносить
+	// между владельцами и помнить, чей он сейчас, а показать два разом всё равно нельзя.
 	private __toggleEmoji(initiator: HTMLButtonElement, e: MouseEvent) {
+		// PopupManager вешает слушатель закрытия на body прямо в open() — до body этот же клик
+		// ещё не дошёл, и без остановки он закрыл бы попап сразу после открытия
 		e.stopPropagation();
 
 		const host = this.__active;
 		if (!host) return;
 
-		// через редактор, а не напрямую: панель — его слой, и придерживает правку он
-		if (host.openEmojiPicker) host.openEmojiPicker(initiator, this.__ensure());
-		else this.openEmoji(host, initiator, this.__ensure());
+		// через редактор, а не напрямую: правку на время попапа придерживает он
+		host.openEmojiPicker?.(this.__ensureEmojiPicker(), initiator);
 	}
 
-	private __ensureEmojiPicker(container: HTMLElement): HTMLElement {
-		const picker = this.__emojiPicker ?? this.__buildEmojiPicker();
-		if (picker.parentElement !== container) container.appendChild(picker);
-
-		return picker;
-	}
-
-	private __buildEmojiPicker(): HTMLElement {
-		const picker = DOM.tag("div", { class: `${POPUP_CLASS} ${EMOJI_PICKER_CLASS}` });
-
-		// Прокручивается список, а не сам попап: полоса прокрутки рисуется по краю коробки
-		// и перекрывала бы скругление рамки — угол выглядел бы срезанным.
-		const list = DOM.tag("div", { class: ["emoji-list", SCROLLABLE_CLASS] });
-		picker.appendChild(list);
-
-		for (const group of EMOJI_GROUPS) list.appendChild(buildEmojiGroup(group));
-
-		// панель может висеть и вне тулбара, поэтому гасит фокус сама
-		picker.addEventListener("mousedown", (e) => e.preventDefault());
-		picker.addEventListener("click", (e) => {
-			const target = (e.target as HTMLElement).closest<HTMLElement>(".emoji");
-			if (!target) return;
-
-			this.__emojiHost?.insertText?.(target.textContent ?? "");
-			PopupManager.close();
-		});
-
-		this.__emojiPicker = picker;
+	private __ensureEmojiPicker(): HTMLElement {
+		const picker = (this.__emojiPicker ??= createEmojiPicker((emoji) => this.__active?.insertText?.(emoji)));
+		const elem = this.__ensure();
+		if (picker.parentElement !== elem) elem.appendChild(picker);
 
 		return picker;
 	}
@@ -590,6 +556,136 @@ class FormatToolbar {
 	/** Закрыть панель смайликов, если открыта именно она (тулбар уходит — попап не должен остаться). */
 	private __closeEmoji() {
 		if (this.__emojiPicker?.classList.contains("opened")) PopupManager.close();
+	}
+
+	/** Открыть правку адреса хоткеем — так же, как её открывает собственная кнопка. */
+	openLinkFor(host: ToolbarHost) {
+		if (this.__active === host) this.openLink();
+	}
+
+	/**
+	 * Правка адреса: панель на это время показывает поле ввода вместо кнопок.
+	 *
+	 * Не выпадающий слой, а другое содержимое той же панели: место, коробка и положение у них
+	 * общие, и панели не приходится ни ужиматься под соседа, ни позиционировать его. Кнопки при
+	 * этом всё равно недоступны — пока адрес не введён, править нечего.
+	 *
+	 * Поле ввода, в отличие от всего остального в панели, забирает фокус: без него не наберёшь.
+	 * А фокус в чужом поле — это и чужое выделение: то, что стояло в редакторе, `getSelection()`
+	 * уже не вернёт. Поэтому каретку снимаем до перевода фокуса и возвращаем перед правкой.
+	 */
+	openLink() {
+		// Повторное нажатие возвращает кнопки — проверяем раньше доступности: фокус на это время
+		// отпущен, каретки в поле нет, и кнопка ссылки сама себя считает недоступной.
+		if (this.__linkEditing) return this.__closeLink();
+
+		const host = this.__active;
+		// делать ссылкой нечего — спрашивать адрес не за чем (кнопка в этот момент и погашена)
+		if (!host?.applyLink || host.isToolEnabled?.(LINK_TOOL) === false) return;
+
+		this.__ensureLinkRow();
+		const current = host.currentLink ?? "";
+
+		this.__linkInput!.value = current;
+		this.__linkRemove!.hidden = !current; // снимать нечего, пока ссылки под кареткой нет
+
+		this.__linkEditing = true;
+		this.__elem!.classList.add(LINK_EDITING_CLASS);
+		// ширина панели сменилась вместе с содержимым, а с ней и её высота — положение пересчитываем
+		this.reposition();
+
+		// releaseFocus снимает каретку только когда поле активно — на это полагаться нельзя,
+		// поэтому снимок делаем сами
+		this.__linkCaret = host.caretSnapshot?.() ?? null;
+		host.releaseFocus?.();
+
+		this.__linkInput!.focus();
+		this.__linkInput!.select();
+	}
+
+	private __ensureLinkRow(): HTMLElement {
+		const row = this.__linkRow ?? this.__buildLinkRow();
+		this.__ensure();
+		if (row.parentElement !== this.__body) this.__body!.appendChild(row);
+
+		return row;
+	}
+
+	private __buildLinkRow(): HTMLElement {
+		const input = DOM.tag("input", {
+			type: "url",
+			class: "link-input",
+			placeholder: "https://",
+			spellcheck: "false",
+		}) as HTMLInputElement;
+
+		// Фокус ушёл в поле адреса, выделение — вместе с ним. Возвращаем каретку, снятую при
+		// открытии, и только потом правим: applyLink работает по выделению в редакторе.
+		const apply = (url: string) => {
+			const host = this.__active;
+			// каретку забираем до закрытия: оно её отпускает
+			const caret = this.__linkCaret;
+
+			this.__closeLink();
+			if (caret) host?.restoreCaret?.(caret);
+			host?.applyLink?.(url);
+		};
+
+		const remove = DOM.tag(
+			"button",
+			{ type: "button", class: [BUTTON_CLASS, "link-remove"], title: "Убрать ссылку" },
+			unlinkIcon
+		);
+		remove.addEventListener("click", () => apply(""));
+
+		const row = DOM.tag("div", { class: LINK_ROW_CLASS }, [
+			input,
+			DOM.tag("button", { type: "button", class: [BUTTON_CLASS, "link-apply"], title: "Применить" }, applyIcon),
+			remove,
+		]);
+
+		// фокус гасит корневой слушатель панели, строка лежит внутри неё — своего не нужно
+		row.addEventListener("click", (e) => {
+			if ((e.target as HTMLElement).closest(".link-apply")) apply(input.value);
+		});
+		input.addEventListener("keydown", (e) => {
+			if (e.key === "Enter") {
+				e.preventDefault();
+				apply(input.value);
+			} else if (e.key === "Escape") {
+				e.preventDefault();
+				// отказались от правки — возвращаем каретку туда, где её взяли
+				const host = this.__active;
+				const caret = this.__linkCaret;
+
+				this.__closeLink();
+				if (caret) host?.restoreCaret?.(caret);
+			}
+		});
+		// Ушли мимо панели — правку бросили: держаться ей больше не на чем, редактор фокус отпустил
+		// ради этого поля. Нажатия по своим кнопкам фокуса не уводят, и сюда не попадают.
+		input.addEventListener("blur", (e) => {
+			if (this.__elem?.contains(e.relatedTarget as Node | null)) return;
+
+			this.__closeLink();
+			this.__hide();
+		});
+
+		this.__linkRow = row;
+		this.__linkInput = input;
+		this.__linkRemove = remove;
+
+		return row;
+	}
+
+	/** Вернуть панель к кнопкам (правку адреса закончили или бросили). */
+	private __closeLink() {
+		if (!this.__linkEditing) return;
+
+		this.__linkEditing = false;
+		this.__linkCaret = null;
+		this.__elem?.classList.remove(LINK_EDITING_CLASS);
+		this.reposition();
 	}
 }
 

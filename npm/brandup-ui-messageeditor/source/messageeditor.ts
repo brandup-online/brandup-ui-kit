@@ -5,6 +5,7 @@ import { POPUP_CLASS, SCROLLABLE_CLASS, type Modal } from "@brandup/ui-kit";
 import { DOM } from "@brandup/ui";
 import RichEditor, {
 	TOOLBAR_CLASS,
+	createEmojiPicker,
 	parseBlockTypes,
 	parseFormatTools,
 	preserveCaret,
@@ -13,6 +14,7 @@ import RichEditor, {
 	type ToolbarButton,
 } from "@brandup/ui-richeditor";
 import {
+	CARET_ANCHOR,
 	highlight,
 	markupAt,
 	unknownVariables as findUnknownVariables,
@@ -31,6 +33,11 @@ export const INPUT_CLASS = "messageeditor-input";
 export const EMOJI_CLASS = "messageeditor-emoji";
 export const EMOJI_HOLDER_CLASS = "messageeditor-emoji-holder";
 export const CHANGE_EVENT = "messageeditor-change";
+
+const ANCHORS = new RegExp(CARET_ANCHOR, "g");
+
+/** Снимает опоры каретки: в поле они нужны, в сообщении — нет. */
+const withoutAnchors = (value: string) => value.replace(ANCHORS, "");
 
 export interface MessageEditorOptions {
 	/**
@@ -107,6 +114,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	private __composing = false; // идёт IME-ввод — подсветку откладываем
 	private __names: VariableNames; // названия переменных по ключу — для подсветки
 	private __modal: Modal | null = null; // открытое окно правки — его закрывает и destroy
+	private __emojiPicker: HTMLElement | null = null; // свой попап смайликов — см. __initEmoji
 	private __disposing = false; // компонент снимают: возвращать каретку и фокус уже некуда
 
 	readonly placeholder: string | null;
@@ -207,7 +215,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		if (disabled) inputElem.contentEditable = "false";
 
 		// приводим носитель значения к нормализованному содержимому редактора (без события)
-		this.__valueElem.value = this.__editor.getValue();
+		this.__valueElem.value = this.__messageValue();
 
 		this.__initLogic();
 		if (emojiElem && emojiHolder) this.__initEmoji(emojiElem, emojiHolder);
@@ -220,7 +228,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		const editable = this.__inputElem;
 
 		this.__editor.onChange((data) => {
-			this.__valueElem.value = data.value;
+			this.__valueElem.value = withoutAnchors(data.value);
 
 			// Destroying the editor flushes the deferred change: the host must still get the value,
 			// but rebuilding the highlight is pointless — the field is going away, and moving the
@@ -276,6 +284,15 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			},
 			{ signal }
 		);
+	}
+
+	/**
+	 * Значение редактора без опор каретки: подсветка ставит их за конструкциями, которыми
+	 * кончается строка (см. CARET_ANCHOR в ./highlight), а сообщению они не нужны — их там
+	 * никто не набирал.
+	 */
+	private __messageValue(): string {
+		return withoutAnchors(this.__editor.getValue());
 	}
 
 	// Редактор откладывает событие изменения при печати, поэтому копия значения в поле формы
@@ -533,8 +550,13 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 				// без этого PopupManager получит тот же клик своим слушателем на body и закроет панель
 				e.stopPropagation();
 
-				// каретку редактор ставит сам, если её не было, — и в нужном порядке с показом панели
-				this.__editor.openEmojiPicker(button, container);
+				// Попап свой, а не панели форматирования: он раскрывается от кнопки в плашке, живёт
+				// в её коробке и панели не принадлежит. Собирает его редактор, показывает — тоже он:
+				// каретку и удержание правки на время попапа знает только он.
+				this.__emojiPicker ??= createEmojiPicker((emoji) => this.__editor.insertText(emoji));
+				if (this.__emojiPicker.parentElement !== container) container.appendChild(this.__emojiPicker);
+
+				this.__editor.openEmojiPicker(this.__emojiPicker, button);
 			},
 			{ signal }
 		);

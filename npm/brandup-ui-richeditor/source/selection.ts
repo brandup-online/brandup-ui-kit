@@ -425,10 +425,12 @@ function collectTargets(root: HTMLElement, range: Range): Node[] {
 	return nodes;
 }
 
-function wrapNode(node: Node, tag: string) {
+function wrapNode(node: Node, tag: string): HTMLElement {
 	const wrapper = document.createElement(tag);
 	node.parentNode?.insertBefore(wrapper, node);
 	wrapper.appendChild(node);
+
+	return wrapper;
 }
 
 /** Выносит ветку, содержащую node, наружу из элемента fmt (расщепляя fmt на «до» и «после»). */
@@ -479,6 +481,17 @@ function stripFormattingInCode(root: HTMLElement) {
 }
 
 /**
+ * Один ли это формат у двух соседей. Тега для этого мало, когда формат несёт данные: у ссылки
+ * их несёт адрес, и склеив соседние ссылки с разными адресами, редактор потерял бы второй,
+ * ничего об этом не сказав.
+ */
+function sameFormat(a: HTMLElement, b: HTMLElement): boolean {
+	if (a.tagName !== b.tagName) return false;
+
+	return a.tagName !== "A" || a.getAttribute("href") === b.getAttribute("href");
+}
+
+/**
  * Чистит разметку: убирает пустые теги, схлопывает вложенные и соседние одинаковые, склеивает текст.
  *
  * Правка одного тега может сделать «грязными» его соседей и потомков, поэтому обход идёт очередью:
@@ -520,9 +533,9 @@ export function cleanupFormatting(root: HTMLElement) {
 			continue;
 		}
 
-		// соседний такой же тег слева — склеиваем
+		// соседний такой же формат слева — склеиваем
 		const prev = el.previousSibling;
-		if (prev && prev.nodeType === Node.ELEMENT_NODE && (prev as HTMLElement).tagName === el.tagName) {
+		if (prev && prev.nodeType === Node.ELEMENT_NODE && sameFormat(prev as HTMLElement, el)) {
 			const children = Array.from(el.children);
 			enqueue(el.nextSibling);
 			enqueue(el.parentElement);
@@ -586,6 +599,46 @@ export function toggleFormat(
 			for (const n of nodes) removeFormatFromNode(n, tags, root);
 		} else {
 			for (const n of nodes) if (!formatAncestor(n, tags, root)) wrapNode(n, def.tag);
+		}
+	});
+}
+
+const LINK_TAGS = TOOL_TAG_SETS.link;
+
+/**
+ * Ссылка, внутри которой стоит каретка или начало выделения; null — выделение не в ссылке.
+ * По ней панель узнаёт текущий адрес: у ссылки состояние — не «включена», а «вот этот адрес».
+ */
+export function linkAt(root: HTMLElement, range: Range): HTMLAnchorElement | null {
+	return formatAncestor(caretProbe(range), LINK_TAGS, root) as HTMLAnchorElement | null;
+}
+
+/**
+ * Ставит ссылку на выделение или меняет адрес у той, в которой оно стоит; пустой адрес — снимает.
+ *
+ * Не переключатель, в отличие от {@link toggleFormat}: у ссылки есть данные, и повторное
+ * применение с другим адресом — это правка, а не снятие. Снятие выражается пустым адресом.
+ */
+export function applyLink(
+	root: HTMLElement,
+	range: Range,
+	url: string,
+	selection: Selection,
+	restoreBounds?: [number, number]
+) {
+	editSelection(root, range, selection, restoreBounds, (nodes) => {
+		for (const node of nodes) {
+			const existing = formatAncestor(node, LINK_TAGS, root);
+
+			if (!url) {
+				if (existing) removeFormatFromNode(node, LINK_TAGS, root);
+				continue;
+			}
+
+			// Уже в ссылке — меняем адрес у неё целиком: разрезать её ради части выделения значит
+			// сделать из одной ссылки две, а просили поправить адрес.
+			if (existing) existing.setAttribute("href", url);
+			else wrapNode(node, "a").setAttribute("href", url);
 		}
 	});
 }

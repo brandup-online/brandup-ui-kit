@@ -1,3 +1,6 @@
+import { DOM } from "@brandup/ui";
+import { POPUP_CLASS, PopupManager, SCROLLABLE_CLASS } from "@brandup/ui-kit";
+
 // Набор смайликов для панели вставки. Все символы — одиночные кодпойнты (без ZWJ-последовательностей
 // и модификаторов), поэтому переносятся в текст как единое целое. Внимание: в UTF-16 каждый занимает
 // две единицы, и getLength() (а значит и maxlength у хоста) считает такой символ за два.
@@ -127,3 +130,69 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
 
 /** Все смайлики подряд, в порядке групп. */
 export const EMOJIS: string[] = EMOJI_GROUPS.flatMap((group) => group.emojis);
+
+// --- панель вставки ---
+
+/** Попап вставки смайлика: у каждого владельца свой, собираются они здесь. */
+export const EMOJI_PICKER_CLASS = "ui-richeditor-emoji";
+
+// Сколько кнопок помещается в ряд при ширине панели (см. .ui-richeditor-emoji в richeditor.less).
+// Точность нужна только для оценки высоты нерисованной группы: ошибка сдвинет ползунок прокрутки,
+// но не саму раскладку — группа переносит кнопки сама.
+const EMOJI_COLUMNS = 8;
+
+/**
+ * Группа смайликов: и смысловое деление в панели (отбивается линией), и кусок, к которому
+ * применяется пропуск отрисовки. Поэлементно это было бы семьсот отслеживаемых поддеревьев,
+ * и слежение за ними съедает выигрыш от пропуска.
+ */
+function buildEmojiGroup(group: EmojiGroup): HTMLElement {
+	const rows = Math.ceil(group.emojis.length / EMOJI_COLUMNS);
+	const elem = DOM.tag("div", {
+		class: "emoji-group",
+		role: "group",
+		"aria-label": group.title,
+		// высота, пока группа не нарисована: без неё список схлопнулся бы, а прокрутка скакала
+		style: `--richeditor-emoji-rows: ${rows}`,
+	});
+
+	const fragment = document.createDocumentFragment();
+	for (const emoji of group.emojis)
+		fragment.appendChild(DOM.tag("button", { type: "button", class: "emoji", tabindex: "-1" }, emoji));
+	elem.appendChild(fragment);
+
+	return elem;
+}
+
+/**
+ * Собирает попап вставки смайлика.
+ *
+ * Попап принадлежит тому, кто его собрал: у панели форматирования свой, у поля сообщения — свой.
+ * Общий на всех пришлось бы переносить между владельцами и помнить, чей он сейчас; а показать
+ * два разом всё равно нельзя — {@link PopupManager} держит открытым один.
+ *
+ * Показом и закрытием занимается вызывающий (у редактора для этого есть `openEmojiPicker`):
+ * здесь только разметка и выбор символа.
+ */
+export function createEmojiPicker(onPick: (emoji: string) => void): HTMLElement {
+	const picker = DOM.tag("div", { class: `${POPUP_CLASS} ${EMOJI_PICKER_CLASS}` });
+
+	// Прокручивается список, а не сам попап: полоса прокрутки рисуется по краю коробки
+	// и перекрывала бы скругление рамки — угол выглядел бы срезанным.
+	const list = DOM.tag("div", { class: ["emoji-list", SCROLLABLE_CLASS] });
+	picker.appendChild(list);
+
+	for (const group of EMOJI_GROUPS) list.appendChild(buildEmojiGroup(group));
+
+	// попап живёт и вне панели, поэтому фокус гасит сам
+	picker.addEventListener("mousedown", (e) => e.preventDefault());
+	picker.addEventListener("click", (e) => {
+		const target = (e.target as HTMLElement).closest<HTMLElement>(".emoji");
+		if (!target) return;
+
+		onPick(target.textContent ?? "");
+		PopupManager.close();
+	});
+
+	return picker;
+}

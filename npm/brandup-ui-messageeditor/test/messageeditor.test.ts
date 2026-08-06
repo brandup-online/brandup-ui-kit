@@ -1,6 +1,7 @@
 /**
  * @jest-environment jsdom
  */
+import { PopupManager } from "@brandup/ui-kit";
 import MessageEditor, { ROOT_CLASS, INPUT_CLASS, EMOJI_CLASS, EMOJI_HOLDER_CLASS } from "../source/messageeditor";
 
 function setup(
@@ -160,7 +161,7 @@ describe("MessageEditor", () => {
 		const toolbar = editor.element.querySelector(".ui-richeditor-toolbar")!;
 		expect(toolbar).not.toBeNull(); // панель внутри компонента, а не в document.body
 		expect(toolbar.classList.contains("in-container")).toBe(true);
-		expect(toolbar.querySelectorAll(".format-button")).toHaveLength(5); // словарь сообщений без скрытого спойлера
+		expect(toolbar.querySelectorAll(".format-button")).toHaveLength(6); // словарь сообщений без скрытого спойлера
 		// действие одно — очистка формата; смайлики вынесены в собственную кнопку компонента
 		expect(toolbar.querySelectorAll(".action-button")).toHaveLength(1);
 		expect(toolbar.querySelector('[data-editor-action="erase"]')).not.toBeNull();
@@ -183,8 +184,23 @@ describe("MessageEditor", () => {
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).toBeNull(); // фокуса ещё не было
 	});
 
-	// панель одна на всю страницу, как и тулбар: она переезжает к той кнопке, что её открыла
-	it("shares a single emoji picker between editors", () => {
+	// Оставленный открытым, попап держал бы PopupManager на удалённом элементе: на body висели бы
+	// класс открытого попапа и слушатель закрытия, а на узком экране страница осталась бы
+	// непрокручиваемой (см. .ui-popup-opened в ките).
+	it("closes its emoji picker on destroy", () => {
+		const editor = new MessageEditor(setup().input);
+		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		expect(document.querySelector(".ui-richeditor-emoji.opened")).not.toBeNull();
+
+		editor.destroy();
+
+		expect(PopupManager.isOpened()).toBe(false);
+		expect(document.body.classList.contains("ui-popup-opened")).toBe(false);
+	});
+
+	// Попап у каждого поля свой: он раскрывается от кнопки в плашке и живёт в её коробке.
+	// Открытым при этом всё равно бывает один — за этим следит PopupManager.
+	it("gives each editor its own emoji picker", () => {
 		const first = new MessageEditor(setup({ value: "раз" }).input);
 		const form = document.createElement("form");
 		const second = document.createElement("textarea");
@@ -195,16 +211,15 @@ describe("MessageEditor", () => {
 		first.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
 		expect(first.element.querySelector(".ui-richeditor-emoji.opened")).not.toBeNull();
 
-		// Открытие у соседа само переводит туда фокус, и уход фокуса из первого приходит уже после:
-		// панель к тому времени принадлежит соседу. Закрытие её здесь стоило бы второго нажатия.
 		other.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
 
-		expect(document.querySelectorAll(".ui-richeditor-emoji")).toHaveLength(1);
+		// у каждого свой, и переносить чужой между полями больше не приходится
+		expect(document.querySelectorAll(".ui-richeditor-emoji")).toHaveLength(2);
 		expect(other.element.querySelector(".ui-richeditor-emoji.opened")).not.toBeNull();
-		expect(first.element.querySelector(".ui-richeditor-emoji")).toBeNull();
+		expect(first.element.querySelector(".ui-richeditor-emoji.opened")).toBeNull();
 
-		// панель раскрывается от кнопки: её коробка и есть позиционированный предок
-		const picker = document.querySelector(".ui-richeditor-emoji")!;
+		// попап раскрывается от кнопки: её коробка и есть позиционированный предок
+		const picker = other.element.querySelector(".ui-richeditor-emoji")!;
 		expect(picker.parentElement!.classList.contains(EMOJI_HOLDER_CLASS)).toBe(true);
 
 		// повторное нажатие по той же кнопке закрывает

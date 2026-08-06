@@ -451,7 +451,7 @@ describe("TextBox formatting", () => {
 		expect(tb.format).toBe(true);
 		expect(tb.formatStorage).toBe("html");
 		// без data-format-tools подключается весь словарь редактора
-		expect(tb.formatTools).toEqual(["bold", "italic", "strike", "underline", "spoiler", "code"]);
+		expect(tb.formatTools).toEqual(["bold", "italic", "strike", "underline", "spoiler", "code", "link"]);
 	});
 
 	it("mounts the toolbar inside the textbox container on focus", () => {
