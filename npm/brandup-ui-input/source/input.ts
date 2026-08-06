@@ -64,6 +64,12 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 	 * (например, редактор с отложенной сериализацией). Вызывается перед каждым чтением значения
 	 * снаружи: валидация, отправка формы, сбор `FormData`. По умолчанию ничего не делает —
 	 * у контролов, пишущих в поле сразу, синхронизировать нечего.
+	 *
+	 * Native constraint validation cannot be intercepted — it runs before the `submit` event.
+	 * Submitting by button is unaffected: the click moves focus away first, and leaving the field
+	 * brings the value over. What remains is submitting without losing focus — {@link __requestSubmit}
+	 * covers the Enter case, while a host-driven `form.requestSubmit()` on a focused field must
+	 * go through it as well.
 	 */
 	protected __syncValue(): void {}
 
@@ -119,6 +125,12 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 	protected __requestSubmit() {
 		const form = this.form;
 		if (this.readonly || this.disabled || !form) return;
+
+		// Constraint validation runs before the submit event, so syncing in its handler is too
+		// late — the browser would read the value element first. Losing focus normally brings the
+		// value over, but submitting by Enter happens without it, and a required field would
+		// refuse an empty value while the text is right there.
+		this.__syncValue();
 
 		if (typeof form.requestSubmit !== "function") {
 			this.__submitForm(); // движок без requestSubmit — хотя бы уведомим обработчиков
