@@ -4,18 +4,28 @@
 
 import { textTag } from "@brandup/ui-kit";
 import { SPINTAX_OPEN } from "./randomizer";
-import { buildVariable } from "./variables";
+import { buildVariable, VARIABLE_OPEN } from "./variables";
 
 export const SPINTAX_CLASS = "spintax";
 export const VARIABLE_CLASS = "variable";
 /** Ключ переменной внутри обёртки: на экране его подменяет название, но в тексте он остаётся. */
 export const KEY_CLASS = "key";
+/** Переменная с ключом, которого нет в объявленном списке. */
+export const UNKNOWN_CLASS = "unknown";
 
-/** Названия переменных по ключу — что показывать в тексте вместо `{КЛЮЧ}`. */
-export type VariableNames = ReadonlyMap<string, string>;
+/** Подсказка на неизвестной переменной: почему она выделена не так, как остальные. */
+export const UNKNOWN_TITLE = "Переменная не объявлена — при отправке не подставится.";
+
+/**
+ * Объявленные переменные: ключ → название (`null` — названия нет, показывается ключ).
+ *
+ * Он же набор известных ключей: чего в нём нет, то в тексте помечается неизвестным. Один
+ * источник на обе задачи — отдельный список ключей разъезжался бы с названиями.
+ */
+export type VariableNames = ReadonlyMap<string, string | null>;
 
 export interface HighlightOptions {
-	/** Названия переменных по ключу; без них показывается ключ. */
+	/** Объявленные переменные; без них показывается ключ и ничего не проверяется. */
 	names?: VariableNames;
 	/** Подсвечивать ли переменные (по умолчанию да): выключенная персонализация их не выделяет. */
 	variables?: boolean;
@@ -115,6 +125,59 @@ function isHighlighted(root: HTMLElement, pattern: RegExp): boolean {
 	return !matches(run);
 }
 
+/**
+ * Ключ переменной по тексту найденной конструкции; null — это спинтакс, а не переменная.
+ *
+ * Общее выражение находит обе конструкции, и различать их приходится каждому, кто по нему идёт.
+ * Пусть различают одинаково: разойдись подсветка с проверкой — поле помечало бы одно, а сообщало
+ * другое.
+ */
+function variableKey(text: string): string | null {
+	return text.startsWith(SPINTAX_OPEN) ? null : text.slice(1, -1);
+}
+
+/**
+ * Объявлена ли переменная с таким ключом.
+ *
+ * Пустой список — не повод считать чужими все: он может быть ещё не известен (переменные
+ * появляются после выбора аудитории), и тогда проверять не по чему. Помечать в этом случае
+ * весь текст значило бы кричать там, где приложение само не знает набора.
+ */
+function isUnknown(key: string, names?: VariableNames): boolean {
+	return !!names?.size && !names.has(key);
+}
+
+/**
+ * Ключи переменных из текста, которых нет среди объявленных, — в порядке появления, без повторов.
+ * Пустой список объявленных даёт пустой результат: см. {@link isUnknown}.
+ *
+ * Текст берётся из тех же узлов, что и подсветка, и тем же выражением: результат обязан совпадать
+ * с тем, что видно в поле. Обойти узлы по отдельности здесь так же важно, как и там — по
+ * `textContent` всего элемента `{` в конце одного абзаца склеилась бы с `}` в начале следующего.
+ */
+export function unknownVariables(root: HTMLElement, names?: VariableNames): string[] {
+	// Проверка идёт на каждое чтение значения снаружи, а открывающей скобки в тексте обычно нет
+	// вовсе — тогда и обходить нечего. Так же дёшево выходит и сама highlight().
+	if (!names?.size || !(root.textContent ?? "").includes(VARIABLE_OPEN)) return [];
+
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	const found: string[] = [];
+
+	// Общий g-объект: matchAll стартует с его lastIndex (сам его не двигает, поэтому хватает
+	// одного сброса на обход). Сбрасываем на случай, если позицию оставил сдвинутой чужой вызов.
+	WITH_VARIABLES.lastIndex = 0;
+
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		for (const match of (node as Text).data.matchAll(WITH_VARIABLES)) {
+			const key = variableKey(match[0]);
+
+			if (key !== null && isUnknown(key, names) && !found.includes(key)) found.push(key);
+		}
+	}
+
+	return found;
+}
+
 /** Снимает прежние обёртки: разметка могла разъехаться после правки текста. */
 function unwrap(root: HTMLElement) {
 	root.querySelectorAll<HTMLElement>(MARKUP_SELECTOR).forEach((span) => {
@@ -171,15 +234,30 @@ function wrapNode(node: Text, pattern: RegExp, names?: VariableNames) {
  */
 function buildMarkup(text: string, names?: VariableNames): HTMLElement {
 	const span = document.createElement("span");
-	const spintax = text.startsWith(SPINTAX_OPEN);
+	const key = variableKey(text);
 
-	span.className = spintax ? SPINTAX_CLASS : VARIABLE_CLASS;
+	span.className = key === null ? SPINTAX_CLASS : VARIABLE_CLASS;
 	// Конструкция атомарна: править её текст в поле нельзя, только через своё окно — иначе
 	// разметку легко испортить, стерев одну скобку. Ставим атрибутом, а не свойством:
 	// свойство не отражается в разметку, и состояние было бы не видно ни в DOM, ни в тестах.
 	span.setAttribute("contenteditable", "false");
 
-	const name = spintax ? undefined : names?.get(text.slice(1, -1));
+	if (key === null) {
+		span.textContent = text;
+		return span;
+	}
+
+	// Ключа нет среди объявленных: подставить такую переменную будет нечем, и получателю она
+	// уйдёт скобками наружу. Выглядит она при этом ровно как рабочая, поэтому помечаем — опечатка
+	// в ключе иначе замечается уже по отправленному сообщению.
+	if (isUnknown(key, names)) {
+		span.classList.add(UNKNOWN_CLASS);
+		span.setAttribute("title", UNKNOWN_TITLE);
+		span.textContent = text;
+		return span;
+	}
+
+	const name = names?.get(key);
 	if (!name) {
 		span.textContent = text;
 		return span;
