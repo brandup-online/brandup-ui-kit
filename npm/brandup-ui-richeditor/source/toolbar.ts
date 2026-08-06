@@ -60,8 +60,8 @@ const MERGED_CODE_TITLE = "Код";
 // Временно скрытые кнопки. Сами возможности работают: значение разбирается, показывается
 // и сохраняется, правку можно вызвать из кода — в панель они просто не выводятся.
 // Убрать отсюда, когда будут доведены.
-const HIDDEN_TOOLS: FormatTool[] = ["spoiler", "code"];
-const HIDDEN_BLOCKS: BlockType[] = ["code"];
+const HIDDEN_TOOLS: FormatTool[] = ["spoiler"];
+const HIDDEN_BLOCKS: BlockType[] = [];
 
 export const TOOLBAR_CLASS = "ui-richeditor-toolbar";
 export const EMOJI_PICKER_CLASS = "ui-richeditor-emoji";
@@ -92,8 +92,12 @@ export interface ToolbarHost {
 	readonly editorActions?: EditorAction[];
 	/** Контейнер для тулбара; null/undefined — document.body (position: fixed над редактором). */
 	readonly toolbarContainer?: HTMLElement | null;
-	/** Типы блоков многострочного режима; пусто/undefined — кнопок блоков нет. */
-	readonly blockTypes?: BlockType[];
+	/**
+	 * Типы блоков, которые панель вправе предложить; пусто/undefined — кнопок блоков нет.
+	 * Не то же, что набор для разбора значения: показывать цитату и код редактор обязан
+	 * и там, где их не переключить (только для чтения).
+	 */
+	readonly blockTools?: BlockType[];
 	applyFormat(tool: FormatTool): void;
 	isToolActive(tool: FormatTool): boolean;
 	/** false — инструмент сейчас недоступен (например, внутри кода): кнопка гасится. */
@@ -112,6 +116,14 @@ export interface ToolbarHost {
 	isActionEnabled?(action: EditorAction): boolean;
 	/** Вставка текста в каретку — для панели смайликов. */
 	insertText?(text: string): void;
+	/**
+	 * Открыть панель смайликов. Своя кнопка панели зовёт редактор, а не {@link openEmoji}
+	 * напрямую: он придерживает правку и отпускает фокус на её время — с кнопкой хоста это
+	 * должно работать одинаково.
+	 */
+	openEmojiPicker?(initiator: HTMLElement, container: HTMLElement): void;
+	/** Панель смайликов закрылась — редактор возвращает себе то, что придержал на её время. */
+	onEmojiClosed?(): void;
 	/** Собственные кнопки хоста; пусто/undefined — только штатные. */
 	readonly toolbarButtons?: ToolbarButton[];
 }
@@ -222,7 +234,7 @@ class FormatToolbar {
 		const buttons = host.toolbarButtons ?? [];
 		const tools = host.formatTools.filter((tool) => !HIDDEN_TOOLS.includes(tool));
 		// Обычный текст кнопки не имеет — он не «включается», а остаётся, когда выключены остальные.
-		const blocks = (host.blockTypes ?? []).filter(
+		const blocks = (host.blockTools ?? []).filter(
 			(type) => type !== DEFAULT_BLOCK && !HIDDEN_BLOCKS.includes(type)
 		);
 		if (!tools.length && !blocks.length && !actions.length && !buttons.length) return;
@@ -256,6 +268,15 @@ class FormatToolbar {
 			}
 			this.reposition();
 		}
+	}
+
+	/**
+	 * Убрать панель с экрана, не отпуская редактор: он отдал фокус своему слою — окну или панели
+	 * смайликов. От {@link detach} отличается тем, что панель смайликов при этом остаётся: её и
+	 * открыли из этого редактора, а фокус сняли как раз ради неё.
+	 */
+	suspend(host: ToolbarHost) {
+		if (this.__active === host) this.__hide();
 	}
 
 	/** Скрыть тулбар, если он обслуживает этот редактор (на blur/destroy). */
@@ -394,16 +415,6 @@ class FormatToolbar {
 		this.__mergedCode = tools.includes(CODE_TOOL) && blocks.includes(CODE_BLOCK);
 		const blockTypes = this.__mergedCode ? blocks.filter((type) => type !== CODE_BLOCK) : blocks;
 
-		// Разделитель ставится только между непустыми группами — иначе панель начиналась бы
-		// с линии или показывала две подряд.
-		let filled = false;
-		const separate = (group: unknown[]) => {
-			if (filled && group.length) elem.appendChild(DOM.tag("div", { class: "split" }));
-			filled ||= group.length > 0;
-		};
-
-		separate(tools);
-
 		for (const tool of tools) {
 			const merged = this.__mergedCode && tool === CODE_TOOL;
 			const def = FORMAT_TOOLS[tool];
@@ -425,8 +436,6 @@ class FormatToolbar {
 			this.__buttons.push([tool, btn]);
 		}
 
-		separate(blockTypes);
-
 		for (const type of blockTypes) {
 			const def = BLOCK_TYPES[type];
 			const btn = DOM.tag(
@@ -439,8 +448,6 @@ class FormatToolbar {
 			elem.appendChild(btn);
 			this.__blockButtons.push([type, btn]);
 		}
-
-		separate(actions);
 
 		for (const action of actions) {
 			const def = EDITOR_ACTIONS[action];
@@ -456,7 +463,11 @@ class FormatToolbar {
 			this.__actionButtons.push([action, btn]);
 		}
 
-		separate(buttons);
+		// Инструменты, блоки и действия — одна группа: всё это правка оформления. Разделитель
+		// нужен только перед кнопками хоста: они про другое — переменные, рандомизацию и прочее
+		// доменное. Пустых групп разделитель не касается, иначе панель начиналась бы с линии.
+		if (buttons.length && (tools.length || blockTypes.length || actions.length))
+			elem.appendChild(DOM.tag("div", { class: "split" }));
 
 		// кнопки хоста — последними, чтобы штатные не переезжали при их появлении
 		for (const button of buttons) {
@@ -485,7 +496,7 @@ class FormatToolbar {
 	 * закрытия на body прямо в open(), то есть во время этого же клика — до body событие ещё
 	 * не дошло, и слушатель закрыл бы панель сразу после открытия.
 	 */
-	openEmoji(host: ToolbarHost, initiator: HTMLElement, container: HTMLElement) {
+	openEmoji(host: ToolbarHost, initiator: HTMLElement, container: HTMLElement): boolean {
 		// повторный клик по той же кнопке закрывает панель (это делает toggle внутри PopupManager),
 		// а вот у другой кнопки её нужно сперва закрыть — иначе toggle сочтёт открытие повторным
 		if (this.__emojiInitiator !== initiator && this.__emojiPicker?.classList.contains("opened"))
@@ -504,7 +515,17 @@ class FormatToolbar {
 			if (this.__active === host) this.__hide();
 		}
 
-		PopupManager.open(this.__ensureEmojiPicker(container), { initiator, onClose: () => this.__resume() });
+		PopupManager.open(this.__ensureEmojiPicker(container), {
+			initiator,
+			onClose: () => {
+				this.__resume();
+				host.onEmojiClosed?.();
+			},
+		});
+
+		// Повторное нажатие по той же кнопке панель закрывает (это toggle внутри PopupManager) —
+		// вызывающему нужно знать исход: открытая панель ещё и придерживает правку редактора.
+		return !!this.__emojiPicker?.classList.contains("opened");
 	}
 
 	/** Панель смайликов закрылась — показываем придержанный тулбар, если редактор ещё в фокусе. */
@@ -521,7 +542,12 @@ class FormatToolbar {
 	private __toggleEmoji(initiator: HTMLButtonElement, e: MouseEvent) {
 		e.stopPropagation();
 
-		if (this.__active) this.openEmoji(this.__active, initiator, this.__ensure());
+		const host = this.__active;
+		if (!host) return;
+
+		// через редактор, а не напрямую: панель — его слой, и придерживает правку он
+		if (host.openEmojiPicker) host.openEmojiPicker(initiator, this.__ensure());
+		else this.openEmoji(host, initiator, this.__ensure());
 	}
 
 	private __ensureEmojiPicker(container: HTMLElement): HTMLElement {

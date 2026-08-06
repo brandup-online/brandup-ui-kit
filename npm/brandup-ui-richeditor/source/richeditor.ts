@@ -1,6 +1,7 @@
 import "./richeditor.less"; // стили редактора и панели форматирования
 
 import { DOM, UIElementBound } from "@brandup/ui";
+import { IS_TOUCH_DEVICE } from "@brandup/ui-kit";
 import {
 	ALL_FORMAT_TOOLS,
 	BLOCK_TYPES,
@@ -20,12 +21,14 @@ import {
 	insertFormattedText,
 	isFormatActive,
 	documentSelection,
+	emptyFormatAt,
 	innerSelection,
 	mapCharOffset,
 	normalizeBlockTypes,
 	editorText,
 	charLength,
 	preserveCaret,
+	mergeAdjacentBlocks,
 	normalizeParagraphs,
 	normalizeWhitespace,
 	restoreSelection,
@@ -123,6 +126,14 @@ export interface RichEditorOptions {
 	 * Обычный текст в наборе есть всегда — в него блок возвращают.
 	 */
 	blocks?: BlockType[];
+	/**
+	 * Держать ли фокус в поле, пока над ним открыта панель смайликов. По умолчанию держим —
+	 * каретка на виду, и видно, куда встанет символ; на сенсорном устройстве нет: там фокус
+	 * держит на экране клавиатуру, и она закрывает собой саму панель.
+	 *
+	 * Модального окна это не касается: правка идёт в нём, и фокус поле отдаёт всегда.
+	 */
+	keepFocus?: boolean;
 	/** Только для чтения — запрещает ввод и изменение текста (но не выделение/копирование). */
 	readonly?: boolean;
 	/** Контейнер для панели форматирования; по умолчанию document.body (position: fixed над редактором). */
@@ -162,6 +173,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	readonly multiline: boolean;
 	readonly paragraph: ParagraphMode;
 	readonly blockTypes: BlockType[];
+	readonly keepFocus: boolean;
 	readonly toolbarContainer: HTMLElement | null;
 	readonly toolbarButtons: ToolbarButton[];
 
@@ -170,6 +182,11 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	private __pendingFormats = new Set<FormatTool>();
 	private __hasInputClick = false;
 	private __editHolds = 0; // правка продолжается в окне хоста — см. holdEditing
+	// Каретка, снятая при отпускании фокуса: без фокуса браузер может убрать и выделение,
+	// а вставке из попапа нужно место — см. releaseFocus.
+	private __detachedCaret: [number, number] | null = null;
+	private __emojiHold: (() => void) | null = null; // правка придержана на время панели смайликов
+	private __releasingFocus = false; // фокус снимаем сами, а не уходят из поля — см. releaseFocus
 	// Компонент снят. Удержание правки переживает снятие (окно хоста закрывается позже), и по его
 	// снятию трогать содержимое уже нельзя — редактора нет.
 	private __disposed = false;
@@ -209,6 +226,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// Блоки — часть многострочной модели: в однострочном режиме верхнего уровня нет вовсе,
 		// а в readonly их не переключить, но разбор и показ значения обязаны работать и там.
 		this.blockTypes = multiline ? normalizeBlockTypes(options.blocks) : [DEFAULT_BLOCK];
+		this.keepFocus = options.keepFocus ?? !IS_TOUCH_DEVICE;
 		this.toolbarContainer = options.toolbarContainer ?? null;
 		// кнопки хоста живут и без форматирования, но не в readonly — там панели нет вовсе
 		this.toolbarButtons = readonly ? [] : (options.buttons ?? []);
@@ -283,7 +301,11 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	 * например, кнопкой панели, которая не должна забирать фокус у редактора.
 	 */
 	insertText(text: string): void {
-		if (this.readonly || !text || !this.selection) return;
+		if (this.readonly || !text) return;
+
+		// фокус мог быть отпущен на время окна хоста — вместе с ним могло уйти и выделение
+		if (!this.selection) this.__reviveCaret();
+		if (!this.selection) return;
 
 		// вставка — такой же ввод, как с клавиатуры, поэтому проходит через filterChar хоста
 		// (ограничения по типу поля и длине). Обход символов идёт по кодпойнтам, чтобы эмодзи
@@ -313,19 +335,32 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const target = container ?? initiator.parentElement;
 		if (!target) return;
 
-		formatToolbar.openEmoji(this, initiator, target);
+		// повторное нажатие по кнопке панель закрывает — держать и придерживать больше нечего
+		if (!formatToolbar.openEmoji(this, initiator, target)) return;
+
+		// Правку придерживаем на всё время панели: фокус мы отпустим, а снятие фокуса — не конец
+		// ввода. Иначе нормализация обрезала бы пробел у каретки, и символ встал бы вплотную.
+		this.__emojiHold ??= this.holdEditing();
 
 		// По кнопке могли нажать, ни разу не заходя в поле, — тогда каретки нет и вставлять символ
-		// некуда. Фокусировать вслепую нельзя: focus() сбросил бы уже стоящую каретку, и символ
-		// уехал бы не туда. Конец содержимого назначаем сами: фокус ставит каретку в начало,
-		// и дописанный к сообщению символ оказался бы перед текстом.
+		// некуда. В конец её ставит focus(true), и только если её действительно не было: снятую
+		// при отпускании фокуса он вернёт на место, а иначе символ уезжал бы в конец сообщения
+		// с каждым открытием панели.
 		//
 		// Строго после открытия панели: фокус показывает тулбар, а придержать его панель успевает
 		// только когда открыта сама.
-		if (!this.selection) {
-			this.focus();
-			caretToEnd(this.editable, this.multiline);
-		}
+		if (!this.selection) this.focus(true);
+
+		// Панель — слой над полем, а не вместо него: каретку видно, и видно, куда встанет символ.
+		// На сенсорном устройстве фокус вместо этого поднимает клавиатуру, которая саму панель
+		// и закрывает, — там его отпускаем, а каретку вернёт вставка (см. keepFocus).
+		if (!this.keepFocus) this.releaseFocus();
+	}
+
+	/** Панель смайликов закрылась: снимаем удержание правки, взятое на время её работы. */
+	onEmojiClosed(): void {
+		this.__emojiHold?.();
+		this.__emojiHold = null;
 	}
 
 	getLength(): number {
@@ -337,12 +372,48 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	 * Фокус в поле. Каретку, стоящую в содержимом, не двигает: правку продолжают там, где её
 	 * прервали. Своей защиты обработчика фокуса для этого мало — браузер успевает поставить
 	 * при фокусе собственную каретку (в начало содержимого), и она выглядит как «уже стоявшая».
+	 *
+	 * `atEnd` — куда ставить каретку, если её в поле ещё не было: в конец содержимого, а не
+	 * в начало. Так фокусируют по клику мимо текста — это клик за ним, а не перед ним.
 	 */
-	focus(): void {
-		const bounds = this.caretSnapshot();
+	focus(atEnd = false): void {
+		const bounds = this.caretSnapshot() ?? this.__detachedCaret;
+		if (bounds) return this.restoreCaret(bounds);
 
-		if (bounds) this.restoreCaret(bounds);
-		else this.editable.focus();
+		this.editable.focus();
+		if (atEnd) caretToEnd(this.editable, this.multiline);
+	}
+
+	/**
+	 * Отпускает фокус, запомнив каретку. Пока хост показывает своё окно, полю фокус не нужен:
+	 * правка идёт в окне, а мигающая каретка под ним только сбивает с толку. На сенсорном
+	 * устройстве фокус к тому же держит на экране клавиатуру, и она закрывает собой само окно.
+	 *
+	 * Каретка при этом не теряется: {@link insertText} вернёт её сам, а {@link focus} — вместе
+	 * с фокусом. Правку на это время придерживает вызывающий (см. {@link holdEditing}): снятие
+	 * фокуса не конец ввода, и содержимое трогать рано.
+	 */
+	releaseFocus(): void {
+		if (this.editable.ownerDocument.activeElement !== this.editable) return;
+
+		this.__detachedCaret = this.caretSnapshot();
+		this.__releasingFocus = true;
+
+		try {
+			this.editable.blur();
+		} finally {
+			this.__releasingFocus = false;
+		}
+	}
+
+	// Ставит обратно каретку, снятую при отпускании фокуса. Фокус не возвращает: вставке из
+	// панели он не нужен, а на сенсорном устройстве вернул бы и клавиатуру.
+	private __reviveCaret() {
+		const bounds = this.__detachedCaret;
+		if (!bounds) return;
+
+		const selection = documentSelection(this.editable);
+		if (selection) restoreSelection(this.editable, bounds[0], bounds[1], selection);
 	}
 
 	/**
@@ -466,6 +537,20 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (!target) return;
 
 		if (target.range.collapsed) {
+			// Каретка в опустевшем теге — слово из него стёрли, а тег остался, и печать продолжится
+			// оформленной. Кнопка снимает именно его: режим набора тут ничего не изменил бы,
+			// а выключить формат стало бы нечем.
+			const empty = emptyFormatAt(this.editable, target.range, tool);
+			if (empty) {
+				this.__history?.record("op");
+				preserveCaret(this.editable, () => empty.replaceWith(...Array.from(empty.childNodes)));
+				this.__pendingFormats.delete(tool);
+
+				this.__emitChange();
+				formatToolbar.refresh();
+				return;
+			}
+
 			// под кареткой нет слова — режим набора: формат для следующего ввода
 			if (this.__pendingFormats.has(tool)) this.__pendingFormats.delete(tool);
 			else this.__pendingFormats.add(tool);
@@ -497,6 +582,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 		this.__emitChange();
 		formatToolbar.refresh();
+	}
+
+	/**
+	 * Типы блоков для панели. От {@link blockTypes} отличается только запретом правки: разбирать
+	 * и показывать цитату и код редактор обязан и в режиме только для чтения, а переключать их
+	 * там нечем — кнопок быть не должно.
+	 */
+	get blockTools(): BlockType[] {
+		return this.readonly ? [] : this.blockTypes;
 	}
 
 	/**
@@ -555,6 +649,14 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		} else {
 			restoreSelection(this.editable, bounds[0], bounds[1], selection);
 		}
+
+		// Соседние цитаты в режиме мягких переносов — одна цитата: склеиваем сразу, а не на
+		// потерю фокуса, иначе поле до неё показывает два блока вместо одного.
+		//
+		// Строго после возврата каретки: склейка снимает границу блоков, а её смещения считают,
+		// и восстановленная по прежним смещениям каретка съехала бы на символ. Живое выделение
+		// переезжает вместе с узлами само.
+		if (!this.__blockParagraphs) mergeAdjacentBlocks(this.editable);
 
 		this.__emitChange();
 		formatToolbar.refresh();
@@ -823,7 +925,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// текст в координатах каретки (с концами строк) — иначе смещения разъедутся на число строк
 		const textBefore = editorText(this.editable);
 		normalizeWhitespace(this.editable);
-		if (this.multiline) normalizeParagraphs(this.editable);
+		// В режиме мягких переносов соседние цитаты неразличимы: значение пишет их строки подряд,
+		// а разбор собирает в одну — склеиваем и в поле.
+		if (this.multiline) normalizeParagraphs(this.editable, !this.__blockParagraphs);
 		if (this.editable.innerHTML === before) return;
 
 		if (bounds && selection) {
@@ -911,6 +1015,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			() => {
 				this.element.classList.add("focused");
 
+				// вернулись в поле — каретку ставит браузер или тот, кто вернул фокус
+				this.__detachedCaret = null;
+
 				// Пришли править — держать запрет выделения не за чем, а с ним поле осталось бы
 				// нередактируемым. Мышью его снимает нажатие, но фокус берут и клавишей, и из кода.
 				this.element.classList.remove(UNSELECTABLE_CLASS);
@@ -933,7 +1040,12 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				this.__hasInputClick = false;
 
 				this.element.classList.remove("focused");
-				formatToolbar.detach(this);
+
+				// Фокус отпущен намеренно — это не уход из поля, а работа хоста в своём слое над
+				// ним: панель убираем с экрана, но открытую панель смайликов не закрываем, её же
+				// ради этого и открыли.
+				if (this.__releasingFocus) formatToolbar.suspend(this);
+				else formatToolbar.detach(this);
 
 				// правку продолжают в окне хоста — этот blur не конец ввода, содержимое трогать нельзя
 				if (this.__editHolds > 0) {

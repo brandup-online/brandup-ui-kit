@@ -286,10 +286,11 @@ describe("normalizeWhitespace", () => {
 });
 
 describe("normalizeParagraphs", () => {
-	it("removes empty paragraphs anywhere (edges and between content)", () => {
+	// последний пустой абзац остаётся: это место, где оставили каретку (в значение он не идёт)
+	it("removes empty paragraphs anywhere but the last one", () => {
 		const root = makeRoot("<p><br></p><p>a</p><p><br></p><p>b</p><p><br></p>");
 		normalizeParagraphs(root);
-		expect(root.innerHTML).toBe("<p>a</p><p>b</p>");
+		expect(root.innerHTML).toBe("<p>a</p><p>b</p><p><br></p>");
 	});
 
 	it("removes consecutive empty paragraphs", () => {

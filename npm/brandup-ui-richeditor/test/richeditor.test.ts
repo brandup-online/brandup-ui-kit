@@ -51,8 +51,8 @@ function selectAll(editor: RichEditor) {
 }
 
 const toolbarButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .format-button`);
-// инструменты, у которых есть кнопка: спойлер и код пока скрыты (см. HIDDEN_TOOLS в ../source/toolbar)
-const VISIBLE_TOOLS = ALL_FORMAT_TOOLS.length - 2;
+// инструменты, у которых есть кнопка: спойлер пока скрыт (см. HIDDEN_TOOLS в ../source/toolbar)
+const VISIBLE_TOOLS = ALL_FORMAT_TOOLS.length - 1;
 const toolbarButton = (tool: string) =>
 	document.querySelector(`.${TOOLBAR_CLASS} .format-button[data-format-tool="${tool}"]`);
 const actionButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .action-button`);
@@ -209,7 +209,8 @@ describe("RichEditor value", () => {
 
 		editor.editable.dispatchEvent(new FocusEvent("blur"));
 
-		expect(editor.editable.innerHTML).toBe("<p>a</p><p>b</p>");
+		// последний остаётся местом для каретки, но в значение не идёт
+		expect(editor.editable.innerHTML).toBe("<p>a</p><p>b</p><p><br></p>");
 		expect(editor.getValue()).toBe("<p>a</p><p>b</p>");
 	});
 
@@ -947,12 +948,28 @@ describe("RichEditor toolbar actions", () => {
 		expect(toolbarButtons()).toHaveLength(VISIBLE_TOOLS);
 	});
 
-	it("renders requested action buttons after a separator", () => {
+	// инструменты, блоки и действия — одна группа: всё это правка оформления
+	it("renders requested action buttons without a separator", () => {
 		const editor = makeEditor({ tools: ["bold"], actions: ["erase", "undo", "redo"] });
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
 		expect(actionButtons()).toHaveLength(3);
-		expect(document.querySelector(`.${TOOLBAR_CLASS} .split`)).not.toBeNull();
+		expect(document.querySelector(`.${TOOLBAR_CLASS} .split`)).toBeNull();
+	});
+
+	// а кнопки хоста — про другое: их отбивает разделитель
+	it("separates the host buttons", () => {
+		const editor = makeEditor({
+			tools: ["bold"],
+			actions: ["erase"],
+			buttons: [{ name: "own", title: "Своя", icon: "", run: () => undefined }],
+		});
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		const split = document.querySelector(`.${TOOLBAR_CLASS} .split`);
+
+		expect(split).not.toBeNull();
+		expect(split!.nextElementSibling).toBe(document.querySelector(`.${TOOLBAR_CLASS} .host-button`));
 	});
 
 	it("shows the toolbar with actions only (no format tools)", () => {
@@ -1690,5 +1707,261 @@ describe("RichEditor formatting keeps the lines", () => {
 		removeAll(editor, "bold");
 
 		expect(editor.getValue()).toBe("раз\n\nдва");
+	});
+});
+
+/**
+ * Фокус на время своего слоя (панель смайликов, окно хоста). На сенсорном устройстве поле его
+ * отдаёт: иначе экранная клавиатура закрывает собой и слой, и половину текста. Устройство под
+ * тестами считается сенсорным, поэтому обе ветки задаются опцией явно.
+ */
+describe("RichEditor released focus", () => {
+	// панель одна на все редакторы: открытая от прошлого случая закрылась бы повторным открытием
+	afterEach(() => PopupManager.close());
+
+	const focused = (editor: RichEditor) => document.activeElement === editor.editable;
+
+	// jsdom фокусирует только то, что считает фокусируемым: contenteditable сам по себе таким
+	// не считается, поэтому в тестах даём элементу tabindex — хосты пакета его и ставят.
+	const take = (editor: RichEditor) => {
+		editor.editable.tabIndex = 0;
+		editor.editable.focus();
+
+		return editor;
+	};
+
+	// окно хоста забирает правку себе — каретка под ним только сбивает с толку
+	it("gives the focus up", () => {
+		const editor = take(makeEditor({ keepFocus: true, value: "раз" }));
+
+		editor.releaseFocus();
+
+		expect(focused(editor)).toBe(false);
+	});
+
+	// а панель смайликов — слой над полем: там каретку видно, и видно, куда встанет символ
+	it.each([
+		["keeps the focus with the picker", true, true],
+		["gives it up on a touch device", false, false],
+	])("%s", (_case, keepFocus, expected) => {
+		const editor = take(makeEditor({ keepFocus, actions: ["emoji"], value: "раз" }));
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		editor.openEmojiPicker(
+			document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} [data-editor-action="emoji"]`)!
+		);
+
+		expect(focused(editor)).toBe(expected);
+	});
+
+	// вставка из панели идёт без фокуса — каретку она возвращает сама
+	it("inserts at the remembered caret", () => {
+		const editor = take(makeEditor({ keepFocus: false, value: "раз два" }));
+		caretAt(editor.editable.firstChild!, 3);
+
+		editor.releaseFocus();
+		editor.insertText("!");
+
+		expect(editor.getValue()).toBe("раз! два");
+		expect(focused(editor)).toBe(false); // вставка фокус не возвращает
+	});
+
+	it("inserts into an empty field", () => {
+		const editor = take(makeEditor({ keepFocus: false }));
+
+		editor.releaseFocus();
+		editor.insertText("раз");
+
+		expect(editor.getValue()).toBe("раз");
+	});
+
+	it("returns the caret together with the focus", () => {
+		const editor = take(makeEditor({ keepFocus: false, value: "раз два" }));
+		caretAt(editor.editable.firstChild!, 3);
+
+		editor.releaseFocus();
+		editor.focus();
+
+		expect(focused(editor)).toBe(true);
+		editor.insertText("!");
+		expect(editor.getValue()).toBe("раз! два");
+	});
+
+	// снятие фокуса — не конец ввода: нормализация обрезала бы пробел у каретки
+	it("does not normalize while the focus is released", () => {
+		const editor = take(makeEditor({ keepFocus: false, value: "раз" }));
+		editor.editable.firstChild!.textContent = "раз  ";
+
+		const release = editor.holdEditing();
+		editor.releaseFocus();
+
+		expect(editor.editable.textContent).toBe("раз  ");
+		release();
+		expect(editor.editable.textContent).toBe("раз");
+	});
+});
+
+// Повторное нажатие по кнопке смайликов панель закрывает, и придерживать правку больше нечем:
+// удержание, взятое без панели, никто бы не снял — редактор перестал бы нормализоваться совсем.
+describe("RichEditor emoji picker holds", () => {
+	it("releases the hold when the second press closes the picker", () => {
+		const editor = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "раз" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		const button = document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} [data-editor-action="emoji"]`)!;
+
+		button.click();
+		button.click(); // закрыли
+
+		editor.editable.firstChild!.textContent = "раз  ";
+		editor.editable.dispatchEvent(new FocusEvent("blur"));
+
+		// правка не придержана — нормализация на blur прошла
+		expect(editor.editable.textContent).toBe("раз");
+	});
+});
+
+/**
+ * Пустая строка в конце блока. Хвостовой перенос бывает двух видов: заполнитель, без которого
+ * последняя строка не видна, и набранная руками пустая строка. Отличаются они числом: один —
+ * заполнитель, два и больше — строки плюс он же.
+ */
+describe("RichEditor trailing empty line", () => {
+	const enterAtEnd = (editor: RichEditor, block: Element) => {
+		const selection = window.getSelection()!;
+		const range = document.createRange();
+		range.selectNodeContents(block);
+		range.collapse(false);
+		selection.removeAllRanges();
+		selection.addRange(range);
+
+		editor.editable.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+	};
+
+	it("keeps the line typed before another block", () => {
+		const editor = makeEditor({
+			multiline: true,
+			storage: "markdown",
+			paragraph: "break",
+			blocks: ["quote"],
+			value: "текст\n> цитата",
+		});
+
+		enterAtEnd(editor, editor.editable.firstElementChild!);
+
+		expect(editor.getValue()).toBe("текст\n\n> цитата");
+	});
+
+	it("shows the line back when the value is loaded", () => {
+		const editor = makeEditor({
+			multiline: true,
+			storage: "markdown",
+			paragraph: "break",
+			blocks: ["quote"],
+			value: "текст\n\n> цитата",
+		});
+
+		expect(editor.editable.firstElementChild!.querySelectorAll("br")).toHaveLength(2);
+		expect(editor.getValue()).toBe("текст\n\n> цитата");
+	});
+
+	// в самом конце содержимого пустой строке взяться неоткуда — её убирает trim значения
+	it("drops the line at the very end", () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown", paragraph: "break", value: "текст" });
+
+		enterAtEnd(editor, editor.editable.firstElementChild!);
+
+		expect(editor.getValue()).toBe("текст");
+	});
+});
+
+/**
+ * Слово стёрли, а тег остался: браузер держит каретку внутри, и печать продолжается оформленной.
+ * Панель обязана это видеть, а кнопка — снимать именно этот тег.
+ */
+describe("RichEditor caret inside an emptied tag", () => {
+	const emptied = (tool: "code" | "bold") => {
+		const editor = makeEditor({ multiline: true, storage: "markdown", value: "слово текст" });
+		const text = editor.editable.querySelector("p")!.firstChild!;
+
+		selectRange(text, 0, 5);
+		editor.applyFormat(tool);
+
+		// стираем содержимое тега, как это делает удаление выделенного слова
+		const wrapper = editor.editable.querySelector(tool === "code" ? "code" : "b")!;
+		wrapper.textContent = "";
+		caretAt(wrapper, 0);
+
+		return { editor, wrapper };
+	};
+
+	it.each([["code"], ["bold"]] as Array<["code" | "bold"]>)("reports %s as active", (tool) => {
+		const { editor } = emptied(tool);
+
+		expect(editor.isToolActive(tool)).toBe(true);
+		expect(editor.activeTools().has(tool)).toBe(true);
+	});
+
+	it("removes the emptied tag by the button", () => {
+		const { editor, wrapper } = emptied("code");
+
+		editor.applyFormat("code");
+
+		expect(wrapper.isConnected).toBe(false);
+		expect(editor.isToolActive("code")).toBe(false);
+	});
+
+	// печать после этого идёт обычным текстом
+	it("types plain text after the tag is removed", () => {
+		const { editor } = emptied("code");
+
+		editor.applyFormat("code");
+		editor.insertText("новое");
+
+		expect(editor.getValue()).toBe("новое текст");
+	});
+});
+
+/**
+ * Перенос строки внутри моноширинного: значение берёт оттуда голый текст, и строка пропала бы —
+ * поле показывало бы две, а получатель увидел одну. Перенос разрезает тег.
+ */
+describe("RichEditor soft break inside monospace", () => {
+	const editorWith = (value: string) =>
+		makeEditor({ multiline: true, storage: "markdown", paragraph: "break", value });
+
+	const enter = (editor: RichEditor) =>
+		editor.editable.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+
+	it("ends the format at the end of the run", () => {
+		const editor = editorWith("`код` дальше");
+		const code = editor.editable.querySelector("code")!;
+		caretAt(code.firstChild!, 3);
+
+		enter(editor);
+		editor.insertText("текст");
+
+		expect(editor.editable.querySelectorAll("code")).toHaveLength(1);
+		expect(editor.getValue()).toBe("`код`\nтекст дальше");
+	});
+
+	// разрез в середине оставляет обе половины моноширинными: их так и набирали
+	it("splits the run in the middle", () => {
+		const editor = editorWith("`раздва`");
+		caretAt(editor.editable.querySelector("code")!.firstChild!, 3);
+
+		enter(editor);
+
+		expect(editor.editable.innerHTML).toBe("<p><code>раз</code><br><code>два</code></p>");
+		expect(editor.getValue()).toBe("`раз`\n`два`");
+	});
+
+	it("leaves no empty run behind", () => {
+		const editor = editorWith("`код`");
+		caretAt(editor.editable.querySelector("code")!.firstChild!, 0);
+
+		enter(editor);
+
+		expect(editor.editable.querySelectorAll("code")).toHaveLength(1);
 	});
 });

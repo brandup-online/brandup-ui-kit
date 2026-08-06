@@ -154,11 +154,53 @@ export function normalizeWhitespace(root: HTMLElement) {
  * Нормализует абзацы многострочного режима: удаляет пустые абзацы (без текстового содержимого).
  * Если содержимого нет вовсе — редактор остаётся пустым (показывается placeholder).
  */
-export function normalizeParagraphs(root: HTMLElement) {
+export function normalizeParagraphs(root: HTMLElement, merge = false) {
+	if (merge) mergeAdjacentBlocks(root);
+
 	for (const el of Array.from(root.children)) {
 		// Пустой блок другого типа не трогаем: его завели осознанно и в него сейчас будут писать,
 		// а пустая строка внутри кода вообще осмысленна сама по себе.
-		if (blockTypeOf(el) === DEFAULT_BLOCK && (el.textContent ?? "").trim() === "") el.remove();
+		if (blockTypeOf(el) !== DEFAULT_BLOCK || (el.textContent ?? "").trim() !== "") continue;
+
+		// Последний пустой абзац — это место, где оставили каретку: перенеслись на новую строку
+		// и ушли из поля. Убрав его, редактор схлопывал бы только что набранную строку. За блоком
+		// другого типа он к тому же единственное место вне цитаты или кода — без него правка
+		// запиралась бы внутри, хотя вышли оттуда как раз затем, чтобы писать дальше.
+		//
+		// В значение такой абзац не попадает (хвост обрезается), а единственный в поле — попадает
+		// под удаление: пустое поле должно оставаться пустым, иначе не покажется заглушка.
+		const previous = el.previousElementSibling;
+		const kept = previous && (!el.nextElementSibling || blockTypeOf(previous) !== DEFAULT_BLOCK);
+		if (kept) continue;
+
+		el.remove();
+	}
+}
+
+/**
+ * Склеивает соседние блоки одного типа — в режиме мягких переносов, где граница между блоками
+ * в значение не попадает. Подряд идущие строки с маркером цитаты разбор собирает в одну цитату,
+ * а два обычных абзаца там и вовсе неразличимы: пустой строки между ними на экране нет, а в
+ * значении она была бы. Два блока в поле показывали бы то, чего в сообщении не будет.
+ *
+ * Блоки с ограждением (код) не трогаем: у них есть свои границы, и два подряд разбираются
+ * ровно как два.
+ */
+export function mergeAdjacentBlocks(root: HTMLElement) {
+	for (const el of Array.from(root.children) as HTMLElement[]) {
+		const type = blockTypeOf(el);
+		if (!type || BLOCK_TYPES[type].fence) continue;
+
+		const previous = el.previousElementSibling;
+		if (!previous || blockTypeOf(previous) !== type) continue;
+
+		// Строки склеиваем переносом: между блоками была граница, а внутри блока её роль играет он.
+		// Если перенос там уже есть (заполнитель последней строки), он границей и станет — иначе
+		// между строками появилась бы пустая, которой на экране не было.
+		if (previous.lastChild?.nodeName !== "BR") previous.appendChild(document.createElement("br"));
+
+		while (el.firstChild) previous.appendChild(el.firstChild);
+		el.remove();
 	}
 }
 
@@ -201,12 +243,16 @@ export function ensureParagraphs(root: HTMLElement) {
 			continue;
 		}
 
-		// в непустом абзаце убираем краевые <br>-заполнители: иначе введённый текст
-		// оказывается рядом с лишним переносом (символ «съезжает» на новую строку).
-		// Внутренние <br> (мягкие переносы) сохраняются.
+		// Хвостовой перенос в одиночку — остаток заполнителя опустевшего абзаца: текст уже есть,
+		// а показывать за ним нечего. Два и больше — это набранные пустые строки плюс заполнитель,
+		// который их и делает видимыми (см. trimTrailingBreaks), и трогать их нельзя.
+		//
+		// Ведущие переносы не трогаем вовсе: заполнитель бывает только последним, а перенос
+		// в начале — это набранная пустая строка. Убрав его, редактор схлопывал бы её, стоило
+		// начать печатать в следующей.
 		if ((p.textContent ?? "").length > 0) {
-			while (p.firstChild && p.firstChild.nodeName === "BR") p.removeChild(p.firstChild);
-			while (p.lastChild && p.lastChild.nodeName === "BR") p.removeChild(p.lastChild);
+			const tail = p.lastChild;
+			if (tail?.nodeName === "BR" && tail.previousSibling?.nodeName !== "BR") p.removeChild(tail);
 		}
 	}
 }
