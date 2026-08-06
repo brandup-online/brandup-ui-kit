@@ -28,7 +28,7 @@
 	"main": "source/index.ts",
 	"types": "source/index.ts",
 	"dependencies": {
-		"@brandup/ui": "^2.0.7",
+		"@brandup/ui": "^2.0.8",
 		"@brandup/ui-input": "file:../brandup-ui-input",
 		"@brandup/ui-kit": "file:../brandup-ui-kit",
 		"@brandup/ui-richeditor": "file:../brandup-ui-richeditor"
