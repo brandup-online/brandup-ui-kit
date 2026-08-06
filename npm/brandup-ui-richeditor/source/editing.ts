@@ -184,6 +184,35 @@ export function atBlockStart(editable: HTMLElement, range: Range): boolean {
 	return before.toString().length === 0;
 }
 
+/**
+ * Block the caret sits in, or null when it stands at the editor level — an empty editor, or text
+ * that has not been wrapped into a paragraph yet.
+ */
+function blockOf(editable: HTMLElement, node: Node): HTMLElement | null {
+	let current: Node | null = node;
+	while (current && current !== editable && !isBlock(current)) current = current.parentNode;
+
+	return current && current !== editable ? (current as HTMLElement) : null;
+}
+
+/**
+ * Where to insert at the editor level: the node the new content goes before (null — at the end).
+ *
+ * A position addresses a child only when the container is the editor itself. A caret inside stray
+ * top-level text sits in a text node, and there the offset counts characters rather than children:
+ * taken as a child index it would send the insertion to an arbitrary place. From such a node we
+ * measure the node itself and insert after it, which is what a caret inside it asks for.
+ */
+function topLevelRef(editable: HTMLElement, range: Range): ChildNode | null {
+	const container = range.startContainer;
+	if (container === editable) return editable.childNodes[range.startOffset] ?? null;
+
+	let node: Node = container;
+	while (node.parentNode && node.parentNode !== editable) node = node.parentNode;
+
+	return node.parentNode === editable ? (node as ChildNode).nextSibling : null;
+}
+
 /** Enter в multiline: разбить текущий блок по каретке; хвост становится блоком типа `type`. */
 export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT_BLOCK) {
 	const selection = innerSelection(editable);
@@ -193,11 +222,10 @@ export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT
 	range.deleteContents();
 
 	// текущий блок (ближайший блочный предок внутри редактора)
-	let para: Node | null = range.startContainer;
-	while (para && para !== editable && !isBlock(para)) para = para.parentNode;
+	const para = blockOf(editable, range.startContainer);
 
 	// каретка не внутри абзаца — создаём абзац сразу с видимым результатом (иначе Enter «срабатывает со 2-го раза»)
-	if (!para || para === editable) {
+	if (!para) {
 		const next = createBlock(type);
 		if (editable.childNodes.length === 0) {
 			// пустой редактор: пустая строка-источник + новая строка с кареткой
@@ -205,8 +233,7 @@ export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT
 			editable.appendChild(next);
 		} else {
 			// каретка на уровне редактора между/после абзацев — вставляем новый абзац в эту позицию
-			const ref = editable.childNodes[range.startOffset] ?? null;
-			editable.insertBefore(next, ref);
+			editable.insertBefore(next, topLevelRef(editable, range));
 		}
 		caretToStart(next);
 		return;
@@ -220,11 +247,11 @@ export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT
 
 	// Выходим из блока, а за ним уже стоит пустой абзац — переходим в него. Иначе одно нажатие
 	// давало бы две пустые строки: одна тут заводится, вторая уже была заведена под каретку.
-	const following = (para as HTMLElement).nextElementSibling;
+	const following = para.nextElementSibling;
 	const empty = !(fragment.textContent ?? "") && !fragment.querySelector("br");
 
 	if (empty && following && blockTypeOf(following) === type && !(following.textContent ?? "")) {
-		fillEmptyParagraph(para as HTMLElement);
+		fillEmptyParagraph(para);
 		caretToStart(following);
 
 		return;
@@ -232,14 +259,14 @@ export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT
 
 	const next = document.createElement(BLOCK_TYPES[type].tag);
 	next.appendChild(fragment);
-	(para as ChildNode).after(next);
+	para.after(next);
 
 	// хвост уехал в блок другого типа — его правила распространяются и на содержимое
 	if (!BLOCK_TYPES[type].inline) unwrapFormatting(next);
 
 	// extractContents в конце абзаца оставляет пустой текст-узел → <p></p> без заполнителя
 	// (невидим/нефокусируем, каретка не встаёт). Чистим и ставим <br> в опустевшие абзацы.
-	fillEmptyParagraph(para as HTMLElement);
+	fillEmptyParagraph(para);
 	fillEmptyParagraph(next);
 
 	caretToStart(next);
@@ -306,17 +333,15 @@ export function insertSoftBreak(editable: HTMLElement) {
 
 /** Вставляет санитизированные абзацы <p> в позицию каретки, разбивая текущий абзац. */
 export function insertPastedParagraphs(editable: HTMLElement, paras: HTMLElement[], range: Range) {
-	let para: Node | null = range.startContainer;
-	while (para && para !== editable && !isBlock(para)) para = para.parentNode;
+	const block = blockOf(editable, range.startContainer);
 
 	// каретка не внутри абзаца (пустой редактор / уровень редактора) — вставляем абзацы как есть
-	if (!para || para === editable) {
-		const ref = editable.childNodes[range.startOffset] ?? null;
+	if (!block) {
+		const ref = topLevelRef(editable, range);
 		for (const p of paras) editable.insertBefore(p, ref);
 		return;
 	}
 
-	const block = para as HTMLElement;
 	// Вставка в цитату или код остаётся в них: разорвать блок посреди вставки — не то,
 	// чего ждут, а тип целевого блока диктует и правила его содержимого.
 	const type = blockTypeOf(block) ?? DEFAULT_BLOCK;
