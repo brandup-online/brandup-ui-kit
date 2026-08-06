@@ -50,10 +50,11 @@ export interface MessageEditorOptions {
 	 */
 	variablesEmpty?: string | null;
 	/**
-	 * Типы блоков сообщения: цитата, блок кода. По умолчанию только обычный текст —
-	 * их понимает не каждый канал, поэтому набор объявляет приложение.
+	 * Block types of the message: quote, code block. Both are available by default; a channel does
+	 * not understand everything, so the set is limited — an empty list leaves plain text only.
 	 *
-	 * Без этой опции берётся из атрибута `data-blocks` поля-носителя (значения через пробел).
+	 * Without this option it is taken from the `data-blocks` attribute of the value element
+	 * (space-separated values).
 	 */
 	blocks?: BlockType[];
 	/**
@@ -193,7 +194,10 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		this.__editor.onChange((data) => {
 			this.__valueElem.value = data.value;
 
-			this.__highlight();
+			// Destroying the editor flushes the deferred change: the host must still get the value,
+			// but rebuilding the highlight is pointless — the field is going away, and moving the
+			// caret inside it even more so.
+			if (!this.__disposing) this.__highlight();
 
 			if (this.element.classList.contains("invalid") && this.validate()) this.element.classList.remove("invalid");
 
