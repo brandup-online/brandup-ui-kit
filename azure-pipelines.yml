@@ -42,10 +42,10 @@ stages:
                   clean: "true"
                   persistCredentials: "true"
 
-                - task: NodeTool@0
+                - task: UseNode@1
                   displayName: use node 22.x
                   inputs:
-                      versionSpec: 22.x
+                      version: 22.x
                       checkLatest: true
 
                 - task: "Npm@1"
