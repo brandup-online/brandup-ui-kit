@@ -1,6 +1,7 @@
 import "./modal.less"; // стили окна
 
 import { DOM, UIElement } from "@brandup/ui";
+import { textTag } from "./utils/text";
 import closeIcon from "../svg/x.svg";
 
 export const MODAL_CLASS = "ui-modal";
@@ -53,7 +54,8 @@ export default abstract class Modal extends UIElement {
 			),
 			DOM.tag("div", { class: "modal-window", role: "dialog", "aria-modal": "true" }, [
 				DOM.tag("div", { class: "modal-header" }, [
-					options.title ? DOM.tag("div", { class: "modal-title" }, options.title) : null,
+					// the title is host data — text, not markup (see textTag)
+					options.title ? textTag("div", { class: "modal-title" }, options.title) : null,
 					DOM.tag(
 						"button",
 						{ type: "button", class: "modal-close", title: "Закрыть", command: MODAL_CLOSE_COMMAND },
