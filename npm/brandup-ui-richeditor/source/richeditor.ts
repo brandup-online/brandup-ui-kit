@@ -167,6 +167,13 @@ type RichEditorEvents = {
 export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	readonly editable: HTMLElement;
 	readonly format: boolean;
+	/**
+	 * Объявленный набор инструментов: им разбирается и сохраняется значение. Не то же, что набор
+	 * кнопок ({@link formatTools}) — показывать разметку редактор обязан и там, где её не
+	 * переключить. Так же разведены и блоки ({@link blockTypes} против {@link blockTools}).
+	 */
+	readonly formatTypes: FormatTool[];
+	/** Инструменты в панели: в режиме только для чтения их нет — переключать разметку там нечем. */
 	readonly formatTools: FormatTool[];
 	readonly editorActions: EditorAction[];
 	readonly formatStorage: FormatStorage;
@@ -203,8 +210,11 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const format = !!options.format;
 		const multiline = !!options.multiline;
 		const readonly = !!options.readonly;
-		// форматирование недоступно в режиме только для чтения
-		const tools = format && !readonly ? (options.tools ?? ALL_FORMAT_TOOLS.slice()) : [];
+		// Объявленный набор — от readonly не зависит: значение обязано разбираться и показываться
+		// и там, где разметку не переключить, иначе редактор для чтения показывал бы вместо
+		// жирного сырые звёздочки. Кнопки — уже без него.
+		const types = format ? (options.tools ?? ALL_FORMAT_TOOLS.slice()) : [];
+		const tools = readonly ? [] : types;
 		// действия подключаются явно — иначе панель у существующих хостов молча обзавелась бы кнопками
 		const actions = format && !readonly ? (options.actions ?? []) : [];
 
@@ -218,6 +228,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.__window = editable.ownerDocument.defaultView ?? window;
 		this.__opts = options;
 		this.format = format;
+		this.formatTypes = types;
 		this.formatTools = tools;
 		this.editorActions = actions;
 		this.formatStorage = options.storage === "markdown" ? "markdown" : "html";
@@ -266,8 +277,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	private get __valueStorage(): FormatStorage {
 		return this.format ? this.formatStorage : "markdown";
 	}
+	// разбор и сохранение значения — по объявленному набору, а не по набору кнопок:
+	// в readonly кнопок нет, а разметка значения от этого не меняется
 	private get __valueTools(): FormatTool[] {
-		return this.format ? this.formatTools : [];
+		return this.formatTypes;
 	}
 
 	// --- публичный API ---

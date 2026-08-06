@@ -42,7 +42,7 @@ editor.onChange(({ value }) => console.log(value));
 | Опция | Тип | Описание |
 | --- | --- | --- |
 | `format` | `boolean` | Включает форматирование и панель инструментов |
-| `tools` | `FormatTool[]` | Состав инструментов (по умолчанию все) |
+| `tools` | `FormatTool[]` | Состав инструментов (по умолчанию все); им же разбирается и сохраняется значение — разметка, которой в наборе нет, остаётся в тексте как есть |
 | `actions` | `EditorAction[]` | Кнопки действий в панели: `emoji`, `erase`, `undo`, `redo` (по умолчанию нет) |
 | `storage` | `"html" \| "markdown"` | Формат сериализации значения (по умолчанию `html`) |
 | `markers` | `Partial<FormatMarkers>` | Переопределение markdown-маркеров по инструментам |
@@ -51,7 +51,7 @@ editor.onChange(({ value }) => console.log(value));
 | `paragraph` | `"block" \| "break"` | Что делает Enter: новый абзац (по умолчанию) или мягкий перенос |
 | `blocks` | `BlockType[]` | Типы блоков многострочного режима: `quote`, `code` (по умолчанию все); пустой список оставляет только `paragraph` |
 | `keepFocus` | `boolean` | Держать ли фокус в поле, пока открыта панель смайликов (по умолчанию да, а на сенсорном устройстве нет) |
-| `readonly` | `boolean` | Только для чтения — запрещает ввод и изменение текста (выделение и копирование остаются) |
+| `readonly` | `boolean` | Только для чтения — запрещает ввод и изменение текста (выделение и копирование остаются); разметка значения при этом разбирается и показывается, кнопок для неё просто нет |
 | `toolbarContainer` | `HTMLElement \| null` | Контейнер для панели; по умолчанию `document.body` (`position: fixed`). Если задан — панель монтируется в него и позиционируется над ним (`position: absolute`). Контейнер должен быть `position: relative` |
 | `value` | `string` | Начальное значение |
 | `filterChar` | `(char) => boolean` | Хук: `false` — отклонить вводимый символ |
@@ -66,7 +66,9 @@ editor.onChange(({ value }) => console.log(value));
 | Член | Описание |
 | --- | --- |
 | `editable` | Редактируемый элемент |
-| `format`, `formatTools`, `editorActions`, `formatStorage`, `formatMarkers`, `multiline` | Параметры экземпляра |
+| `format`, `editorActions`, `formatStorage`, `formatMarkers`, `multiline` | Параметры экземпляра |
+| `formatTypes` | Объявленный набор инструментов — им разбирается и сохраняется значение |
+| `formatTools` | Инструменты в панели: то же, но пусто в `readonly` — переключать разметку там нечем |
 | `getValue(): string` | Сериализованное значение (по `storage`) — считается по DOM, всегда актуально |
 | `setValue(value: string): void` | Установить значение (нормализует, генерирует `change`) |
 | `flushChange(): void` | Доставить отложенное `change` немедленно (см. ниже) |

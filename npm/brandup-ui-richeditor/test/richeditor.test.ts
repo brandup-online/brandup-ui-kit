@@ -1261,12 +1261,52 @@ describe("RichEditor readonly", () => {
 		expect(editor.getValue()).toBe("abc");
 	});
 
-	it("does not enable formatting or show a toolbar in readonly", () => {
+	// Переключать разметку нечем — кнопок нет. Но объявленный набор остаётся: им разбирается
+	// и сохраняется значение, а показывать разметку редактор обязан и здесь.
+	it("offers no tools and no toolbar in readonly", () => {
 		const editor = makeEditor({ readonly: true });
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
 		expect(editor.formatTools).toHaveLength(0);
+		expect(editor.formatTypes).toEqual(ALL_FORMAT_TOOLS);
 		expect(document.querySelector(`.${TOOLBAR_CLASS}.visible`)).toBeNull();
+	});
+
+	// Иначе редактор для чтения показывал бы вместо жирного сырые звёздочки — то есть не то,
+	// что увидит читатель сообщения.
+	it.each([
+		["markdown", "**жирный** текст"],
+		["html", "<b>жирный</b> текст"],
+	])("shows the formatting of the value in readonly (%s)", (storage, value) => {
+		const editor = makeEditor({ readonly: true, storage: storage as "markdown" | "html", value });
+
+		expect(editor.editable.querySelector("b")).not.toBeNull();
+		expect(editor.editable.textContent).toBe("жирный текст");
+		expect(editor.getValue()).toBe(value); // и обратно ровно тем же
+	});
+
+	// Ограничение набора действует и в readonly: разбирается объявленное, остальное — текст
+	it("keeps the declared set narrow in readonly", () => {
+		const editor = makeEditor({
+			readonly: true,
+			tools: ["bold"],
+			storage: "markdown",
+			value: "**жирный** и _курсив_",
+		});
+
+		expect(editor.formatTypes).toEqual(["bold"]);
+		expect(editor.editable.querySelector("b")).not.toBeNull();
+		expect(editor.editable.querySelector("i")).toBeNull();
+		expect(editor.getValue()).toBe("**жирный** и _курсив_");
+	});
+
+	// без форматирования вовсе разбирать нечего — значение остаётся текстом
+	it("parses no formatting without format", () => {
+		const editor = makeEditor({ format: false, readonly: true, storage: "markdown", value: "**жирный**" });
+
+		expect(editor.formatTypes).toHaveLength(0);
+		expect(editor.editable.querySelector("b")).toBeNull();
+		expect(editor.getValue()).toBe("**жирный**");
 	});
 
 	it("stays selectable/copyable (contenteditable remains)", () => {
