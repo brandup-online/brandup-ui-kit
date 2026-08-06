@@ -4,11 +4,12 @@ import { InputControl } from "@brandup/ui-input";
 import { POPUP_CLASS, SCROLLABLE_CLASS, type Modal } from "@brandup/ui-kit";
 import { DOM } from "@brandup/ui";
 import RichEditor, {
-	ALL_FORMAT_TOOLS,
 	TOOLBAR_CLASS,
 	parseBlockTypes,
+	parseFormatTools,
 	preserveCaret,
 	type BlockType,
+	type FormatTool,
 	type ToolbarButton,
 } from "@brandup/ui-richeditor";
 import {
@@ -65,6 +66,18 @@ export interface MessageEditorOptions {
 	 */
 	blocks?: BlockType[];
 	/**
+	 * Инструменты форматирования: жирный, курсив, зачёркнутый, подчёркнутый, спойлер,
+	 * моноширинный. По умолчанию все; канал понимает не всё, поэтому набор ограничивают —
+	 * пустой список оставляет текст без разметки вовсе.
+	 *
+	 * Кнопка, разметку которой канал не покажет, хуже отсутствующей: размеченный ею текст уйдёт
+	 * получателю либо голым, либо сырыми маркерами. Ограничение набора значения не портит:
+	 * снятая разметка остаётся в тексте как есть и уезжает обратно ровно такой же.
+	 *
+	 * Без этой опции берётся из атрибута `data-tools` поля-носителя (значения через пробел).
+	 */
+	tools?: FormatTool[];
+	/**
 	 * Держать ли фокус в поле, пока открыта панель смайликов. По умолчанию держим, а на
 	 * сенсорном устройстве нет: там фокус поднимает экранную клавиатуру, а она закрывает собой
 	 * саму панель. Окна персонализации и рандомизации фокус забирают всегда.
@@ -82,9 +95,10 @@ type MessageEditorEvents = {
  * Устроен так же, как `@brandup/ui-textbox` — исходный `input`/`textarea` остаётся носителем
  * значения и участвует в форме, а ввод ведёт `RichEditor` в соседнем редактируемом элементе.
  *
- * Набор возможностей фиксирован под сообщение мессенджера и не настраивается: многострочность
- * (сообщение — это абзацы), форматирование с панелью и вставкой смайлика, значение в разметке
- * мессенджеров вместо HTML.
+ * Модель фиксирована под сообщение мессенджера: многострочность (сообщение — это абзацы),
+ * панель форматирования с вставкой смайлика, значение в разметке мессенджеров вместо HTML.
+ * Настраивается набор разметки — инструменты и типы блоков: «мессенджер» это не один канал,
+ * и понимают они разное.
  */
 export default class MessageEditor extends InputControl<HTMLInputElement | HTMLTextAreaElement, MessageEditorEvents> {
 	private __editor: RichEditor;
@@ -100,6 +114,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	readonly variablesEmpty: string | null;
 	readonly personalization: boolean;
 	readonly blocks: BlockType[];
+	readonly tools: FormatTool[];
 
 	constructor(valueElem: HTMLInputElement | HTMLTextAreaElement, options: MessageEditorOptions = {}) {
 		const placeholder = valueElem.getAttribute("placeholder");
@@ -147,6 +162,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			options.personalization ??
 			("personalization" in valueElem.dataset || !!this.variables.length || !!this.variablesEmpty);
 		this.blocks = options.blocks ?? parseBlockTypes(valueElem.dataset.blocks ?? null);
+		this.tools = options.tools ?? parseFormatTools(valueElem.dataset.tools ?? null);
 		// Все объявленные ключи, а не только названные: по этому же набору подсветка отличает
 		// чужую переменную от известной. В тексте показываем название, если оно задано.
 		this.__names = new Map(this.variables.map((v) => [v.key, v.name ?? null]));
@@ -163,14 +179,18 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			keepFocus: options.keepFocus,
 			// disabled для редактора — тот же запрет правок, что и readonly (сам он про disabled не знает)
 			readonly: readonly || disabled,
-			// набор мессенджера: жирный, курсив, зачёркнутый, подчёркнутый. Смайлики в тулбар
-			// не выводим — для них своя кнопка рядом с плашкой. В disabled форматирование
-			// выключено целиком: без инструментов панель не строится и не показывается.
-			format: !disabled,
-			tools: ALL_FORMAT_TOOLS,
-			// Очистка формата: снять разметку разом нужнее всего там, где текст приносят
-			// вставкой. Отмену и повтор не выводим — на них есть привычные сочетания клавиш.
-			actions: ["erase"],
+			// Форматирование включено всегда — даже с пустым набором инструментов и в disabled:
+			// от него зависит и разбор значения (иначе вместо жирного показались бы звёздочки),
+			// и история отмены. Кнопок при этом не появится: их снимает readonly, а в disabled
+			// он тоже стоит.
+			format: true,
+			// разметка объявленным набором: понимает её не каждый канал
+			tools: this.tools,
+			// Очистка формата: снять разметку разом нужнее всего там, где текст приносят вставкой.
+			// Без единого инструмента снимать нечего — кнопки тогда нет вовсе. Отмену и повтор
+			// не выводим (на них есть привычные сочетания), смайлик — тоже: для него своя кнопка
+			// рядом с плашкой, доступная и без фокуса в поле.
+			actions: this.tools.length ? ["erase"] : [],
 			// доменные кнопки: редактор про рандомизацию и переменные не знает, только рисует их
 			buttons: disabled ? [] : this.__toolbarButtons(),
 			// значение хранится разметкой мессенджеров, а не HTML
