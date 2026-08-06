@@ -1047,14 +1047,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			if (this.readonly) return;
 
 			// В режиме block Enter — новый абзац (<p>), модификатор — мягкий перенос (<br>).
-			// В режиме break наоборот: Enter переносит строку, как в мессенджерах, а абзац
-			// набирается двумя переносами. Внутри блока правило берётся у его типа: в цитате
-			// и в коде Enter переносит строку, иначе одну цитату было бы не набрать.
+			// В режиме break строку переносят оба нажатия: пустая строка набирается двумя
+			// переносами, как в мессенджерах, и отдельный абзац дал бы в значении ровно её же.
+			// Внутри блока правило берётся у его типа: из цитаты и кода Enter выходит,
+			// а модификатор переносит строку внутри.
 			const withModifier = e.shiftKey || e.ctrlKey || e.metaKey;
 			const current = this.currentBlock;
 			const breaks =
 				current === DEFAULT_BLOCK ? this.paragraph === "break" : BLOCK_TYPES[current].enter === "break";
-			const soft = breaks ? !withModifier : withModifier;
+			const soft = breaks || withModifier;
 
 			this.__history?.record("op");
 			// Из блока выходят тем же нажатием, что делит его: продолжать цитату или код

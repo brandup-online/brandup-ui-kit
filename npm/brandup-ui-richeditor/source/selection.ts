@@ -462,12 +462,14 @@ export function cleanupFormatting(root: HTMLElement) {
 		const el = queue.pop()!;
 		if (!el.isConnected || !root.contains(el)) continue;
 
-		// пустой тег: после удаления его соседи могут стать смежными одинаковыми,
-		// а родитель — опустеть
+		// Тег без текста: оформлять в нём нечего. Разворачиваем, а не удаляем — внутри может
+		// лежать перенос строки, и вместе с тегом он унёс бы разделение строк (снятие формата
+		// с нескольких строк схлопывало их в одну). Пустой совсем — исчезнет и так.
+		// После правки соседи могут стать смежными одинаковыми, а родитель — опустеть.
 		if (el.textContent === "") {
 			enqueue(el.nextSibling);
 			enqueue(el.parentElement);
-			el.remove();
+			unwrapElement(el);
 			continue;
 		}
 

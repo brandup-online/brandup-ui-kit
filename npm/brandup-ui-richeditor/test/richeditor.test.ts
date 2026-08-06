@@ -1053,13 +1053,26 @@ describe("RichEditor paragraph mode", () => {
 		expect(editor.getValue()).toBe("раз\nдва");
 	});
 
-	it("break: the modifier gives the paragraph instead", () => {
+	// Модификатор в этом режиме ничего не меняет: отдельный абзац дал бы в значении ту же пустую
+	// строку, что и второй перенос, — только она получалась бы с одного нажатия.
+	it("break: the modifier breaks the line too", () => {
 		const editor = makeEditor({ multiline: true, storage: "markdown", paragraph: "break", value: "раз" });
 
 		pressEnter(editor, 3, true);
 		editor.insertText("два");
 
-		expect(editor.editable.querySelectorAll("p")).toHaveLength(2);
+		expect(editor.editable.querySelectorAll("p")).toHaveLength(1);
+		expect(editor.getValue()).toBe("раз\nдва");
+	});
+
+	it("break: an empty line takes two presses", () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown", paragraph: "break", value: "раз" });
+
+		pressEnter(editor, 3);
+		// второе нажатие — с того места, где осталась каретка
+		editor.editable.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+		editor.insertText("два");
+
 		expect(editor.getValue()).toBe("раз\n\nдва");
 	});
 });
@@ -1639,5 +1652,43 @@ describe("RichEditor spoiler and code", () => {
 		editor.editable.innerHTML = "<p><code>a <b>b</b> c</code></p>";
 
 		expect(editor.getValue()).toBe("`a b c`");
+	});
+});
+
+// Снятие формата с нескольких строк схлопывало их в одну: тег, оставшийся без текста, но
+// с переносом внутри, удалялся вместе с переносом.
+describe("RichEditor formatting keeps the lines", () => {
+	const removeAll = (editor: RichEditor, tool: "bold" | "italic") => {
+		const selection = window.getSelection()!;
+		const range = document.createRange();
+		range.selectNodeContents(editor.editable);
+		selection.removeAllRanges();
+		selection.addRange(range);
+
+		editor.applyFormat(tool);
+	};
+
+	it.each([
+		["one tag over the lines", "<p><b>раз<br>два</b></p>"],
+		["a tag per line", "<p><b>раз</b><br><b>два</b></p>"],
+		["an empty line between", "<p><b>раз<br><br>два</b></p>"],
+	])("removes the format of %s", (_case, html) => {
+		const editor = makeEditor({ storage: "markdown", multiline: true, paragraph: "break" });
+		editor.editable.innerHTML = html;
+
+		const breaks = editor.editable.querySelectorAll("br").length;
+		removeAll(editor, "bold");
+
+		expect(editor.editable.querySelector("b")).toBeNull();
+		expect(editor.editable.querySelectorAll("br")).toHaveLength(breaks);
+		expect(editor.editable.textContent).toBe("раздва");
+	});
+
+	it("keeps the paragraphs when the format is removed", () => {
+		const editor = makeEditor({ storage: "markdown", multiline: true, value: "**раз**\n\n**два**" });
+
+		removeAll(editor, "bold");
+
+		expect(editor.getValue()).toBe("раз\n\nдва");
 	});
 });
