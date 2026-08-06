@@ -1811,9 +1811,8 @@ describe("RichEditor released focus", () => {
 		const editor = take(makeEditor({ keepFocus, actions: ["emoji"], value: "раз" }));
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
-		editor.openEmojiPicker(
-			document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} [data-editor-action="emoji"]`)!
-		);
+		// через кнопку панели: попап приносит она, редактору остаётся своё — фокус и каретка
+		document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} [data-editor-action="emoji"]`)!.click();
 
 		expect(focused(editor)).toBe(expected);
 	});
