@@ -379,10 +379,6 @@
 				}
 			}
 		}
-	
-		& body.ui-dropdown-opened {
-			overflow: hidden;
-		}
 	});
 	
 	.adaptive-mobile({
@@ -409,6 +405,15 @@
 		}
 	});
 }
+
+// Пока список раскрыт во весь экран, страница под ним не прокручивается. Правило верхнего уровня:
+// внутри блока .ui-dropdown оно давало селектор `.ui-dropdown body.ui-dropdown-opened`, который
+// не может совпасть — body не бывает потомком дропдауна, и придержать прокрутку было нечем.
+.adaptive-tablet({
+	body.ui-dropdown-opened {
+		overflow: hidden;
+	}
+});
 
 .ui-dropdown-input {
 	opacity: 0;
