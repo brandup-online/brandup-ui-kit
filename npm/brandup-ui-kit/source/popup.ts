@@ -1,3 +1,5 @@
+import "./popup.less"; // стили всплывающей поверхности
+
 export const POPUP_CLASS = "ui-popup";
 export const POPUP_EXPANDED_CLASS = "ui-popup-expanded";
 export const POPUP_COMMAND = "ui-popup-toggle";

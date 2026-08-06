@@ -38,15 +38,6 @@
 	--svg-fill: @svg-fill;
 	--svg-stroke: @svg-stroke;
 
-	// popup
-	--popup-fill: @popup-fill;
-	--popup-color: @popup-color;
-	--popup-border-style: @popup-border-style;
-	--popup-border-width: @popup-border-width;
-	--popup-border-color: @popup-border-color;
-	--popup-border-radius: @popup-border-radius;
-	--popup-box-shadow: @popup-box-shadow;
-
 	// scrollable
 	--scrollbar-size: @scrollbar-size;
 	--scrollbar-thumb: @scrollbar-thumb;
@@ -127,31 +118,6 @@ svg {
 	box-sizing: border-box;
 }
 
-// Popup styles
-
-.ui-popup {
-	position: absolute;
-	box-sizing: border-box;
-	z-index: 1000;
-	background: var(--popup-fill);
-	color: var(--popup-color);
-	border-style: var(--popup-border-style);
-	border-color: var(--popup-border-color);
-	border-width: var(--popup-border-width);
-	border-radius: var(--popup-border-radius);
-	box-shadow: var(--popup-box-shadow);
-	visibility: collapse;
-
-	&.opened {
-		visibility: visible;
-	}
-}
-
-.ui-popup-expanded {
-	& ~ .ui-popup {
-		visibility: visible;
-	}
-}
 // Scrollable styles
 
 // Прокручиваемая область с оформленной полосой: везде в ките она выглядит одинаково,
