@@ -11,6 +11,7 @@ import {
 	isFormatActive,
 	selectionCharBounds,
 	restoreSelection,
+	toggleFormat,
 } from "../source/selection";
 import { ALL_FORMAT_TOOLS, FORMAT_TOOLS, type FormatTool } from "../source/format-config";
 
@@ -26,14 +27,18 @@ function rng(seed: number) {
 const TAGS = ["b", "i", "s", "u"];
 
 // Разметка с вложенными, смежными и пустыми тегами — именно её и разгребает cleanupFormatting.
+// Переносы строк тут не для красоты: тег, пустой по тексту, но с переносом внутри, удалять
+// нельзя — вместе с ним пропадёт разделение строк.
 function randomMarkup(rand: () => number, depth = 0): string {
 	const parts: string[] = [];
 	const count = 1 + Math.floor(rand() * 3);
 
 	for (let i = 0; i < count; i++) {
-		if (rand() < 0.3 || depth > 2) {
-			parts.push(rand() < 0.2 ? "" : "abcdef"[Math.floor(rand() * 6)]);
-		} else {
+		const dice = rand();
+
+		if (dice < 0.15) parts.push("<br>");
+		else if (dice < 0.4 || depth > 2) parts.push(rand() < 0.2 ? "" : "abcdef"[Math.floor(rand() * 6)]);
+		else {
 			const tag = TAGS[Math.floor(rand() * TAGS.length)];
 			parts.push(`<${tag}>${randomMarkup(rand, depth + 1)}</${tag}>`);
 		}
@@ -41,6 +46,8 @@ function randomMarkup(rand: () => number, depth = 0): string {
 
 	return parts.join("");
 }
+
+const countBreaks = (root: HTMLElement) => root.querySelectorAll("br").length;
 
 function makeRoot(html: string) {
 	document.body.innerHTML = "";
@@ -65,12 +72,15 @@ describe("cleanupFormatting invariants", () => {
 			const html = randomMarkup(rand);
 			const root = makeRoot(html);
 			const text = root.textContent;
+			const breaks = countBreaks(root);
 
 			cleanupFormatting(root);
 			const cleaned = root.innerHTML;
 
 			// текст неприкосновенен — чистится только разметка
 			expect(root.textContent).toBe(text);
+			// как и переносы строк: их уносил с собой удаляемый пустой тег
+			expect(countBreaks(root)).toBe(breaks);
 
 			// повторный проход ничего не находит: очередь не могла пропустить «грязный» узел
 			cleanupFormatting(root);
@@ -277,5 +287,87 @@ describe("code content invariants", () => {
 			expect(root.textContent).toBe(text); // текст неприкосновенен
 			expect(root.querySelector("code b, code i, code s, code u, code code")).toBeNull();
 		}
+	});
+});
+
+/**
+ * Наложение и снятие формата на произвольном выделении. Проверяется не разметка (её вид зависит
+ * от того, где прошли границы), а то, что обязано держаться всегда: текст, переносы строк и блоки
+ * не меняются, наложенный формат виден на том же выделении, а снятый исчезает без следа.
+ */
+describe("toggleFormat invariants", () => {
+	const rand = rng(5150);
+
+	// Содержимое без форматирования: блоки, строки и пустые строки внутри них.
+	function randomLines(): string {
+		const blocks: string[] = [];
+
+		for (let i = 0; i < 1 + Math.floor(rand() * 3); i++) {
+			const lines: string[] = [];
+			for (let j = 0; j < 1 + Math.floor(rand() * 4); j++) lines.push("abcdef".slice(0, Math.floor(rand() * 6)));
+
+			const tag = rand() < 0.25 ? "blockquote" : "p";
+			blocks.push(`<${tag}>${lines.join("<br>")}</${tag}>`);
+		}
+
+		return blocks.join("");
+	}
+
+	function randomRange(root: HTMLElement): Range | null {
+		const texts = textNodes(root).filter((n) => n.length);
+		if (texts.length < 1) return null;
+
+		const a = texts[Math.floor(rand() * texts.length)];
+		const b = texts[Math.floor(rand() * texts.length)];
+		const range = document.createRange();
+
+		try {
+			range.setStart(a, Math.floor(rand() * (a.length + 1)));
+			range.setEnd(b, Math.floor(rand() * (b.length + 1)));
+		} catch {
+			return null; // конец раньше начала — таким выделение не бывает
+		}
+
+		// Выделение без единого символа (одна лишь граница строк) форматировать нечего:
+		// узлов, задетых текстом, в нём нет.
+		return range.collapsed || !range.toString().length ? null : range;
+	}
+
+	it("keeps the text, the line breaks and the blocks", () => {
+		let checked = 0;
+
+		for (let i = 0; i < 1200; i++) {
+			const root = makeRoot(randomLines());
+			const range = randomRange(root);
+			if (!range) continue;
+
+			const tool = ALL_FORMAT_TOOLS[Math.floor(rand() * ALL_FORMAT_TOOLS.length)];
+			const text = root.textContent;
+			const breaks = countBreaks(root);
+			const blocks = root.children.length;
+
+			const selection = window.getSelection()!;
+			selection.removeAllRanges();
+			selection.addRange(range);
+
+			toggleFormat(root, selection.getRangeAt(0), tool, selection);
+
+			expect(root.textContent).toBe(text);
+			expect(countBreaks(root)).toBe(breaks);
+			expect(root.children.length).toBe(blocks);
+			expect(isFormatActive(root, selection.getRangeAt(0), tool)).toBe(true);
+
+			// снятие тем же выделением возвращает содержимое к исходному
+			toggleFormat(root, selection.getRangeAt(0), tool, selection);
+
+			expect(root.textContent).toBe(text);
+			expect(countBreaks(root)).toBe(breaks);
+			expect(root.children.length).toBe(blocks);
+			expect(root.querySelector(FORMAT_TOOLS[tool].tag)).toBeNull();
+
+			checked++;
+		}
+
+		expect(checked).toBeGreaterThan(400); // выборка действительно набралась
 	});
 });
