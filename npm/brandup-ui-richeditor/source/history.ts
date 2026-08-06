@@ -68,12 +68,19 @@ export class EditorHistory {
 		const top = this.__undo[this.__undo.length - 1];
 		if (top && top.html === snap.html) return; // состояние не изменилось — не дублируем
 
+		this.__push(snap);
+		this.__redo = [];
+	}
+
+	// Puts a snapshot on the undo stack, dropping the oldest ones beyond the limits. Every push
+	// goes through here: redo adds a snapshot just like an edit does, and without trimming the
+	// history would outgrow the limits over a run of undo/redo.
+	private __push(snap: Snapshot): void {
 		this.__undo.push(snap);
 		this.__chars += snap.html.length;
+
 		while (this.__undo.length > MAX_DEPTH || (this.__chars > MAX_CHARS && this.__undo.length > 1))
 			this.__chars -= this.__undo.shift()!.html.length;
-
-		this.__redo = [];
 	}
 
 	/** Откатить на шаг назад. Возвращает false, если откатывать нечего. */
@@ -93,9 +100,7 @@ export class EditorHistory {
 		const next = this.__redo.pop();
 		if (!next) return false;
 
-		const current = this.__snapshot();
-		this.__undo.push(current);
-		this.__chars += current.html.length;
+		this.__push(this.__snapshot());
 		this.__restore(next);
 		this.__lastKind = null;
 		return true;

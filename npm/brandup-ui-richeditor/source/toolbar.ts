@@ -237,7 +237,12 @@ class FormatToolbar {
 		const blocks = (host.blockTools ?? []).filter(
 			(type) => type !== DEFAULT_BLOCK && !HIDDEN_BLOCKS.includes(type)
 		);
-		if (!tools.length && !blocks.length && !actions.length && !buttons.length) return;
+		// Nothing to show — and the previous editor's panel must not stay on screen either: focus
+		// moved to this one, while its buttons would still edit the neighbour.
+		if (!tools.length && !blocks.length && !actions.length && !buttons.length) {
+			if (this.__active) this.__hide();
+			return;
+		}
 
 		this.__bindSelection();
 		this.__active = host;
