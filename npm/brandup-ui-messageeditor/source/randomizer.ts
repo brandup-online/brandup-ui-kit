@@ -1,7 +1,7 @@
 import "./randomizer.less"; // стили окна
 
 import { DOM } from "@brandup/ui";
-import { Modal } from "@brandup/ui-kit";
+import { Modal, textTag } from "@brandup/ui-kit";
 import trashIcon from "../svg/trash.svg";
 
 export const SPINTAX_OPEN = "[";
@@ -114,7 +114,10 @@ export default class RandomizerModal extends Modal {
 		const row = DOM.tag("div", { class: "variant" }, [
 			// Не поле ввода, а редактируемая область: вариант бывает длинным, а поле ввода
 			// не переносит строку — конец текста уезжал бы за край.
-			DOM.tag(
+			//
+			// the variant comes from the message (a selection or an existing spintax) — as text,
+			// never as markup (see textTag)
+			textTag(
 				"div",
 				{ class: "editable", contenteditable: "true", dataset: { placeholder: "Вариант текста" } },
 				text
@@ -209,13 +212,14 @@ export default class RandomizerModal extends Modal {
 			.replace(FORBIDDEN_CHARS, "");
 		if (!text) return;
 
-		const selection = this.element?.ownerDocument.defaultView?.getSelection();
-		if (!selection?.rangeCount) return;
+		const doc = this.element?.ownerDocument;
+		const selection = doc?.defaultView?.getSelection();
+		if (!doc || !selection?.rangeCount) return;
 
 		const range = selection.getRangeAt(0);
 		range.deleteContents();
 
-		const node = document.createTextNode(text);
+		const node = doc.createTextNode(text);
 		range.insertNode(node);
 		range.setStartAfter(node);
 		range.collapse(true);
