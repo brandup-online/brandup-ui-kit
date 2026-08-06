@@ -1,6 +1,6 @@
 # brandup-ui-example
 
-Демонстрационное приложение для пакетов `@brandup/ui-kit`, `@brandup/ui-textbox`, `@brandup/ui-richeditor` и `@brandup/ui-dropdown`.
+Демонстрационное приложение для пакетов `@brandup/ui-kit`, `@brandup/ui-textbox`, `@brandup/ui-richeditor`, `@brandup/ui-messageeditor` и `@brandup/ui-dropdown`.
 
 ## Страницы
 
@@ -10,10 +10,11 @@
 | `/inputs` | Элементы ввода `@brandup/ui-input` |
 | `/popups` | Всплывающие окна `@brandup/ui-kit` |
 | `/textbox` | `@brandup/ui-textbox`: режимы, типы ввода, счётчик, валидация, форматирование |
-| `/richeditor` | `@brandup/ui-richeditor` напрямую: кнопки действий, вызов методов, форматы хранения, режимы |
+| `/richeditor` | `@brandup/ui-richeditor` напрямую: кнопки действий, вызов методов, форматы хранения, режимы, блоки |
+| `/messageeditor` | `@brandup/ui-messageeditor`: плашка сообщения, переменные, рандомизация, блоки, состояния |
 | `/dropdown` | `@brandup/ui-dropdown` |
 
-На странице `/richeditor` под каждым полем показывается живое сериализованное значение и состояние истории — видно, что уйдёт в хранилище при выбранном `storage` и наборе маркеров.
+На страницах `/richeditor` и `/messageeditor` под каждым полем показывается живое сериализованное значение (а у редактора — и состояние истории): видно, что уйдёт в хранилище при выбранном `storage` и наборе маркеров.
 
 ## Требования
 

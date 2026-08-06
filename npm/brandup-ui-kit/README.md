@@ -2,7 +2,7 @@
 
 [![Build Status](https://dev.azure.com/brandup/BrandUp%20Core/_apis/build/status%2FBrandUp%2Fbrandup-ui-kit?branchName=main)](https://dev.azure.com/brandup/BrandUp%20Core/_build/latest?definitionId=81&branchName=main)
 
-Базовый пакет UI-кита: сброс стилей, типографика, стили полей ввода, PopupManager и middleware для `@brandup/ui-app`.
+Базовый пакет UI-кита: сброс стилей, типографика, стили полей ввода, модальное окно, PopupManager и middleware для `@brandup/ui-app`.
 
 ## Установка
 
@@ -56,6 +56,48 @@ PopupManager.close();
 // Проверить, открыт ли какой-либо попап
 PopupManager.isOpened(); // boolean
 ```
+
+## Modal
+
+Базовое модальное окно: затемнение, шапка с заголовком и крестиком, тело. Наследник наполняет `body` в своём конструкторе и живёт до `close()`; само окно знает только про рамку, слои и закрытие.
+
+```typescript
+import { Modal } from "@brandup/ui-kit";
+
+class ConfirmModal extends Modal {
+    constructor() {
+        super({ title: "Удалить?", className: "confirm-modal", closeOnBackdrop: false });
+
+        this.body.append(/* ... */);
+    }
+}
+
+const modal = new ConfirmModal();
+modal.onClosed(() => {
+    /* отпустить то, что придержали на время окна */
+});
+```
+
+| Член | Описание |
+| --- | --- |
+| `body` | Тело окна — его наполняет наследник |
+| `close()` | Закрыть окно (то же делают крестик, Esc и клик по подложке) |
+| `onClose()` | Хук наследника перед закрытием |
+| `onClosed(handler)` | Подписка на закрытие: срабатывает ровно один раз, чем бы окно ни кончилось; на уже закрытом окне — сразу |
+
+Закрытие идёт через систему команд кита (`ui-modal-close`), поэтому свои кнопки закрытия достаточно объявить тем же `data-command`. Пока окно открыто, на `<body>` висит класс `ui-modal-opened` — страница под ним не прокручивается.
+
+## Прокручиваемые области
+
+Класс `ui-scrollable` оформляет полосу прокрутки одинаково во всех компонентах кита — тонкая, без стрелок, со скруглённым ползунком. Размер и цвет переопределяются CSS-переменными `--scrollbar-size`, `--scrollbar-thumb` и `--scrollbar-thumb-radius` прямо на элементе.
+
+```typescript
+import { SCROLLABLE_CLASS } from "@brandup/ui-kit";
+
+const list = DOM.tag("div", { class: SCROLLABLE_CLASS });
+```
+
+Оформление держится на `::-webkit-scrollbar`: стандартные `scrollbar-width`/`scrollbar-color` не задаются намеренно — Blink при них отдаёт системную полосу со стрелками. Браузерам без `::-webkit-scrollbar` (Firefox) стандартные свойства выдаются отдельным правилом.
 
 ## Утилиты
 

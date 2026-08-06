@@ -36,6 +36,7 @@ export {
 	restoreSelection,
 	mapCharOffset,
 	activeFormats,
+	emptyFormatAt,
 	toggleFormat,
 	clearFormat,
 	clearAllFormat,
@@ -51,6 +52,7 @@ export {
 	blocksInRange,
 	createBlock,
 	normalizeWhitespace,
+	mergeAdjacentBlocks,
 	normalizeParagraphs,
 	ensureParagraphs,
 } from "./paragraphs";

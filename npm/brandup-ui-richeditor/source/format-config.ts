@@ -110,6 +110,11 @@ interface FormatToolDef {
 	 * сырыми символами — значит показывать не то, что увидит получатель.
 	 */
 	mdAliases?: string[];
+	/**
+	 * Содержимое буквально: разметка внутри не разбирается и не сохраняется, значение берёт
+	 * оттуда голый текст. Перенос строки в таком теге тоже не живёт — он его разрезает.
+	 */
+	literal?: boolean;
 	/** Клавиша для Ctrl/Cmd-хоткея (пусто — без хоткея). */
 	hotkey: string;
 	/** Подсказка на кнопке. */
@@ -161,6 +166,7 @@ export const FORMAT_TOOLS: Record<FormatTool, FormatToolDef> = {
 		tag: "code",
 		matchTags: ["CODE"],
 		md: "`",
+		literal: true,
 		hotkey: "",
 		title: "Моноширинный",
 	},
@@ -219,19 +225,20 @@ export function parseEditorActions(value: string | null): EditorAction[] {
 }
 
 /**
- * Разбирает значение атрибута data-blocks. Блоки подключаются явно: без атрибута доступен
- * только обычный текст. Он в наборе есть всегда — иначе блок некуда было бы вернуть.
+ * Разбирает значение атрибута data-blocks. Без атрибута доступны все типы; пустое значение
+ * оставляет только обычный текст — им ограничивают поле, где цитаты и код ни к чему.
  */
 export function parseBlockTypes(value: string | null): BlockType[] {
-	return value === null ? [DEFAULT_BLOCK] : normalizeBlockTypes(parseList(value, ALL_BLOCK_TYPES));
+	return value === null ? ALL_BLOCK_TYPES.slice() : normalizeBlockTypes(parseList(value, ALL_BLOCK_TYPES));
 }
 
 /**
  * Приводит набор типов к порядку объявления. Обычный текст в наборе есть всегда: им становится
- * содержимое, не попавшее ни в какой блок, и в него же блок возвращают.
+ * содержимое, не попавшее ни в какой блок, и в него же блок возвращают. Набор не задан — берём
+ * все типы; ограничивают их явным списком.
  */
 export function normalizeBlockTypes(types: BlockType[] | undefined): BlockType[] {
-	if (!types) return [DEFAULT_BLOCK];
+	if (!types) return ALL_BLOCK_TYPES.slice();
 
 	const list = ALL_BLOCK_TYPES.filter((type) => types.includes(type));
 

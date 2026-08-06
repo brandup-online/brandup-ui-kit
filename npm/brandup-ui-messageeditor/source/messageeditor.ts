@@ -1,10 +1,11 @@
 import "./messageeditor.less"; // стили компонента
 
 import { InputControl } from "@brandup/ui-input";
-import { SCROLLABLE_CLASS, type Modal } from "@brandup/ui-kit";
+import { POPUP_CLASS, SCROLLABLE_CLASS, type Modal } from "@brandup/ui-kit";
 import { DOM } from "@brandup/ui";
 import RichEditor, {
 	ALL_FORMAT_TOOLS,
+	TOOLBAR_CLASS,
 	parseBlockTypes,
 	preserveCaret,
 	type BlockType,
@@ -55,6 +56,12 @@ export interface MessageEditorOptions {
 	 * Без этой опции берётся из атрибута `data-blocks` поля-носителя (значения через пробел).
 	 */
 	blocks?: BlockType[];
+	/**
+	 * Держать ли фокус в поле, пока открыта панель смайликов. По умолчанию держим, а на
+	 * сенсорном устройстве нет: там фокус поднимает экранную клавиатуру, а она закрывает собой
+	 * саму панель. Окна персонализации и рандомизации фокус забирают всегда.
+	 */
+	keepFocus?: boolean;
 }
 
 type MessageEditorEvents = {
@@ -77,6 +84,8 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	private __listenerAbort = new AbortController();
 	private __composing = false; // идёт IME-ввод — подсветку откладываем
 	private __names: VariableNames; // названия переменных по ключу — для подсветки
+	private __modal: Modal | null = null; // открытое окно правки — его закрывает и destroy
+	private __disposing = false; // компонент снимают: возвращать каретку и фокус уже некуда
 
 	readonly placeholder: string | null;
 	readonly variables: MessageVariable[];
@@ -142,6 +151,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			paragraph: "break",
 			// цитата и блок кода — объявленным набором: их понимает не каждый канал
 			blocks: this.blocks,
+			keepFocus: options.keepFocus,
 			// disabled для редактора — тот же запрет правок, что и readonly (сам он про disabled не знает)
 			readonly: readonly || disabled,
 			// набор мессенджера: жирный, курсив, зачёркнутый, подчёркнутый. Смайлики в тулбар
@@ -199,6 +209,10 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		editable.addEventListener("focus", () => !this.disabled && this.element.classList.add("focused"), { signal });
 		editable.addEventListener("blur", () => !this.disabled && this.element.classList.remove("focused"), { signal });
 
+		// Клик мимо текста — тоже клик по полю: плашка выглядит и ведёт себя как одно поле ввода,
+		// а её поля и место справа от текста в редактируемый элемент не входят.
+		this.element.addEventListener("mousedown", (e) => this.__focusFromBubble(e), { signal });
+
 		// правка конструкций — только через своё окно: в тексте они атомарны
 		editable.addEventListener(
 			"click",
@@ -237,6 +251,27 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	// валидация, отправка формы, сбор FormData.
 	protected override __syncValue(): void {
 		this.__editor.flushChange();
+	}
+
+	/**
+	 * Фокус по клику в плашку мимо текста: её поля и место справа от последней строки в
+	 * редактируемый элемент не входят, а выглядит она одним полем ввода.
+	 *
+	 * Гасим нажатие: браузер иначе снимет выделение и уведёт фокус на корневой элемент, где
+	 * каретке места нет. Каретку возвращаем на прежнее место, а если её ещё не было — в конец
+	 * текста: клик мимо текста это клик за ним.
+	 */
+	private __focusFromBubble(e: MouseEvent) {
+		if (this.disabled) return;
+
+		const target = e.target as HTMLElement | null;
+		if (!target || this.__inputElem.contains(target)) return; // в сам текст браузер попадёт и сам
+
+		// своя кнопка, панель форматирования и её попапы живут внутри плашки и работают сами
+		if (target.closest(`button, a, input, textarea, select, .${TOOLBAR_CLASS}, .${POPUP_CLASS}`)) return;
+
+		e.preventDefault();
+		this.__editor.focus(true);
 	}
 
 	/**
@@ -329,6 +364,10 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	private __openModal(create: (apply: (text: string) => void) => Modal, replace?: HTMLElement) {
 		const caret = this.__editor.caretSnapshot();
 		const release = this.__editor.holdEditing();
+		// Фокус полю на время окна не нужен: правка идёт в нём. На сенсорном устройстве он к тому
+		// же держит на экране клавиатуру, а она закрывает собой само окно. Каретка снята выше,
+		// и по закрытию окна фокус вернётся вместе с ней.
+		this.__editor.releaseFocus();
 		let applied = false;
 
 		const apply = (text: string) => {
@@ -353,10 +392,16 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			throw error;
 		}
 
+		// Окно живёт в body и снятие компонента переживёт: держим его, чтобы закрыть самим.
+		this.__modal = modal;
+
 		modal.onClosed(() => {
+			if (this.__modal === modal) this.__modal = null;
+
 			// окно закрыли, ничего не выбрав, — возвращаем правку туда, где её прервали.
 			// Окно правки открывают кликом по самой конструкции, и каретка внутри неё не рисуется.
-			if (!applied && caret) {
+			// Если компонент снимают, возвращать её некуда — поля сейчас не станет.
+			if (!this.__disposing && !applied && caret) {
 				this.__editor.restoreCaret(caret);
 				this.__escapeMarkup();
 			}
@@ -458,6 +503,12 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	}
 
 	override destroy(): void {
+		this.__disposing = true;
+
+		// Окно правки живёт в body, а не внутри компонента: само оно не исчезнет, а его кнопки
+		// правили бы уже снятый редактор. Закрываем до него — обработчику закрытия нужен живой.
+		this.__modal?.close();
+
 		this.__listenerAbort.abort();
 		this.__editor.destroy();
 

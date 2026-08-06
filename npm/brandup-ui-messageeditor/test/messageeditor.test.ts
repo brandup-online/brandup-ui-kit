@@ -160,7 +160,7 @@ describe("MessageEditor", () => {
 		const toolbar = editor.element.querySelector(".ui-richeditor-toolbar")!;
 		expect(toolbar).not.toBeNull(); // панель внутри компонента, а не в document.body
 		expect(toolbar.classList.contains("in-container")).toBe(true);
-		expect(toolbar.querySelectorAll(".format-button")).toHaveLength(4); // словарь сообщений без скрытых спойлера и кода
+		expect(toolbar.querySelectorAll(".format-button")).toHaveLength(5); // словарь сообщений без скрытого спойлера
 		// действие одно — очистка формата; смайлики вынесены в собственную кнопку компонента
 		expect(toolbar.querySelectorAll(".action-button")).toHaveLength(1);
 		expect(toolbar.querySelector('[data-editor-action="erase"]')).not.toBeNull();
@@ -260,8 +260,9 @@ describe("MessageEditor", () => {
 		expect(picker.classList.contains("opened")).toBe(false);
 	});
 
-	// Кнопка смайлика доступна без фокуса, и клик по ней должен поднимать один слой, а не два:
-	// панель сама переводит фокус в поле, поэтому тулбар придерживается до её закрытия.
+	// Кнопка смайлика доступна без фокуса, и клик по ней должен поднимать один слой, а не два.
+	// Под тестами устройство считается сенсорным, поэтому фокус поле отдаёт (см. keepFocus):
+	// иначе экранная клавиатура закрыла бы саму панель.
 	it("opens only the picker when the field was not focused", () => {
 		const { input } = setup({ value: "привет" });
 		const editor = new MessageEditor(input);
@@ -271,15 +272,13 @@ describe("MessageEditor", () => {
 		const picker = editor.element.querySelector<HTMLElement>(".ui-richeditor-emoji")!;
 		expect(picker.classList.contains("opened")).toBe(true);
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).toBeNull();
-		// каретка всё же поставлена — иначе вставлять символ было бы некуда
-		expect(document.activeElement).toBe(editor.editor.editable);
+		expect(document.activeElement).not.toBe(editor.editor.editable);
 
 		picker.querySelector<HTMLButtonElement>(".emoji")!.click();
 
-		// панель закрылась, поле осталось в фокусе — тулбар показывается, как при обычном входе
+		// каретка была снята при отпускании фокуса — символ всё равно встал в текст
 		expect(picker.classList.contains("opened")).toBe(false);
 		expect(editor.getValue().startsWith("привет")).toBe(true);
-		expect(document.querySelector(".ui-richeditor-toolbar.visible")).not.toBeNull();
 	});
 
 	// Персонализация нужна не всякому сообщению: без неё нет ни кнопки, ни подсветки,
@@ -553,8 +552,12 @@ describe("MessageEditor", () => {
 
 		picker.querySelector<HTMLButtonElement>(".emoji")!.click();
 
-		// панель закрылась, поле осталось в фокусе — тулбар возвращается сам
+		// Панель закрылась, но фокус поле отдало ей (устройство под тестами сенсорное), поэтому
+		// тулбар не возвращается сам — он вернётся, когда в поле придут печатать.
 		expect(picker.classList.contains("opened")).toBe(false);
+		expect(document.querySelector(".ui-richeditor-toolbar.visible")).toBeNull();
+
+		editor.editor.editable.dispatchEvent(new FocusEvent("focus"));
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).not.toBeNull();
 	});
 
@@ -754,5 +757,128 @@ describe("clear format action", () => {
 		editor.editor.editable.dispatchEvent(new FocusEvent("focus"));
 
 		expect(eraseButton().disabled).toBe(true);
+	});
+});
+
+// Плашка выглядит и ведёт себя как одно поле ввода, но её поля и место справа от текста
+// в редактируемый элемент не входят — клик по ним тоже обязан попадать в текст.
+describe("focus from the bubble", () => {
+	const press = (target: Element) => {
+		const event = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+		target.dispatchEvent(event);
+
+		return event;
+	};
+
+	it("focuses the editor on a click beside the text", () => {
+		const { input } = setup({ value: "раз два" });
+		const editor = new MessageEditor(input);
+		const bubble = editor.element.querySelector(".bubble")!;
+
+		const event = press(bubble);
+
+		expect(event.defaultPrevented).toBe(true); // иначе фокус ушёл бы на корневой элемент
+		expect(document.activeElement).toBe(editor.editor.editable);
+	});
+
+	// клик мимо текста — это клик за ним, а не перед ним
+	it("puts the caret at the end of the text", () => {
+		const { input } = setup({ value: "раз два" });
+		const editor = new MessageEditor(input);
+
+		press(editor.element.querySelector(".bubble")!);
+		editor.editor.insertText("!");
+
+		expect(editor.getValue()).toBe("раз два!");
+	});
+
+	it("keeps the caret where it was", () => {
+		const { input } = setup({ value: "раз два" });
+		const editor = new MessageEditor(input);
+
+		caretAt(editor.editor.editable.firstChild!.firstChild!, 3);
+		press(editor.element.querySelector(".bubble")!);
+		editor.editor.insertText("!");
+
+		expect(editor.getValue()).toBe("раз! два");
+	});
+
+	// кнопки внутри плашки держат фокус сами — вмешиваться в их нажатие нельзя
+	it.each([[".messageeditor-emoji"], ['[data-toolbar-button="randomize"]']])(
+		"leaves the click on %s to the control itself",
+		(selector) => {
+			const { input } = setup({ value: "раз" });
+			const editor = new MessageEditor(input);
+			editor.editor.editable.dispatchEvent(new FocusEvent("focus")); // панель строится по фокусу
+
+			const control = editor.element.querySelector(selector);
+			expect(control).not.toBeNull();
+
+			const focus = jest.spyOn(editor.editor, "focus");
+			press(control!);
+
+			expect(focus).not.toHaveBeenCalled();
+		}
+	);
+
+	it("does nothing when the editor is disabled", () => {
+		const { input } = setup({ value: "раз", disabled: true });
+		const editor = new MessageEditor(input);
+
+		expect(press(editor.element.querySelector(".bubble")!).defaultPrevented).toBe(false);
+	});
+});
+
+// Правка идёт в окне, и мигающая каретка под ним только сбивает с толку — фокус поле отдаёт
+// на любом устройстве, а по закрытию окна забирает обратно вместе с кареткой.
+describe("focus while a modal is open", () => {
+	it("gives the focus up and takes it back", () => {
+		const { input } = setup({ value: "Привет, мир" });
+		const editor = new MessageEditor(input, { personalization: true, keepFocus: true });
+
+		editor.editor.editable.focus();
+		caretAt(editor.editor.editable.querySelector("p")!.firstChild!, 8);
+
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
+
+		expect(document.activeElement).not.toBe(editor.editor.editable);
+
+		document.querySelector<HTMLButtonElement>(".ui-modal .modal-close")!.click();
+
+		expect(document.activeElement).toBe(editor.editor.editable);
+		expect(window.getSelection()!.anchorOffset).toBe(8);
+	});
+});
+
+// Окно правки живёт в body и снятие компонента переживёт: его кнопки правили бы уже снятый
+// редактор, а само оно осталось бы висеть поверх страницы.
+describe("modal on destroy", () => {
+	const openVariablesModal = (editor: MessageEditor) => {
+		editor.editor.editable.dispatchEvent(new FocusEvent("focus"));
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
+	};
+
+	it("closes the modal", () => {
+		const { input } = setup({ value: "Привет" });
+		const editor = new MessageEditor(input, { personalization: true });
+
+		openVariablesModal(editor);
+		expect(document.querySelector(".ui-modal")).not.toBeNull();
+
+		editor.destroy();
+
+		expect(document.querySelector(".ui-modal")).toBeNull();
+	});
+
+	// закрытие само освобождает придержанную правку — редактор снимается без висящих удержаний
+	it("does not touch the field while closing", () => {
+		const { input } = setup({ value: "Привет" });
+		const editor = new MessageEditor(input, { personalization: true });
+		const editable = editor.editor.editable;
+
+		openVariablesModal(editor);
+		editor.destroy();
+
+		expect(document.activeElement).not.toBe(editable);
 	});
 });

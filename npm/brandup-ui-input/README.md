@@ -12,7 +12,7 @@ npm i @brandup/ui-input
 
 ## InputControl
 
-`InputControl<T, TEvents>` — абстрактный класс, от которого наследуются все компоненты ввода (`TextBox`, `DropDown`). Расширяет `UIElementBound` из `@brandup/ui`.
+`InputControl<T, TEvents>` — абстрактный класс, от которого наследуются все компоненты ввода (`TextBox`, `MessageEditor`, `DropDown`). Расширяет `UIElementBound` из `@brandup/ui`.
 
 ### Свойства
 

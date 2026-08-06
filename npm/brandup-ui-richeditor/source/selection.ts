@@ -13,8 +13,13 @@ const MATCH_TAG_NAMES = Array.from(new Set(ALL_FORMAT_TOOLS.flatMap((t) => FORMA
 // Селекторы считаем один раз: обе выборки идут на каждую правку формата и на каждое обновление панели.
 const FORMAT_SELECTOR = FORMAT_TAG_NAMES.join(",").toLowerCase();
 const MATCH_SELECTOR = MATCH_TAG_NAMES.join(",").toLowerCase();
-// Моноширинный: внутри него разметки не бывает (см. stripFormattingInCode)
-const CODE_SELECTOR = FORMAT_TOOLS.code.matchTags.join(",").toLowerCase();
+// Инструменты, содержимое которых буквально (моноширинный): внутри них не бывает ни разметки
+// (см. stripFormattingInCode), ни переносов строк — значение берёт оттуда голый текст.
+const LITERAL_TAGS = ALL_FORMAT_TOOLS.filter((tool) => FORMAT_TOOLS[tool].literal).flatMap(
+	(tool) => FORMAT_TOOLS[tool].matchTags
+);
+const CODE_SELECTOR = LITERAL_TAGS.join(",").toLowerCase();
+const LITERAL_TAG_SET = new Set(LITERAL_TAGS);
 // Неделимые объекты хоста: конструкции сообщения объявляют себя нередактируемыми
 const ATOMIC_SELECTOR = '[contenteditable="false"]';
 
@@ -161,6 +166,26 @@ export function charLength(root: HTMLElement): number {
 	return length;
 }
 
+/**
+ * Пустой тег инструмента, внутри которого стоит каретка: слово из него стёрли, а тег остался,
+ * и печать продолжится оформленной. Кнопка панели обязана снимать именно его.
+ */
+export function emptyFormatAt(root: HTMLElement, range: Range, tool: FormatTool): HTMLElement | null {
+	if (!range.collapsed) return null;
+
+	const found = formatAt(caretProbe(range), TOOL_TAG_SETS[tool], root);
+
+	return found && !found.textContent ? found : null;
+}
+
+/**
+ * Ближайший предок с буквальным содержимым (моноширинный) — в нём не живёт перенос строки:
+ * значение берёт оттуда голый текст, и строка из значения пропала бы.
+ */
+export function literalAncestor(node: Node, root: HTMLElement): HTMLElement | null {
+	return formatAt(node, LITERAL_TAG_SET, root);
+}
+
 /** Абсолютные текстовые смещения границ выделения внутри root (для восстановления после правок DOM). */
 export function selectionCharBounds(root: HTMLElement, range: Range): [number, number] {
 	const probe = document.createRange();
@@ -259,8 +284,8 @@ function locateChars(root: HTMLElement, lower: number, upper: number): [CharPosi
 		return false;
 	});
 
-	if (!last && !low && !high) return null;
-
+	// Содержимого нет вовсе — каретке место только в самом корне. Возвращать «некуда» нельзя:
+	// в пустое поле как раз и вставляют, вернув каретку (панель смайликов работает без фокуса).
 	const tail: CharPosition = last ?? { node: root, offset: 0 };
 
 	return [low ?? tail, high ?? tail];
@@ -342,6 +367,18 @@ function* touchedTextNodes(root: HTMLElement, range: Range): Generator<Text> {
 
 		yield n;
 	}
+}
+
+/**
+ * Формат на самом узле или над ним. Каретка стоит и в самом теге — например в опустевшем `<code>`,
+ * из которого стёрли слово: браузер держит её внутри, и печать продолжится оформленной, поэтому
+ * состояние обязано этот тег видеть.
+ */
+function formatAt(node: Node, tags: ReadonlySet<string>, root: HTMLElement): HTMLElement | null {
+	const el = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
+	if (el && el !== root && tags.has(el.tagName)) return el;
+
+	return formatAncestor(node, tags, root);
 }
 
 /** Узел под схлопнутой кареткой — от него и ищется формат. */
@@ -593,7 +630,7 @@ export function activeFormats(root: HTMLElement, range: Range, tools: FormatTool
 
 	if (range.collapsed) {
 		const probe = caretProbe(range);
-		for (const tool of tools) if (formatAncestor(probe, TOOL_TAG_SETS[tool], root)) active.add(tool);
+		for (const tool of tools) if (formatAt(probe, TOOL_TAG_SETS[tool], root)) active.add(tool);
 
 		return active;
 	}

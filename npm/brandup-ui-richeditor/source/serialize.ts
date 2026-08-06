@@ -106,7 +106,7 @@ function serializeInline(
 
 		// В коде разметки нет: при разборе его содержимое не размечается, и вложенное
 		// форматирование не вернулось бы — значение разошлось бы с тем, что было в поле.
-		if (tool === "code") {
+		if (tool && FORMAT_TOOLS[tool].literal) {
 			const text = el.textContent ?? "";
 			result += wrap(storage, tool, storage === "html" ? escapeHtml(text) : text, markers, el);
 			continue;
@@ -127,10 +127,11 @@ function serializeInline(
 	return result;
 }
 
-// Хвостовые переносы абзаца отбрасываем — это <br>-заполнители, делающие последнюю строку видимой;
-// мягкий перенос осмыслен только между содержимым (для пустой строки используйте новый абзац).
+// Хвостовой перенос — заполнитель: без него последняя строка блока не видна и в неё не встать
+// кареткой. Отбрасываем ровно один; остальные набраны руками и значат пустые строки — отбросив
+// их, редактор показывал бы строку, которой в значении нет. У всего значения хвост уберёт trim().
 function trimTrailingBreaks(inline: string, storage: FormatStorage): string {
-	return storage === "html" ? inline.replace(/(?:<br>)+$/, "") : inline.replace(/\n+$/, "");
+	return storage === "html" ? inline.replace(/<br>$/, "") : inline.replace(/\n$/, "");
 }
 
 // Разбивает верхний уровень на блоки: у каждого свой тип, у не попавшего в блок содержимого —
@@ -180,6 +181,11 @@ function serializeParagraphs(
 	flush();
 
 	const cleaned = blocks.map(([type, text]) => [type, trimTrailingBreaks(text, storage)] as const);
+
+	// Пустые блоки в хвосте в значение не идут: последний из них — место каретки, оставленное
+	// нормализацией (см. normalizeParagraphs), а не строка сообщения. В markdown его срезал бы
+	// trim всего значения — html обрезаем здесь, чтобы форматы хранения не расходились.
+	while (cleaned.length && !cleaned[cleaned.length - 1][1]) cleaned.pop();
 
 	if (storage === "html")
 		return cleaned
@@ -461,7 +467,11 @@ export function deserialize(
 				const def = BLOCK_TYPES[type];
 				const inner = def.inline ? markdownInline(text, order) : escapeHtml(text).replace(/\n/g, "<br>");
 
-				return `<${def.tag}>${inner || "<br>"}</${def.tag}>`;
+				// Пустая последняя строка видна только с заполнителем: без него браузер не рисует
+				// её и не пускает туда каретку — строка, которая в значении есть, пропала бы.
+				const filler = inner.endsWith("<br>") ? "<br>" : "";
+
+				return `<${def.tag}>${inner ? inner + filler : "<br>"}</${def.tag}>`;
 			})
 			.join("");
 	}

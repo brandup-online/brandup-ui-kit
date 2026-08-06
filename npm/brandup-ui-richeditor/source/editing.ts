@@ -4,12 +4,8 @@
 
 import { deserialize } from "./serialize";
 import { blockAt, blockTypeOf, blocksInRange, createBlock, isBlock } from "./paragraphs";
-import { documentSelection, innerSelection } from "./selection";
+import { documentSelection, innerSelection, literalAncestor } from "./selection";
 import { BLOCK_TYPES, DEFAULT_BLOCK, type BlockType, type FormatMarkers, type FormatTool } from "./format-config";
-
-function emptyParagraph(): HTMLParagraphElement {
-	return createBlock(DEFAULT_BLOCK) as HTMLParagraphElement;
-}
 
 // убирает пустые текст-узлы и ставит <br>-заполнитель в пустой абзац (для видимости и каретки)
 function fillEmptyParagraph(p: HTMLElement) {
@@ -172,6 +168,11 @@ export function atBlockStart(editable: HTMLElement, range: Range): boolean {
 	const block = blockAt(editable, range.startContainer);
 	if (!block) return false;
 
+	// В пустом блоке каретка всегда в его начале: <br> там — заполнитель, он делает строку
+	// видимой, но строкой не является. Иначе из опустевшей цитаты было бы не выйти — каретка
+	// стоит за заполнителем, и проверка ниже приняла бы его за конец первой строки.
+	if (!(block.textContent ?? "").length) return true;
+
 	const before = document.createRange();
 	before.selectNodeContents(block);
 	before.setEnd(range.startContainer, range.startOffset);
@@ -200,7 +201,7 @@ export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT
 		const next = createBlock(type);
 		if (editable.childNodes.length === 0) {
 			// пустой редактор: пустая строка-источник + новая строка с кареткой
-			editable.appendChild(emptyParagraph());
+			editable.appendChild(createBlock(DEFAULT_BLOCK));
 			editable.appendChild(next);
 		} else {
 			// каретка на уровне редактора между/после абзацев — вставляем новый абзац в эту позицию
@@ -217,6 +218,18 @@ export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT
 	tail.setStart(range.endContainer, range.endOffset);
 	const fragment = tail.extractContents();
 
+	// Выходим из блока, а за ним уже стоит пустой абзац — переходим в него. Иначе одно нажатие
+	// давало бы две пустые строки: одна тут заводится, вторая уже была заведена под каретку.
+	const following = (para as HTMLElement).nextElementSibling;
+	const empty = !(fragment.textContent ?? "") && !fragment.querySelector("br");
+
+	if (empty && following && blockTypeOf(following) === type && !(following.textContent ?? "")) {
+		fillEmptyParagraph(para as HTMLElement);
+		caretToStart(following);
+
+		return;
+	}
+
 	const next = document.createElement(BLOCK_TYPES[type].tag);
 	next.appendChild(fragment);
 	(para as ChildNode).after(next);
@@ -232,6 +245,27 @@ export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT
 	caretToStart(next);
 }
 
+/**
+ * Разрезает элемент по каретке: содержимое после неё уходит в такой же элемент следом,
+ * а диапазон встаёт между половинами — вставленное туда окажется снаружи обоих. Пустые
+ * половины не оставляем: печатать в них было бы нечего, а каретка попадала бы внутрь.
+ */
+function splitElement(el: HTMLElement, range: Range) {
+	const tail = document.createRange();
+	tail.selectNodeContents(el);
+	tail.setStart(range.startContainer, range.startOffset);
+
+	const rest = el.cloneNode(false) as HTMLElement;
+	rest.appendChild(tail.extractContents());
+
+	if (rest.textContent) el.after(rest);
+
+	range.setStartAfter(el);
+	range.collapse(true);
+
+	if (!el.textContent) el.remove();
+}
+
 /** Shift/Ctrl+Enter в multiline: вставить мягкий перенос <br>. */
 export function insertSoftBreak(editable: HTMLElement) {
 	const selection = innerSelection(editable);
@@ -239,6 +273,13 @@ export function insertSoftBreak(editable: HTMLElement) {
 
 	const range = selection.getRangeAt(0);
 	range.deleteContents();
+
+	// Перенос не живёт в моноширинном: значение берёт оттуда голый текст, и новая строка
+	// пропала бы — поле показывало бы две, а получатель увидел одну. Разрезаем тег и ставим
+	// перенос между половинами: форматирование продолжается на новой строке, только если
+	// там что-то осталось.
+	const literal = literalAncestor(range.startContainer, editable);
+	if (literal) splitElement(literal, range);
 
 	const br = document.createElement("br");
 	range.insertNode(br);
