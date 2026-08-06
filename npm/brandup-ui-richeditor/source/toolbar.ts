@@ -555,7 +555,7 @@ class FormatToolbar {
 
 	/** Закрыть панель смайликов, если открыта именно она (тулбар уходит — попап не должен остаться). */
 	private __closeEmoji() {
-		if (this.__emojiPicker?.classList.contains("opened")) PopupManager.close();
+		if (this.__emojiPicker && PopupManager.isOpened(this.__emojiPicker)) PopupManager.close();
 	}
 
 	/** Открыть правку адреса хоткеем — так же, как её открывает собственная кнопка. */
