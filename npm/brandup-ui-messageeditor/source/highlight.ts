@@ -74,12 +74,38 @@ export function highlight(root: HTMLElement, options: HighlightOptions = {}): bo
 	// Разметка уже на месте — а перестройка не бесплатна: она пересобирает обёртки всего текста
 	// и заставляет вызывающего возвращать каретку по смещениям. Печать рядом с конструкцией даёт
 	// это на каждый символ, и каждый раз каретка проходила бы через восстановление зря.
-	if (isHighlighted(root, pattern)) return false;
+	if (isHighlighted(root, pattern)) {
+		anchorMarkup(root);
+		return false;
+	}
 
 	unwrap(root);
 	wrap(root, pattern, options.names);
+	anchorMarkup(root);
 
 	return true;
+}
+
+/**
+ * Символ нулевой ширины, которым конструкция заканчивает строку. В значение не идёт — его
+ * снимает хост, читая значение (см. `MessageEditor`).
+ */
+export const CARET_ANCHOR = "​";
+
+/**
+ * Ставит опору за конструкцией, которой нечем закончиться.
+ *
+ * Конструкция не редактируется, и каретку сразу за ней браузер рисует, только если там есть
+ * текст. Иначе стоять после неё каретке негде: она уезжает в начало строки, и дописать за
+ * вставленной переменной становится нечем — а вставляют её как раз в пустое поле.
+ *
+ * Опору не видно, и на разбор она не влияет: конструкции она не касается, под их выражения
+ * не подпадает и в значение не попадает. Ставится один раз — дальше за конструкцией уже есть
+ * текстовый узел, и повторный проход её не удваивает.
+ */
+function anchorMarkup(root: HTMLElement) {
+	for (const span of Array.from(root.querySelectorAll<HTMLElement>(MARKUP_SELECTOR)))
+		if (!span.nextSibling) span.after(document.createTextNode(CARET_ANCHOR));
 }
 
 /**

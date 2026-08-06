@@ -344,3 +344,76 @@ describe("MessageEditor formatting over constructs", () => {
 		expect(editor.getValue()).toBe("test {ИМЯ} test");
 	});
 });
+
+// Конструкция не редактируется, и каретку сразу за ней браузер рисует, только если там есть
+// текст. Иначе стоять после неё негде: каретка уезжает в начало строки, и дописать за
+// вставленной переменной становится нечем — а вставляют её как раз в пустое поле.
+describe("caret behind a construct", () => {
+	// Неснятый компонент остаётся подписанным на уход своего элемента из DOM, а разборка
+	// jsdom дёргает эту подписку, когда окружения уже нет.
+	const alive: MessageEditor[] = [];
+	afterEach(() => {
+		alive.forEach((editor) => editor.destroy());
+		alive.length = 0;
+	});
+
+	function empty() {
+		document.body.innerHTML = "";
+		const form = document.createElement("form");
+		const input = document.createElement("textarea");
+		form.appendChild(input);
+		document.body.appendChild(form);
+
+		const editor = new MessageEditor(input, { variables: [{ key: "ИМЯ" }] });
+		editor.editor.editable.tabIndex = 0; // jsdom не отдаёт фокус голому contenteditable
+		editor.editor.focus();
+		alive.push(editor);
+
+		return { editor, input };
+	}
+
+	it("leaves the caret somewhere to stand after a construct that ends the line", () => {
+		const { editor } = empty();
+
+		editor.editor.insertText("{ИМЯ}");
+
+		const span = editor.editor.editable.querySelector("span.variable")!;
+		expect(span.nextSibling?.nodeType).toBe(Node.TEXT_NODE);
+
+		// каретка вне конструкции — в том самом узле за ней
+		const selection = window.getSelection()!;
+		expect(span.contains(selection.anchorNode)).toBe(false);
+		expect(selection.anchorNode).toBe(span.nextSibling);
+	});
+
+	// опору никто не набирал — сообщению она не нужна ни в значении, ни в поле формы
+	it("keeps the anchor out of the value", () => {
+		const { editor, input } = empty();
+
+		editor.editor.insertText("{ИМЯ}");
+
+		expect(editor.getValue()).toBe("{ИМЯ}");
+		expect(input.value).toBe("{ИМЯ}");
+	});
+
+	it("lets the text be continued right after the construct", () => {
+		const { editor } = empty();
+
+		editor.editor.insertText("{ИМЯ}");
+		editor.editor.insertText("!");
+
+		expect(editor.getValue()).toBe("{ИМЯ}!");
+	});
+
+	// за конструкцией уже есть текст — второй опоры не нужно
+	it("does not add a second anchor on a rebuild", () => {
+		const { editor } = empty();
+		const editable = editor.editor.editable;
+
+		editor.editor.insertText("{ИМЯ}");
+		editable.dispatchEvent(new Event("input", { bubbles: true }));
+		editable.dispatchEvent(new Event("input", { bubbles: true }));
+
+		expect(editable.textContent).toBe("{ИМЯ}​");
+	});
+});

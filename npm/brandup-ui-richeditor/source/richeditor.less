@@ -1,6 +1,53 @@
 // Стили RichEditor: редактируемая область, отображение тегов форматирования
 // и общий тулбар форматирования (живёт в document.body, см. ./toolbar).
-// CSS-переменные --input-* предоставляет @brandup/ui-kit; заданы fallback'и для standalone-использования.
+
+// Собственные переменные пакета и их значения по умолчанию. Держим их здесь, а не по месту:
+// так виден весь набор целиком, и менять значение приходится в одном месте, а не во всех, где
+// переменная встретилась (у кода их было по две на каждую).
+//
+// Переменные --input-*, --hover--input-*, --focus--input-*, --placeholder-* и --svg-* приходят
+// из @brandup/ui-kit и здесь не объявляются: объявив их в :root, пакет перекрыл бы значения
+// кита. Их запасные значения остаются по месту — они на случай использования пакета без кита.
+:root {
+	// цитата: линия слева, как её рисуют мессенджеры
+	--richeditor-quote-line: rgba(0, 0, 0, 0.2);
+
+	// код — и моноширинный, и блок
+	--richeditor-code-fill: rgba(0, 0, 0, 0.06);
+	--richeditor-code-font: ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+	// спойлер: у получателя текст закрыт, в поле показан плашкой
+	--richeditor-spoiler-fill: rgba(0, 0, 0, 0.14);
+
+	// Правка адреса. В контейнере хоста панель на это время растягивается по нему, и ширину поля
+	// задавать не нужно — оно занимает всё, что осталось от кнопок. В document.body растягиваться
+	// не по чему, там ширину задаёт первая переменная; вторая ограничивает растянутую панель.
+	--richeditor-link-width: 320px;
+	--richeditor-link-max-width: 500px;
+
+	// ссылка
+	--richeditor-link-color: #2481cc;
+	// отступ подчёркивания от базовой линии; auto — на усмотрение шрифта
+	--richeditor-link-underline-offset: auto;
+
+	// Место под подчёркивание последней строки. Подчёркивание рисуется, но в раскладке места
+	// не занимает, а краевые отступы абзаца обнулены — на единственной строке абзац разом
+	// первый и последний, и снизу не остаётся ничего. Прокручиваемая коробка режет линию
+	// по своему краю, и отступом от базовой линии это не лечится: он только придвигает её
+	// к этому краю. Место берётся здесь.
+	--richeditor-underline-room: 2px;
+
+	// Панель. Кнопка — и её же размера кнопки поповера адреса; по ней же высота поля адреса.
+	// Значение своё, а не считанное от высоты поля ввода: панель живёт над полем, но размером
+	// с ним не связана, а вычитание отступов задавало бы размер дважды и могло не сойтись.
+	--richeditor-toolbar-padding: 3px;
+	--richeditor-toolbar-button-size: 34px;
+
+	// панель смайликов
+	--richeditor-emoji-size: 32px;
+	// строк в группе — панель ставит своё значение на каждую группу, здесь оно запасное
+	--richeditor-emoji-rows: 8;
+}
 
 // .ui-richeditor — это сам редактируемый элемент (обёртки нет, тулбар общий в body)
 .ui-richeditor {
@@ -11,6 +58,8 @@
 	word-wrap: anywhere;
 	white-space: pre-wrap; // сохраняем пробелы (в т.ч. ведущие/повторяющиеся)
 
+	--link-weight: inherit;
+	
 	// абзацы — без user-agent-полей, иначе первый <p> «съезжает» вниз (как новая строка)
 	& p {
 		margin: 0;
@@ -20,8 +69,9 @@
 			padding-top: 0;
 		}
 
+		// не ноль: последней строке нужно место под подчёркивание — см. --richeditor-underline-room
 		&:last-child {
-			padding-bottom: 0;
+			padding-bottom: var(--richeditor-underline-room);
 		}
 	}
 
@@ -30,7 +80,7 @@
 	& blockquote {
 		margin: 0;
 		padding: 5px 0 5px 10px;
-		border-left: 3px solid var(--richeditor-quote-line, rgba(0, 0, 0, 0.2));
+		border-left: 3px solid var(--richeditor-quote-line);
 	}
 
 	// Блок кода: подложка на всю строку и моноширинный шрифт. Собственные поля тут нужны —
@@ -39,8 +89,8 @@
 		margin: 5px 0;
 		padding: 5px 8px;
 		border-radius: 3px;
-		background-color: var(--richeditor-code-fill, rgba(0, 0, 0, 0.06));
-		font-family: var(--richeditor-code-font, ui-monospace, "Cascadia Mono", Consolas, monospace);
+		background-color: var(--richeditor-code-fill);
+		font-family: var(--richeditor-code-font);
 		font-size: 0.92em;
 		// содержимое переносится по границе редактора, как и обычный текст
 		white-space: pre-wrap;
@@ -74,13 +124,20 @@
 		text-decoration: underline;
 	}
 
+	& a {
+		color: var(--richeditor-link-color);
+		text-decoration: underline;
+		text-underline-offset: var(--richeditor-link-underline-offset);
+		cursor: text; // текст ссылки правят на месте, переходить по ней из редактора некуда
+	}
+
 	// Спойлер: у получателя текст закрыт до нажатия, а в поле его прячут не от автора —
 	// показываем плашкой, чтобы было видно и что написано, и что оно будет скрыто.
 	& spoiler,
 	& tg-spoiler {
 		border-radius: 3px;
 		padding: 0 2px;
-		background-color: var(--richeditor-spoiler-fill, rgba(0, 0, 0, 0.14));
+		background-color: var(--richeditor-spoiler-fill);
 	}
 
 	// Строку не раздвигает. Наследовать межстрочный интервал для этого мало: у моноширинного
@@ -91,8 +148,8 @@
 	& code {
 		border-radius: 3px;
 		padding: 0 3px;
-		background-color: var(--richeditor-code-fill, rgba(0, 0, 0, 0.06));
-		font-family: var(--richeditor-code-font, ui-monospace, "Cascadia Mono", Consolas, monospace);
+		background-color: var(--richeditor-code-fill);
+		font-family: var(--richeditor-code-font);
 		font-size: 0.92em;
 		line-height: 0;
 	}
@@ -137,25 +194,18 @@
 // По умолчанию в document.body (position: fixed, координаты задаёт ./toolbar);
 // с классом .in-container — позиционируется над контейнером-родителем (position: absolute).
 .ui-richeditor-toolbar {
+	// Обёртка: только положение. Вид и содержимое — на коробке внутри, поэтому её размер
+	// (он меняется вместе с содержимым) точку привязки не трогает, а выпадающие слои висят
+	// на обёртке и её коробкой не обрезаются.
 	display: none;
 	position: fixed;
 	z-index: 1000;
-	flex-flow: row nowrap;
-	align-items: center;
-	gap: 2px;
-	padding: 3px;
-	background-color: var(--input-fill, #fff);
-	border: var(--input-border-type, solid) var(--input-border-width, 1px) var(--input-border-color, #aaa);
-	border-radius: var(--input-border-radius, 0);
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-	// панель тоже монтируется в разметку хоста — курсор поля ввода ей не наследовать
-	cursor: default;
 
 	--svg-size: 18px;
 	--svg-fill: var(--input-color, #222);
 
 	&.visible {
-		display: flex;
+		display: block;
 	}
 
 	// позиционирование относительно контейнера-родителя (например, .ui-textbox)
@@ -164,6 +214,24 @@
 		left: 0;
 		bottom: 100%;
 		margin-bottom: 6px;
+
+		&.link-editing {
+			right: 0;
+		}
+	}
+
+	& .toolbar-body {
+		display: flex;
+		flex-flow: row nowrap;
+		align-items: center;
+		gap: 2px;
+		padding: var(--richeditor-toolbar-padding);
+		background-color: var(--input-fill, #fff);
+		border: var(--input-border-type, solid) var(--input-border-width, 1px) var(--input-border-color, #aaa);
+		border-radius: var(--input-border-radius, 0);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+		// панель тоже монтируется в разметку хоста — курсор поля ввода ей не наследовать
+		cursor: default;
 	}
 
 	// разделитель между инструментами форматирования и действиями
@@ -174,12 +242,12 @@
 		background-color: var(--input-border-color, #aaa);
 	}
 
-	& .format-button,
-	& .block-button,
-	& .host-button,
-	& .action-button {
-		width: calc(var(--input-height, 46px) - 12px);
-		height: calc(var(--input-height, 46px) - 12px);
+	// Оформление у всех кнопок панели общее, поэтому и класс общий: перечислять их по одной
+	// значило бы вспоминать про этот список на каждую новую.
+	& .toolbar-button {
+		flex: 0 0 auto;
+		width: var(--richeditor-toolbar-button-size);
+		height: var(--richeditor-toolbar-button-size);
 		border-radius: calc(var(--input-border-radius, 0) - 2px);
 		border: 0;
 		background: var(--input-toolbar-button-fill, transparent);
@@ -215,6 +283,67 @@
 			}
 		}
 	}
+
+	// Правка адреса ссылки: панель показывает поле ввода вместо кнопок. Не выпадающий слой —
+	// то же место, та же коробка: позиционировать и ужимать ничего не приходится.
+	& .link-row {
+		display: none;
+		flex: 1 1 auto;
+		min-width: 0; // иначе поле не даст строке сжаться уже своей ширины по содержимому
+		align-items: center;
+		gap: 2px;
+	}
+
+	&.link-editing {
+		max-width: var(--richeditor-link-max-width);
+
+		// панели в document.body растягиваться не по чему — ширину задаём сами
+		&:not(.in-container) .toolbar-body {
+			width: var(--richeditor-link-width);
+			max-width: calc(100vw - 8px);
+		}
+
+		// кнопки на это время убраны, а не сдвинуты: панель узкая, рядом им не поместиться.
+		// Кнопки самой строки адреса лежат в ней и под это правило не попадают.
+		& > .toolbar-body > .toolbar-button,
+		& .split {
+			display: none;
+		}
+
+		& .link-row {
+			display: flex;
+		}
+	}
+
+	& .link-input {
+		// Тянется, а не «сто процентов»: процент считался бы от строки, а её ширина сама зависит
+		// от поля — круг, который браузер разрывает собственной шириной input. Ноль в min-width
+		// разрешает сжиматься: у поля ввода она по умолчанию не нулевая, и на узком экране
+		// строка вылезала бы за панель.
+		flex: 1 1 auto;
+		min-width: 0;
+		// В одну строку с кнопками — высота у них общая. Нижней границей, а не точной: поле живёт
+		// в чужой типографике, и от крупного шрифта ему нужно вырасти, а не обрезать строку.
+		min-height: var(--richeditor-toolbar-button-size);
+		box-sizing: border-box; // высота вместе с полями и рамкой, иначе поле выше кнопок
+		padding: 0 8px;
+		// оформление у поля общее с полями ввода кита — своих переменных ему не нужно
+		border: var(--input-border-type, solid) var(--input-border-width, 1px) var(--input-border-color, #aaa);
+		border-radius: calc(var(--input-border-radius, 0) - 2px);
+		font: inherit;
+		color: inherit;
+		background: none;
+		outline: none;
+
+		&:focus {
+			border-color: var(--focus--input-border-color, #222);
+		}
+	}
+
+	// снимать нечего, пока ссылки под кареткой нет
+	& .link-remove[hidden] {
+		display: none;
+	}
 }
 
 // панель вставки смайликов — попап под кнопкой тулбара (открытием/закрытием управляет
@@ -247,7 +376,7 @@
 		flex-flow: row wrap;
 		content-visibility: auto;
 		// высота ненарисованной группы; auto — дальше браузер помнит фактическую
-		contain-intrinsic-size: auto calc(var(--emoji-rows, 8) * var(--richeditor-emoji-size, 32px));
+		contain-intrinsic-size: auto calc(var(--richeditor-emoji-rows) * var(--richeditor-emoji-size));
 	}
 
 	& .emoji-group + .emoji-group {
@@ -258,8 +387,8 @@
 	}
 
 	& .emoji {
-		width: var(--richeditor-emoji-size, 32px);
-		height: var(--richeditor-emoji-size, 32px);
+		width: var(--richeditor-emoji-size);
+		height: var(--richeditor-emoji-size);
 		padding: 0;
 		border: 0;
 		background: transparent;

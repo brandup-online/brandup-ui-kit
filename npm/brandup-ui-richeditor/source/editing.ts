@@ -4,7 +4,7 @@
 
 import { deserialize } from "./serialize";
 import { blockAt, blockTypeOf, blocksInRange, createBlock, isBlock } from "./paragraphs";
-import { documentSelection, innerSelection, literalAncestor } from "./selection";
+import { documentSelection, innerSelection, linkAt, literalAncestor } from "./selection";
 import { BLOCK_TYPES, DEFAULT_BLOCK, type BlockType, type FormatMarkers, type FormatTool } from "./format-config";
 
 // убирает пустые текст-узлы и ставит <br>-заполнитель в пустой абзац (для видимости и каретки)
@@ -221,6 +221,10 @@ export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT
 	const range = selection.getRangeAt(0);
 	range.deleteContents();
 
+	// Ссылку абзац разорвал бы пополам, а её текст в разметке — один кусок. Выводим хвост
+	// из неё до разбиения: в новом абзаце останется обычный текст (см. splitLinkOut).
+	splitLinkOut(editable, range);
+
 	// текущий блок (ближайший блочный предок внутри редактора)
 	const para = blockOf(editable, range.startContainer);
 
@@ -277,7 +281,25 @@ export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT
  * а диапазон встаёт между половинами — вставленное туда окажется снаружи обоих. Пустые
  * половины не оставляем: печатать в них было бы нечего, а каретка попадала бы внутрь.
  */
-function splitElement(el: HTMLElement, range: Range) {
+/**
+ * Выводит хвост ссылки из неё, разрезав по каретке: перед переносом строки.
+ *
+ * Ссылку разрывать нельзя — в разметке её текст один кусок, — а продолжать на новой строке
+ * нечем: адрес у ссылки один, и вторая ссылка с тем же адресом появилась бы сама собой,
+ * хотя её никто не заводил. Поэтому за переносом остаётся обычный текст.
+ */
+function splitLinkOut(editable: HTMLElement, range: Range) {
+	const link = linkAt(editable, range);
+	if (!link) return;
+
+	// Разрезаем и снимаем с хвоста обёртку: каретка стоит ровно перед ним, и разворачивание
+	// её не сдвигает — на месте одного узла оказываются его дети, с того же места.
+	const tail = splitElement(link, range);
+	if (tail) tail.replaceWith(...Array.from(tail.childNodes));
+}
+
+/** Разрезает элемент по каретке; возвращает хвост, если в нём что-то осталось. */
+function splitElement(el: HTMLElement, range: Range): HTMLElement | null {
 	const tail = document.createRange();
 	tail.selectNodeContents(el);
 	tail.setStart(range.startContainer, range.startOffset);
@@ -285,12 +307,15 @@ function splitElement(el: HTMLElement, range: Range) {
 	const rest = el.cloneNode(false) as HTMLElement;
 	rest.appendChild(tail.extractContents());
 
-	if (rest.textContent) el.after(rest);
+	const kept = !!rest.textContent;
+	if (kept) el.after(rest);
 
 	range.setStartAfter(el);
 	range.collapse(true);
 
 	if (!el.textContent) el.remove();
+
+	return kept ? rest : null;
 }
 
 /** Shift/Ctrl+Enter в multiline: вставить мягкий перенос <br>. */
@@ -307,6 +332,11 @@ export function insertSoftBreak(editable: HTMLElement) {
 	// там что-то осталось.
 	const literal = literalAncestor(range.startContainer, editable);
 	if (literal) splitElement(literal, range);
+
+	// Перенос не живёт и в ссылке: её текст — один сплошной кусок, разметкой разорванный
+	// не выражается. Разрезаем так же, но продолжения на новой строке не оставляем: адрес
+	// у неё один, а второй ссылки никто не заводил.
+	splitLinkOut(editable, range);
 
 	const br = document.createElement("br");
 	range.insertNode(br);

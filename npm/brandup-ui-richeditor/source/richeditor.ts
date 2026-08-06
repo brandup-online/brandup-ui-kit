@@ -1,7 +1,7 @@
 import "./richeditor.less"; // стили редактора и панели форматирования
 
 import { DOM, UIElementBound } from "@brandup/ui";
-import { IS_TOUCH_DEVICE } from "@brandup/ui-kit";
+import { IS_TOUCH_DEVICE, PopupManager } from "@brandup/ui-kit";
 import {
 	ALL_FORMAT_TOOLS,
 	BLOCK_TYPES,
@@ -35,6 +35,8 @@ import {
 	selectionCharBounds,
 	serialize,
 	toggleFormat,
+	applyLink as applyLinkTo,
+	linkAt,
 	type BlockType,
 	type EditorAction,
 	type FormatMarkers,
@@ -56,9 +58,9 @@ import {
 	trimSelectionWhitespace,
 } from "./editing";
 import { EditorHistory } from "./history";
-import { formatToolbar, type ToolbarButton } from "./toolbar";
+import { formatToolbar, TOOLBAR_CLASS, type ToolbarButton } from "./toolbar";
 
-export { TOOLBAR_CLASS, formatToolbar, type ToolbarHost, type ToolbarButton } from "./toolbar";
+export { formatToolbar, TOOLBAR_CLASS, type ToolbarHost, type ToolbarButton } from "./toolbar";
 
 export const ROOT_CLASS = "ui-richeditor"; // редактируемый элемент, к нему привязан UIElement
 // Содержимое временно невыделяемо: по странице тянут выделение, начатое вне редактора (см. __holdSelectable).
@@ -69,6 +71,9 @@ const NAV_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "En
 
 // Код — единственное, что есть и инструментом, и типом блока: имя одно на оба (см. applyCode).
 const CODE = "code";
+
+// Ссылка — единственный инструмент с данными: адрес задаётся не переключением (см. applyLink).
+const LINK: FormatTool = "link";
 
 // нативные правки (печать/удаление), состояние до которых запоминаем для собственного undo;
 // вставка/перетаскивание и Enter обрабатываются отдельно, undo/redo — на keydown
@@ -193,7 +198,8 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	// Каретка, снятая при отпускании фокуса: без фокуса браузер может убрать и выделение,
 	// а вставке из попапа нужно место — см. releaseFocus.
 	private __detachedCaret: [number, number] | null = null;
-	private __emojiHold: (() => void) | null = null; // правка придержана на время панели смайликов
+	private __emojiHold: (() => void) | null = null; // правка придержана на время попапа смайликов
+	private __emojiPicker: HTMLElement | null = null; // попап, открытый этим редактором — закрыть его в destroy
 	private __releasingFocus = false; // фокус снимаем сами, а не уходят из поля — см. releaseFocus
 	// Компонент снят. Удержание правки переживает снятие (окно хоста закрывается позже), и по его
 	// снятию трогать содержимое уже нельзя — редактора нет.
@@ -336,21 +342,37 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	}
 
 	/**
-	 * Показать панель вставки смайлика у своей кнопки — когда она живёт не в тулбаре, а в разметке
-	 * хоста (например справа от поля ввода). Вызывать из обработчика `click`, погасив всплытие:
-	 * иначе попап закроется тем же кликом, которым открылся.
+	 * Показать попап смайликов у кнопки.
 	 *
-	 * @param initiator Кнопка, у которой показывается панель.
-	 * @param container Куда монтировать панель; по умолчанию — родитель кнопки.
+	 * Попап приносит владелец — у панели форматирования свой, у поля сообщения свой (собирает
+	 * их {@link createEmojiPicker}). Редактор берёт на себя только своё: придержать правку,
+	 * поставить каретку, отпустить фокус и убрать панель, если попап раскрывается не из неё.
+	 *
+	 * Вызывать из обработчика `click`, погасив всплытие: иначе попап закроется тем же кликом,
+	 * которым открылся. Возвращает false, если попап этим нажатием закрылся.
 	 */
-	openEmojiPicker(initiator: HTMLElement, container?: HTMLElement): void {
-		if (this.readonly) return;
+	openEmojiPicker(picker: HTMLElement, initiator: HTMLElement): boolean {
+		if (this.readonly) return false;
 
-		const target = container ?? initiator.parentElement;
-		if (!target) return;
+		// Попап у кнопки хоста — самостоятельный слой, и показывать его вместе с панелью нельзя:
+		// это два всплывающих окна над одним полем. Попап самой панели — её собственный слой,
+		// прятать его носителя незачем и нечем.
+		const inToolbar = !!picker.closest(`.${TOOLBAR_CLASS}`);
 
-		// повторное нажатие по кнопке панель закрывает — держать и придерживать больше нечего
-		if (!formatToolbar.openEmoji(this, initiator, target)) return;
+		PopupManager.open(picker, {
+			initiator,
+			onClose: () => {
+				this.__emojiPicker = null;
+				this.__emojiHold?.();
+				this.__emojiHold = null;
+				if (!inToolbar) formatToolbar.resume();
+			},
+		});
+		// повторное нажатие по кнопке попап закрывает — держать и придерживать больше нечего
+		if (!picker.classList.contains("opened")) return false;
+
+		this.__emojiPicker = picker;
+		if (!inToolbar) formatToolbar.suspend(this);
 
 		// Правку придерживаем на всё время панели: фокус мы отпустим, а снятие фокуса — не конец
 		// ввода. Иначе нормализация обрезала бы пробел у каретки, и символ встал бы вплотную.
@@ -360,21 +382,14 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// некуда. В конец её ставит focus(true), и только если её действительно не было: снятую
 		// при отпускании фокуса он вернёт на место, а иначе символ уезжал бы в конец сообщения
 		// с каждым открытием панели.
-		//
-		// Строго после открытия панели: фокус показывает тулбар, а придержать его панель успевает
-		// только когда открыта сама.
 		if (!this.selection) this.focus(true);
 
 		// Панель — слой над полем, а не вместо него: каретку видно, и видно, куда встанет символ.
 		// На сенсорном устройстве фокус вместо этого поднимает клавиатуру, которая саму панель
 		// и закрывает, — там его отпускаем, а каретку вернёт вставка (см. keepFocus).
 		if (!this.keepFocus) this.releaseFocus();
-	}
 
-	/** Панель смайликов закрылась: снимаем удержание правки, взятое на время её работы. */
-	onEmojiClosed(): void {
-		this.__emojiHold?.();
-		this.__emojiHold = null;
+		return true;
 	}
 
 	getLength(): number {
@@ -539,12 +554,63 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	isToolEnabled(tool: FormatTool): boolean {
 		if (this.readonly || !this.formatTools.includes(tool)) return false;
 		if (tool === CODE) return true;
+		if (this.currentBlock === CODE || this.isToolActive(CODE)) return false;
 
-		return this.currentBlock !== CODE && !this.isToolActive(CODE);
+		// Ссылке нужен текст, который ею станет: оборачивать нечего — и делать нечего. Каретка
+		// в слове за текст считается (формат применяется к слову целиком), в готовой ссылке —
+		// тоже: её адрес правят той же кнопкой.
+		return tool !== LINK || this.__hasLinkTarget();
+	}
+
+	/** Есть ли что делать ссылкой: текст под выделением или ссылка, в которой стоит каретка. */
+	private __hasLinkTarget(): boolean {
+		const target = this.__formatTarget();
+		if (!target) return false;
+
+		return !target.range.collapsed || !!linkAt(this.editable, target.range);
+	}
+
+	/**
+	 * Адрес ссылки под кареткой; пусто — каретка не в ссылке.
+	 *
+	 * Состояние ссылки — не «включена», а «вот этот адрес»: панели нужен он сам, иначе править
+	 * существующую ссылку было бы нечем.
+	 */
+	get currentLink(): string {
+		const selection = this.selection;
+		if (!selection) return "";
+
+		return linkAt(this.editable, selection.getRangeAt(0))?.getAttribute("href") ?? "";
+	}
+
+	/**
+	 * Ставит ссылку на выделение, меняет адрес у той, в которой стоит каретка, либо снимает её —
+	 * пустым адресом. Оборачивать нечего — не делает ничего: ссылка это оформление текста,
+	 * а не вставка (см. {@link isToolEnabled}, там же гаснет и кнопка).
+	 *
+	 * Не переключатель, в отличие от {@link applyFormat}: у ссылки есть данные, и повторное
+	 * применение с другим адресом — правка, а не снятие.
+	 */
+	applyLink(url: string): void {
+		if (!this.isToolEnabled(LINK)) return;
+
+		// Правит по выделению в поле. Поле адреса в панели забирает фокус, поэтому каретку она
+		// снимает при открытии и возвращает перед вызовом — см. openLink в ./toolbar.
+		const target = this.__formatTarget();
+		if (!target) return;
+
+		this.__history?.record("op");
+		applyLinkTo(this.editable, target.range, url.trim(), target.selection, target.original());
+
+		this.__pendingFormats.clear();
+		this.__emitChange();
+		formatToolbar.refresh();
 	}
 
 	/** Переключить форматирование инструмента (вызывается общим тулбаром и хоткеями). */
 	applyFormat(tool: FormatTool): void {
+		// у ссылки есть адрес, а переключением его не задать — она ставится через applyLink
+		if (tool === LINK) return;
 		if (!this.isToolEnabled(tool)) return;
 
 		let target = this.__formatTarget();
@@ -850,6 +916,13 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.__disposed = true;
 		this.flushChange(); // хост не должен остаться с устаревшей копией значения
 		this.__abort.abort();
+
+		// Попап смайликов мог остаться открытым, а показывали его мы — своим он бывает и у хоста
+		// (см. openEmojiPicker). Оставленный, он держал бы PopupManager на удалённом элементе:
+		// на body висел бы класс открытого попапа и слушатель закрытия, а на узком экране
+		// страница осталась бы непрокручиваемой.
+		if (this.__emojiPicker?.classList.contains("opened")) PopupManager.close();
+
 		formatToolbar.detach(this);
 
 		// элемент передан хостом — не удаляем его, только снимаем оформление редактора
@@ -978,6 +1051,17 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	}
 
 	/**
+	 * Снимает запрет, когда нажали в самом редакторе.
+	 *
+	 * Для касания, где браузер начинает выделять слово прямо на жесте: к этому моменту содержимое
+	 * обязано быть выделяемым, а {@link __holdSelectable} снимет запрет только по мышиному
+	 * нажатию — оно приходит уже после жеста, а у долгого нажатия не приходит вовсе.
+	 */
+	private __releaseSelectableAt(target: EventTarget | null) {
+		if (this.editable.contains(target as Node | null)) this.editable.classList.remove(UNSELECTABLE_CLASS);
+	}
+
+	/**
 	 * Снимает запрет, когда выделение перестало задевать редактор.
 	 *
 	 * Просто по отпусканию кнопки снимать нельзя: диапазон остаётся протянутым через редактор,
@@ -1014,6 +1098,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// По изменению выделения проверять нельзя: пока запрет действует, выделение до редактора
 		// не доходит — проверка увидела бы «не задевает» и сняла запрет сама. Только по концу протяжки.
 		doc.addEventListener("mouseup", () => this.__releaseSelectable(), { signal, capture: true });
+		// Касание: запрет только снимаем, не ставим. Протяжки выделения через страницу на касании
+		// нет — там его ведут за собственные ручки, — а вот слово по двойному нажатию браузер
+		// выделяет сам, ещё на жесте. Мышиные события к нему приезжают уже после (а у долгого
+		// нажатия их и вовсе нет), и снятого по ним запрета жест бы не дождался.
+		doc.addEventListener("touchstart", (e) => this.__releaseSelectableAt(e.target), {
+			signal,
+			capture: true,
+			passive: true,
+		});
 
 		editable.addEventListener(
 			"mousedown",
@@ -1120,7 +1213,12 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			if (tool) {
 				e.preventDefault();
 				e.stopPropagation();
-				if (this.formatTools.includes(tool)) this.applyFormat(tool);
+
+				if (this.formatTools.includes(tool)) {
+					// у ссылки сперва спрашивается адрес — тем же полем в панели, что и у кнопки
+					if (tool === LINK) formatToolbar.openLinkFor(this);
+					else this.applyFormat(tool);
+				}
 				return;
 			}
 		}

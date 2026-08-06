@@ -3,7 +3,7 @@
  */
 import { PopupManager } from "@brandup/ui-kit";
 import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS } from "../source/richeditor";
-import { EMOJI_PICKER_CLASS } from "../source/toolbar";
+import { EMOJI_PICKER_CLASS } from "../source/emoji";
 import { EMOJIS, EMOJI_GROUPS } from "../source/emoji";
 import { ALL_FORMAT_TOOLS } from "../source/format-config";
 import { expandRangeToWords } from "../source/editing";
@@ -1638,6 +1638,30 @@ describe("RichEditor selection isolation", () => {
 		editor.editable.focus();
 
 		press(outside);
+
+		expect(unselectable(editor)).toBe(false);
+	});
+
+	// Слово по двойному нажатию браузер выделяет прямо на жесте, а мышиные события приходят уже
+	// после него — у долгого нажатия не приходят вовсе. Запрет, снятый по ним, жест бы не дождался
+	// и выделять отказался: содержимое к этому моменту невыделяемо.
+	it("drops the hold on a touch inside, before any mouse event", () => {
+		const { editor, outside } = withNeighbour();
+
+		press(outside);
+		expect(unselectable(editor)).toBe(true);
+
+		editor.editable.querySelector("p")!.firstChild!.dispatchEvent(new Event("touchstart", { bubbles: true }));
+
+		expect(unselectable(editor)).toBe(false);
+	});
+
+	// Протяжки выделения через страницу на касании нет — там его ведут за собственные ручки,
+	// поэтому по касанию мимо редактора запрет не ставится
+	it("does not hold on a touch outside", () => {
+		const { editor, outside } = withNeighbour();
+
+		outside.dispatchEvent(new Event("touchstart", { bubbles: true }));
 
 		expect(unselectable(editor)).toBe(false);
 	});

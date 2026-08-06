@@ -39,6 +39,46 @@ function lineBreak(storage: FormatStorage): string {
 	return storage === "html" ? "<br>" : "\n";
 }
 
+/**
+ * Текст ссылки в markdown: скобки внутри разорвали бы её на разборе, поэтому экранируются.
+ * Обратная косая — тоже: иначе она съела бы следующий символ при чтении.
+ */
+function escapeLinkText(text: string): string {
+	return text.replace(/[\\[\]]/g, "\\$&");
+}
+
+/** Обратное к {@link escapeLinkText}: снимаем только то, что сами ставим. */
+function unescapeLinkText(text: string): string {
+	return text.replace(/\\([\\[\]])/g, "$1");
+}
+
+/** Значение атрибута: кавычка внутри разорвала бы его. */
+function attrValue(text: string): string {
+	return text.replace(/"/g, "&quot;");
+}
+
+/**
+ * Адрес ссылки в markdown. Пробелы и непарные скобки конец адреса не обозначают, поэтому такой
+ * адрес берётся в угловые скобки — форма markdown ровно для этого случая. Парные скобки читаются
+ * и без них: без этого половина ссылок на википедию писалась бы угловыми.
+ */
+function markdownUrl(href: string): string {
+	if (!/[\s<>]/.test(href) && balancedParens(href)) return href;
+
+	// сами угловые внутри пришлось бы отличать от закрывающей — кодируем
+	return `<${href.replace(/[<>]/g, (char) => encodeURIComponent(char))}>`;
+}
+
+function balancedParens(text: string): boolean {
+	let depth = 0;
+	for (const char of text) {
+		if (char === "(") depth++;
+		else if (char === ")" && --depth < 0) return false;
+	}
+
+	return depth === 0;
+}
+
 function wrap(
 	storage: FormatStorage,
 	tool: FormatTool,
@@ -117,6 +157,28 @@ function serializeInline(
 		// вложенный блочный элемент (нестандарт) — без обёртки, просто содержимое
 		if (tag === "DIV" || tag === "P") {
 			result += inner;
+			continue;
+		}
+
+		// Ссылка собирается не маркером: адрес идёт отдельной частью и в тексте не виден.
+		// Без адреса или без текста ссылки нет — остаётся одно содержимое, как у отключённого тега.
+		if (tool === "link") {
+			// Адрес приходит из атрибута распакованным. При разборе значения его уже проверяли,
+			// но в DOM он мог попасть и мимо: вставкой, правкой из кода. Проверяем ещё раз здесь —
+			// через это место идут обе стороны, и сборка значения, и санитизация вставки.
+			const url = safeUrl(el.getAttribute("href") ?? "");
+			// Перенос внутри ссылки разметкой не выражается, и разбор её обратно не соберёт —
+			// оставляем текст, как и без адреса. Своя правка такого не создаёт (см. splitLinkOut
+			// в ./editing), а вот вставка чужого HTML — запросто.
+			if (!inner || !url || el.querySelector("br")) {
+				result += inner;
+				continue;
+			}
+
+			result +=
+				storage === "html"
+					? `<a href="${attrValue(escapeHtml(url))}">${inner}</a>`
+					: `[${escapeLinkText(inner)}](${markdownUrl(url)})`;
 			continue;
 		}
 
@@ -345,8 +407,43 @@ function balancedTags(inner: string): boolean {
 const STASH_MARK = "&#0;";
 const STASH_PATTERN = /&#0;(\d+)&#0;/g;
 
+// Адрес ссылки на то же время: в нём сплошь и рядом попадаются символы маркеров
+// (`example.com/a_b_c`), а разметкой они там не являются. Метка своя, не общая с кодом:
+// у кода прячется содержимое и возвращается тегом, здесь — значение атрибута готового тега.
+const HREF_MARK = "&#1;";
+const HREF_PATTERN = /&#1;(\d+)&#1;/g;
+
+/**
+ * Ссылка markdown: `[текст](адрес)`. Текст — со скобками внутри, если они экранированы, но без
+ * переноса строки: разорванная ссылка разметкой не выражается, как и разорванная пара маркеров.
+ * Адрес — либо в угловых скобках (тогда в нём допустимы пробелы), либо до закрывающей скобки,
+ * причём парные скобки внутри разрешены: ими кончается половина ссылок на википедию.
+ *
+ * Разбирается по уже заэкранированному тексту, поэтому угловые скобки здесь — `&lt;`/`&gt;`.
+ */
+const LINK_PATTERN = /\[((?:\\.|[^\\[\]\n])*)\]\((&lt;[^\n]*?&gt;|(?:[^\s()]|\([^()]*\))*)\)/g;
+
+const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+const SAFE_SCHEME = /^(?:https?|mailto|tel):/i;
+
+/**
+ * Адрес, безопасный для `href`; пустая строка — такой ссылке не быть.
+ *
+ * `javascript:` в адресе — это исполнение кода, пришедшего вместе со значением: та же дыра, от
+ * которой бережёт вывод текста текстом. Пропускаем известные схемы и адреса без схемы вовсе —
+ * относительные и протокол-относительные.
+ */
+function safeUrl(href: string): string {
+	const value = href.trim();
+	// Схему читаем так же, как её прочитает браузер: всё, из чего схема состоять не может,
+	// он из неё выбрасывает — и без этого `java<таб>script:` прошло бы мимо проверки.
+	const probe = value.replace(/[^a-z0-9+.:/-]/gi, "");
+
+	return !SCHEME.test(probe) || SAFE_SCHEME.test(probe) ? value : "";
+}
+
 // Markdown-разметка одного абзаца → инлайновый HTML (escape, маркеры, \n→<br>).
-function markdownInline(text: string, order: MarkerRule[]): string {
+function markdownInline(text: string, order: MarkerRule[], linked: boolean): string {
 	let html = escapeHtml(text);
 
 	// Код — первым: внутри него `*звёздочки*` остаются текстом, как у мессенджеров. Иначе
@@ -359,6 +456,24 @@ function markdownInline(text: string, order: MarkerRule[]): string {
 
 				return `${lead}${STASH_MARK}${stash.length - 1}${STASH_MARK}`;
 			});
+
+	// Ссылка — следом за кодом и до маркеров. Следом за кодом, чтобы `[раз](два)` внутри него
+	// осталось текстом; до маркеров — потому что в адресе их символы попадаются сплошь и рядом
+	// (`example.com/a_b_c`), а разметкой там не являются. Прячем меткой один адрес: текст
+	// остаётся в потоке, и разметка внутри него разбирается наравне с остальной.
+	const hrefs: string[] = [];
+	if (linked && html.includes("("))
+		html = html.replace(LINK_PATTERN, (match, inner: string, url: string) => {
+			// адрес в угловых скобках — форма для адресов с пробелами; сами скобки в него не входят
+			const raw = url.startsWith("&lt;") ? url.slice(4, -4) : url;
+			const href = safeUrl(raw);
+			const text = unescapeLinkText(inner);
+			if (!text || !href) return match; // без текста или без адреса ссылки нет
+
+			hrefs.push(href);
+
+			return `<a href="${HREF_MARK}${hrefs.length - 1}${HREF_MARK}">${text}</a>`;
+		});
 
 	for (const rule of order) {
 		if (rule.tool === "code") continue; // уже вынесен
@@ -380,6 +495,9 @@ function markdownInline(text: string, order: MarkerRule[]): string {
 			return `${openTag(def.tag, marked)}${inner}</${def.tag}>`;
 		});
 	}
+
+	// адреса возвращаются последними: до этого места они прятались от маркеров
+	if (hrefs.length) html = html.replace(HREF_PATTERN, (_match, index: string) => attrValue(hrefs[+index]));
 
 	// переносы — после маркеров: пока это \n, запрет на пересечение строки работает
 	return html.replace(/\r?\n/g, "<br>");
@@ -459,13 +577,17 @@ export function deserialize(
 
 	if (storage === "markdown") {
 		const order = orderedMarkers(tools, markers);
+		// ссылка живёт мимо маркеров, поэтому в order её нет — спрашиваем набор напрямую
+		const linked = tools.includes("link");
 
-		if (!paragraphs) return markdownInline(value, order);
+		if (!paragraphs) return markdownInline(value, order, linked);
 
 		return markdownBlocks(value, types, separate)
 			.map(([type, text]) => {
 				const def = BLOCK_TYPES[type];
-				const inner = def.inline ? markdownInline(text, order) : escapeHtml(text).replace(/\n/g, "<br>");
+				const inner = def.inline
+					? markdownInline(text, order, linked)
+					: escapeHtml(text).replace(/\n/g, "<br>");
 
 				// Пустая последняя строка видна только с заполнителем: без него браузер не рисует
 				// её и не пускает туда каретку — строка, которая в значении есть, пропала бы.
