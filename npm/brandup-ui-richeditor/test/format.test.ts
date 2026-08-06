@@ -9,6 +9,7 @@ import {
 	defaultFormatMarkers,
 	normalizeWhitespace,
 	normalizeParagraphs,
+	type FormatTool,
 } from "../source/format";
 
 function makeRoot(html: string): HTMLElement {
@@ -327,5 +328,59 @@ describe("isFormatActive", () => {
 		const sel = select(foo, 0, bar, 3);
 
 		expect(isFormatActive(root, sel.getRangeAt(0), "bold")).toBe(false);
+	});
+});
+
+/**
+ * Чужие диалекты того же инструмента: `*жирный*` — родная разметка WhatsApp, и так размечены
+ * сообщения, набранные до редактора. Показывать их звёздочками — показывать не то, что увидит
+ * получатель, а переписывать под свой маркер нельзя: открыть и закрыть сообщение меняло бы текст.
+ */
+describe("markdown dialects", () => {
+	const md = defaultFormatMarkers();
+	const tools: FormatTool[] = ["bold", "italic", "strike", "underline"];
+	const parse = (text: string, markers = md) => deserialize(text, "markdown", tools, markers);
+	const print = (html: string, markers = md) => serialize(makeRoot(html), "markdown", tools, markers);
+
+	it("parses the alias marker", () => {
+		expect(parse("*жирный*")).toBe('<b data-md="*">жирный</b>');
+		expect(parse("**жирный**")).toBe("<b>жирный</b>");
+	});
+
+	it.each([["*жирный* текст"], ["**жирный** текст"], ["*раз* и **два**"], ["*жирный _и курсив_*"]])(
+		"round-trips %j unchanged",
+		(value) => {
+			expect(print(parse(value))).toBe(value);
+		}
+	);
+
+	// в поле ставится настроенный маркер, каким бы ни был текст вокруг
+	it("prints the configured marker for what was formatted in the field", () => {
+		expect(print('<b data-md="*">раз</b> и <b>два</b>')).toBe("*раз* и **два**");
+		expect(print("<b>раз</b>")).toBe("**раз**");
+	});
+
+	// маркер из другого инструмента чужим диалектом не считается
+	it("ignores a remembered marker that is not its own", () => {
+		expect(print('<b data-md="_">раз</b>')).toBe("**раз**");
+	});
+
+	// одиночная звёздочка не должна собираться из половинок двойной
+	it.each([["5**4 = 20, 3**2 = 6"], ["2 ** 2 ** 2"], ["3 * 4 = 12"], ["звёздочка * одна"]])(
+		"leaves %j as text",
+		(value) => {
+			expect(parse(value)).toBe(value);
+		}
+	);
+
+	// настройка меняет маркер местами: свой становится чужим диалектом
+	it("takes the registry marker as the alias when the configured one differs", () => {
+		const markers = defaultFormatMarkers();
+		markers.bold = "*";
+
+		expect(parse("*жирный*", markers)).toBe("<b>жирный</b>");
+		expect(parse("**жирный**", markers)).toBe('<b data-md="**">жирный</b>');
+		expect(print(parse("**жирный**", markers), markers)).toBe("**жирный**");
+		expect(print("<b>жирный</b>", markers)).toBe("*жирный*");
 	});
 });

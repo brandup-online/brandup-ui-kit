@@ -3,6 +3,7 @@
 import { blockTypeOf } from "./paragraphs";
 import {
 	ALL_BLOCK_TYPES,
+	ALL_FORMAT_TOOLS,
 	BLOCK_TYPES,
 	DEFAULT_BLOCK,
 	FORMAT_TOOLS,
@@ -28,17 +29,29 @@ function buildTagMap(tools: FormatTool[]): Record<string, FormatTool> {
 	return map;
 }
 
+/**
+ * Чем текст был размечен, если не настроенным маркером. Живёт только в разметке поля: значение
+ * собирается тегами, и атрибут в него не попадает ни при каком формате хранения.
+ */
+const MARKER_ATTR = "data-md";
+
 function lineBreak(storage: FormatStorage): string {
 	return storage === "html" ? "<br>" : "\n";
 }
 
-function wrap(storage: FormatStorage, tool: FormatTool, inner: string, markers: FormatMarkers): string {
+function wrap(
+	storage: FormatStorage,
+	tool: FormatTool,
+	inner: string,
+	markers: FormatMarkers,
+	source?: HTMLElement
+): string {
 	if (!inner) return inner;
 
 	const def = FORMAT_TOOLS[tool];
 	if (storage === "html") return `<${def.tag}>${inner}</${def.tag}>`;
 
-	const marker = markers[tool];
+	const marker = ownMarker(tool, markers, source);
 
 	// Маркер не сработает, если содержимое начинается или заканчивается пробелом, — ни у нас
 	// при разборе, ни у мессенджера. Выносим краевые пробелы наружу: разметка сохраняется,
@@ -49,6 +62,17 @@ function wrap(storage: FormatStorage, tool: FormatTool, inner: string, markers: 
 	if (!core) return inner; // одни пробелы — оборачивать нечего
 
 	return `${leading}${marker}${core}${marker}${trailing}`;
+}
+
+/**
+ * Маркер, которым текст был размечен: запомненный на элементе, если он известен инструменту,
+ * иначе настроенный. Чужой диалект (`*жирный*` из WhatsApp) обязан вернуться в значение таким
+ * же, каким пришёл; всё, что размечено в поле, пишется настроенным маркером.
+ */
+function ownMarker(tool: FormatTool, markers: FormatMarkers, source?: HTMLElement): string {
+	const marked = source?.dataset.md;
+
+	return marked && MARKER_ALIASES[tool].includes(marked) ? marked : markers[tool];
 }
 
 // Сериализует инлайновое содержимое (текст, форматирование, <br> как мягкий перенос).
@@ -84,7 +108,7 @@ function serializeInline(
 		// форматирование не вернулось бы — значение разошлось бы с тем, что было в поле.
 		if (tool === "code") {
 			const text = el.textContent ?? "";
-			result += wrap(storage, tool, storage === "html" ? escapeHtml(text) : text, markers);
+			result += wrap(storage, tool, storage === "html" ? escapeHtml(text) : text, markers, el);
 			continue;
 		}
 
@@ -97,7 +121,7 @@ function serializeInline(
 		}
 
 		// неизвестный или отключённый тег — отбрасываем обёртку, оставляем текст
-		result += tool ? wrap(storage, tool, inner, markers) : inner;
+		result += tool ? wrap(storage, tool, inner, markers, el) : inner;
 	}
 
 	return result;
@@ -220,8 +244,17 @@ export function serialize(
 	return inline.replace(/^\n+/, "").replace(/\n+$/, "").trim();
 }
 
-/** Инструмент, его маркер и признак «содержимое не может начинаться/заканчиваться самим маркером». */
-type MarkerRule = [tool: FormatTool, marker: string, standalone: boolean];
+/** Правило разбора одного маркера. */
+interface MarkerRule {
+	tool: FormatTool;
+	marker: string;
+	/** Содержимое не может начинаться и заканчиваться символом самого маркера. */
+	standalone: boolean;
+	/** Символ маркера не считается границей: маркер не собирается из половинок длинного. */
+	guarded: boolean;
+	/** Маркер настроенный, а не из чужого диалекта. */
+	own: boolean;
+}
 
 /**
  * Маркеры в порядке применения: длинный (`__`) раньше короткого-префикса (`_`), иначе
@@ -234,20 +267,47 @@ type MarkerRule = [tool: FormatTool, marker: string, standalone: boolean];
  * подчёркивания. Так же поступают паттерны конвертеров.
  */
 function orderedMarkers(tools: FormatTool[], markers: FormatMarkers): MarkerRule[] {
-	const active = tools.filter((tool) => markers[tool]).sort((a, b) => markers[b].length - markers[a].length);
+	const active = tools.filter((tool) => markers[tool]);
+	const rules: Array<[FormatTool, string, boolean]> = active.map((tool) => [tool, markers[tool], true]);
+	const taken = new Set(rules.map(([, marker]) => marker));
 
-	return active.map((tool) => {
-		const marker = markers[tool];
-		const hasShorterPrefix = active.some((other) => {
-			const value = markers[other];
-			return value.length < marker.length && marker.startsWith(value);
-		});
+	// Чужие диалекты того же инструмента: запасные маркеры из реестра и его собственный, если
+	// настройка его заменила. Разбираются наравне, а ставится всегда настроенный — см. markdownInline.
+	for (const tool of active)
+		for (const alias of MARKER_ALIASES[tool])
+			if (!taken.has(alias)) {
+				taken.add(alias);
+				rules.push([tool, alias, false]);
+			}
 
-		return [tool, marker, hasShorterPrefix];
-	});
+	const all = Array.from(taken);
+
+	return rules
+		.sort((a, b) => b[1].length - a[1].length)
+		.map(([tool, marker, own]) => ({
+			tool,
+			marker,
+			own,
+			standalone: all.some((value) => value.length < marker.length && marker.startsWith(value)),
+			guarded: all.some((value) => value.length > marker.length && value.startsWith(marker)),
+		}));
 }
 
-const TAG = /<(\/?)([a-z]+)>/g;
+/**
+ * Маркеры инструмента, объявленные в реестре: свой и запасные. Собираются один раз — их
+ * спрашивают и на каждый разбор, и на каждый размеченный элемент при сериализации.
+ */
+const MARKER_ALIASES: Record<FormatTool, string[]> = ALL_FORMAT_TOOLS.reduce(
+	(map, tool) => {
+		const def = FORMAT_TOOLS[tool];
+		map[tool] = [def.md, ...(def.mdAliases ?? [])].filter(Boolean);
+
+		return map;
+	},
+	{} as Record<FormatTool, string[]>
+);
+
+const TAG = /<(\/?)([a-z-]+)(?:\s[^>]*)?>/g;
 
 /**
  * Закрыт ли в содержимом каждый тег, который в нём открыт.
@@ -285,28 +345,34 @@ function markdownInline(text: string, order: MarkerRule[]): string {
 
 	// Код — первым: внутри него `*звёздочки*` остаются текстом, как у мессенджеров. Иначе
 	// содержимое кода размечалось бы, и то, что человек написал буквально, уезжало бы жирным.
-	const stash: string[] = [];
-	const code = order.find(([tool]) => tool === "code");
-	if (code) {
-		html = html.replace(markerPattern(code[1], code[2]), (_match, lead: string, inner: string) => {
-			stash.push(inner);
+	const stash: Array<[inner: string, marked: string]> = []; // содержимое и чужой маркер, если был
+	for (const rule of order)
+		if (rule.tool === "code" && html.includes(rule.marker))
+			html = html.replace(pattern(rule), (_match, lead: string, inner: string) => {
+				stash.push([inner, rule.own ? "" : rule.marker]);
 
-			return `${lead}${STASH_MARK}${stash.length - 1}${STASH_MARK}`;
-		});
-	}
+				return `${lead}${STASH_MARK}${stash.length - 1}${STASH_MARK}`;
+			});
 
-	for (const [tool, marker, standalone] of order) {
-		if (tool === "code") continue; // уже вынесен
+	for (const rule of order) {
+		if (rule.tool === "code") continue; // уже вынесен
+		// Разбор идёт по абзацу на каждый маркер, а маркеров с диалектами уже семь. Поиск
+		// подстроки на порядок дешевле разбора регуляркой, и почти всегда он же и решает.
+		if (!html.includes(rule.marker)) continue;
 
-		const def = FORMAT_TOOLS[tool];
-		html = html.replace(markerPattern(marker, standalone), (match, lead: string, inner: string) =>
-			balancedTags(inner) ? `${lead}<${def.tag}>${inner}</${def.tag}>` : match
+		const def = FORMAT_TOOLS[rule.tool];
+		html = html.replace(pattern(rule), (match, lead: string, inner: string) =>
+			balancedTags(inner) ? `${lead}${openTag(def.tag, rule.own ? "" : rule.marker)}${inner}</${def.tag}>` : match
 		);
 	}
 
 	if (stash.length) {
 		const def = FORMAT_TOOLS.code;
-		html = html.replace(STASH_PATTERN, (_match, index: string) => `<${def.tag}>${stash[+index]}</${def.tag}>`);
+		html = html.replace(STASH_PATTERN, (_match, index: string) => {
+			const [inner, marked] = stash[+index];
+
+			return `${openTag(def.tag, marked)}${inner}</${def.tag}>`;
+		});
 	}
 
 	// переносы — после маркеров: пока это \n, запрет на пересечение строки работает
@@ -328,26 +394,41 @@ function markdownInline(text: string, order: MarkerRule[]): string {
  * Содержимое не начинается и с U+20E3: в keycap-последовательностях (`*⃣`, `#⃣`, `1⃣`) сам
  * маркер служит базовым символом, и без этого `*⃣раз*` разбиралось бы как разметка вместо эмодзи.
  *
- * При `standalone` содержимое дополнительно не начинается и не заканчивается символом самого
- * маркера — см. {@link orderedMarkers}.
+ * При `standalone` содержимое не начинается и не заканчивается символом самого маркера, при
+ * `guarded` этот символ вдобавок перестаёт быть границей. Так разводятся маркеры, один из
+ * которых начинается с другого (`_` и `__`, `*` и `**`) — см. {@link orderedMarkers}.
  */
-function markerPattern(marker: string, standalone: boolean): RegExp {
-	const key = standalone ? `${marker}` : marker;
+function pattern(rule: MarkerRule): RegExp {
+	const { marker, standalone, guarded } = rule;
+	// в ключе различаем режимы: один и тот же маркер бывает разведён по-разному
+	const key = `${marker}|${standalone ? "s" : ""}${guarded ? "g" : ""}`;
 
-	let pattern = markerPatterns.get(key);
-	if (pattern) return pattern;
+	const cached = markerPatterns.get(key);
+	if (cached) return cached;
 
 	const escaped = escapeRegExp(marker);
-	const boundary = "[^\\p{L}\\p{N}]";
 	// символ маркера в классе — экранируем то, что в нём значимо
-	const own = standalone ? marker.slice(-1).replace(/[\\\]^-]/g, "\\$&") : "";
-	const head = `[^\\s\\u20e3${own}]`;
-	const tail = standalone ? `[^\\s${own}]` : "\\S";
+	const own = marker.slice(-1).replace(/[\\\]^-]/g, "\\$&");
+	const edge = standalone || guarded ? own : "";
+	// Границей символ маркера перестаёт быть только у короткого. Длинному она нужна: в
+	// `___текст___` его пара стоит рядом со своим же символом, и без границы её не найти.
+	const boundary = `[^\\p{L}\\p{N}${guarded ? own : ""}]`;
+	const head = `[^\\s\\u20e3${edge}]`;
+	const tail = edge ? `[^\\s${edge}]` : "\\S";
 
-	pattern = new RegExp(`(^|${boundary})${escaped}(${head}|${head}[^\\n]*?${tail})${escaped}(?=$|${boundary})`, "gu");
-	markerPatterns.set(key, pattern);
+	const built = new RegExp(
+		`(^|${boundary})${escaped}(${head}|${head}[^\\n]*?${tail})${escaped}(?=$|${boundary})`,
+		"gu"
+	);
+	markerPatterns.set(key, built);
 
-	return pattern;
+	return built;
+}
+
+/** Открывающий тег: чужой маркер запоминается на элементе, чтобы значение вернулось таким же. */
+function openTag(tag: string, marked: string): string {
+	// маркер задаёт хост — в значении атрибута экранируем и кавычку, иначе она разорвёт его
+	return marked ? `<${tag} ${MARKER_ATTR}="${escapeHtml(marked).replace(/"/g, "&quot;")}">` : `<${tag}>`;
 }
 
 // Набор маркеров за разбор не меняется, а разбор идёт по абзацам — компилируем каждую
