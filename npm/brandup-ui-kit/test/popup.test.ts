@@ -1,7 +1,13 @@
 /**
  * @jest-environment jsdom
  */
-import { PopupManager, POPUP_CLASS, POPUP_EXPANDED_CLASS } from "../source/popup";
+import {
+	PopupManager,
+	POPUP_CLASS,
+	POPUP_OPENED_CLASS,
+	POPUP_EXPANDED_CLASS,
+	POPUP_OPENED_BODY_CLASS,
+} from "../source/popup";
 
 function makePopup(): HTMLElement {
 	const el = document.createElement("div");
@@ -94,6 +100,84 @@ describe("PopupManager", () => {
 		expect(popupB.classList.contains("opened")).toBe(true);
 		expect(initiatorB.classList.contains(POPUP_EXPANDED_CLASS)).toBe(true);
 		expect(PopupManager.isOpened()).toBe(true);
+	});
+
+	it("open() marks body and close() unmarks it", () => {
+		const popup = makePopup();
+
+		PopupManager.open(popup);
+		expect(document.body.classList.contains(POPUP_OPENED_BODY_CLASS)).toBe(true);
+
+		PopupManager.close();
+		expect(document.body.classList.contains(POPUP_OPENED_BODY_CLASS)).toBe(false);
+	});
+
+	it("body stays marked when another popup takes over", () => {
+		const popupA = makePopup();
+		const popupB = makePopup();
+
+		PopupManager.open(popupA);
+		PopupManager.open(popupB);
+
+		expect(document.body.classList.contains(POPUP_OPENED_BODY_CLASS)).toBe(true);
+	});
+
+	it("toggling the same popup closed unmarks body", () => {
+		const popup = makePopup();
+
+		PopupManager.open(popup);
+		PopupManager.open(popup);
+
+		expect(document.body.classList.contains(POPUP_OPENED_BODY_CLASS)).toBe(false);
+	});
+
+	// Те же строки прописаны селекторами в popup.less: переименование константы молча разъехалось
+	// бы со стилями, и попап остался бы без оформления открытого состояния.
+	it("class names match the CSS contract", () => {
+		expect(POPUP_CLASS).toBe("ui-popup");
+		expect(POPUP_OPENED_CLASS).toBe("opened");
+		expect(POPUP_EXPANDED_CLASS).toBe("ui-popup-expanded");
+		expect(POPUP_OPENED_BODY_CLASS).toBe("ui-popup-opened");
+	});
+
+	it("isOpened(elem) answers about that popup only", () => {
+		const popup = makePopup();
+		const other = makePopup();
+
+		PopupManager.open(popup);
+
+		expect(PopupManager.isOpened(popup)).toBe(true);
+		expect(PopupManager.isOpened(other)).toBe(false);
+	});
+
+	it("Escape closes the popup", () => {
+		const popup = makePopup();
+		PopupManager.open(popup);
+
+		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+		expect(PopupManager.isOpened()).toBe(false);
+		expect(popup.classList.contains(POPUP_OPENED_CLASS)).toBe(false);
+	});
+
+	it("other keys keep the popup open", () => {
+		const popup = makePopup();
+		PopupManager.open(popup);
+
+		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+		expect(PopupManager.isOpened()).toBe(true);
+	});
+
+	it("Escape after close does not fire onClose again", () => {
+		const popup = makePopup();
+		const onClose = jest.fn();
+		PopupManager.open(popup, { onClose });
+		PopupManager.close();
+
+		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+		expect(onClose).toHaveBeenCalledTimes(1);
 	});
 
 	it("close() fires the onClose callback", () => {

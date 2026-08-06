@@ -1,7 +1,11 @@
 import "./popup.less"; // стили всплывающей поверхности
 
 export const POPUP_CLASS = "ui-popup";
+/** Ставится на сам попап, пока он открыт. */
+export const POPUP_OPENED_CLASS = "opened";
 export const POPUP_EXPANDED_CLASS = "ui-popup-expanded";
+/** Ставится на body, пока открыт попап: страница может подстроиться под него (см. popup.less). */
+export const POPUP_OPENED_BODY_CLASS = "ui-popup-opened";
 export const POPUP_COMMAND = "ui-popup-toggle";
 
 type CurrentPopup = {
@@ -29,17 +33,28 @@ const closePopupEventHandler = (e: MouseEvent) => {
 	}
 };
 
+// Escape закрывает попап — это ожидание от любого всплывающего слоя, и держать свой обработчик
+// каждому компоненту незачем. Слушатель не перехватывающий: обработчики на самом попапе получают
+// клавишу первыми и успевают сделать своё (вернуть фокус, отменить ввод).
+const closePopupKeyHandler = (e: KeyboardEvent) => {
+	if (e.key !== "Escape") return;
+
+	close();
+};
+
 const close = () => {
 	if (current) {
 		if (current.closeCallback) current.closeCallback();
 
 		current.initiator?.classList.remove(POPUP_EXPANDED_CLASS); // закрываем последнее открытое контекстное меню
-		current.popup.classList.remove("opened");
+		current.popup.classList.remove(POPUP_OPENED_CLASS);
 
 		current = null;
 	}
 
+	document.body.classList.remove(POPUP_OPENED_BODY_CLASS);
 	document.body.removeEventListener("click", closePopupEventHandler);
+	document.removeEventListener("keydown", closePopupKeyHandler);
 };
 
 const open = (popupElem: HTMLElement, options?: PopupOptions) => {
@@ -52,12 +67,14 @@ const open = (popupElem: HTMLElement, options?: PopupOptions) => {
 
 	newPopup.closeCallback = options?.onClose;
 
-	if (newPopup.popup.classList.toggle("opened")) {
+	if (newPopup.popup.classList.toggle(POPUP_OPENED_CLASS)) {
 		// это новый popup, открываем его
 
 		newPopup.initiator?.classList.add(POPUP_EXPANDED_CLASS);
+		document.body.classList.add(POPUP_OPENED_BODY_CLASS);
 
 		document.body.addEventListener("click", closePopupEventHandler);
+		document.addEventListener("keydown", closePopupKeyHandler);
 
 		current = newPopup;
 	} else {
@@ -69,13 +86,14 @@ const open = (popupElem: HTMLElement, options?: PopupOptions) => {
 export const PopupManager: IPopupManager = {
 	open,
 	close,
-	isOpened: () => !!current,
+	isOpened: (popupElem?: HTMLElement) => (popupElem ? current?.popup === popupElem : !!current),
 };
 
 interface IPopupManager {
 	open: (popupElem: HTMLElement, options?: PopupOptions) => void;
 	close: () => void;
-	isOpened: () => boolean;
+	/** Без аргумента — открыт ли хоть один попап; с аргументом — открыт ли именно этот. */
+	isOpened: (popupElem?: HTMLElement) => boolean;
 }
 
 interface PopupOptions {

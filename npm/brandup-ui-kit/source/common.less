@@ -42,9 +42,20 @@
 	--scrollbar-size: @scrollbar-size;
 	--scrollbar-thumb: @scrollbar-thumb;
 	--scrollbar-thumb-radius: @scrollbar-thumb-radius;
+	--scrollbar-gutter: @scrollbar-gutter;
 }
 
 // Body styles
+
+// Место под полосой прокрутки держим занятым всегда. Иначе страница дёргается по ширине каждый
+// раз, когда прокрутку придерживают (попап-окно, модальное окно): полоса пропадает, вьюпорт
+// становится шире на её толщину, и весь контент уезжает вбок. Свойство пишем на обоих элементах:
+// полосу вьюпорта задаёт то из них, чей overflow до вьюпорта доехал (у нас это body), но движки
+// читают gutter с корня. Отключается переменной: --scrollbar-gutter: auto.
+html,
+body {
+	scrollbar-gutter: var(--scrollbar-gutter);
+}
 
 body {
 	-webkit-font-smoothing: antialiased;
