@@ -122,8 +122,9 @@ export interface RichEditorOptions {
 	/** Что делает Enter: новый абзац (по умолчанию) или мягкий перенос, как в мессенджерах. */
 	paragraph?: ParagraphMode;
 	/**
-	 * Типы блоков в многострочном режиме: цитата, блок кода (по умолчанию только обычный текст).
-	 * Обычный текст в наборе есть всегда — в него блок возвращают.
+	 * Block types of the multiline mode: quote, code block (all of them by default). A field that
+	 * has no use for them is limited by an empty list. Plain text is always in the set — a block
+	 * is turned back into it.
 	 */
 	blocks?: BlockType[];
 	/**
@@ -1131,15 +1132,19 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// перемещение каретки — выход из режима набора
 		if (NAV_KEYS.includes(e.key)) this.__clearPendingFormats();
 
-		const isChar = e.key.length === 1;
+		// A character, not a shortcut: Cmd is the same modifier as Ctrl, just on another platform.
+		// Without it Cmd+C on a Mac would look like typing the letter "c" — copying would be
+		// swallowed by the readonly guard, and the host filter would reject copy, paste and
+		// select-all alike.
+		const isChar = e.key.length === 1 && !e.ctrlKey && !e.metaKey;
 
-		if (this.readonly && isChar && !e.ctrlKey) {
+		if (this.readonly && isChar) {
 			e.preventDefault();
 			e.stopPropagation();
 			return;
 		}
 
-		if (isChar && !e.ctrlKey && this.__opts.filterChar && !this.__opts.filterChar(e.key)) {
+		if (isChar && this.__opts.filterChar && !this.__opts.filterChar(e.key)) {
 			e.preventDefault();
 			e.stopPropagation();
 			this.__reject();
@@ -1275,12 +1280,13 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			ensureParagraphs(this.editable); // заполнить пустые абзацы, убрать краевые <br>
 		} else {
 			// инлайн: абзацы и переносы → пробелы, форматирование сохраняем
-			const fragment = document.createDocumentFragment();
+			const doc = this.editable.ownerDocument;
+			const fragment = doc.createDocumentFragment();
 			paras.forEach((p, index) => {
-				if (index > 0) fragment.appendChild(document.createTextNode(" "));
+				if (index > 0) fragment.appendChild(doc.createTextNode(" "));
 				while (p.firstChild) fragment.appendChild(p.firstChild);
 			});
-			fragment.querySelectorAll("br").forEach((br) => br.replaceWith(document.createTextNode(" ")));
+			fragment.querySelectorAll("br").forEach((br) => br.replaceWith(doc.createTextNode(" ")));
 
 			caret = start + (fragment.textContent ?? "").length;
 			range.insertNode(fragment);
