@@ -2,7 +2,7 @@
 // Обёртки — обычные <span>, редактор их не знает и при сериализации отбрасывает, оставляя
 // текст, поэтому в значение подсветка не попадает.
 
-import { DOM } from "@brandup/ui";
+import { textTag } from "@brandup/ui-kit";
 import { SPINTAX_OPEN } from "./randomizer";
 import { buildVariable } from "./variables";
 
@@ -188,7 +188,8 @@ function buildMarkup(text: string, names?: VariableNames): HTMLElement {
 	span.dataset.label = buildVariable(name);
 	// ключ спрятан, а знать его иногда нужно — например когда у двух переменных одно название
 	span.setAttribute("title", text);
-	span.appendChild(DOM.tag("span", { class: KEY_CLASS }, text));
+	// the construct comes from the message text — as text, like the branch above (see textTag)
+	span.appendChild(textTag("span", { class: KEY_CLASS }, text));
 
 	return span;
 }

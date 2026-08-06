@@ -1,7 +1,7 @@
 import "./variables.less"; // стили окна
 
 import { DOM } from "@brandup/ui";
-import { Modal } from "@brandup/ui-kit";
+import { Modal, textTag } from "@brandup/ui-kit";
 
 export const VARIABLE_OPEN = "{";
 export const VARIABLE_CLOSE = "}";
@@ -54,8 +54,10 @@ export default class VariablesModal extends Modal {
 		const list = DOM.tag("div", { class: "variables" });
 		this.body.appendChild(list);
 
+		// the hint, names and keys are host data (options or attributes of the value element) —
+		// they go in as text, never as markup (see textTag)
 		if (!this.__variables.length) {
-			list.appendChild(DOM.tag("div", { class: "empty" }, this.__emptyText));
+			list.appendChild(textTag("div", { class: "empty" }, this.__emptyText));
 			return;
 		}
 
@@ -68,9 +70,9 @@ export default class VariablesModal extends Modal {
 					// по виду, а ключ лишь уточняет, что уйдёт в текст. Без названия показывать
 					// ключ дважды незачем — вид и есть ключ.
 					[
-						DOM.tag("span", { class: "preview" }, buildVariable(variable.name ?? variable.key)),
+						textTag("span", { class: "preview" }, buildVariable(variable.name ?? variable.key)),
 						// ключ без скобок: он не образец для вставки, а пометка — что именно уйдёт в текст
-						variable.name ? DOM.tag("span", { class: "key" }, variable.key) : null,
+						variable.name ? textTag("span", { class: "key" }, variable.key) : null,
 					]
 				)
 			)
