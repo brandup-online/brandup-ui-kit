@@ -28,8 +28,8 @@
 	"main": "source/index.ts",
 	"types": "source/index.ts",
 	"dependencies": {
-		"@brandup/ui": "^2.0.8",
-		"@brandup/ui-helpers": "^2.0.8",
+		"@brandup/ui": "^2.0.9",
+		"@brandup/ui-helpers": "^2.0.9",
 		"@brandup/ui-input": "file:../brandup-ui-input",
 		"@brandup/ui-kit": "file:../brandup-ui-kit"
 	},
