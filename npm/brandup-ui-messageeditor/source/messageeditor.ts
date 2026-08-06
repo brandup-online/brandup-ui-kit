@@ -11,9 +11,16 @@ import RichEditor, {
 	type BlockType,
 	type ToolbarButton,
 } from "@brandup/ui-richeditor";
-import { highlight, markupAt, MARKUP_SELECTOR, VARIABLE_CLASS, type VariableNames } from "./highlight";
+import {
+	highlight,
+	markupAt,
+	unknownVariables as findUnknownVariables,
+	MARKUP_SELECTOR,
+	VARIABLE_CLASS,
+	type VariableNames,
+} from "./highlight";
 import RandomizerModal from "./randomizer";
-import VariablesModal, { parseVariables, type MessageVariable } from "./variables";
+import VariablesModal, { buildVariable, parseVariables, type MessageVariable } from "./variables";
 import emojiIcon from "../svg/emoji.svg";
 import randomIcon from "../svg/random.svg";
 import variableIcon from "../svg/variable.svg";
@@ -140,8 +147,9 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			options.personalization ??
 			("personalization" in valueElem.dataset || !!this.variables.length || !!this.variablesEmpty);
 		this.blocks = options.blocks ?? parseBlockTypes(valueElem.dataset.blocks ?? null);
-		// в тексте показываем название, а не ключ — если оно задано
-		this.__names = new Map(this.variables.filter((v) => v.name).map((v) => [v.key, v.name!]));
+		// Все объявленные ключи, а не только названные: по этому же набору подсветка отличает
+		// чужую переменную от известной. В тексте показываем название, если оно задано.
+		this.__names = new Map(this.variables.map((v) => [v.key, v.name ?? null]));
 		this.__inputElem = inputElem;
 
 		this.__editor = new RichEditor(inputElem, {
@@ -255,6 +263,44 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	// валидация, отправка формы, сбор FormData.
 	protected override __syncValue(): void {
 		this.__editor.flushChange();
+		this.__refreshValidity();
+	}
+
+	/**
+	 * Есть ли по чему проверять переменные: персонализация включена и список объявлен. Без
+	 * персонализации `{ИМЯ}` — обычный текст, а пустой список может быть просто ещё не известен.
+	 *
+	 * Он же признак того, что подпись невалидности на поле наша: пока проверять не по чему,
+	 * поле не трогаем вовсе — стёрли бы чужую, выставленную приложением.
+	 */
+	private get __checksVariables(): boolean {
+		return this.personalization && this.__names.size > 0;
+	}
+
+	/**
+	 * Ключи переменных из текста, которых нет в объявленном списке, — в порядке появления.
+	 *
+	 * Приложению это нужно, чтобы объяснить, что не так: подсветка показывает место, а сообщение
+	 * рядом с полем — что делать.
+	 */
+	get unknownVariables(): string[] {
+		if (!this.__checksVariables) return [];
+
+		return findUnknownVariables(this.__inputElem, this.__names);
+	}
+
+	/**
+	 * Неизвестная переменная — ошибка значения, а не оформления: подставить её нечем, и получателю
+	 * она уйдёт скобками наружу. Объявляем полю-носителю через setCustomValidity, как textbox
+	 * объявляет свой лимит длины: дальше решает браузер — он же блокирует отправку формы.
+	 */
+	private __refreshValidity(): void {
+		if (!this.__checksVariables) return;
+
+		const unknown = this.unknownVariables;
+		this.__valueElem.setCustomValidity(
+			unknown.length ? `Неизвестные переменные: ${unknown.map(buildVariable).join(", ")}.` : ""
+		);
 	}
 
 	/**
@@ -515,6 +561,12 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 
 		this.__listenerAbort.abort();
 		this.__editor.destroy();
+
+		// Своя подпись невалидности контрол переживёт: поле вернётся в форму обычным, но
+		// навсегда невалидным, а понять почему будет нечем — плашки с подсветкой уже нет.
+		// Снимаем последней: разрушение редактора доставляет отложенное изменение, а оно
+		// проходит через __refreshValidity и подпись бы вернуло.
+		if (this.__checksVariables) this.__valueElem.setCustomValidity("");
 
 		super.destroy(); // снимет слушатели формы и вернёт поле-носитель в исходный вид
 	}
