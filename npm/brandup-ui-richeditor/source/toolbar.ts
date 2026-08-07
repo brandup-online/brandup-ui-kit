@@ -6,7 +6,7 @@
 // т.к. тулбар находится вне привязанных UIElement).
 
 import { DOM } from "@brandup/ui";
-import { PopupManager } from "@brandup/ui-kit";
+import { PopupManager, SCROLLABLE_CLASS } from "@brandup/ui-kit";
 import {
 	BLOCK_TYPES,
 	DEFAULT_BLOCK,
@@ -154,6 +154,9 @@ export interface ToolbarHost {
 }
 
 const MARGIN = 6;
+// Зазор от краёв экрана у панели в document.body. То же значение вычитается из её предельной
+// ширины в richeditor.less (--richeditor-toolbar-edge-gap) — менять их нужно вместе.
+const EDGE_GAP = 4;
 
 class FormatToolbar {
 	private __elem: HTMLElement | null = null; // обёртка: её позиционируют
@@ -378,9 +381,24 @@ class FormatToolbar {
 
 		const rect = this.__active.editable.getBoundingClientRect();
 		const elem = this.__elem;
+
+		// Ширина панели зависит от left: коробка ужимается по содержимому, и прижатый к правому
+		// краю left от прошлого показа ужал бы её до зазора — панель одна на все редакторы,
+		// а прошлый мог стоять у самого края. Меряем со снятой координатой.
+		elem.style.left = "";
+		const width = elem.offsetWidth;
+
 		const top = rect.top - elem.offsetHeight - MARGIN;
-		elem.style.left = `${Math.max(4, rect.left)}px`;
-		elem.style.top = `${Math.max(4, top)}px`;
+
+		// Панель шире редактора (у узкого поля так бывает всегда), и по его левому краю она уехала
+		// бы за правый край экрана. Прижимаем к правому краю, но не левее отступа: панель шире
+		// самого экрана прижимается к левому и прокручивается — см. .toolbar-body.
+		// clientWidth корня, а не innerWidth: тот считает и полосу прокрутки страницы,
+		// и крайняя кнопка панели оказывалась бы под ней.
+		const viewport = elem.ownerDocument.documentElement.clientWidth;
+		const maxLeft = Math.max(EDGE_GAP, viewport - width - EDGE_GAP);
+		elem.style.left = `${Math.min(Math.max(EDGE_GAP, rect.left), maxLeft)}px`;
+		elem.style.top = `${Math.max(EDGE_GAP, top)}px`;
 	}
 
 	private __removeViewportListeners() {
@@ -399,7 +417,9 @@ class FormatToolbar {
 			// этого съезжать не должна. Выпадающие слои (панель смайликов) висят на обёртке:
 			// её коробка их и не растит, и не обрезает.
 			this.__elem = DOM.tag("div", { class: TOOLBAR_CLASS });
-			this.__body = DOM.tag("div", { class: BODY_CLASS });
+			// Коробка прокручивается по горизонтали: полный набор кнопок на узком экране в строку
+			// не влезает. Полоса — общая, от .ui-scrollable кита, только тоньше (см. richeditor.less).
+			this.__body = DOM.tag("div", { class: [BODY_CLASS, SCROLLABLE_CLASS] });
 			this.__elem.appendChild(this.__body);
 
 			// Панель нигде не должна забирать фокус, иначе редактор теряет выделение, а blur

@@ -51,9 +51,12 @@ import {
 	buildParagraphs,
 	caretToEnd,
 	expandRangeToWords,
+	hasPastedMarkup,
+	isDocumentHtml,
 	insertParagraph,
 	insertPastedParagraphs,
 	insertSoftBreak,
+	parsePastedMarkdown,
 	sanitizePastedHtml,
 	selectAllContent,
 	trimSelectionWhitespace,
@@ -73,6 +76,27 @@ const NAV_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "En
 
 // Код — единственное, что есть и инструментом, и типом блока: имя одно на оба (см. applyCode).
 const CODE = "code";
+
+// Расширения текстовых файлов для броска в редактор: у .md и .txt тип в системе часто
+// не зарегистрирован и приходит пустым — тогда решает имя.
+const TEXT_FILE_NAME = /\.(md|markdown|txt|text)$/i;
+
+/** Текстовый ли файл: по MIME (text/*), а без типа — по расширению. */
+function isTextFile(file: File): boolean {
+	return file.type ? file.type.startsWith("text/") : TEXT_FILE_NAME.test(file.name);
+}
+
+/** Содержимое файла текстом: Blob.text() есть не во всех окружениях (jsdom) — тогда FileReader. */
+function readFileText(file: File): Promise<string> {
+	if (typeof file.text === "function") return file.text();
+
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(String(reader.result ?? ""));
+		reader.onerror = () => reject(reader.error);
+		reader.readAsText(file);
+	});
+}
 
 // Ссылка — единственный инструмент с данными: адрес задаётся не переключением (см. applyLink).
 const LINK: FormatTool = "link";
@@ -603,6 +627,40 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		range.selectNode(node);
 		selection.removeAllRanges();
 		selection.addRange(range);
+	}
+
+	/**
+	 * Слово, на котором стоит каретка. Пусто, когда выделение своё (пользователь выбрал сам,
+	 * и подставлять ему нечего), когда каретки в редакторе нет вовсе или когда она стоит не
+	 * в слове — за точкой, например: знаки препинания в слово не входят (см. expandRangeToWords).
+	 */
+	get caretWord(): string {
+		const selection = this.selection;
+		if (!selection || selection.rangeCount === 0) return "";
+
+		const range = selection.getRangeAt(0);
+		if (!range.collapsed) return "";
+
+		return expandRangeToWords(this.editable, range).toString();
+	}
+
+	/**
+	 * Выделить слово под кареткой — чтобы следующая вставка встала на его место, а не разорвала
+	 * его пополам. Возвращает false, когда выделять нечего: тогда вставка идёт в точку каретки.
+	 */
+	selectCaretWord(): boolean {
+		const selection = documentSelection(this.editable);
+		if (!selection || selection.rangeCount === 0) return false;
+
+		const range = selection.getRangeAt(0);
+		if (!range.collapsed) return false;
+
+		const word = expandRangeToWords(this.editable, range);
+		if (word.collapsed) return false;
+
+		selection.removeAllRanges();
+		selection.addRange(word);
+		return true;
 	}
 
 	/**
@@ -1178,9 +1236,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const { signal } = this.__abort;
 		const editable = this.editable;
 
-		// перетаскивание в редактор проходит мимо истории и фильтров хоста — гасим саму вставку.
+		// Бросок в редактор: текстовые файлы принимаются содержимым (см. __onDrop), всё прочее
+		// гасится — свободное перетаскивание прошло бы мимо истории и фильтров хоста.
 		// dragenter/dragover отменять нельзя: в модели DnD отмена как раз и означает «сюда можно бросить»
-		this.element.addEventListener("drop", (e) => e.preventDefault(), { signal });
+		this.element.addEventListener("drop", (e) => this.__onDrop(e), { signal });
 
 		// Выделение страницы не должно затягивать содержимое редактора — см. __holdSelectable.
 		// Слушаем на документе и в фазе перехвата: протяжка начинается где угодно, а обработчик
@@ -1499,6 +1558,16 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// форматированную вставку берём из text/html только при включённом форматировании
 		const html = this.format && this.formatTools.length ? data.getData("text/html") : "";
 
+		this.__insertExternal(plain, html);
+	}
+
+	/**
+	 * Общий приём внешнего текста — вставки из буфера и брошенного файла: фильтр хоста, затем
+	 * форматированная ветка, затем простой текст. Форматирование приходит двумя путями: text/html
+	 * из буфера и, при markdown-хранении, маркеры прямо в тексте — раз значение хранится этой
+	 * разметкой, вставленный текст с ней разбирается так же, как разбиралось бы значение.
+	 */
+	private __insertExternal(plain: string, html: string) {
 		// filterPaste решает по тексту: null — отклонить; если хук ИЗМЕНИЛ текст (обрезка по длине,
 		// фильтр по типу) — форматирование сохранить нельзя, вставляем очищенный простой текст
 		let plainOverride: string | null = null;
@@ -1515,7 +1584,23 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const selection = this.selection;
 		if (!selection) return;
 
-		if (html && plainOverride == null && this.__pasteHtml(html, selection)) return;
+		if (plainOverride == null) {
+			const paras = html ? sanitizePastedHtml(html, this.formatTools, this.formatMarkers, this.blockTypes) : [];
+			const markdown = this.format && this.formatStorage === "markdown";
+
+			// text/html точнее описывает скопированное, но лишь когда несёт собственную разметку.
+			// Голый текст тоже приезжает html-ем — редакторы кода отдают исходник маркдауна
+			// строками в <div>, — и такой html не знает ничего сверх text/plain, а маркеры в
+			// тексте понимает только разбор разметкой хранения: при плоском html первым идёт он.
+			// Документ (абзацы <p>, заголовки, списки) плоским не считается, даже когда в нём
+			// нет ни одного тега форматирования: буквальные символы маркеров в тексте страницы
+			// видит и её читатель, и разбор превращал бы их в разметку (см. isDocumentHtml).
+			const flat = markdown && !hasPastedMarkup(paras) && !isDocumentHtml(html);
+
+			if (flat && this.__pasteMarkdown(plain, selection)) return;
+			if (this.__insertPasted(paras, selection)) return;
+			if (!flat && markdown && this.__pasteMarkdown(plain, selection)) return;
+		}
 		this.__pastePlain(plainOverride ?? plain, selection);
 	}
 
@@ -1536,11 +1621,80 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.__insertPasted(buildParagraphs(lines, this.__blockParagraphs && !literal), selection);
 	}
 
-	// Вставка форматированного текста из text/html. Возвращает false, если вставлять нечего —
-	// тогда вызывающий откатывается на простую вставку.
-	private __pasteHtml(html: string, selection: Selection): boolean {
+	/**
+	 * Бросок файлов в редактор: текстовые (`text/*`, а без типа — `.md`/`.txt` по имени)
+	 * вставляются содержимым тем же путём, что вставка из буфера, — фильтр хоста, разбор
+	 * разметкой хранения объявленным набором, история. Любой другой бросок гасится: свободное
+	 * перетаскивание прошло бы мимо истории и фильтров хоста.
+	 */
+	private __onDrop(e: DragEvent) {
+		e.preventDefault();
+
+		if (this.readonly) return;
+
+		const files = Array.from(e.dataTransfer?.files ?? []).filter(isTextFile);
+		if (!files.length) return;
+
+		// Каретка — в точку броска, если браузер умеет её назвать; иначе остаётся прежняя.
+		// Фокус нужен в любом случае: бросают и в поле, которое его ещё не получало, — вставлять
+		// тогда некуда, а без каретки focus(true) ставит её в конец.
+		this.__caretFromPoint(e.clientX, e.clientY);
+		this.focus(true);
+
+		// Файл читается асинхронно: правка на это время придержана, чтобы нормализация между
+		// делом не перестроила содержимое под выставленной кареткой.
+		const release = this.holdEditing();
+		Promise.all(files.map(readFileText))
+			.then((texts) => {
+				// компонент могли снять, пока файл читался, — вставлять больше некуда
+				if (this.__disposed) return;
+
+				// несколько файлов — подряд через пустую строку: это отдельные тексты
+				this.__insertExternal(texts.join("\n\n"), "");
+			})
+			.catch(() => this.__reject())
+			.finally(release);
+	}
+
+	/** Ставит каретку в точку на экране, если браузер умеет её назвать, и точка — в редакторе. */
+	private __caretFromPoint(x: number, y: number) {
+		// стандартное API и его вебкитовский предшественник; в jsdom нет обоих
+		const doc = this.editable.ownerDocument as Document & {
+			caretPositionFromPoint?(x: number, y: number): { offsetNode: Node; offset: number } | null;
+			caretRangeFromPoint?(x: number, y: number): Range | null;
+		};
+
+		let node: Node | null = null;
+		let offset = 0;
+		if (doc.caretPositionFromPoint) {
+			const position = doc.caretPositionFromPoint(x, y);
+			if (position) ({ offsetNode: node, offset } = position);
+		} else if (doc.caretRangeFromPoint) {
+			const range = doc.caretRangeFromPoint(x, y);
+			if (range) ({ startContainer: node, startOffset: offset } = range);
+		}
+
+		if (!node || !this.editable.contains(node)) return;
+
+		const selection = documentSelection(this.editable);
+		if (!selection) return;
+
+		const range = doc.createRange();
+		range.setStart(node, offset);
+		range.collapse(true);
+		selection.removeAllRanges();
+		selection.addRange(range);
+	}
+
+	// Вставка простого текста разметкой хранения (markdown): разбор тем же deserialize и с теми же
+	// наборами, что у значения, — маркеры снятых инструментов остаются текстом, как остались бы
+	// в значении. Возвращает false, если вставлять нечего или разбирать нельзя.
+	private __pasteMarkdown(text: string, selection: Selection): boolean {
+		// внутри блока без инлайновой разметки (код) текст литерален — как и при простой вставке
+		if (!BLOCK_TYPES[this.currentBlock].inline) return false;
+
 		return this.__insertPasted(
-			sanitizePastedHtml(html, this.formatTools, this.formatMarkers, this.blockTypes),
+			parsePastedMarkdown(text, this.__valueTools, this.formatMarkers, this.blockTypes, this.__blockParagraphs),
 			selection
 		);
 	}

@@ -175,9 +175,14 @@ function serializeInline(
 
 		const inner = serializeInline(el.childNodes, storage, tagMap, markers);
 
-		// вложенный блочный элемент (нестандарт) — без обёртки, просто содержимое
+		// Вложенный блочный элемент — это строка: его граница даёт перенос, иначе соседние
+		// строки склеивались бы встык — VS Code и браузеры отдают буфер строками в <div>
+		// внутри общей обёртки. Хвостовой <br> внутри — заполнитель пустой строки (как у
+		// абзацев самого редактора), а не её содержимое.
 		if (tag === "DIV" || tag === "P") {
-			result += inner;
+			const br = lineBreak(storage);
+			if (result && !result.endsWith(br)) result += br;
+			result += trimTrailingBreaks(inner, storage) + br;
 			continue;
 		}
 
@@ -670,7 +675,15 @@ function markdownBlocks(value: string, types: BlockType[], separate: boolean): A
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
 
-		const fence = fenced.find((type) => line.trimEnd() === BLOCK_TYPES[type].fence);
+		// Открывающая ограда бывает с меткой языка (```text) — блок она открывает так же, а сама
+		// метка отбрасывается: значение кита её не хранит. Остаток с символом ограды меткой не
+		// считается (```` — не ограда с меткой `). Закрывающая ограда — только голая: та же
+		// строка с меткой внутри блока — его содержимое, а не конец.
+		const fence = fenced.find((type) => {
+			const marker = BLOCK_TYPES[type].fence!;
+			const trimmed = line.trimEnd();
+			return trimmed.startsWith(marker) && !trimmed.slice(marker.length).includes(marker[0]);
+		});
 		if (fence) {
 			let close = -1;
 			for (let at = i + 1; at < lines.length; at++)
