@@ -128,6 +128,13 @@ function splitLines(block: HTMLElement, range: Range, type: BlockType): HTMLElem
 		const piece = document.createElement(BLOCK_TYPES[original].tag);
 		piece.appendChild(part.extractContents());
 		br.remove();
+
+		// Кусок «до» кончается переносом — значит, его последняя строка пустая. Одинокий
+		// хвостовой перенос — это заполнитель (см. ensureParagraphs), и без второго пустая
+		// строка пропала бы и с экрана, и из значения.
+		if (from === "before" && piece.lastChild?.nodeName === "BR")
+			piece.appendChild(document.createElement("br"));
+
 		fillEmptyParagraph(piece);
 
 		return piece;
