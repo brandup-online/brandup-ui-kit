@@ -347,6 +347,18 @@ describe("merged code button", () => {
 		expect(editor.getValue()).toBe("раз\n```\nдва\n```");
 	});
 
+	// Пустая строка перед выделенной остаётся: в границу блоков уходит перенос-разделитель,
+	// а не она. Без заполнителя её хвостовой перенос читался бы заполнителем — и строка
+	// пропадала бы и с экрана, и из значения.
+	it("keeps the empty line above the new code block", () => {
+		const editor = makeEditor({ value: "раз\n\nдва", paragraph: "break" });
+		const lines = Array.from(editor.editable.firstChild!.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE);
+		caretAt(lines[1], 1);
+
+		editor.applyCode();
+		expect(editor.getValue()).toBe("раз\n\n```\nдва\n```");
+	});
+
 	// без выделения моноширинным делать нечего, а иначе блок был бы недостижим:
 	// в пустом поле не выделить строки, которых ещё нет
 	it("makes the block a code block without a selection", () => {
