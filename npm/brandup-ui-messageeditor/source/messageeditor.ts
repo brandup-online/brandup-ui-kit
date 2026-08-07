@@ -38,6 +38,7 @@ export const EMOJI_HOLDER_CLASS = "messageeditor-emoji-holder";
 export const MODES_CLASS = "messageeditor-modes";
 export const MODE_CLASS = "messageeditor-mode";
 export const SOURCE_CLASS = "messageeditor-source";
+export const SOURCE_TEXT_CLASS = "messageeditor-source-text"; // прокручиваемый текст внутри панели
 // На корневом элементе — как focused и invalid, но только для оформления: сам режим компонент
 // держит в себе и из класса не читает (см. sourceMode).
 export const SOURCE_MODE_CLASS = "source";
@@ -170,7 +171,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	private __modal: Modal | null = null; // открытое окно правки — его закрывает и destroy
 	private __emojiPicker: HTMLElement | null = null; // свой попап смайликов — см. __initEmoji
 	private __disposing = false; // компонент снимают или уже сняли: фокус и каретку возвращать некуда
-	private __sourceElem: HTMLElement | null; // панель выхода; её нет вовсе, пока показ не включён
+	private __sourceTextElem: HTMLElement | null; // текст панели выхода; её нет вовсе, пока показ не включён
 	private __modeButtons: HTMLButtonElement[] = []; // кнопки переключателя — их состояние отражает режим
 	private __sourceMode = false; // показан ли выход — см. sourceMode
 	private __switching = false; // идёт переключение режима — см. __toggleSource
@@ -212,13 +213,18 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		// прокручивают только то, что можно взять в фокус (текст плашки берётся сам, он редактируемый).
 		// Заглушка объясняет пустую панель так же, как в плашке; без заглушки атрибута нет вовсе
 		// (null поставил бы его пустым — см. dataset в DOM.tag).
-		const sourceElem = source
+		// Рамка и прокрутка разведены по разным элементам: тогда отступы лежат внутри прокрутки,
+		// и текст на концах уходит под них, а не обрывается по ним — как редактор в плашке.
+		// Сама полоса от края отходит отступом из кита (--scrollbar-edge-inset), от разметки
+		// это не зависит.
+		const sourceTextElem = source
 			? DOM.tag("pre", {
-					class: [SCROLLABLE_CLASS, SOURCE_CLASS],
+					class: [SCROLLABLE_CLASS, SOURCE_TEXT_CLASS],
 					tabindex: 0,
 					dataset: { placeholder: placeholder ?? undefined },
 				})
 			: null;
+		const sourceElem = sourceTextElem ? DOM.tag("div", { class: SOURCE_CLASS }, sourceTextElem) : null;
 
 		const container = DOM.tag("div", { class: ROOT_CLASS }, [
 			modes ? modes.elem : null,
@@ -257,7 +263,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		this.__names = new Map(this.variables.map((v) => [v.key, v.name ?? null]));
 		this.__inputElem = inputElem;
 		this.source = source;
-		this.__sourceElem = sourceElem;
+		this.__sourceTextElem = sourceTextElem;
 
 		const editor = new RichEditor(inputElem, {
 			placeholder,
@@ -711,9 +717,9 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	 */
 	private __renderSource() {
 		// без включённого показа панели нет вовсе — рендерить некуда
-		if (!this.__sourceElem) return;
+		if (!this.__sourceTextElem) return;
 
-		this.__sourceElem.textContent = this.__valueElem.value;
+		this.__sourceTextElem.textContent = this.__valueElem.value;
 	}
 
 	/**

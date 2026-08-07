@@ -250,12 +250,12 @@ describe("toolbar blocks", () => {
 		expect(blockButton("quote")).not.toBeNull();
 	});
 
-	// спойлер пока скрыт (см. HIDDEN_TOOLS в ./toolbar), а блок кода живёт в общей кнопке кода
-	it("does not show the hidden buttons", () => {
+	// спойлер был спрятан в HIDDEN_TOOLS (см. ./toolbar) — кнопка не должна пропасть снова
+	it("shows the spoiler button", () => {
 		const editor = makeEditor({ value: "a" });
 		focus(editor);
 
-		expect(document.querySelector(`.${TOOLBAR_CLASS} .format-button[data-format-tool="spoiler"]`)).toBeNull();
+		expect(document.querySelector(`.${TOOLBAR_CLASS} .format-button[data-format-tool="spoiler"]`)).not.toBeNull();
 	});
 
 	// поле ограничивают явным пустым списком: цитаты и код нужны не везде

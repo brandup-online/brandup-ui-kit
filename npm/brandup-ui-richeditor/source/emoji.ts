@@ -164,6 +164,97 @@ function buildEmojiGroup(group: EmojiGroup): HTMLElement {
 	return elem;
 }
 
+// --- недавние ---
+
+/** Ключ localStorage со списком недавних смайликов — один на все попапы источника. */
+export const RECENT_EMOJIS_KEY = "brandup-richeditor-recent-emojis";
+
+/** Группа недавних в попапе: стоит первой и пересобирается из хранилища при каждом открытии. */
+export const RECENT_GROUP_CLASS = "emoji-recent";
+
+/** Сколько недавних хранится и показывается: два ряда панели. */
+export const RECENT_EMOJIS_LIMIT = EMOJI_COLUMNS * 2;
+
+// в панели название не показывается, уходит в подпись для скринридера — как у остальных групп
+const RECENT_TITLE = "Недавние";
+
+const KNOWN_EMOJIS = new Set(EMOJIS);
+
+/**
+ * Недавно вставленные смайлики, свежий первым.
+ *
+ * Хранилище общее и переживает версии пакета, поэтому список чистится до символов, которые
+ * панель действительно показывает: мусор и дубликаты отбрасываются. Недоступное или битое
+ * хранилище (приватный режим, правленое руками значение) — это пустой список, а не ошибка.
+ */
+export function recentEmojis(): string[] {
+	let raw: string | null;
+	try {
+		raw = localStorage.getItem(RECENT_EMOJIS_KEY);
+	} catch {
+		return [];
+	}
+	if (!raw) return [];
+
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return [];
+	}
+	if (!Array.isArray(parsed)) return [];
+
+	// Set сохраняет порядок вставки, а повторное add место не меняет — первый и остаётся
+	const recent = new Set<string>();
+	for (const item of parsed) {
+		if (typeof item === "string" && KNOWN_EMOJIS.has(item)) recent.add(item);
+		if (recent.size === RECENT_EMOJIS_LIMIT) break;
+	}
+
+	return Array.from(recent);
+}
+
+/**
+ * Запоминает выбор для группы недавних: символ встаёт первым, дубликат схлопывается, хвост за
+ * лимитом отбрасывается. Недоступное хранилище вставке не мешает — недавние просто не копятся.
+ */
+export function rememberEmoji(emoji: string): void {
+	if (!KNOWN_EMOJIS.has(emoji)) return;
+
+	const next = [emoji, ...recentEmojis().filter((other) => other !== emoji)].slice(0, RECENT_EMOJIS_LIMIT);
+	try {
+		localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(next));
+	} catch {
+		// приватный режим или переполненная квота — вставка работает, недавние не запоминаются
+	}
+}
+
+/**
+ * Пересобирает группу недавних в собранном попапе по текущему хранилищу.
+ *
+ * Зовётся при каждом показе (см. `openEmojiPicker` в ./richeditor): сам попап живёт между
+ * открытиями, а хранилище тем временем пополняют и другие попапы страницы. Без недавних группы
+ * нет вовсе — пустая первая группа рисовала бы лишнюю отбивку над списком.
+ */
+export function refreshRecentEmojis(picker: HTMLElement): void {
+	const list = picker.querySelector(".emoji-list");
+	if (!list) return;
+
+	const existing = list.querySelector(`.${RECENT_GROUP_CLASS}`);
+	const recent = recentEmojis();
+
+	if (!recent.length) {
+		existing?.remove();
+		return;
+	}
+
+	const group = buildEmojiGroup({ title: RECENT_TITLE, emojis: recent });
+	group.classList.add(RECENT_GROUP_CLASS);
+
+	if (existing) existing.replaceWith(group);
+	else list.prepend(group);
+}
+
 /**
  * Собирает попап вставки смайлика.
  *
@@ -172,7 +263,8 @@ function buildEmojiGroup(group: EmojiGroup): HTMLElement {
  * два разом всё равно нельзя — {@link PopupManager} держит открытым один.
  *
  * Показом и закрытием занимается вызывающий (у редактора для этого есть `openEmojiPicker`):
- * здесь только разметка и выбор символа.
+ * здесь только разметка и выбор символа. Первой группой — недавние ({@link refreshRecentEmojis});
+ * показ обязан освежать её сам, здесь она собирается по состоянию хранилища на сейчас.
  */
 export function createEmojiPicker(onPick: (emoji: string) => void): HTMLElement {
 	const picker = DOM.tag("div", { class: `${POPUP_CLASS} ${EMOJI_PICKER_CLASS}` });
@@ -183,6 +275,7 @@ export function createEmojiPicker(onPick: (emoji: string) => void): HTMLElement 
 	picker.appendChild(list);
 
 	for (const group of EMOJI_GROUPS) list.appendChild(buildEmojiGroup(group));
+	refreshRecentEmojis(picker);
 
 	// попап живёт и вне панели, поэтому фокус гасит сам
 	picker.addEventListener("mousedown", (e) => e.preventDefault());
@@ -190,7 +283,11 @@ export function createEmojiPicker(onPick: (emoji: string) => void): HTMLElement 
 		const target = (e.target as HTMLElement).closest<HTMLElement>(".emoji");
 		if (!target) return;
 
-		onPick(target.textContent ?? "");
+		const emoji = target.textContent ?? "";
+		// Недавние — про то, к чему тянутся, поэтому запоминается сам выбор, а не вставка:
+		// удалась ли она (filterChar, снятый редактор), знает только владелец попапа.
+		rememberEmoji(emoji);
+		onPick(emoji);
 		PopupManager.close();
 	});
 

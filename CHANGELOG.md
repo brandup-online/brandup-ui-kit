@@ -29,6 +29,37 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Added
 
+- **Floating scrollbar in `.ui-scrollable`.** The bar no longer touches the
+  edges of its box. `--scrollbar-track-inset` keeps its ends away from the
+  corners (a margin on the track), `--scrollbar-edge-inset` moves the bar
+  itself off the box edge (a transparent border on the thumb, so layout is
+  not touched at all), and `--scrollbar-thumb-min` gives the thumb a minimum
+  length so it does not shrink to a dot on long content. The bar also shows
+  the default cursor instead of inheriting the one set on the box — over a
+  text field it used to be a text caret. `--scrollbar-size` now means the
+  thickness of the visible bar, not of the space reserved for it.
+
+- **The spoiler button is shown in the shared toolbar.** The tool itself
+  always worked — `||spoiler||` was parsed, rendered and stored, and
+  `applyFormat("spoiler")` was callable from code — but the button was kept
+  out of the panel via `HIDDEN_TOOLS`. The list is now empty; every editor
+  with the default tool set (`@brandup/ui-textbox`,
+  `@brandup/ui-messageeditor`) gets the button. Channels that do not
+  understand spoilers keep excluding it the usual way (`tools` /
+  `data-tools` / `data-format-tools`).
+
+- **Recently used emojis in the `@brandup/ui-richeditor` picker.** The last
+  picked symbols (up to two picker rows) show up as the first group of the
+  emoji popup, most recent first. The list lives in `localStorage`
+  (`RECENT_EMOJIS_KEY`), so it is shared by every picker on the origin and
+  survives reloads; `openEmojiPicker()` rebuilds the group on every open.
+  The group is absent until something is picked, junk in the stored value is
+  filtered out, and unavailable storage (private mode) leaves picking intact —
+  recents just do not accumulate. Exported: `recentEmojis()`,
+  `rememberEmoji()`, `refreshRecentEmojis()`, `RECENT_EMOJIS_KEY`,
+  `RECENT_EMOJIS_LIMIT`, `RECENT_GROUP_CLASS`. `@brandup/ui-messageeditor`
+  gets the group for free through the shared picker.
+
 - **Clear formatting, undo and redo in `@brandup/ui-richeditor`.**
   `clearFormat()` strips every format from the selection (or from the word
   under a collapsed caret, matching how formats are applied), including
@@ -70,6 +101,14 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   listeners on the restored `<input>`.
 
 ### Changed
+
+- **Vertical padding in `@brandup/ui-messageeditor` moved inside the scrolled
+  area.** The editor in the bubble and the text of the source panel carry it
+  themselves now, so the bar runs the full height of the field and text at the
+  ends slides under the padding instead of being cut off by it. The source
+  panel became two boxes for that: the frame stays on `.messageeditor-source`,
+  the scrolling text moved into a nested `<pre>` (`SOURCE_TEXT_CLASS`), which
+  also carries `data-placeholder` and `tabindex`.
 
 - **`InputControl` now extends `UIElementBound`** (new v2 base class for
   components whose element is bound in the constructor). The constructor
@@ -120,6 +159,27 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   from 72.7 KiB → 38.7 KiB minified (~47%).
 
 ### Fixed
+
+- **`TextBox` showed the formatting toolbar with nothing declared.** A
+  multiline field passed "block types not specified" to the editor, and that
+  reads as "all of them" — the panel came up with quote and code buttons on a
+  plain `<textarea>`. Blocks are taken from `data-blocks` only; without the
+  attribute the field stays plain. Covered by regression tests.
+- **Caret auto-scroll in `@brandup/ui-richeditor` left the caret under the
+  padding.** Bounds were measured against the box edge, so a line driven to it
+  ended up under the padding that scrolls together with the text; they now
+  follow the text area. The pass also ran after a manual line break only, so
+  ordinary typing and caret navigation were left to the browser, which stops
+  at the same box edge — it runs on `input` and on navigation keys now. Two
+  more errors in the same pass: on an empty line the anchor was the node
+  before the caret (the `<br>` that ends the previous line), so the scroll
+  stopped exactly one line short, and while a selection was being dragged with
+  the keyboard its whole box was measured, scrolling back to the anchored end.
+  Covered by regression tests.
+- **The `@brandup/ui-messageeditor` source panel was ~25px taller than the
+  bubble.** Its scrolling text is a `<pre>`, which measures `max-height`
+  against the content box, while the value is computed with the padding
+  included. The two views of one value jumped in height on every mode toggle.
 
 - **`TextBox` copy button never fired.** It declared its command as a
   `command` attribute, while `@brandup/ui` v2 dispatches from

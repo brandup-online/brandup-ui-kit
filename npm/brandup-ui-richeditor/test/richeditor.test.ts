@@ -3,8 +3,8 @@
  */
 import { PopupManager } from "@brandup/ui-kit";
 import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS, formatToolbar } from "../source/richeditor";
-import { EMOJI_PICKER_CLASS } from "../source/emoji";
-import { EMOJIS, EMOJI_GROUPS } from "../source/emoji";
+import { EMOJI_PICKER_CLASS, RECENT_EMOJIS_KEY, RECENT_EMOJIS_LIMIT, RECENT_GROUP_CLASS } from "../source/emoji";
+import { EMOJIS, EMOJI_GROUPS, recentEmojis, rememberEmoji } from "../source/emoji";
 import { ALL_FORMAT_TOOLS } from "../source/format-config";
 import { expandRangeToWords } from "../source/editing";
 import { selectionCharBounds } from "../source/selection";
@@ -51,8 +51,8 @@ function selectAll(editor: RichEditor) {
 }
 
 const toolbarButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .format-button`);
-// инструменты, у которых есть кнопка: спойлер пока скрыт (см. HIDDEN_TOOLS в ../source/toolbar)
-const VISIBLE_TOOLS = ALL_FORMAT_TOOLS.length - 1;
+// кнопка есть у каждого инструмента (скрытых сейчас нет — см. HIDDEN_TOOLS в ../source/toolbar)
+const VISIBLE_TOOLS = ALL_FORMAT_TOOLS.length;
 const toolbarButton = (tool: string) =>
 	document.querySelector(`.${TOOLBAR_CLASS} .format-button[data-format-tool="${tool}"]`);
 const actionButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .action-button`);
@@ -74,7 +74,6 @@ describe("RichEditor structure", () => {
 		const toolbar = document.querySelector(`.${TOOLBAR_CLASS}`)!;
 		expect(toolbar.parentElement).toBe(document.body);
 		expect(editor.formatTools).toEqual(ALL_FORMAT_TOOLS);
-		// часть кнопок временно скрыта (см. HIDDEN_TOOLS в ../source/toolbar)
 		expect(toolbarButtons()).toHaveLength(VISIBLE_TOOLS);
 	});
 
@@ -1129,6 +1128,8 @@ describe("RichEditor emoji picker", () => {
 	const picker = () => document.querySelector<HTMLElement>(`.${EMOJI_PICKER_CLASS}`);
 	const emojiButtons = () => document.querySelectorAll<HTMLButtonElement>(`.${EMOJI_PICKER_CLASS} .emoji`);
 
+	// выбор смайлика пишет в недавние, а тесты здесь пересчитывают кнопки — считать нужно без них
+	beforeEach(() => localStorage.clear());
 	afterEach(() => PopupManager.close());
 
 	it("adds an emoji action button and builds the picker on first open", () => {
@@ -1272,6 +1273,105 @@ describe("RichEditor emoji picker", () => {
 		emojiButtons()[0].click();
 
 		expect(editor.editable.textContent).toBe("abc");
+	});
+});
+
+describe("RichEditor recent emojis", () => {
+	const picker = () => document.querySelector<HTMLElement>(`.${EMOJI_PICKER_CLASS}`)!;
+	const emojiButtons = () => document.querySelectorAll<HTMLButtonElement>(`.${EMOJI_PICKER_CLASS} .emoji`);
+	const recentGroup = () => document.querySelector<HTMLElement>(`.${EMOJI_PICKER_CLASS} .${RECENT_GROUP_CLASS}`);
+
+	function openPicker() {
+		const editor = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "abc" });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+		caretAt(editor.editable.firstChild!, 1);
+		actionButton("emoji")!.click();
+		return editor;
+	}
+
+	beforeEach(() => localStorage.clear());
+	afterEach(() => {
+		PopupManager.close();
+		jest.restoreAllMocks();
+	});
+
+	it("stores picks most recent first, deduplicated and capped", () => {
+		rememberEmoji(EMOJIS[0]);
+		rememberEmoji(EMOJIS[1]);
+		rememberEmoji(EMOJIS[0]); // повторный выбор поднимает наверх, а не дублирует
+
+		expect(recentEmojis()).toEqual([EMOJIS[0], EMOJIS[1]]);
+
+		for (const emoji of EMOJIS.slice(0, RECENT_EMOJIS_LIMIT + 4)) rememberEmoji(emoji);
+
+		const recent = recentEmojis();
+		expect(recent).toHaveLength(RECENT_EMOJIS_LIMIT);
+		expect(recent[0]).toBe(EMOJIS[RECENT_EMOJIS_LIMIT + 3]); // последний выбранный — первый
+	});
+
+	// хранилище общее и переживает версии — чужие и битые значения не должны попасть в панель
+	it("drops junk from the stored value", () => {
+		localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(["nope", 5, EMOJIS[2], EMOJIS[2], "🤖"]));
+		expect(recentEmojis()).toEqual([EMOJIS[2]]);
+
+		localStorage.setItem(RECENT_EMOJIS_KEY, "not json");
+		expect(recentEmojis()).toEqual([]);
+
+		localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify({}));
+		expect(recentEmojis()).toEqual([]);
+	});
+
+	it("shows no recents group until something was picked", () => {
+		openPicker();
+
+		expect(recentGroup()).toBeNull();
+		expect(emojiButtons()).toHaveLength(EMOJIS.length);
+	});
+
+	it("puts the picked emoji into the first group on the next open", () => {
+		openPicker();
+		emojiButtons()[5].click(); // выбор закрывает попап и попадает в недавние
+
+		actionButton("emoji")!.click();
+
+		const group = recentGroup()!;
+		expect(group).not.toBeNull();
+		expect(group.getAttribute("aria-label")).toBe("Недавние");
+		expect(picker().querySelector(".emoji-list")!.firstElementChild).toBe(group);
+		expect(group.querySelectorAll(".emoji")).toHaveLength(1);
+		expect(group.querySelector(".emoji")!.textContent).toBe(EMOJIS[5]);
+		expect(emojiButtons()).toHaveLength(EMOJIS.length + 1);
+	});
+
+	// попап живёт между открытиями, а хранилище тем временем пополняют другие попапы страницы
+	it("refreshes the group from the storage on every open", () => {
+		openPicker();
+		expect(recentGroup()).toBeNull();
+		PopupManager.close();
+
+		rememberEmoji(EMOJIS[3]); // как сделал бы попап другого редактора
+
+		actionButton("emoji")!.click();
+		expect(recentGroup()!.querySelector(".emoji")!.textContent).toBe(EMOJIS[3]);
+	});
+
+	it("keeps picking working when the storage is unavailable", () => {
+		jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+			throw new Error("denied");
+		});
+		jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new Error("denied");
+		});
+
+		expect(recentEmojis()).toEqual([]);
+		expect(() => rememberEmoji(EMOJIS[0])).not.toThrow();
+
+		const editor = openPicker();
+		expect(recentGroup()).toBeNull();
+
+		emojiButtons()[0].click(); // вставка не должна споткнуться о хранилище
+
+		expect(editor.editable.textContent).toBe(`a${EMOJIS[0]}bc`);
 	});
 });
 
@@ -2305,5 +2405,129 @@ describe("RichEditor caret scrolling", () => {
 		}
 
 		expect(wrap.scrollTop).toBe(0);
+	});
+
+	// Прокручиваемая обёртка со своими отступами: они лежат внутри прокрутки и едут вместе
+	// с текстом — как .editor в textbox и .ui-richeditor в messageeditor.
+	const mountScroller = (editable: HTMLElement, padding: number) => {
+		const wrap = document.createElement("div");
+		wrap.style.overflowY = "auto";
+		wrap.style.paddingTop = `${padding}px`;
+		wrap.style.paddingBottom = `${padding}px`;
+		document.body.appendChild(wrap);
+		wrap.appendChild(editable);
+		Object.defineProperty(wrap, "scrollHeight", { value: 300, configurable: true });
+		Object.defineProperty(wrap, "clientHeight", { value: 100, configurable: true });
+		wrap.getBoundingClientRect = () => rect(0, 100);
+		return wrap;
+	};
+
+	const withCaretRect = (caret: DOMRect, action: () => void) => {
+		const original = Range.prototype.getBoundingClientRect;
+		Range.prototype.getBoundingClientRect = () => caret;
+		try {
+			action();
+		} finally {
+			Range.prototype.getBoundingClientRect = original;
+		}
+	};
+
+	it("scrolls typing out from under the container's bottom padding", () => {
+		const editor = makeEditor({ multiline: true, value: "раз" });
+		const wrap = mountScroller(editor.editable, 30);
+
+		// строка ещё в коробке (её низ 88 < 100), но уже под нижним отступом: текст кончается на 70
+		withCaretRect(rect(72, 88), () => {
+			caretAt(editor.editable.querySelector("p")!.firstChild!, 3);
+			editor.editable.dispatchEvent(new InputEvent("input", { bubbles: true }));
+		});
+
+		expect(wrap.scrollTop).toBe(18); // 88 − (100 − 30)
+	});
+
+	it("scrolls caret navigation out from under the container's top padding", () => {
+		const editor = makeEditor({ multiline: true, value: "раз" });
+		const wrap = mountScroller(editor.editable, 30);
+		wrap.scrollTop = 50;
+
+		// строка в коробке, но выше начала текста: оно на 30
+		withCaretRect(rect(10, 26), () => {
+			caretAt(editor.editable.querySelector("p")!.firstChild!, 0);
+			editor.editable.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowUp", bubbles: true }));
+		});
+
+		expect(wrap.scrollTop).toBe(30); // 50 − (30 − 10)
+	});
+
+	// Пустая строка (набрана Enter'ом в редакторе с мягкими переносами): своей коробки
+	// у схлопнутой каретки нет, и ориентиром должен служить <br> НА её строке, а не
+	// предыдущий — тот лежит строкой выше и недокручивает ровно на строку.
+	it("anchors an empty line to the break at the caret, not the one before it", () => {
+		const editor = makeEditor({ multiline: true });
+		const wrap = mountScroller(editor.editable, 30);
+		editor.editable.innerHTML = "<br><br><br>";
+
+		const breaks = editor.editable.querySelectorAll("br");
+		breaks[1].getBoundingClientRect = () => rect(60, 79); // строка выше каретки
+		breaks[2].getBoundingClientRect = () => rect(79, 98); // строка каретки
+
+		withCaretRect(rect(0, 0), () => {
+			caretAt(editor.editable, 2);
+			editor.editable.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowDown", bubbles: true }));
+		});
+
+		expect(wrap.scrollTop).toBe(28); // 98 − (100 − 30); по предыдущему <br> вышло бы 9
+	});
+
+	// Мягкий перенос посреди строки: каретка встаёт перед текстом, уехавшим на новую строку.
+	// Ориентиром должна быть его первая строка, а не коробка всего абзаца — она накрывает
+	// и последнюю, и прокрутка ушла бы в конец абзаца.
+	it("anchors an empty line to the first line of the text at the caret", () => {
+		const editor = makeEditor({ multiline: true });
+		const wrap = mountScroller(editor.editable, 30);
+		editor.editable.innerHTML = "<br>перенесённый текст";
+
+		const originalRects = Range.prototype.getClientRects;
+		// текст занимает две строки: 79..98 и 98..117
+		Range.prototype.getClientRects = function () {
+			return [rect(79, 98), rect(98, 117)] as unknown as DOMRectList;
+		};
+		try {
+			withCaretRect(rect(0, 0), () => {
+				caretAt(editor.editable, 1); // сразу после <br>, перед текстом
+				editor.editable.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowDown", bubbles: true }));
+			});
+		} finally {
+			Range.prototype.getClientRects = originalRects;
+		}
+
+		expect(wrap.scrollTop).toBe(28); // 98 − (100 − 30); по последней строке вышло бы 47
+	});
+
+	// Выделение тянут клавишами: коробка всего выделения накрывает все занятые строки,
+	// и прокрутка по ней ушла бы к неподвижному концу, уводя подвижный за край.
+	it("follows the moving end of a keyboard selection, not its whole box", () => {
+		const editor = makeEditor({ multiline: true, value: "раз" });
+		const wrap = mountScroller(editor.editable, 30);
+		wrap.scrollTop = 60;
+
+		const text = editor.editable.querySelector("p")!.firstChild!;
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		sel.setBaseAndExtent(text, 3, text, 0); // тянут вверх: подвижный конец в начале
+		expect(sel.getRangeAt(0).collapsed).toBe(false);
+
+		// коробка выделения — от 10 до 150: низ ниже видимого, верх выше него
+		const original = Range.prototype.getBoundingClientRect;
+		Range.prototype.getBoundingClientRect = function (this: Range) {
+			return this.collapsed ? rect(10, 26) : rect(10, 150);
+		};
+		try {
+			editor.editable.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowUp", bubbles: true }));
+		} finally {
+			Range.prototype.getBoundingClientRect = original;
+		}
+
+		expect(wrap.scrollTop).toBe(40); // 60 − (30 − 10); по всей коробке прокрутка ушла бы вниз
 	});
 });

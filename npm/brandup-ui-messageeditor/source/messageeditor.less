@@ -22,7 +22,7 @@
 	--messageeditor-padding-tb: calc(
 			(var(--input-height, 46px) - var(--messageeditor-minheight) - var(--messageeditor-border-width) * 2) / 2
 		);
-	--messageeditor-gap: 8px;
+	--messageeditor-gap: 2px;
 	--messageeditor-minheight: var(--input-line-height, 1.2rem);
 	--messageeditor-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
 	--messageeditor-accent: var(--focus--input-border-color, #4a9eff);
@@ -46,10 +46,9 @@
 // в высоту (box-sizing: border-box), поэтому и вычитается при расчёте отступов (см. :root выше).
 .messageeditor-box() {
 	box-sizing: border-box;
-	// Отступ по горизонтали — от полей ввода кита, чтобы текст стоял в линию с ними; запасное
-	// значение — само значение кита. Без него неразрешимая вне темы кита переменная делала бы
-	// недействительным весь shorthand — вместе с вертикальными отступами.
-	padding: var(--messageeditor-padding-tb) var(--input-padding-lr, 15px);
+	// Отступы держит не коробка, а то, что внутри неё прокручивается: полоса прокрутки рисуется
+	// по краю коробки, и padding её от края не уводит — он лишь отодвигает от неё текст.
+	// У плашки прокручивается редактор (см. .bubble), у панели выхода — её текст.
 	min-height: var(--input-height, 46px);
 	border-width: var(--messageeditor-border-width);
 	border-style: solid;
@@ -75,6 +74,10 @@
 		column-gap: var(--messageeditor-gap);
 		position: relative;
 		.messageeditor-box();
+		// Отступ по горизонтали — от полей ввода кита, чтобы текст стоял в линию с ними; запасное
+		// значение — само значение кита: вне темы кита переменная не разрешится. Держит его плашка,
+		// а не редактор: по нему же стоит и кнопка смайлика.
+		padding-inline: var(--input-padding-lr, 15px);
 		cursor: text;
 		background-color: var(--messageeditor-fill);
 		border-color: var(--messageeditor-border);
@@ -87,9 +90,22 @@
 		& .ui-richeditor {
 			flex: 1 1 auto;
 			min-width: 0;
-			min-height: var(--messageeditor-minheight);
-			max-height: var(--messageeditor-maxheight);
+			// Вертикальные отступы плашки держит сам редактор — как .editor в textbox. Тогда он
+			// идёт от края до края плашки, полоса прокрутки — во всю её высоту, а текст на концах
+			// уходит под отступ, а не обрывается по нему.
+			padding-block: var(--messageeditor-padding-tb);
+			// Переменными задан размер текста, а коробка здесь border-box — отступы прибавляются
+			// к обеим границам, иначе поле село бы ниже полей ввода кита, а плашка — подросла.
+			min-height: calc(var(--messageeditor-minheight) + var(--messageeditor-padding-tb) * 2);
+			max-height: calc(var(--messageeditor-maxheight) + var(--messageeditor-padding-tb) * 2);
 			overflow-y: auto; // полоса прокрутки — общая, от .ui-scrollable кита
+
+			// Заглушка выведена абсолютно и считается от края коробки, а не от текста
+			// (см. richeditor.less), поэтому отступ ей приходится повторять — иначе она встала бы
+			// выше строки, в которой начнут писать.
+			&:empty::after {
+				top: var(--messageeditor-padding-tb);
+			}
 
 			// в мессенджерах абзацы идут строка за строкой, без вертикальных отступов
 			& p {
@@ -137,16 +153,27 @@
 		display: none;
 		margin: 0;
 		.messageeditor-box();
-		max-height: var(--messageeditor-maxheight);
+		color: var(--messageeditor-source-color);
+		background-color: var(--messageeditor-source-fill);
+		border-color: var(--messageeditor-source-border);
+	}
+
+	// Текст панели: он и прокручивается, а рамку держит коробка снаружи. Тогда отступы лежат
+	// внутри прокрутки — как у редактора в плашке, и текст на концах уходит под них, а не
+	// обрывается по ним.
+	& .messageeditor-source-text {
+		// коробка та же, что у плашки: предельная высота ниже считается вместе с отступами,
+		// а <pre> по умолчанию мерит их сверх content-box — панель встала бы выше плашки
+		box-sizing: border-box;
+		margin: 0;
+		padding: var(--messageeditor-padding-tb) var(--input-padding-lr, 15px);
+		max-height: calc(var(--messageeditor-maxheight) + var(--messageeditor-padding-tb) * 2);
 		overflow-y: auto; // полоса прокрутки — общая, от .ui-scrollable кита
 		white-space: pre-wrap;
 		overflow-wrap: break-word;
 		font-family: var(--messageeditor-source-font);
 		font-size: 0.9em;
 		line-height: inherit;
-		color: var(--messageeditor-source-color);
-		background-color: var(--messageeditor-source-fill);
-		border-color: var(--messageeditor-source-border);
 
 		// Пустое значение — пустая панель: без заглушки она выглядела бы сломанной, а не пустой.
 		// Начертание — теми же токенами кита, что у заглушек полей ввода (см. richeditor.less).
@@ -181,7 +208,12 @@
 		flex: 0 0 auto;
 		// кнопка выше строки текста, поэтому её эффективная высота сводится к строке —
 		// иначе она раздувала бы плашку и сбивала выравнивание по одной линии
-		margin-block: calc((var(--messageeditor-minheight) - var(--messageeditor-button-size)) / 2);
+		margin-top: calc((var(--messageeditor-minheight) - var(--messageeditor-button-size)) / 2);
+		// Низ плашки — уже не последняя строка: отступ уехал внутрь редактора, и кнопка,
+		// прижатая к краю, встала бы ниже строки. Опускаем её на этот отступ обратно.
+		margin-bottom: calc(
+			var(--messageeditor-padding-tb) + (var(--messageeditor-minheight) - var(--messageeditor-button-size)) / 2
+		);
 		margin-right: -6px; // утапливаем в правый отступ плашки
 	}
 

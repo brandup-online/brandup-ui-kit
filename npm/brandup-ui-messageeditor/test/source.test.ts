@@ -8,6 +8,7 @@ import MessageEditor, {
 	MODE_CLASS,
 	SOURCE_CLASS,
 	SOURCE_MODE_CLASS,
+	SOURCE_TEXT_CLASS,
 } from "../source/messageeditor";
 
 function setup(
@@ -27,6 +28,8 @@ function setup(
 }
 
 const sourceElem = (editor: MessageEditor) => editor.element.querySelector<HTMLElement>(`.${SOURCE_CLASS}`);
+// текст панели — отдельный элемент внутри неё: рамку держит коробка, прокрутку текст
+const sourceTextElem = (editor: MessageEditor) => editor.element.querySelector<HTMLElement>(`.${SOURCE_TEXT_CLASS}`);
 const modeButton = (editor: MessageEditor, mode: string) =>
 	editor.element.querySelector<HTMLButtonElement>(`.${MODE_CLASS}[data-mode="${mode}"]`);
 
@@ -159,7 +162,7 @@ describe("MessageEditor source", () => {
 		editable.dispatchEvent(new InputEvent("input", { bubbles: true }));
 
 		const observer = new MutationObserver(() => {});
-		observer.observe(sourceElem(editor)!, { childList: true });
+		observer.observe(sourceTextElem(editor)!, { childList: true });
 
 		editor.toggleSource(true);
 
@@ -187,7 +190,7 @@ describe("MessageEditor source", () => {
 		});
 
 		const observer = new MutationObserver(() => {});
-		observer.observe(sourceElem(editor)!, { childList: true });
+		observer.observe(sourceTextElem(editor)!, { childList: true });
 
 		editor.toggleSource(true);
 
@@ -356,7 +359,7 @@ describe("MessageEditor source", () => {
 	it("takes the placeholder for the empty panel", () => {
 		const editor = new MessageEditor(setup({ attr: true, placeholder: "Напишите сообщение" }).input);
 
-		expect(sourceElem(editor)!.dataset.placeholder).toBe("Напишите сообщение");
+		expect(sourceTextElem(editor)!.dataset.placeholder).toBe("Напишите сообщение");
 	});
 
 	// Показать разметку можно и там, где её не правят: смотреть значение это не изменять его
