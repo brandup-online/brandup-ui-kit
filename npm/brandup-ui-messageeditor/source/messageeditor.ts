@@ -1,6 +1,6 @@
 import "./messageeditor.less"; // стили компонента
 
-import { InputControl } from "@brandup/ui-input";
+import { EditorInputControl } from "@brandup/ui-input";
 import { POPUP_CLASS, PopupManager, SCROLLABLE_CLASS, type Modal } from "@brandup/ui-kit";
 import { DOM } from "@brandup/ui";
 import RichEditor, {
@@ -19,13 +19,14 @@ import {
 	CARET_ANCHOR,
 	highlight,
 	markupAt,
+	mayHaveMarkup,
 	unknownVariables as findUnknownVariables,
 	MARKUP_SELECTOR,
 	VARIABLE_CLASS,
 	type VariableNames,
 } from "./highlight";
 import RandomizerModal from "./randomizer";
-import VariablesModal, { buildVariable, parseVariables, type MessageVariable } from "./variables";
+import VariablesModal, { buildVariable, cleanVariables, parseVariables, type MessageVariable } from "./variables";
 import emojiIcon from "../svg/emoji.svg";
 import randomIcon from "../svg/random.svg";
 import variableIcon from "../svg/variable.svg";
@@ -37,38 +38,53 @@ export const EMOJI_HOLDER_CLASS = "messageeditor-emoji-holder";
 export const MODES_CLASS = "messageeditor-modes";
 export const MODE_CLASS = "messageeditor-mode";
 export const SOURCE_CLASS = "messageeditor-source";
-export const SOURCE_MODE_CLASS = "source"; // на корневом элементе — как focused и invalid
+// На корневом элементе — как focused и invalid, но только для оформления: сам режим компонент
+// держит в себе и из класса не читает (см. sourceMode).
+export const SOURCE_MODE_CLASS = "source";
 export const CHANGE_EVENT = "messageeditor-change";
 
 /** Формат хранения значения: сообщение уходит разметкой мессенджеров, а не HTML. */
 const STORAGE: FormatStorage = "markdown";
-
-/** Название формата хранения: переключают ровно в него — в текст, каким значение уйдёт в форму. */
-const STORAGE_TITLES: Record<FormatStorage, string> = { markdown: "Markdown", html: "HTML" };
 
 const ANCHORS = new RegExp(CARET_ANCHOR, "g");
 
 /** Снимает опоры каретки: в поле они нужны, в сообщении — нет. */
 const withoutAnchors = (value: string) => value.replace(ANCHORS, "");
 
-/** Режимы показа: сообщение и его выход. Второй назван форматом хранения — в него и переключают. */
+/**
+ * Режимы показа: сообщение и его выход. Подпись выхода — название разметки, знакомое пишущему
+ * («Markdown»), и задана здесь текстом: формат хранения (STORAGE) решает, как значение
+ * сериализуется, а не как называется кнопка, — сменится он, и подпись придётся выбирать заново.
+ */
 const MODES = [
 	{ mode: "text", label: "Текст", title: "Показать сообщение" },
-	{ mode: "source", label: STORAGE_TITLES[STORAGE], title: "Показать разметку, какой значение уйдёт в форму" },
+	{ mode: "source", label: "Markdown", title: "Показать разметку, какой значение уйдёт в форму" },
 ];
 
 /**
  * Переключатель режимов над плашкой: текст сообщения или его выход в формате хранения.
- * Кнопки, а не ссылки: это действие в поле, а не переход.
+ * Кнопки, а не ссылки: это действие в поле, а не переход. Возвращает и сами кнопки:
+ * их состояние отражает режим, и искать их в готовой разметке было бы лишним обходом.
  */
-function buildModes(): HTMLElement {
-	return DOM.tag(
-		"div",
-		{ class: MODES_CLASS },
-		MODES.map(({ mode, label, title }) =>
-			DOM.tag("button", { type: "button", class: MODE_CLASS, dataset: { mode }, title }, label)
-		)
+function buildModes(): { elem: HTMLElement; buttons: HTMLButtonElement[] } {
+	const buttons = MODES.map(
+		({ mode, label, title }) =>
+			DOM.tag(
+				"button",
+				{ type: "button", class: MODE_CLASS, dataset: { mode }, title },
+				label
+			) as HTMLButtonElement
 	);
+
+	return { elem: DOM.tag("div", { class: MODES_CLASS }, buttons), buttons };
+}
+
+/**
+ * Гасит нажатие, чтобы элемент не забирал фокус: каретка и выделение редактора остаются
+ * на месте, а сам клик по элементу доходит как обычно.
+ */
+function keepEditorFocus(elem: HTMLElement, signal: AbortSignal) {
+	elem.addEventListener("mousedown", (e) => e.preventDefault(), { signal });
 }
 
 export interface MessageEditorOptions {
@@ -147,18 +163,18 @@ type MessageEditorEvents = {
  * Настраивается набор разметки — инструменты и типы блоков: «мессенджер» это не один канал,
  * и понимают они разное.
  */
-export default class MessageEditor extends InputControl<HTMLInputElement | HTMLTextAreaElement, MessageEditorEvents> {
-	private __editor: RichEditor;
+export default class MessageEditor extends EditorInputControl<RichEditor, ChangeEventData, MessageEditorEvents> {
 	private __inputElem: HTMLElement; // редактируемый элемент (им владеет RichEditor)
-	private __listenerAbort = new AbortController();
 	private __composing = false; // идёт IME-ввод — подсветку откладываем
 	private __names: VariableNames; // названия переменных по ключу — для подсветки
 	private __modal: Modal | null = null; // открытое окно правки — его закрывает и destroy
 	private __emojiPicker: HTMLElement | null = null; // свой попап смайликов — см. __initEmoji
-	private __disposing = false; // компонент снимают: возвращать каретку и фокус уже некуда
+	private __disposing = false; // компонент снимают или уже сняли: фокус и каретку возвращать некуда
 	private __sourceElem: HTMLElement | null; // панель выхода; её нет вовсе, пока показ не включён
 	private __modeButtons: HTMLButtonElement[] = []; // кнопки переключателя — их состояние отражает режим
-	private __sourceMode = false; // показан выход, а не плашка
+	private __sourceMode = false; // показан ли выход — см. sourceMode
+	private __switching = false; // идёт переключение режима — см. __toggleSource
+	private __modalSilent = false; // окно закрывают из кода — каретку в поле не возвращаем
 
 	readonly placeholder: string | null;
 	readonly variables: MessageVariable[];
@@ -172,7 +188,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		const placeholder = valueElem.getAttribute("placeholder");
 		const tabIndexAttr = valueElem.getAttribute("tabindex");
 		const disabled = valueElem.disabled;
-		const readonly = valueElem.hasAttribute("readonly") || valueElem.hasAttribute("data-readonly");
+		const readonly = MessageEditor.isReadonly(valueElem);
 
 		// текст сообщения прокручивается сам — полоса оформляется общим классом кита
 		const inputElem = DOM.tag("div", { class: SCROLLABLE_CLASS });
@@ -191,36 +207,44 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		// а пишущему сообщение она только мешает. Панель выхода прокручивается так же, как текст
 		// в плашке, — общим классом кита.
 		const source = options.source ?? "source" in valueElem.dataset;
-		const modesElem = source ? buildModes() : null;
+		const modes = source ? buildModes() : null;
 		// tabindex — ради прокрутки: длинная разметка прокручивается в панели, а с клавиатуры
-		// прокручивают только то, что можно взять в фокус (текст плашки берётся сам, он редактируемый)
-		const sourceElem = source ? DOM.tag("pre", { class: [SCROLLABLE_CLASS, SOURCE_CLASS], tabindex: 0 }) : null;
-		// Пустое значение выглядит пустой панелью — заглушка объясняет её так же, как в плашке.
-		if (sourceElem && placeholder) sourceElem.dataset.placeholder = placeholder;
+		// прокручивают только то, что можно взять в фокус (текст плашки берётся сам, он редактируемый).
+		// Заглушка объясняет пустую панель так же, как в плашке; без заглушки атрибута нет вовсе
+		// (null поставил бы его пустым — см. dataset в DOM.tag).
+		const sourceElem = source
+			? DOM.tag("pre", {
+					class: [SCROLLABLE_CLASS, SOURCE_CLASS],
+					tabindex: 0,
+					dataset: { placeholder: placeholder ?? undefined },
+				})
+			: null;
 
 		const container = DOM.tag("div", { class: ROOT_CLASS }, [
-			modesElem,
+			modes ? modes.elem : null,
 			DOM.tag("div", { class: "bubble" }, [inputElem, emojiHolder]),
 			sourceElem,
 		]);
 
-		MessageEditor.prepareValueElem(valueElem, container, INPUT_CLASS);
-
-		// в фокус попадает редактируемый элемент, а не скрытый носитель значения
-		inputElem.tabIndex = disabled ? -1 : valueElem.tabIndex;
-		valueElem.tabIndex = -1;
-
-		valueElem.insertAdjacentElement("afterend", container);
-		container.insertAdjacentElement("afterbegin", valueElem);
+		// скрыть поле, подменить tabindex и обернуть контейнером — общая механика базового класса
+		MessageEditor.wrapValueElem(valueElem, container, INPUT_CLASS, inputElem, disabled);
 
 		// класс и подменённый tabindex вернёт базовый класс при destroy
-		super("BrandUp.MessageEditor", container, valueElem, {
-			class: INPUT_CLASS,
-			attrs: [["tabindex", tabIndexAttr]],
-		});
+		super(
+			"BrandUp.MessageEditor",
+			container,
+			valueElem,
+			{ class: INPUT_CLASS, attrs: [["tabindex", tabIndexAttr]] },
+			// фокус из кода ставит каретку в конец текста, если её ещё не было
+			{ changeEvent: CHANGE_EVENT, focusAtEnd: true }
+		);
 
 		this.placeholder = placeholder;
-		this.variables = options.variables ?? parseVariables(valueElem.dataset.variables);
+		// Переданный список проходит те же правила, что и разбор атрибута: ключ с символами
+		// разметки не свернётся в цельную конструкцию, откуда бы он ни пришёл.
+		this.variables = options.variables
+			? cleanVariables(options.variables)
+			: parseVariables(valueElem.dataset.variables);
 		this.variablesEmpty = options.variablesEmpty ?? valueElem.dataset.variablesEmpty ?? null;
 		// Объявленный список — тоже согласие: иначе переданные переменные молча никуда не вели бы.
 		this.personalization =
@@ -235,7 +259,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		this.source = source;
 		this.__sourceElem = sourceElem;
 
-		this.__editor = new RichEditor(inputElem, {
+		const editor = new RichEditor(inputElem, {
 			placeholder,
 			multiline: true,
 			// Enter переносит строку, а не создаёт абзац: иначе каждое нажатие уходило бы
@@ -244,8 +268,10 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			// цитата и блок кода — объявленным набором: их понимает не каждый канал
 			blocks: this.blocks,
 			keepFocus: options.keepFocus,
-			// disabled для редактора — тот же запрет правок, что и readonly (сам он про disabled не знает)
-			readonly: readonly || disabled,
+			readonly,
+			// disabled редактор знает сам: тот же запрет правок, что и readonly, плюс снятый
+			// contenteditable — без фокуса и выделения
+			disabled,
 			// Форматирование включено всегда — даже с пустым набором инструментов и в disabled:
 			// от него зависит и разбор значения (иначе вместо жирного показались бы звёздочки),
 			// и история отмены. Кнопок при этом не появится: их снимает readonly, а в disabled
@@ -268,17 +294,14 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			// onEnter здесь не нужен: он про однострочный режим, а сообщение всегда многострочное —
 			// Enter переносит строку и форму не отправляет
 		});
-
-		// RichEditor про disabled не знает — запрещаем правку на своей стороне
-		// (визуал даёт класс .disabled от InputControl)
-		if (disabled) inputElem.contentEditable = "false";
+		this.__attachEditor(editor);
 
 		// приводим носитель значения к нормализованному содержимому редактора (без события)
 		this.__valueElem.value = this.__messageValue();
 
 		this.__initLogic();
 		if (emojiElem && emojiHolder) this.__initEmoji(emojiElem, emojiHolder);
-		if (modesElem) this.__initModes(modesElem);
+		if (modes) this.__initModes(modes.elem, modes.buttons);
 
 		this.__highlight(); // начальное значение события change не поднимает
 	}
@@ -290,6 +313,12 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		this.__editor.onChange((data) => {
 			this.__valueElem.value = withoutAnchors(data.value);
 
+			// Значение перечитываем у поля-носителя, а не берём записанное: браузер приводит его
+			// по типу поля — input, например, срезает переносы строк, — и хост обязан получить
+			// ровно то, что отдадут getValue() и форма. Чтение дешёвое: это то же поле, куда
+			// значение только что записали, а не ещё одна синхронизация с редактором.
+			const value = this.__valueElem.value;
+
 			// Destroying the editor flushes the deferred change: the host must still get the value,
 			// but rebuilding the highlight is pointless — the field is going away, and moving the
 			// caret inside it even more so.
@@ -298,22 +327,24 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 
 				// Показанный выход следует за значением: пока панель открыта, менять его может
 				// и хост через setValue, и окно правки, открытое до переключения.
-				if (this.__sourceMode) this.__renderSource();
+				if (this.sourceMode) this.__renderSource();
 			}
 
-			if (this.element.classList.contains("invalid") && this.validate()) this.element.classList.remove("invalid");
+			// Подпись невалидности следует за значением — ровно одной проверкой на изменение.
+			// Помеченное невалидным поле перепроверяем целиком: validate() освежает подпись сам
+			// (через __syncValue) и переключает класс в обе стороны. Пока класса нет, снимать
+			// нечего — хватает самой подписи.
+			if (this.element.classList.contains("invalid")) this.validate();
+			else this.__refreshValidity();
 
-			this.trigger(CHANGE_EVENT, <ChangeEventData>{ editor: this, value: this.getValue() });
+			// значение уже посчитано — читать его заново (ещё один __syncValue) незачем
+			this.trigger(CHANGE_EVENT, <ChangeEventData>{ editor: this, value: value.trim() });
 		});
 
 		// Подсветка — на каждый ввод, а не только по change: событие изменения при печати
 		// троттлится, а конструкция должна подсвечиваться сразу, как дописана закрывающая скобка.
 		// Сама highlight() дёшево выходит, когда ни конструкций, ни прежних обёрток нет.
 		editable.addEventListener("input", () => this.__highlight(), { signal });
-
-		// состояние фокуса — на корневом элементе, плашка подсвечивается целиком
-		editable.addEventListener("focus", () => !this.disabled && this.element.classList.add("focused"), { signal });
-		editable.addEventListener("blur", () => !this.disabled && this.element.classList.remove("focused"), { signal });
 
 		// Клик мимо текста — тоже клик по полю: плашка выглядит и ведёт себя как одно поле ввода,
 		// а её поля и место справа от текста в редактируемый элемент не входят.
@@ -340,16 +371,6 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			},
 			{ signal }
 		);
-
-		// гасим нативный change скрытого поля
-		this.__valueElem.addEventListener(
-			"change",
-			(e: Event) => {
-				e.preventDefault();
-				e.stopImmediatePropagation();
-			},
-			{ signal }
-		);
 	}
 
 	/**
@@ -359,14 +380,6 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	 */
 	private __messageValue(): string {
 		return withoutAnchors(this.__editor.getValue());
-	}
-
-	// Редактор откладывает событие изменения при печати, поэтому копия значения в поле формы
-	// отстаёт. Базовый класс зовёт этот хук перед каждым чтением значения снаружи —
-	// валидация, отправка формы, сбор FormData.
-	protected override __syncValue(): void {
-		this.__editor.flushChange();
-		this.__refreshValidity();
 	}
 
 	/**
@@ -397,7 +410,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	 * она уйдёт скобками наружу. Объявляем полю-носителю через setCustomValidity, как textbox
 	 * объявляет свой лимит длины: дальше решает браузер — он же блокирует отправку формы.
 	 */
-	private __refreshValidity(): void {
+	protected override __refreshValidity(): void {
 		if (!this.__checksVariables) return;
 
 		const unknown = this.unknownVariables;
@@ -417,7 +430,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	private __focusFromBubble(e: MouseEvent) {
 		// в режиме выхода плашки на экране нет вовсе: клик по корню — это клик по панели, и текст
 		// в ней выделяют, а не правят
-		if (this.disabled || this.__sourceMode) return;
+		if (this.disabled || this.sourceMode) return;
 
 		const target = e.target as HTMLElement | null;
 		if (!target || this.__inputElem.contains(target)) return; // в сам текст браузер попадёт и сам
@@ -439,9 +452,14 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	private __highlight() {
 		if (this.__composing) return;
 
-		preserveCaret(this.__inputElem, () =>
-			highlight(this.__inputElem, { names: this.__names, variables: this.personalization })
-		);
+		const options = { names: this.__names, variables: this.personalization };
+
+		// Снимок каретки для preserveCaret не бесплатен: он считает смещения обходом содержимого,
+		// и на обычном наборе — где ни конструкций, ни обёрток нет — доставался бы зря на каждый
+		// ввод. Поэтому дешёвая проверка идёт до снимка, а не только внутри highlight().
+		if (!mayHaveMarkup(this.__inputElem, options)) return;
+
+		preserveCaret(this.__inputElem, () => highlight(this.__inputElem, options));
 
 		this.__escapeMarkup();
 	}
@@ -497,12 +515,17 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		if (variable && !this.personalization) return;
 
 		this.__openModal(
-			variable
-				? (apply) => new VariablesModal(this.variables, apply, this.variablesEmpty)
-				: (apply) => new RandomizerModal(span.textContent ?? "", apply),
+			variable ? this.__variablesModal : (apply) => new RandomizerModal(span.textContent ?? "", apply),
 			span
 		);
 	}
+
+	/**
+	 * Фабрика окна персонализации: окно одно и то же, а открывают его и кнопка панели, и клик
+	 * по конструкции. Стрелка, а не метод: фабрика передаётся в {@link __openModal} как есть.
+	 */
+	private __variablesModal = (apply: (text: string) => void): Modal =>
+		new VariablesModal(this.variables, apply, this.variablesEmpty);
 
 	/**
 	 * Открывает окно правки и возвращает правку в поле, чем бы окно ни кончилось.
@@ -555,8 +578,9 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 
 			// окно закрыли, ничего не выбрав, — возвращаем правку туда, где её прервали.
 			// Окно правки открывают кликом по самой конструкции, и каретка внутри неё не рисуется.
-			// Если компонент снимают, возвращать её некуда — поля сейчас не станет.
-			if (!this.__disposing && !applied && caret) {
+			// Если компонент снимают или окно закрывают из кода, возвращать её некуда и незачем:
+			// поля сейчас не станет либо его никто не просил (см. __closeModal).
+			if (!this.__disposing && !this.__modalSilent && !applied && caret) {
 				this.__editor.restoreCaret(caret);
 				this.__escapeMarkup();
 			}
@@ -564,6 +588,25 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			// снимаем удержание последним: фокус уже в поле, и содержимое трогать рано
 			release();
 		});
+	}
+
+	/**
+	 * Закрывает открытое окно правки без возврата каретки и фокуса в поле.
+	 *
+	 * Закрытие кнопкой или Esc — это конец правки: фокус возвращается туда, откуда его забрали.
+	 * А закрывают окно и из кода (см. {@link setValue} и {@link destroy}), где о фокусе никто
+	 * не просил: программная замена значения не должна уводить фокус со страницы в поле
+	 * и поднимать на сенсорном устройстве экранную клавиатуру.
+	 */
+	private __closeModal() {
+		if (!this.__modal) return;
+
+		this.__modalSilent = true;
+		try {
+			this.__modal.close();
+		} finally {
+			this.__modalSilent = false;
+		}
 	}
 
 	/** Стоит ли выделение внутри готовой конструкции — вкладывать их друг в друга нельзя. */
@@ -584,8 +627,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 						title: "Вставить переменную",
 						icon: variableIcon,
 						isEnabled: () => !this.__inMarkup(),
-						run: () =>
-							this.__openModal((apply) => new VariablesModal(this.variables, apply, this.variablesEmpty)),
+						run: () => this.__openModal(this.__variablesModal),
 					},
 				]
 			: [];
@@ -609,7 +651,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		const { signal } = this.__listenerAbort;
 
 		// кнопка не забирает фокус — иначе редактор потеряет каретку, а вместе с ней и место вставки
-		button.addEventListener("mousedown", (e) => e.preventDefault(), { signal });
+		keepEditorFocus(button, signal);
 		button.addEventListener(
 			"click",
 			(e) => {
@@ -630,20 +672,21 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		);
 	}
 
-	private __initModes(modes: HTMLElement) {
+	private __initModes(modes: HTMLElement, buttons: HTMLButtonElement[]) {
 		const { signal } = this.__listenerAbort;
 
-		this.__modeButtons = Array.from(modes.querySelectorAll<HTMLButtonElement>(`.${MODE_CLASS}`));
+		this.__modeButtons = buttons;
 
 		// Кнопки не забирают фокус нажатием: из плашки его уводит уже само переключение, а
 		// возвращаться туда после показа выхода нужно к прежней каретке, а не в конец текста.
-		modes.addEventListener("mousedown", (e) => e.preventDefault(), { signal });
+		keepEditorFocus(modes, signal);
 
 		modes.addEventListener(
 			"click",
 			(e) => {
 				const button = (e.target as HTMLElement).closest<HTMLElement>(`.${MODE_CLASS}`);
-				if (button) this.toggleSource(button.dataset.mode === "source");
+				// нажали в самом поле — продолжают работать в нём: фокус возвращается в плашку
+				if (button) this.__toggleSource(button.dataset.mode === "source", true);
 			},
 			{ signal }
 		);
@@ -654,7 +697,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	/** Отмечает в переключателе показанный режим. */
 	private __refreshModes() {
 		for (const button of this.__modeButtons) {
-			const active = (button.dataset.mode === "source") === this.__sourceMode;
+			const active = (button.dataset.mode === "source") === this.sourceMode;
 
 			button.classList.toggle("active", active);
 			button.setAttribute("aria-pressed", active ? "true" : "false");
@@ -663,18 +706,25 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 
 	/**
 	 * Рендерит выход в панель — ровно тем текстом, который сейчас лежит в поле-носителе.
-	 *
-	 * Отложенное изменение доставляем перед чтением: при печати копия значения у поля отстаёт,
-	 * а показывать выход, отставший от текста, — хуже, чем не показывать вовсе.
+	 * Только чтение: отложенное изменение доставляет {@link __toggleSource} до переключения,
+	 * а из обработчика изменения сюда приходят уже с доставленным.
 	 */
 	private __renderSource() {
+		// без включённого показа панели нет вовсе — рендерить некуда
 		if (!this.__sourceElem) return;
 
-		this.__editor.flushChange();
 		this.__sourceElem.textContent = this.__valueElem.value;
 	}
 
-	/** Показан ли выход вместо плашки. */
+	/**
+	 * Показан ли выход вместо плашки.
+	 *
+	 * Режим держит своё поле, а не класс на корневом элементе: собственные классы поля-носителя
+	 * переезжают на корневой элемент контрола (см. `prepareValueElem` в `@brandup/ui-input`),
+	 * и `class="source"` в разметке поля включал бы режим, которого нет, — с панелью, которую
+	 * никто не собирал. Класс при этом остаётся и выставляется переключением, как focused
+	 * и invalid: он контракт оформления, но читают его стили, а не компонент.
+	 */
 	get sourceMode(): boolean {
 		return this.__sourceMode;
 	}
@@ -683,17 +733,56 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	 * Переключает режим показа: плашка с сообщением или его выход в формате хранения. Значение
 	 * от переключения не меняется — панель только показывает то, что уже лежит в поле-носителе.
 	 *
+	 * Фокус по умолчанию не переводится: переключает и хост из кода, а программное переключение
+	 * не должно уводить фокус со страницы и поднимать экранную клавиатуру. Сама кнопка
+	 * переключателя фокус в плашку возвращает — нажали в поле, значит продолжают писать; хост
+	 * просит того же вторым аргументом.
+	 *
 	 * Без включённого показа выхода не делает ничего: панели, в которую рендерить, нет.
+	 *
+	 * @param show Показать выход; без аргумента — переключить на противоположный режим.
+	 * @param focus Вернуть ли фокус в плашку при возврате к сообщению. В disabled и readonly
+	 * фокус не ставится и по просьбе: в readonly он выделяет всё сообщение (так работает
+	 * редактор), и смена вида делала бы то же самое.
 	 */
-	toggleSource(show = !this.__sourceMode): void {
+	toggleSource(show = !this.sourceMode, focus = false): void {
+		this.__toggleSource(show, focus);
+	}
+
+	/**
+	 * Само переключение; `focus` — вернуть ли фокус в плашку при возврате к сообщению.
+	 * Кнопка переключателя передаёт true всегда: нажали в поле — значит, продолжают писать.
+	 */
+	private __toggleSource(show: boolean, focus: boolean): void {
 		if (!this.source || show === this.__sourceMode) return;
 
-		this.__sourceMode = show;
-		this.element.classList.toggle(SOURCE_MODE_CLASS, show);
+		// Переключение не должно начаться заново изнутри себя: __syncValue ниже доставляет
+		// отложенное изменение синхронно, и обработчик хоста, переключающий режим из него,
+		// прошёл бы проверку выше (режим ещё прежний) и проделал бы второе переключение —
+		// со вторым снятием всплывающих слоёв и второй перерисовкой панели.
+		if (this.__switching) return;
+		this.__switching = true;
 
+		try {
+			this.__switch(show, focus);
+		} finally {
+			this.__switching = false;
+		}
+	}
+
+	/** Само переключение, уже под защитой от повторного входа (см. {@link __toggleSource}). */
+	private __switch(show: boolean, focus: boolean): void {
 		if (show) {
-			// Фокус плашке в этом режиме не нужен: править в ней нечего. Каретку releaseFocus
-			// запоминает — с ней фокус и вернётся.
+			// Отложенное изменение доставляем до переключения: панель обязана показать актуальное
+			// значение, а доставка после смены режима рендерила бы её дважды — из обработчика
+			// изменения и здесь. Через __syncValue, а не голый flushChange: значение читается
+			// наружу, и проверка переменных обязана пройти, как при любом таком чтении.
+			this.__syncValue();
+
+			// Фокус отпускаем до скрытия плашки: releaseFocus снимает каретку с живого выделения,
+			// а у спрятанной плашки браузер его уже схлопнул бы — фокус вернулся бы не туда.
+			// С клавиатуры (Enter по кнопке режима) поле и так не в фокусе — снимать нечего, и
+			// каретка переключение не переживает; чинить это здесь нечем: снимка без фокуса нет.
 			this.__editor.releaseFocus();
 
 			// Всплывающие слои плашки уходят вместе с ней. Панель форматирования снимается и по
@@ -705,11 +794,18 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			formatToolbar.detach(this.__editor);
 			if (this.__emojiPicker && PopupManager.isOpened(this.__emojiPicker)) PopupManager.close();
 
+			// Режим — своё поле, класс на элементе только оформляет его (см. sourceMode)
+			this.__sourceMode = true;
+			this.element.classList.add(SOURCE_MODE_CLASS);
 			this.__renderSource();
-		} else if (!this.disabled) {
-			// Вернулись к сообщению — значит, продолжают писать: фокус идёт следом, на прежнее
-			// место, а если каретки ещё не было — в конец текста.
-			this.__editor.focus(true);
+		} else {
+			this.__sourceMode = false;
+			this.element.classList.remove(SOURCE_MODE_CLASS);
+
+			// Вернулись к сообщению кнопкой — продолжают писать: фокус идёт следом, на прежнее
+			// место, а если каретки ещё не было — в конец текста. В readonly не фокусируем:
+			// фокус там выделяет всё сообщение, и переключение показа делало бы то же.
+			if (focus && !this.disabled && !this.readonly) this.__editor.focus(true);
 		}
 
 		this.__refreshModes();
@@ -720,22 +816,13 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		return this.__editor;
 	}
 
-	onChange(handler: (e: ChangeEventData) => void) {
-		this.on(CHANGE_EVENT, handler);
-	}
+	override setValue(value: string): void {
+		// Открытое окно правки закрываем: новое значение пересоберёт содержимое, и заменяемая
+		// окном конструкция осталась бы указывать на снятые узлы — применение вставило бы дубликат.
+		// Молча: значение меняют из кода, и фокус с кареткой возвращать в поле никто не просил.
+		this.__closeModal();
 
-	hasValue(): boolean {
-		return !!this.getValue();
-	}
-
-	getValue(): string {
-		this.__syncValue(); // значение читают снаружи — отложенное изменение сюда обязано попасть
-		return this.__valueElem.value.trim();
-	}
-
-	setValue(value: string): void {
-		// RichEditor нормализует значение и поднимет change — он же обновит носитель значения
-		this.__editor.setValue(value?.trim() ?? "");
+		super.setValue(value); // редактор нормализует значение, поднимет change и обновит носитель
 	}
 
 	// Правила проверяет браузер по атрибутам поля-носителя; контрол отражает результат классом.
@@ -748,22 +835,24 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	}
 
 	override destroy(): void {
+		// Придти сюда могут дважды: снял хост, а следом сработало авто-уничтожение по удалению
+		// элемента из DOM (UIElement подписан на MutationObserver) — или наоборот. Второй проход
+		// обращался бы к уже снятому элементу и падал бы на возврате поля-носителя, не дойдя
+		// до снятия своей подписи невалидности ниже, — и поле осталось бы в форме невалидным.
+		if (this.__disposing) return;
 		this.__disposing = true;
 
 		// Окно правки живёт в body, а не внутри компонента: само оно не исчезнет, а его кнопки
 		// правили бы уже снятый редактор. Закрываем до него — обработчику закрытия нужен живой.
-		this.__modal?.close();
+		this.__closeModal();
 
-		this.__listenerAbort.abort();
-		this.__editor.destroy();
+		super.destroy(); // снимет редактор и слушатели формы, вернёт поле-носитель в исходный вид
 
 		// Своя подпись невалидности контрол переживёт: поле вернётся в форму обычным, но
 		// навсегда невалидным, а понять почему будет нечем — плашки с подсветкой уже нет.
 		// Снимаем последней: разрушение редактора доставляет отложенное изменение, а оно
 		// проходит через __refreshValidity и подпись бы вернуло.
 		if (this.__checksVariables) this.__valueElem.setCustomValidity("");
-
-		super.destroy(); // снимет слушатели формы и вернёт поле-носитель в исходный вид
 	}
 }
 

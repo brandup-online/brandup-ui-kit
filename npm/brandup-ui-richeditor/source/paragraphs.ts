@@ -205,10 +205,36 @@ export function mergeAdjacentBlocks(root: HTMLElement) {
 }
 
 /**
+ * Есть ли что нормализовать {@link ensureParagraphs}: блуждающий текст/инлайн, чужой `<div>`,
+ * пустой абзац без заполнителя или лишний хвостовой перенос.
+ *
+ * Проверка зеркалит правки ensureParagraphs и существует ради горячего пути: нормализация
+ * вызывается на каждое нажатие клавиши, а сохранение каретки вокруг неё собирает весь текст
+ * в строку. Почти всегда менять нечего — и дешёвый осмотр верхнего уровня позволяет не платить
+ * ни за снимок каретки, ни за сравнение содержимого.
+ */
+export function paragraphsNormalized(root: HTMLElement): boolean {
+	for (const node of root.childNodes) {
+		const el = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
+		if (!el || !isBlock(el) || el.tagName === "DIV") return false;
+		if (!el.firstChild) return false;
+
+		const tail = el.lastChild!;
+		if (tail.nodeName === "BR" && tail.previousSibling?.nodeName !== "BR" && (el.textContent ?? "").length > 0)
+			return false;
+	}
+
+	return true;
+}
+
+/**
  * Нормализует верхний уровень редактора к абзацам <p>: блуждающие текст/инлайн оборачиваются в <p>,
  * <div> заменяются на <p>, пустые абзацы получают <br>-заполнитель (чтобы строка была видимой).
+ *
+ * Возвращает, менялось ли содержимое: если нет — выделение живо, и переставлять его не нужно.
  */
-export function ensureParagraphs(root: HTMLElement) {
+export function ensureParagraphs(root: HTMLElement): boolean {
+	let changed = false;
 	let run: ChildNode[] = [];
 
 	const flushRun = (before: Node | null) => {
@@ -217,6 +243,7 @@ export function ensureParagraphs(root: HTMLElement) {
 		for (const node of run) block.appendChild(node);
 		root.insertBefore(block, before);
 		run = [];
+		changed = true;
 	};
 
 	for (const node of Array.from(root.childNodes)) {
@@ -230,6 +257,7 @@ export function ensureParagraphs(root: HTMLElement) {
 				const p = document.createElement(BLOCK_TYPES[DEFAULT_BLOCK].tag);
 				while (el.firstChild) p.appendChild(el.firstChild);
 				root.replaceChild(p, el);
+				changed = true;
 			}
 		} else {
 			run.push(node);
@@ -240,6 +268,7 @@ export function ensureParagraphs(root: HTMLElement) {
 	for (const p of Array.from(root.children) as HTMLElement[]) {
 		if (!p.firstChild) {
 			p.appendChild(document.createElement("br")); // пустой абзац — заполнитель для видимости строки
+			changed = true;
 			continue;
 		}
 
@@ -252,7 +281,12 @@ export function ensureParagraphs(root: HTMLElement) {
 		// начать печатать в следующей.
 		if ((p.textContent ?? "").length > 0) {
 			const tail = p.lastChild;
-			if (tail?.nodeName === "BR" && tail.previousSibling?.nodeName !== "BR") p.removeChild(tail);
+			if (tail?.nodeName === "BR" && tail.previousSibling?.nodeName !== "BR") {
+				p.removeChild(tail);
+				changed = true;
+			}
 		}
 	}
+
+	return changed;
 }

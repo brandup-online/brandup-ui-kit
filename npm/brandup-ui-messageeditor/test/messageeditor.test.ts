@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { PopupManager } from "@brandup/ui-kit";
+import { POPUP_OPENED_BODY_CLASS, PopupManager } from "@brandup/ui-kit";
 import MessageEditor, { ROOT_CLASS, INPUT_CLASS, EMOJI_CLASS, EMOJI_HOLDER_CLASS } from "../source/messageeditor";
 
 function setup(
@@ -195,7 +195,7 @@ describe("MessageEditor", () => {
 		editor.destroy();
 
 		expect(PopupManager.isOpened()).toBe(false);
-		expect(document.body.classList.contains("ui-popup-opened")).toBe(false);
+		expect(document.body.classList.contains(POPUP_OPENED_BODY_CLASS)).toBe(false);
 	});
 
 	// Попап у каждого поля свой: он раскрывается от кнопки в плашке и живёт в её коробке.
@@ -342,6 +342,36 @@ describe("MessageEditor", () => {
 		const editor = new MessageEditor(input, { variables: [{ key: "ИЗ_КОДА" }] });
 
 		expect(editor.variables).toEqual([{ key: "ИЗ_КОДА" }]);
+	});
+
+	// Список из опций проходит те же правила, что и разбор атрибута: ключ с символами разметки
+	// не свернётся в цельную конструкцию, а перенос в названии разорвал бы строку сообщения.
+	it("filters the option variables like the attribute ones", () => {
+		const { input } = setup();
+		const errors = jest.spyOn(console, "error").mockImplementation(() => {});
+		const editor = new MessageEditor(input, {
+			variables: [{ key: "А|Б" }, { key: " ИМЯ ", name: "Имя\nклиента" }, { key: "  " }],
+		});
+
+		expect(editor.variables).toEqual([{ key: "ИМЯ", name: "Имя клиента" }]);
+		expect(errors).toHaveBeenCalledTimes(2); // отброшенная запись не пропадает молча
+		errors.mockRestore();
+	});
+
+	// Список — данные приложения: в записях бывают свои поля (идентификатор, группа), и
+	// пересобранный литерал лишил бы приложение его же данных — список оно читает обратно
+	// свойством variables.
+	it("keeps the host objects of the option variables", () => {
+		const { input } = setup();
+		const errors = jest.spyOn(console, "error").mockImplementation(() => {});
+		const own = { key: "ИМЯ", name: "Имя", id: 7 };
+		const broken = { key: "А|Б", id: 8 };
+		const editor = new MessageEditor(input, { variables: [own, broken] });
+
+		expect(editor.variables).toHaveLength(1); // негодный ключ по-прежнему отбрасывается
+		expect(editor.variables[0]).toBe(own); // тот же объект, а не его копия
+		expect(errors).toHaveBeenCalled();
+		errors.mockRestore();
 	});
 
 	// список из атрибута должен доходить до окна выбора, а не оставаться полем компонента
@@ -614,6 +644,34 @@ describe("MessageEditor", () => {
 		expect(editor.element.classList.contains("invalid")).toBe(false);
 	});
 
+	// Унаследованный focus() целил бы в поле-носитель, а оно уведено с экрана и фокус не берёт
+	it("focuses the editable from the control's focus()", () => {
+		const { input } = setup({ value: "текст" });
+		const editor = new MessageEditor(input);
+		editor.element.scrollIntoView = jest.fn(); // jsdom его не реализует
+
+		editor.focus();
+
+		expect(document.activeElement).toBe(editor.editor.editable);
+		expect(editor.element.scrollIntoView).toHaveBeenCalled();
+	});
+
+	// Хост сменил значение, пока открыто окно правки: цель окна (заменяемая конструкция)
+	// указывает на снятые узлы, и применение вставило бы результат дубликатом.
+	it("closes the edit modal when the host replaces the value", () => {
+		const { input } = setup({ value: "Привет, {ИМЯ}" });
+		const editor = new MessageEditor(input, { variables: [{ key: "ИМЯ" }] });
+
+		const span = editor.editor.editable.querySelector<HTMLElement>("span.variable")!;
+		span.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		expect(document.querySelector(".ui-modal")).not.toBeNull();
+
+		editor.setValue("новое значение");
+
+		expect(document.querySelector(".ui-modal")).toBeNull();
+		expect(editor.getValue()).toBe("новое значение");
+	});
+
 	it("toggles the focused class with the editable", () => {
 		const { input } = setup();
 		const editor = new MessageEditor(input);
@@ -701,6 +759,34 @@ describe("MessageEditor", () => {
 		new MessageEditor(input).destroy();
 
 		expect(input.getAttribute("tabindex")).toBe("3");
+	});
+});
+
+// Событие изменения несёт значение, а не его пересчёт: хост сверяет его с getValue() и кладёт
+// в те же места, что и форма. Носителем бывает и <input> — браузер приводит его значение сам,
+// срезая переносы, и посчитанное мимо поля разошлось бы с тем, что уйдёт в FormData.
+describe("change payload", () => {
+	const build = (tag: "input" | "textarea") => {
+		document.body.innerHTML = "";
+		const form = document.createElement("form");
+		const elem = document.createElement(tag);
+		elem.name = "message";
+		form.appendChild(elem);
+		document.body.appendChild(form);
+		return { elem, form };
+	};
+
+	it.each([["textarea"], ["input"]] as const)("agrees with getValue() for an %s carrier", (tag) => {
+		const { elem, form } = build(tag);
+		const editor = new MessageEditor(elem);
+		const handler = jest.fn();
+		editor.onChange(handler);
+
+		editor.setValue("раз\n\nдва");
+
+		const { value } = handler.mock.calls[0][0];
+		expect(value).toBe(editor.getValue());
+		expect(value).toBe(new FormData(form).get("message"));
 	});
 });
 
@@ -862,6 +948,26 @@ describe("focus while a modal is open", () => {
 
 		expect(document.activeElement).toBe(editor.editor.editable);
 		expect(window.getSelection()!.anchorOffset).toBe(8);
+	});
+
+	// Закрытие окна на setValue — уборка, а не конец правки: значение меняют из кода, и уводить
+	// фокус со страницы в поле (а на сенсорном устройстве поднимать клавиатуру) оно не должно.
+	it("does not take the focus back when the host replaces the value", () => {
+		const { input } = setup({ value: "Привет, мир" });
+		const editor = new MessageEditor(input, { personalization: true, keepFocus: true });
+
+		editor.editor.editable.focus();
+		caretAt(editor.editor.editable.querySelector("p")!.firstChild!, 8);
+
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
+		const active = document.activeElement;
+
+		editor.setValue("новое значение");
+
+		expect(document.querySelector(".ui-modal")).toBeNull(); // закрыть окно всё равно обязаны
+		// сравнение сводим к признаку: узлы в сообщении об ошибке jest разворачивает целым деревом
+		expect(document.activeElement === active).toBe(true);
+		expect(document.activeElement === editor.editor.editable).toBe(false);
 	});
 });
 

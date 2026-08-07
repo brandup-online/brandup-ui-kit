@@ -26,8 +26,7 @@ afterEach(() => {
 // поля наследника ещё не объявлены, и их объявления затирают присвоенное. Эти тесты
 // ловят как раз такую поломку — окно открывается пустым или падает.
 describe("RandomizerModal", () => {
-	const fields = (modal: RandomizerModal) =>
-		Array.from(modal.element!.querySelectorAll<HTMLElement>(".editable"));
+	const fields = (modal: RandomizerModal) => Array.from(modal.element!.querySelectorAll<HTMLElement>(".editable"));
 	const texts = (modal: RandomizerModal) => fields(modal).map((f) => f.textContent);
 
 	// В набор печатают, а не заполняют форму: пока есть место, список кончается пустым вариантом,
@@ -48,6 +47,31 @@ describe("RandomizerModal", () => {
 		const modal = open(new RandomizerModal("[раз|два]", () => {}));
 
 		expect(texts(modal)).toEqual(["раз", "два", ""]);
+	});
+
+	// Исходный текст — выделение из сообщения, и символы конструкции с переносами в нём не
+	// редкость: он обязан пройти ту же чистку, что и вставка, иначе в варианте оказалось бы
+	// то, что нельзя ни набрать, ни вставить.
+	it("cleans the initial text like a paste", () => {
+		const modal = open(new RandomizerModal("[а|б] хвост", () => {}));
+
+		expect(texts(modal)).toEqual(["аб хвост", ""]);
+	});
+
+	it("collapses a multi-line selection into one line", () => {
+		const modal = open(new RandomizerModal("раз\n\nдва", () => {}));
+
+		expect(texts(modal)).toEqual(["раз два", ""]);
+	});
+
+	// перетащенный текст миновал бы и клавиши, и вставку — бросать в вариант нельзя вовсе
+	it("refuses a drop into a variant field", () => {
+		const modal = open(new RandomizerModal("раз", () => {}));
+
+		const drop = new Event("drop", { bubbles: true, cancelable: true });
+		fields(modal)[0].dispatchEvent(drop);
+
+		expect(drop.defaultPrevented).toBe(true);
 	});
 
 	// пустой вариант внизу появляется сам, как только предыдущий перестал быть пустым
@@ -220,9 +244,7 @@ describe("VariablesModal", () => {
 	// В списке показывается то, что будет видно в сообщении: с названием — оно, иначе ключ.
 	// Ключ идёт отдельной подписью, без скобок и только когда отличается от показанного.
 	it("shows each variable as it will look in the message, with its key aside", () => {
-		const modal = open(
-			new VariablesModal([{ key: "ИМЯ", name: "Имя подписчика" }, { key: "ГОРОД" }], () => {})
-		);
+		const modal = open(new VariablesModal([{ key: "ИМЯ", name: "Имя подписчика" }, { key: "ГОРОД" }], () => {}));
 
 		const rows = modal.element!.querySelectorAll(".variables .variable");
 		expect(Array.from(rows).map((r) => r.querySelector(".preview")!.textContent)).toEqual([
@@ -292,9 +314,7 @@ describe("parseVariables", () => {
 	});
 
 	it("drops entries without a key", () => {
-		expect(parseVariables('[{"name":"Без ключа"},"",{"key":"  "},{"key":"ГОРОД"}]')).toEqual([
-			{ key: "ГОРОД" },
-		]);
+		expect(parseVariables('[{"name":"Без ключа"},"",{"key":"  "},{"key":"ГОРОД"}]')).toEqual([{ key: "ГОРОД" }]);
 	});
 
 	it.each([[null], [""], ["   "], [","]])("gives an empty list for %j", (value) => {
@@ -322,8 +342,6 @@ describe("parseVariables", () => {
 describe("parseVariables names", () => {
 	it("collapses line breaks in a name", () => {
 		// в JSON перенос записан escape-последовательностью: сырой внутри строки недопустим
-		expect(parseVariables('[{"key":"ИМЯ","name":"Имя\\nклиента"}]')).toEqual([
-			{ key: "ИМЯ", name: "Имя клиента" },
-		]);
+		expect(parseVariables('[{"key":"ИМЯ","name":"Имя\\nклиента"}]')).toEqual([{ key: "ИМЯ", name: "Имя клиента" }]);
 	});
 });

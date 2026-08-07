@@ -29,6 +29,7 @@ export class EditorHistory {
 	private __lastKind: HistoryKind | null = null;
 	private __lastTime = 0;
 	private __chars = 0; // суммарный объём снимков отмены — см. MAX_CHARS
+	private __redoChars = 0; // объём снимков повтора: длинная серия undo копит их так же
 
 	constructor(root: HTMLElement) {
 		this.__root = root;
@@ -70,6 +71,7 @@ export class EditorHistory {
 
 		this.__push(snap);
 		this.__redo = [];
+		this.__redoChars = 0;
 	}
 
 	// Puts a snapshot on the undo stack, dropping the oldest ones beyond the limits. Every push
@@ -89,7 +91,15 @@ export class EditorHistory {
 		if (!prev) return false;
 
 		this.__chars -= prev.html.length;
-		this.__redo.push(this.__snapshot());
+
+		// Бюджет у повтора тот же, что и у отмены: серия undo перекладывает снимки сюда,
+		// и без учёта их объёма ограничение MAX_CHARS теряло бы смысл.
+		const snap = this.__snapshot();
+		this.__redo.push(snap);
+		this.__redoChars += snap.html.length;
+		while (this.__redo.length > MAX_DEPTH || (this.__redoChars > MAX_CHARS && this.__redo.length > 1))
+			this.__redoChars -= this.__redo.shift()!.html.length;
+
 		this.__restore(prev);
 		this.__lastKind = null; // следующая печать начнёт новый шаг
 		return true;
@@ -100,6 +110,7 @@ export class EditorHistory {
 		const next = this.__redo.pop();
 		if (!next) return false;
 
+		this.__redoChars -= next.html.length;
 		this.__push(this.__snapshot());
 		this.__restore(next);
 		this.__lastKind = null;

@@ -125,6 +125,23 @@ describe("unknown variables", () => {
 		expect(form.checkValidity()).toBe(true);
 	});
 
+	// Снять компонент могут дважды: своим destroy это делает хост, а следом — авто-уничтожение
+	// по удалению элемента из DOM (или наоборот). Второй проход не должен ни падать, ни оставлять
+	// полю снятую подпись: поле вернулось бы в форму навсегда невалидным.
+	it("survives a second destroy", () => {
+		const editor = setup("{ЧУЖАЯ}", declared);
+		const valueElem = editor.element.querySelector("textarea")!;
+		const form = valueElem.form!;
+
+		expect(editor.validate()).toBe(false);
+
+		editor.destroy();
+		expect(() => editor.destroy()).not.toThrow();
+
+		expect(valueElem.validity.customError).toBe(false);
+		expect(form.checkValidity()).toBe(true);
+	});
+
 	// Проверять не по чему — значит и подпись не наша: приложение могло выставить свою через
 	// setCustomValidity, и пустая строка стёрла бы её.
 	it("keeps a host-set custom validity when there is nothing to check", () => {

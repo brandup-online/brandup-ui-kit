@@ -124,8 +124,12 @@ export interface ToolbarHost {
 	readonly blockTools?: BlockType[];
 	applyFormat(tool: FormatTool): void;
 	isToolActive(tool: FormatTool): boolean;
-	/** false — инструмент сейчас недоступен (например, внутри кода): кнопка гасится. */
-	isToolEnabled?(tool: FormatTool): boolean;
+	/**
+	 * false — инструмент сейчас недоступен (например, внутри кода): кнопка гасится.
+	 * Признак «в коде» дорог (обход выделения) — панель считает его один раз на обновление
+	 * и передаёт вторым аргументом, чтобы хост не обходил выделение на каждую кнопку.
+	 */
+	isToolEnabled?(tool: FormatTool, codeActive?: boolean): boolean;
 	/** Тип блока под кареткой — им подсвечивается активная кнопка блока. */
 	readonly currentBlock?: BlockType;
 	applyBlock?(type: BlockType): void;
@@ -326,17 +330,27 @@ class FormatToolbar {
 		};
 
 		const active = host.activeTools?.();
+		// Признак «в коде» гасит остальные кнопки и подсвечивает объединённую; сам он — обход
+		// выделения, поэтому считается один раз на обновление, а не на каждую кнопку. Вывести
+		// его из activeTools можно только вместе с currentBlock (блок кода — не формат): хосту
+		// без блоков остаётся его собственный isCodeActive.
+		const inCode =
+			active && host.currentBlock !== undefined
+				? host.currentBlock === CODE_TOOL || active.has(CODE_TOOL)
+				: host.isCodeActive?.();
+
 		for (const [tool, btn] of this.__buttons) {
 			// объединённая кнопка подсвечена и на блоке кода, а не только на моноширинном
 			const isActive =
 				this.__mergedCode && tool === CODE_TOOL
-					? !!host.isCodeActive?.()
+					? !!inCode
 					: active
 						? active.has(tool)
 						: host.isToolActive(tool);
 
-			if (btn.classList.contains("active") !== isActive) btn.classList.toggle("active", isActive);
-			setDisabled(btn, host.isToolEnabled?.(tool) === false);
+			// toggle с force не трогает атрибут, когда состояние уже нужное, — мутации не будет
+			btn.classList.toggle("active", isActive);
+			setDisabled(btn, host.isToolEnabled?.(tool, inCode) === false);
 		}
 
 		// тип под кареткой спрашиваем, только если есть что подсвечивать: обновление идёт
@@ -344,10 +358,7 @@ class FormatToolbar {
 		if (this.__blockButtons.length) {
 			const block = host.currentBlock;
 
-			for (const [type, btn] of this.__blockButtons) {
-				const isActive = block === type;
-				if (btn.classList.contains("active") !== isActive) btn.classList.toggle("active", isActive);
-			}
+			for (const [type, btn] of this.__blockButtons) btn.classList.toggle("active", block === type);
 		}
 
 		// хост может не реализовывать isActionEnabled — тогда кнопка всегда доступна

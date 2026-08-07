@@ -57,4 +57,5 @@ export {
 	mergeAdjacentBlocks,
 	normalizeParagraphs,
 	ensureParagraphs,
+	paragraphsNormalized,
 } from "./paragraphs";

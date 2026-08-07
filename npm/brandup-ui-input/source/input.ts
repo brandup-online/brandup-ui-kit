@@ -33,6 +33,17 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 	}
 
 	/**
+	 * Признан ли элемент полем только для чтения: нативный атрибут `readonly` либо `data-readonly` —
+	 * последний нужен полям, у которых нативного атрибута нет (например, `select`).
+	 *
+	 * Статический, потому что контролам это нужно и до `super(...)` — режим влияет на сборку
+	 * их разметки; после конструирования то же самое отдаёт getter {@link readonly}.
+	 */
+	protected static isReadonly(valueElem: HTMLElement): boolean {
+		return valueElem.hasAttribute("readonly") || valueElem.hasAttribute("data-readonly");
+	}
+
+	/**
 	 * Готовит поле-носитель к обёртке контейнером контрола: класс-скрыватель переезжает на поле,
 	 * а собственные классы поля — на контейнер, чтобы оформление из разметки применялось к тому,
 	 * что видно. Статический, потому что вызывается до `super(...)`.
@@ -56,7 +67,7 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 		return this.__valueElem.required;
 	}
 	get readonly(): boolean {
-		return this.__valueElem.hasAttribute("readonly") || this.__valueElem.hasAttribute("data-readonly");
+		return InputControl.isReadonly(this.__valueElem);
 	}
 
 	/**
@@ -162,9 +173,29 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 		return result;
 	}
 
+	/**
+	 * Фокус в контрол. Выключенное поле фокус не принимает — как нативный `disabled` input:
+	 * раньше это выходило само собой (браузер игнорирует `focus()` на выключенном поле),
+	 * но контрол на редакторе уводит фокус в свой элемент, а тот выключение не запрещает,
+	 * — поэтому запрет объявлен здесь, рядом с таким же в {@link __requestSubmit}.
+	 *
+	 * Поле только для чтения фокусируется: это его нативное поведение — текст читают,
+	 * выделяют и копируют, и уводить от него клавиатуру нельзя.
+	 */
 	focus(): void {
-		this.__valueElem.focus();
+		if (this.disabled) return;
+
+		this.__focusValue();
 		this.element.scrollIntoView({ block: "center", inline: "center" });
+	}
+
+	/**
+	 * Куда именно ведёт фокус контрола. По умолчанию — поле-носитель; контролы, у которых
+	 * ввод идёт в другом элементе, подменяют его здесь, а общие проверки и прокрутку
+	 * оставляют базовому {@link focus}.
+	 */
+	protected __focusValue(): void {
+		this.__valueElem.focus();
 	}
 
 	/**
