@@ -1,15 +1,17 @@
 import "./messageeditor.less"; // стили компонента
 
 import { InputControl } from "@brandup/ui-input";
-import { POPUP_CLASS, SCROLLABLE_CLASS, type Modal } from "@brandup/ui-kit";
+import { POPUP_CLASS, PopupManager, SCROLLABLE_CLASS, type Modal } from "@brandup/ui-kit";
 import { DOM } from "@brandup/ui";
 import RichEditor, {
 	TOOLBAR_CLASS,
 	createEmojiPicker,
+	formatToolbar,
 	parseBlockTypes,
 	parseFormatTools,
 	preserveCaret,
 	type BlockType,
+	type FormatStorage,
 	type FormatTool,
 	type ToolbarButton,
 } from "@brandup/ui-richeditor";
@@ -32,12 +34,42 @@ export const ROOT_CLASS = "ui-messageeditor";
 export const INPUT_CLASS = "messageeditor-input";
 export const EMOJI_CLASS = "messageeditor-emoji";
 export const EMOJI_HOLDER_CLASS = "messageeditor-emoji-holder";
+export const MODES_CLASS = "messageeditor-modes";
+export const MODE_CLASS = "messageeditor-mode";
+export const SOURCE_CLASS = "messageeditor-source";
+export const SOURCE_MODE_CLASS = "source"; // на корневом элементе — как focused и invalid
 export const CHANGE_EVENT = "messageeditor-change";
+
+/** Формат хранения значения: сообщение уходит разметкой мессенджеров, а не HTML. */
+const STORAGE: FormatStorage = "markdown";
+
+/** Название формата хранения: переключают ровно в него — в текст, каким значение уйдёт в форму. */
+const STORAGE_TITLES: Record<FormatStorage, string> = { markdown: "Markdown", html: "HTML" };
 
 const ANCHORS = new RegExp(CARET_ANCHOR, "g");
 
 /** Снимает опоры каретки: в поле они нужны, в сообщении — нет. */
 const withoutAnchors = (value: string) => value.replace(ANCHORS, "");
+
+/** Режимы показа: сообщение и его выход. Второй назван форматом хранения — в него и переключают. */
+const MODES = [
+	{ mode: "text", label: "Текст", title: "Показать сообщение" },
+	{ mode: "source", label: STORAGE_TITLES[STORAGE], title: "Показать разметку, какой значение уйдёт в форму" },
+];
+
+/**
+ * Переключатель режимов над плашкой: текст сообщения или его выход в формате хранения.
+ * Кнопки, а не ссылки: это действие в поле, а не переход.
+ */
+function buildModes(): HTMLElement {
+	return DOM.tag(
+		"div",
+		{ class: MODES_CLASS },
+		MODES.map(({ mode, label, title }) =>
+			DOM.tag("button", { type: "button", class: MODE_CLASS, dataset: { mode }, title }, label)
+		)
+	);
+}
 
 export interface MessageEditorOptions {
 	/**
@@ -90,6 +122,14 @@ export interface MessageEditorOptions {
 	 * саму панель. Окна персонализации и рандомизации фокус забирают всегда.
 	 */
 	keepFocus?: boolean;
+	/**
+	 * Показ выхода: переключатель над плашкой и панель рядом с ней, в которую рендерится значение
+	 * в формате хранения. По умолчанию выключен — пишущему сообщение сырая разметка не нужна,
+	 * а показанная без спроса требует объяснений.
+	 *
+	 * Без этой опции берётся из разметки: атрибут `data-source` поля-носителя.
+	 */
+	source?: boolean;
 }
 
 type MessageEditorEvents = {
@@ -116,6 +156,9 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	private __modal: Modal | null = null; // открытое окно правки — его закрывает и destroy
 	private __emojiPicker: HTMLElement | null = null; // свой попап смайликов — см. __initEmoji
 	private __disposing = false; // компонент снимают: возвращать каретку и фокус уже некуда
+	private __sourceElem: HTMLElement | null; // панель выхода; её нет вовсе, пока показ не включён
+	private __modeButtons: HTMLButtonElement[] = []; // кнопки переключателя — их состояние отражает режим
+	private __sourceMode = false; // показан выход, а не плашка
 
 	readonly placeholder: string | null;
 	readonly variables: MessageVariable[];
@@ -123,6 +166,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	readonly personalization: boolean;
 	readonly blocks: BlockType[];
 	readonly tools: FormatTool[];
+	readonly source: boolean;
 
 	constructor(valueElem: HTMLInputElement | HTMLTextAreaElement, options: MessageEditorOptions = {}) {
 		const placeholder = valueElem.getAttribute("placeholder");
@@ -143,8 +187,21 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		// всем редактором, а не над кнопкой.
 		const emojiHolder = emojiElem ? DOM.tag("div", { class: EMOJI_HOLDER_CLASS }, emojiElem) : null;
 
+		// Показ выхода — по объявлению, а не всегда: сырая разметка нужна тому, кто её сверяет,
+		// а пишущему сообщение она только мешает. Панель выхода прокручивается так же, как текст
+		// в плашке, — общим классом кита.
+		const source = options.source ?? "source" in valueElem.dataset;
+		const modesElem = source ? buildModes() : null;
+		// tabindex — ради прокрутки: длинная разметка прокручивается в панели, а с клавиатуры
+		// прокручивают только то, что можно взять в фокус (текст плашки берётся сам, он редактируемый)
+		const sourceElem = source ? DOM.tag("pre", { class: [SCROLLABLE_CLASS, SOURCE_CLASS], tabindex: 0 }) : null;
+		// Пустое значение выглядит пустой панелью — заглушка объясняет её так же, как в плашке.
+		if (sourceElem && placeholder) sourceElem.dataset.placeholder = placeholder;
+
 		const container = DOM.tag("div", { class: ROOT_CLASS }, [
+			modesElem,
 			DOM.tag("div", { class: "bubble" }, [inputElem, emojiHolder]),
+			sourceElem,
 		]);
 
 		MessageEditor.prepareValueElem(valueElem, container, INPUT_CLASS);
@@ -175,6 +232,8 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 		// чужую переменную от известной. В тексте показываем название, если оно задано.
 		this.__names = new Map(this.variables.map((v) => [v.key, v.name ?? null]));
 		this.__inputElem = inputElem;
+		this.source = source;
+		this.__sourceElem = sourceElem;
 
 		this.__editor = new RichEditor(inputElem, {
 			placeholder,
@@ -202,7 +261,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			// доменные кнопки: редактор про рандомизацию и переменные не знает, только рисует их
 			buttons: disabled ? [] : this.__toolbarButtons(),
 			// значение хранится разметкой мессенджеров, а не HTML
-			storage: "markdown",
+			storage: STORAGE,
 			// панель показывается над плашкой, а не над document.body
 			toolbarContainer: container,
 			value: valueElem.value,
@@ -219,6 +278,7 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 
 		this.__initLogic();
 		if (emojiElem && emojiHolder) this.__initEmoji(emojiElem, emojiHolder);
+		if (modesElem) this.__initModes(modesElem);
 
 		this.__highlight(); // начальное значение события change не поднимает
 	}
@@ -233,7 +293,13 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			// Destroying the editor flushes the deferred change: the host must still get the value,
 			// but rebuilding the highlight is pointless — the field is going away, and moving the
 			// caret inside it even more so.
-			if (!this.__disposing) this.__highlight();
+			if (!this.__disposing) {
+				this.__highlight();
+
+				// Показанный выход следует за значением: пока панель открыта, менять его может
+				// и хост через setValue, и окно правки, открытое до переключения.
+				if (this.__sourceMode) this.__renderSource();
+			}
 
 			if (this.element.classList.contains("invalid") && this.validate()) this.element.classList.remove("invalid");
 
@@ -349,7 +415,9 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 	 * текста: клик мимо текста это клик за ним.
 	 */
 	private __focusFromBubble(e: MouseEvent) {
-		if (this.disabled) return;
+		// в режиме выхода плашки на экране нет вовсе: клик по корню — это клик по панели, и текст
+		// в ней выделяют, а не правят
+		if (this.disabled || this.__sourceMode) return;
 
 		const target = e.target as HTMLElement | null;
 		if (!target || this.__inputElem.contains(target)) return; // в сам текст браузер попадёт и сам
@@ -560,6 +628,91 @@ export default class MessageEditor extends InputControl<HTMLInputElement | HTMLT
 			},
 			{ signal }
 		);
+	}
+
+	private __initModes(modes: HTMLElement) {
+		const { signal } = this.__listenerAbort;
+
+		this.__modeButtons = Array.from(modes.querySelectorAll<HTMLButtonElement>(`.${MODE_CLASS}`));
+
+		// Кнопки не забирают фокус нажатием: из плашки его уводит уже само переключение, а
+		// возвращаться туда после показа выхода нужно к прежней каретке, а не в конец текста.
+		modes.addEventListener("mousedown", (e) => e.preventDefault(), { signal });
+
+		modes.addEventListener(
+			"click",
+			(e) => {
+				const button = (e.target as HTMLElement).closest<HTMLElement>(`.${MODE_CLASS}`);
+				if (button) this.toggleSource(button.dataset.mode === "source");
+			},
+			{ signal }
+		);
+
+		this.__refreshModes();
+	}
+
+	/** Отмечает в переключателе показанный режим. */
+	private __refreshModes() {
+		for (const button of this.__modeButtons) {
+			const active = (button.dataset.mode === "source") === this.__sourceMode;
+
+			button.classList.toggle("active", active);
+			button.setAttribute("aria-pressed", active ? "true" : "false");
+		}
+	}
+
+	/**
+	 * Рендерит выход в панель — ровно тем текстом, который сейчас лежит в поле-носителе.
+	 *
+	 * Отложенное изменение доставляем перед чтением: при печати копия значения у поля отстаёт,
+	 * а показывать выход, отставший от текста, — хуже, чем не показывать вовсе.
+	 */
+	private __renderSource() {
+		if (!this.__sourceElem) return;
+
+		this.__editor.flushChange();
+		this.__sourceElem.textContent = this.__valueElem.value;
+	}
+
+	/** Показан ли выход вместо плашки. */
+	get sourceMode(): boolean {
+		return this.__sourceMode;
+	}
+
+	/**
+	 * Переключает режим показа: плашка с сообщением или его выход в формате хранения. Значение
+	 * от переключения не меняется — панель только показывает то, что уже лежит в поле-носителе.
+	 *
+	 * Без включённого показа выхода не делает ничего: панели, в которую рендерить, нет.
+	 */
+	toggleSource(show = !this.__sourceMode): void {
+		if (!this.source || show === this.__sourceMode) return;
+
+		this.__sourceMode = show;
+		this.element.classList.toggle(SOURCE_MODE_CLASS, show);
+
+		if (show) {
+			// Фокус плашке в этом режиме не нужен: править в ней нечего. Каретку releaseFocus
+			// запоминает — с ней фокус и вернётся.
+			this.__editor.releaseFocus();
+
+			// Всплывающие слои плашки уходят вместе с ней. Панель форматирования снимается и по
+			// blur, но правку адреса ссылки blur не прерывает: фокус в это время в самой панели,
+			// и до редактора он не доходил. Попап смайликов закрывает и PopupManager — тем же
+			// кликом, что пришёл на кнопку, — но режим переключает и хост из кода, а оставленный
+			// открытым попап держал бы PopupManager на невидимом элементе: на body остался бы его
+			// класс, и на узком экране страница перестала бы прокручиваться.
+			formatToolbar.detach(this.__editor);
+			if (this.__emojiPicker && PopupManager.isOpened(this.__emojiPicker)) PopupManager.close();
+
+			this.__renderSource();
+		} else if (!this.disabled) {
+			// Вернулись к сообщению — значит, продолжают писать: фокус идёт следом, на прежнее
+			// место, а если каретки ещё не было — в конец текста.
+			this.__editor.focus(true);
+		}
+
+		this.__refreshModes();
 	}
 
 	/** Доступ к встроенному редактору (выделение, вставка текста и т.п.). */

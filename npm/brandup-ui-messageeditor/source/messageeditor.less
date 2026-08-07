@@ -27,6 +27,27 @@
 	--messageeditor-button-size: 32px;
 	--messageeditor-button-icon: 20px;
 	--messageeditor-button-color: var(--placeholder-color, #999);
+	// Панель выхода — не сообщение, а его разметка: заливка нейтральная, как у полей ввода,
+	// и рамка видимая. Похожей на плашку она сбивала бы с толку — в ней ничего не пишут.
+	--messageeditor-source-fill: var(--input-fill, #fff);
+	--messageeditor-source-border: var(--input-border-color, #dcdfe4);
+	--messageeditor-source-color: var(--messageeditor-color);
+	--messageeditor-source-font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	--messageeditor-modes-gap: 6px;
+}
+
+// Коробка поля: у плашки и панели выхода она общая — это два вида одного значения, и подменять
+// друг друга они должны без скачка. Рамка задаётся цветом отдельно: он у них разный.
+// Пол по высоте — на случай переопределённых отступов: поле не ниже полей ввода кита. Рамка входит
+// в высоту (box-sizing: border-box), поэтому и вычитается при расчёте отступов (см. :root выше).
+.messageeditor-box() {
+	box-sizing: border-box;
+	padding: var(--messageeditor-padding-tb) var(--input-padding-lr);
+	min-height: var(--input-height, 46px);
+	border-width: var(--messageeditor-border-width);
+	border-style: solid;
+	border-radius: var(--messageeditor-radius);
+	box-shadow: var(--messageeditor-shadow);
 }
 
 .ui-messageeditor {
@@ -46,18 +67,10 @@
 		align-items: flex-end;
 		column-gap: var(--messageeditor-gap);
 		position: relative;
-		padding-top: var(--messageeditor-padding-tb);
-		padding-bottom: var(--messageeditor-padding-tb);
-		padding-left: var(--input-padding-lr);
-		padding-right: var(--input-padding-lr);
-		box-sizing: border-box;
-		// пол по высоте на случай переопределённых отступов — плашка не ниже полей ввода кита
-		min-height: var(--input-height, 46px);
+		.messageeditor-box();
 		cursor: text;
 		background-color: var(--messageeditor-fill);
-		border: var(--messageeditor-border-width) solid var(--messageeditor-border);
-		box-shadow: var(--messageeditor-shadow);
-		border-radius: var(--messageeditor-radius);
+		border-color: var(--messageeditor-border);
 		transition: border-color ease 120ms;
 
 		// Прокручивается текст, а не плашка целиком — иначе кнопка смайлика уезжала бы
@@ -75,6 +88,73 @@
 			& p {
 				padding: 0;
 			}
+		}
+	}
+
+	// Переключатель режимов над плашкой: сообщение или его разметка. Кнопки идут строкой,
+	// выбранная залита — как вкладки, только меньше: это не навигация, а вид одного и того же поля.
+	& .messageeditor-modes {
+		display: flex;
+		flex-flow: row nowrap;
+		column-gap: 2px;
+		margin-bottom: var(--messageeditor-modes-gap);
+	}
+
+	& .messageeditor-mode {
+		padding: 2px 10px;
+		border: 0;
+		border-radius: var(--messageeditor-radius);
+		background: transparent;
+		font: inherit;
+		font-size: 0.85em;
+		color: var(--messageeditor-button-color);
+		cursor: pointer;
+
+		&:hover {
+			color: var(--messageeditor-accent);
+		}
+
+		// Выбранный режим — залит и не нажимается: нажимать его не за чем, он уже показан
+		&.active {
+			background-color: var(--messageeditor-fill);
+			color: var(--messageeditor-color);
+			cursor: default;
+		}
+	}
+
+	// Панель выхода на месте плашки: тот же размер и скругление, но своя заливка — здесь
+	// не пишут, а читают то, что уйдёт в форму. Показывается вместо плашки, а не рядом:
+	// это два вида одного значения, и держать их на экране разом значит спрашивать, какой из них
+	// правится.
+	& .messageeditor-source {
+		display: none;
+		margin: 0;
+		.messageeditor-box();
+		max-height: var(--messageeditor-maxheight);
+		overflow-y: auto; // полоса прокрутки — общая, от .ui-scrollable кита
+		white-space: pre-wrap;
+		overflow-wrap: break-word;
+		font-family: var(--messageeditor-source-font);
+		font-size: 0.9em;
+		line-height: inherit;
+		color: var(--messageeditor-source-color);
+		background-color: var(--messageeditor-source-fill);
+		border-color: var(--messageeditor-source-border);
+
+		// Пустое значение — пустая панель: без заглушки она выглядела бы сломанной, а не пустой
+		&:empty::before {
+			content: attr(data-placeholder);
+			color: var(--placeholder-color, #999);
+		}
+	}
+
+	&.source {
+		& .bubble {
+			display: none;
+		}
+
+		& .messageeditor-source {
+			display: block;
 		}
 	}
 
@@ -134,8 +214,16 @@
 		--messageeditor-border: var(--messageeditor-border-focus);
 	}
 
-	&.invalid .bubble {
-		--messageeditor-border: var(--invalid--input-border-color, #e66c6c);
+	// Невалидность видна в обоих режимах: показана бывает и панель, а ошибку значения объявляет
+	// поле-носитель — плашки на экране в этот момент может не быть вовсе.
+	&.invalid {
+		& .bubble {
+			--messageeditor-border: var(--invalid--input-border-color, #e66c6c);
+		}
+
+		& .messageeditor-source {
+			--messageeditor-source-border: var(--invalid--input-border-color, #e66c6c);
+		}
 	}
 
 	&.disabled {
