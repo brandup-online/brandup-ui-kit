@@ -1,7 +1,7 @@
 import { Page } from "./base";
 import html from "./messageeditor.html";
 import "./messageeditor.less";
-import MessageEditor from "@brandup/ui-messageeditor";
+import MessageEditor, { type MessageEditorOptions } from "@brandup/ui-messageeditor";
 
 // переменные персонализации знает приложение, а не компонент
 const VARIABLES = [
@@ -31,7 +31,13 @@ export default class MessageEditorPage extends Page {
 				// в опциях имеют приоритет и атрибуты в примере ничего бы не показали
 				const fromMarkup =
 					elem.hasAttribute("data-variables") || elem.hasAttribute("data-variables-empty");
-				const options = fromMarkup ? {} : { variables: VARIABLES };
+				const options: MessageEditorOptions = fromMarkup ? {} : { variables: VARIABLES };
+
+				// Настройка полей — действие приложения (SPA-переход или своё окно); в примере
+				// вместо экрана настройки — заглушка. Строкой это был бы адрес обычной ссылки.
+				if (elem.hasAttribute("data-variables-empty"))
+					options.variablesSetup = () => window.alert("Здесь открылся бы экран настройки полей аудитории.");
+
 				const editor = new MessageEditor(elem, options);
 				this.__editors.push(editor);
 

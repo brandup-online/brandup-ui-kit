@@ -63,4 +63,28 @@
 		color: var(--placeholder-color, #999);
 		text-align: center;
 	}
+
+	// Ссылка на настройку полей — тихий подвал окна, отбитый линией: основное действие здесь
+	// выбор переменной, а настройка — запасной выход, когда нужного поля в списке не нашлось.
+	& .setup {
+		margin-top: 8px;
+		padding: 8px 0 0;
+		border-top: var(--input-border-type, solid) var(--input-border-width, 1px) var(--input-border-color, #dcdfe4);
+	}
+
+	// Один вид у обеих форм: с адресом это <a href>, с действием хоста — кнопка (см. VariablesSetup)
+	& .setup-link {
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: var(--focus--input-border-color, #4a9eff);
+		font: inherit;
+		text-decoration: none;
+		cursor: pointer;
+
+		&:hover,
+		&:focus-visible {
+			text-decoration: underline;
+		}
+	}
 }

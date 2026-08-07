@@ -520,28 +520,172 @@ export function sanitizePastedHtml(
 }
 
 /**
+ * Несёт ли разобранная вставка собственную разметку: блок не-абзац либо инлайновый тег — кроме
+ * `<br>`, перенос есть и в простом тексте. Плоская вставка не знает ничего сверх `text/plain`:
+ * так выглядит скопированный из редактора кода исходник — голые строки в `<div>`.
+ */
+export function hasPastedMarkup(paras: HTMLElement[]): boolean {
+	return paras.some(
+		(p) => p.tagName !== "P" || Array.from(p.querySelectorAll("*")).some((el) => el.tagName !== "BR")
+	);
+}
+
+/**
+ * Похож ли сырой html буфера на документ, а не на обёртку вокруг голых строк. Смотрим на сырой
+ * html, потому что санитизация разницу стирает: и строки-`<div>` из редактора кода, и абзацы
+ * веб-страницы выходят из неё одинаковыми `<p>`. А разница решает, чей разбор первый: в документе
+ * маркеры в тексте — буквальные символы, которые видит и читатель страницы, в голых строках —
+ * разметка хранения.
+ */
+export function isDocumentHtml(html: string): boolean {
+	const holder = document.createElement("template");
+	holder.innerHTML = html;
+
+	return !!holder.content.querySelector("p, h1, h2, h3, h4, h5, h6, li, table");
+}
+
+/**
+ * Разбирает простой текст из буфера как markdown — для редакторов, хранящих значение этой
+ * разметкой: маркеры во вставляемом тексте значат то же, что в значении, и разбираются тем же
+ * `deserialize` с теми же наборами. Пустой результат — вставлять нечего (вызывающий откатится
+ * на простой текст).
+ *
+ * В отличие от {@link sanitizePastedHtml}, пробелы не схлопываются: это текст, а не вёрстка —
+ * переносы и отступы в нём и так значат сами себя.
+ */
+export function parsePastedMarkdown(
+	text: string,
+	tools: FormatTool[],
+	markers: FormatMarkers,
+	types: BlockType[] = [DEFAULT_BLOCK],
+	separate = true
+): HTMLElement[] {
+	const holder = document.createElement("template");
+	holder.innerHTML = deserialize(text, "markdown", tools, markers, true, types, separate);
+
+	return Array.from(holder.content.children) as HTMLElement[];
+}
+
+// Слово — буквы и цифры любого алфавита плюс подчёркивание. \w здесь не годится: он знает
+// только латиницу, и кириллическое слово по нему словом не будет.
+const WORD_CHAR = /[\p{L}\p{N}_]/u;
+
+const isWordChar = (ch: string | undefined) => !!ch && WORD_CHAR.test(ch);
+
+/** Кусок текстового потока блока: текстовый узел и его начало в общей строке. */
+type StreamPart = { node: Text; start: number };
+
+/**
+ * Текстовый поток блока, в котором стоит узел: текст его текстовых узлов одной строкой плюс
+ * карта соответствия. Слово не кончается на границе узла — «сло<b>во</b>» это одно слово,
+ * и расширение обязано её пересекать. Пересекать нельзя другое:
+ *  - переносы строк (<br>) — слова по разные стороны переноса разные, в поток идёт разделитель;
+ *  - готовые конструкции (contenteditable="false" — переменные и спинтакс messageeditor):
+ *    они атомарны и правятся своим окном, расширению внутри них делать нечего.
+ */
+function blockStream(editable: HTMLElement, node: Node): { text: string; parts: StreamPart[] } {
+	// Блок — прямой потомок редактора (p, blockquote, pre); текст без блоков лежит в нём самом
+	let root: Node = node;
+	while (root.parentNode && root.parentNode !== editable) root = root.parentNode;
+	if (!root.parentNode) root = editable; // узел вне редактора — поток по самому редактору не собрать
+	const scope = root.nodeType === Node.ELEMENT_NODE ? (root as HTMLElement) : editable;
+
+	let text = "";
+	const parts: StreamPart[] = [];
+
+	const walk = (current: Node) => {
+		if (current.nodeType === Node.TEXT_NODE) {
+			parts.push({ node: current as Text, start: text.length });
+			text += current.textContent ?? "";
+			return;
+		}
+		if (current.nodeType !== Node.ELEMENT_NODE) return;
+		const elem = current as HTMLElement;
+		if (elem.tagName === "BR" || elem.getAttribute("contenteditable") === "false") {
+			text += "\n"; // разделитель: слово через перенос или конструкцию не перепрыгивает
+			return;
+		}
+		for (const child of Array.from(elem.childNodes)) walk(child);
+	};
+	walk(scope);
+
+	return { text, parts };
+}
+
+/** Позиция в потоке → узел и смещение. Позиция всегда из этого же потока, место найдётся. */
+function streamPoint(parts: StreamPart[], position: number): [Text, number] {
+	let holder = parts[0];
+	for (const part of parts) {
+		if (part.start > position) break;
+		holder = part;
+	}
+	return [holder.node, Math.min(position - holder.start, holder.node.textContent?.length ?? 0)];
+}
+
+/**
  * Диапазон, расширенный до целых слов на границах (для применения формата к слову целиком).
  * Возвращает новый Range и не трогает выделение — вызывающий сам решает, править ли по нему
  * и когда двигать каретку.
+ *
+ * Слово — то, что стоит между пробелами, без небуквенных знаков по краям: внутренние знаки
+ * остаются его частью («info@example.com», «по-русски»), а точка после слова — нет. Иначе
+ * каретка в слове перед точкой отдавала бы форматированию и точку, которую туда не просили.
+ * Явное выделение только растёт: выделенное вместе со знаками таким и останется. Каретка
+ * не в слове вовсе (сразу за точкой) не расширяется никуда — схлопнутый диапазон редактор
+ * понимает как «формат для того, что будут набирать».
  */
 export function expandRangeToWords(editable: HTMLElement, range: Range): Range {
 	const { startContainer, endContainer } = range;
-	let startOffset = range.startOffset;
-	let endOffset = range.endOffset;
-
-	if (startContainer.nodeType === Node.TEXT_NODE && editable.contains(startContainer)) {
-		const text = startContainer.textContent ?? "";
-		while (startOffset > 0 && !/\s/.test(text[startOffset - 1])) startOffset--;
-	}
-
-	if (endContainer.nodeType === Node.TEXT_NODE && editable.contains(endContainer)) {
-		const text = endContainer.textContent ?? "";
-		while (endOffset < text.length && !/\s/.test(text[endOffset])) endOffset++;
-	}
 
 	const expanded = document.createRange();
-	expanded.setStart(startContainer, startOffset);
-	expanded.setEnd(endContainer, endOffset);
+	expanded.setStart(startContainer, range.startOffset);
+	expanded.setEnd(endContainer, range.endOffset);
+
+	const expandIn = (container: Node, offset: number): { parts: StreamPart[]; from: number; to: number } | null => {
+		if (container.nodeType !== Node.TEXT_NODE || !editable.contains(container)) return null;
+
+		const { text, parts } = blockStream(editable, container);
+		const part = parts.find((candidate) => candidate.node === container);
+		if (!part) return null;
+		const position = part.start + offset;
+
+		// до пробелов…
+		let from = position;
+		let to = position;
+		while (from > 0 && !/\s/.test(text[from - 1])) from--;
+		while (to < text.length && !/\s/.test(text[to])) to++;
+
+		// …и без небуквенных знаков по краям
+		while (from < to && !isWordChar(text[from])) from++;
+		while (to > from && !isWordChar(text[to - 1])) to--;
+
+		return { parts, from, to };
+	};
+
+	const start = expandIn(startContainer, range.startOffset);
+	const end = range.collapsed ? start : expandIn(endContainer, range.endOffset);
+
+	if (range.collapsed) {
+		// каретка стоит вне слова (за точкой) — расширять нечего
+		if (!start || start.from >= start.to) return expanded;
+		const position = start.parts.find((part) => part.node === startContainer)!.start + range.startOffset;
+		if (position < start.from || position > start.to) return expanded;
+
+		expanded.setStart(...streamPoint(start.parts, start.from));
+		expanded.setEnd(...streamPoint(start.parts, start.to));
+		return expanded;
+	}
+
+	// выделение только растёт: правая часть слова добирается, выделенные знаки не выпадают
+	if (start && start.from < start.to) {
+		const [node, offset] = streamPoint(start.parts, start.from);
+		if (expanded.comparePoint(node, offset) < 0) expanded.setStart(node, offset);
+	}
+	if (end && end.from < end.to) {
+		const [node, offset] = streamPoint(end.parts, end.to);
+		if (expanded.comparePoint(node, offset) > 0) expanded.setEnd(node, offset);
+	}
+
 	return expanded;
 }
 

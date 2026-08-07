@@ -22,22 +22,46 @@ export interface MessageVariable {
  */
 export const VARIABLES_EMPTY_TEXT = "Переменные не заданы.";
 
+/** Подпись ссылки на настройку полей — когда хост её объявил, но подпись не задал. */
+export const VARIABLES_SETUP_TEXT = "Настроить поля";
+
+/**
+ * Ссылка на настройку полей — последней строкой окна. Где настройка живёт, знает хост:
+ * с адресом рисуется настоящая `<a href>` (работают средняя кнопка и «копировать адрес»),
+ * без него — кнопка в виде ссылки, а само действие делает {@link onClick}.
+ */
+export interface VariablesSetup {
+	/** Подпись ссылки. */
+	text: string;
+	/** Адрес перехода; без него рисуется кнопка, а не ссылка. */
+	url?: string;
+	/** Нажатие: у ссылки — вдогонку переходу (закрыть окно), у кнопки — само действие. */
+	onClick(): void;
+}
+
 /** Выбор переменной персонализации из списка; выбранная вставляется как `{ИМЯ}`. */
 export default class VariablesModal extends Modal {
 	private readonly __variables: MessageVariable[];
 	private readonly __apply: (text: string) => void;
 	private readonly __emptyText: string;
+	private readonly __setup: VariablesSetup | null;
 
 	override get typeName(): string {
 		return "BrandUp.MessageEditor.Variables";
 	}
 
-	constructor(variables: MessageVariable[], apply: (text: string) => void, emptyText?: string | null) {
+	constructor(
+		variables: MessageVariable[],
+		apply: (text: string) => void,
+		emptyText?: string | null,
+		setup?: VariablesSetup | null
+	) {
 		super({ title: "Персонализация", className: "messageeditor-variables" });
 
 		this.__variables = variables;
 		this.__apply = apply;
 		this.__emptyText = emptyText?.trim() || VARIABLES_EMPTY_TEXT;
+		this.__setup = setup ?? null;
 
 		this.registerCommand(PICK_COMMAND, (context) => {
 			const key = context.target.dataset.variable;
@@ -48,6 +72,7 @@ export default class VariablesModal extends Modal {
 		});
 
 		this.__renderList();
+		this.__renderSetup();
 	}
 
 	private __renderList() {
@@ -77,6 +102,26 @@ export default class VariablesModal extends Modal {
 				)
 			)
 		);
+	}
+
+	/**
+	 * Ссылка на настройку полей — последней строкой окна, в обоих состояниях списка одинаково:
+	 * при пустом это главный выход («переменные не заданы» → настроить), при заполненном —
+	 * запасной, когда нужного поля в списке не нашлось. Одно место — ссылка не прыгает по окну.
+	 * Без объявленной настройки строки нет вовсе: мёртвый элемент хуже отсутствующего.
+	 */
+	private __renderSetup() {
+		if (!this.__setup) return;
+		const { text, url, onClick } = this.__setup;
+
+		// Подпись — данные хоста: в окно она идёт текстом, не разметкой (см. textTag).
+		// У ссылки переход остаётся штатным — обработчик его не гасит, он лишь закрывает окно.
+		const link = url
+			? textTag("a", { class: "setup-link", href: url }, text)
+			: textTag("button", { type: "button", class: "setup-link" }, text);
+		link.addEventListener("click", () => onClick());
+
+		this.body.appendChild(DOM.tag("div", { class: "setup" }, link));
 	}
 }
 

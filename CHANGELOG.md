@@ -29,6 +29,36 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Added
 
+- **The format toolbar fits a phone screen.** The panel is never wider than
+  the screen (or its container in the `toolbarContainer` mode), and its right
+  edge stays inside the viewport — a field near the right side of a desktop
+  window used to push the panel off-screen too. A full button set that does
+  not fit scrolls horizontally inside `.toolbar-body`: buttons neither wrap
+  nor hide, the panel stays one row; the bar is the kit's `.ui-scrollable`,
+  only thinner. `--richeditor-toolbar-edge-gap` sets the gap from the screen
+  edges (paired with `EDGE_GAP` in toolbar.ts); the group separator no longer
+  collapses to nothing when width runs out.
+
+- **The randomizer opens with the word under the caret.** With no selection
+  of its own, the modal takes the word the caret stands on as the first
+  variant — that is usually the word being randomized — and the assembled
+  spintax replaces that word instead of tearing it in half. A caret outside
+  any word (right after a dot) opens the window empty. New on `RichEditor`:
+  `caretWord`, `selectCaretWord()`.
+
+- **Quote styling is configurable, and the quote is a content-sized plaque.**
+  New variables `--richeditor-quote-fill`, `--richeditor-quote-line-width`,
+  `--richeditor-quote-padding-tb`/`-lr` next to the existing line color; the
+  quote gets a background and `width: fit-content` — with a fill, the empty
+  space right of a short line would read as part of the plaque. In
+  `@brandup/ui-messageeditor` the fill follows the bubble color
+  (`--messageeditor-quote-fill`), not the editor's neutral gray.
+
+- **Hover feedback on message constructs.** Spintax and variables darken on
+  hover (`--hover--messageeditor-*-fill`, derived from the fills via
+  `color-mix`) and show a pointer cursor — but only where the click actually
+  works: readonly and disabled fields show neither.
+
 - **Floating scrollbar in `.ui-scrollable`.** The bar no longer touches the
   edges of its box. `--scrollbar-track-inset` keeps its ends away from the
   corners (a margin on the track), `--scrollbar-edge-inset` moves the bar
@@ -38,6 +68,47 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   the default cursor instead of inheriting the one set on the box — over a
   text field it used to be a text caret. `--scrollbar-size` now means the
   thickness of the visible bar, not of the space reserved for it.
+
+- **A "set up fields" link in the `@brandup/ui-messageeditor` personalization
+  window.** Declared by the host via the `variablesSetup` option (a URL for a
+  real `<a href>`, or a function for an SPA transition / own dialog) or the
+  `data-variables-setup` attribute; the caption comes from
+  `variablesSetupText` / `data-variables-setup-text` (default: «Настроить
+  поля»). The link sits as the last row of the window in both list states —
+  the main way out of an empty list, a fallback when the needed field is
+  missing. Clicking closes the window silently (no caret return — the focus
+  leaves the screen); a function may return `false` to keep the window open.
+  A declared setup also opts into personalization, like a declared variable
+  list. Exported: `VARIABLES_SETUP_TEXT`, `VariablesSetup`.
+
+- **Markdown is parsed on plain-text paste when the value is stored as
+  markdown.** With `storage: "markdown"` the markers in pasted plain text mean
+  the same thing they mean in the value, so they are parsed by the same
+  `deserialize` with the same declared tool and block sets. Only the enabled
+  format ever applies — a marker of an undeclared tool stays literal text,
+  exactly as it would in the value (and as the value itself is parsed on
+  editor initialization). Clipboard `text/html` still wins when present;
+  text modified by `filterPaste` and text pasted into a code block stay
+  literal. An opening fence with a language tag (` ```text `) now opens a
+  code block the same way — in pasted text and in the value alike; the tag
+  itself is dropped (a bare fence goes back out), and only a bare fence
+  closes the block. Clipboard `text/html` wins only when it carries markup of
+  its own: code editors hand markdown source over as bare lines wrapped in
+  `<div>`s, and such flat html knows nothing beyond `text/plain`, so the
+  storage-format parse goes first. Document-shaped html (`<p>` paragraphs,
+  headings, list items) is never taken as flat, even when it carries no
+  formatting tag at all: literal marker characters in web-page prose are what
+  the page reader sees, and parsing them would turn them into markup. Nested
+  `<div>`/`<p>` boundaries inside a pasted payload now become line breaks
+  instead of joining adjacent lines back to back.
+
+- **Text files can be dropped into `@brandup/ui-richeditor`.** A dropped
+  `text/*` file (or an extension-recognized `.md`/`.markdown`/`.txt`/`.text`
+  file with no MIME type) is inserted as its content through the same pipeline
+  as paste: `filterPaste`, storage-format parsing with the declared sets, one
+  undo step. Several files are joined with a blank line, the caret lands at
+  the drop point where the browser can name it, and any other drop is still
+  swallowed — a free-form drag would bypass the history and the host filters.
 
 - **The spoiler button is shown in the shared toolbar.** The tool itself
   always worked — `||spoiler||` was parsed, rendered and stored, and
@@ -102,6 +173,16 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Changed
 
+- **A word, for format-to-word expansion, is a whitespace-delimited token
+  without its non-letter edges.** Interior punctuation belongs to the word —
+  a link with the caret in `info@example.com` wraps the whole address (it
+  used to grab `example` alone), `по-русски` and `don't` stay whole — while
+  punctuation after the word is not taken: the caret in a word before a dot
+  no longer hands the dot to formatting. The word crosses inline tag
+  boundaries (`Дарим <b>ск</b>идку` is one word «скидку») but never a `<br>`
+  or an atomic construct; a caret outside any word expands nowhere and turns
+  into the pending-format mode; an explicit selection only grows.
+
 - **Vertical padding in `@brandup/ui-messageeditor` moved inside the scrolled
   area.** The editor in the bubble and the text of the source panel carry it
   themselves now, so the bar runs the full height of the field and text at the
@@ -159,6 +240,15 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   from 72.7 KiB → 38.7 KiB minified (~47%).
 
 ### Fixed
+
+- **The shared toolbar measured itself against its own stale position.** The
+  panel is one for all editors and its inline `left` survives hiding, so
+  after a field near the right screen edge the next show measured the panel
+  squeezed by the leftover coordinate and pinned it as a narrow scrolling
+  strip. The width is now measured with the coordinate cleared, and the
+  viewport is `documentElement.clientWidth` rather than `innerWidth` — the
+  latter includes the page scrollbar, and the rightmost button ended up
+  under it.
 
 - **`TextBox` showed the formatting toolbar with nothing declared.** A
   multiline field passed "block types not specified" to the editor, and that

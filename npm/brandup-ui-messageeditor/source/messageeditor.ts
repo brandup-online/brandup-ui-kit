@@ -26,7 +26,14 @@ import {
 	type VariableNames,
 } from "./highlight";
 import RandomizerModal from "./randomizer";
-import VariablesModal, { buildVariable, cleanVariables, parseVariables, type MessageVariable } from "./variables";
+import VariablesModal, {
+	VARIABLES_SETUP_TEXT,
+	buildVariable,
+	cleanVariables,
+	parseVariables,
+	type MessageVariable,
+	type VariablesSetup,
+} from "./variables";
 import emojiIcon from "../svg/emoji.svg";
 import randomIcon from "../svg/random.svg";
 import variableIcon from "../svg/variable.svg";
@@ -114,6 +121,21 @@ export interface MessageEditorOptions {
 	 */
 	variablesEmpty?: string | null;
 	/**
+	 * Настройка полей персонализации: ссылка последней строкой окна переменных. Строка — адрес
+	 * перехода (обычная `<a href>`), функция — действие хоста: SPA-переход или своё окно.
+	 * Окно переменных при нажатии закрывается молча, без возврата каретки в поле, — фокус
+	 * уходит на другой экран; функция возвращает `false`, когда окно должно остаться открытым.
+	 *
+	 * Без этой опции адрес берётся из атрибута `data-variables-setup` поля-носителя.
+	 * Объявленная настройка — тоже согласие на персонализацию, как и объявленный список.
+	 */
+	variablesSetup?: string | (() => void | boolean);
+	/**
+	 * Подпись ссылки на настройку полей; по умолчанию — «Настроить поля».
+	 * Без неё берётся из атрибута `data-variables-setup-text` поля-носителя.
+	 */
+	variablesSetupText?: string;
+	/**
 	 * Block types of the message: quote, code block. Both are available by default; a channel does
 	 * not understand everything, so the set is limited — an empty list leaves plain text only.
 	 *
@@ -180,6 +202,8 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	readonly placeholder: string | null;
 	readonly variables: MessageVariable[];
 	readonly variablesEmpty: string | null;
+	readonly variablesSetup: string | (() => void | boolean) | null;
+	readonly variablesSetupText: string;
 	readonly personalization: boolean;
 	readonly blocks: BlockType[];
 	readonly tools: FormatTool[];
@@ -252,10 +276,17 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 			? cleanVariables(options.variables)
 			: parseVariables(valueElem.dataset.variables);
 		this.variablesEmpty = options.variablesEmpty ?? valueElem.dataset.variablesEmpty ?? null;
+		this.variablesSetup = options.variablesSetup ?? valueElem.dataset.variablesSetup ?? null;
+		this.variablesSetupText =
+			options.variablesSetupText ?? valueElem.dataset.variablesSetupText ?? VARIABLES_SETUP_TEXT;
 		// Объявленный список — тоже согласие: иначе переданные переменные молча никуда не вели бы.
+		// Настройка полей — так же: объявленная, она обязана быть досягаемой, а живёт в окне.
 		this.personalization =
 			options.personalization ??
-			("personalization" in valueElem.dataset || !!this.variables.length || !!this.variablesEmpty);
+			("personalization" in valueElem.dataset ||
+				!!this.variables.length ||
+				!!this.variablesEmpty ||
+				!!this.variablesSetup);
 		this.blocks = options.blocks ?? parseBlockTypes(valueElem.dataset.blocks ?? null);
 		this.tools = options.tools ?? parseFormatTools(valueElem.dataset.tools ?? null);
 		// Все объявленные ключи, а не только названные: по этому же набору подсветка отличает
@@ -531,7 +562,33 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	 * по конструкции. Стрелка, а не метод: фабрика передаётся в {@link __openModal} как есть.
 	 */
 	private __variablesModal = (apply: (text: string) => void): Modal =>
-		new VariablesModal(this.variables, apply, this.variablesEmpty);
+		new VariablesModal(this.variables, apply, this.variablesEmpty, this.__variablesSetup());
+
+	/**
+	 * Ссылка на настройку полей для окна переменных — поведение нажатия собирается здесь:
+	 * окну отдаются только подпись, адрес и готовый обработчик.
+	 *
+	 * Окно закрывается молча (см. {@link __closeModal}) — фокус уходит на другой экран, и
+	 * возвращать каретку в поле незачем. С адресом переход остаётся штатным переходом ссылки;
+	 * функция хоста возвращает `false`, когда окно должно остаться открытым, — по умолчанию
+	 * закрывается.
+	 */
+	private __variablesSetup(): VariablesSetup | null {
+		const setup = this.variablesSetup;
+		if (!setup) return null;
+
+		const text = this.variablesSetupText;
+		if (typeof setup === "string") return { text, url: setup, onClick: () => this.__closeModal() };
+
+		return {
+			text,
+			onClick: () => {
+				// сперва действие, потом закрытие: ответ «оставить открытым» знает только хост
+				const keep = setup() === false;
+				if (!keep) this.__closeModal();
+			},
+		};
+	}
 
 	/**
 	 * Открывает окно правки и возвращает правку в поле, чем бы окно ни кончилось.
@@ -545,7 +602,19 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	 *
 	 * @param replace Конструкция, которую заменяет результат; без неё результат вставляется в каретку.
 	 */
-	private __openModal(create: (apply: (text: string) => void) => Modal, replace?: HTMLElement) {
+	private __openModal(
+		create: (apply: (text: string) => void) => Modal,
+		replace?: HTMLElement,
+		/**
+		 * Считать ли целью правки слово под кареткой. Окно рандомизации берёт его первым
+		 * вариантом, когда своего выделения нет, — и собранный спинтакс должен встать на место
+		 * этого слова, а не разорвать его пополам. Правки готовой конструкции это не касается:
+		 * там место задано узлом.
+		 */
+		useCaretWord = false
+	) {
+		// до releaseFocus: он снимает выделение, и слово по каретке уже не найти
+		const word = !replace && useCaretWord ? this.__editor.caretWord : "";
 		const caret = this.__editor.caretSnapshot();
 		const release = this.__editor.holdEditing();
 		// Фокус полю на время окна не нужен: правка идёт в нём. На сенсорном устройстве он к тому
@@ -560,8 +629,9 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 			if (caret) this.__editor.restoreCaret(caret);
 			else this.__editor.focus();
 
-			// выделяем правленую конструкцию целиком — insertText заменит выделенное
+			// выделяем то, что заменяем, — insertText заменит выделенное
 			if (replace) this.__editor.selectNode(replace);
+			else if (word) this.__editor.selectCaretWord();
 
 			// вставка сама ставит каретку сразу за вставленным
 			this.__editor.insertText(text);
@@ -646,7 +716,11 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 				isEnabled: () => !this.__inMarkup(),
 				run: () => {
 					const selected = this.__editor.selection?.toString() ?? "";
-					this.__openModal((apply) => new RandomizerModal(selected, apply));
+					// Без своего выделения источником становится слово под кареткой: рандомизируют
+					// чаще всего то слово, на котором стоят, и набирать его в окне заново незачем.
+					// Собранный спинтакс встанет на его место — за это отвечает третий аргумент.
+					const word = selected ? "" : this.__editor.caretWord;
+					this.__openModal((apply) => new RandomizerModal(selected || word, apply), undefined, !!word);
 				},
 			},
 			...personalization,

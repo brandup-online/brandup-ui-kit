@@ -146,8 +146,9 @@ describe("RichEditor value", () => {
 		["один два три", 5, 8, "**два**"],
 		["один два три", 0, 4, "**один**"],
 		["один два три", 9, 12, "**три**"],
-		["слово, ещё", 0, 5, "**слово,**"],
-		["(в скобках)", 1, 3, "**(в скобках)**"],
+		// знаки препинания рядом с выделением в него не втягиваются
+		["слово, ещё", 0, 5, "**слово**"],
+		["(в скобках)", 1, 3, "**в скобках**"],
 		["цена 100 руб", 5, 8, "**100**"],
 		["из-за угла", 0, 5, "**из-за**"],
 	])("markdown round-trips formatting of %j", (text, from, to, expected) => {
@@ -264,6 +265,101 @@ describe("RichEditor formatting", () => {
 
 		expect(expandWords(editor, window.getSelection()!)).toBe("bar");
 		expect(window.getSelection()!.toString()).toBe(""); // расширение не трогает каретку
+	});
+
+	// Знаки препинания в слово не входят: каретка в слове перед точкой не должна отдавать
+	// форматированию и точку — ставить её туда пользователь не просил.
+	it.each([
+		["перед точкой", "слово. дальше", 3, "слово"],
+		["в конце слова", "слово. дальше", 5, "слово"],
+		["в скобках", "текст (слово) ещё", 9, "слово"],
+		["перед запятой", "раз, два", 2, "раз"],
+		["кириллица целиком", "привет мир", 3, "привет"],
+		["цифры и подчёркивание", "код_42! дальше", 4, "код_42"],
+	])("keeps punctuation out of the word: %s", (_, value, offset, expected) => {
+		const editor = makeEditor({ tools: ["bold"], value });
+		caretAt(editor.editable.firstChild!, offset);
+
+		expect(expandWords(editor, window.getSelection()!)).toBe(expected);
+	});
+
+	// Внутренние знаки — часть слова: ссылка на адресе должна обернуть его целиком,
+	// а не выхватить кусок между точками
+	it.each([
+		["почта", "пишите на info@example.com сейчас", 15, "info@example.com"],
+		["адрес", "сайт example.com/page?id=1 открыт", 8, "example.com/page?id=1"],
+	])("keeps interior punctuation of a token: %s", (_, value, offset, expected) => {
+		const editor = makeEditor({ tools: ["bold"], value });
+		caretAt(editor.editable.firstChild!, offset);
+
+		expect(expandWords(editor, window.getSelection()!)).toBe(expected);
+	});
+
+	// Слово не кончается на границе тега: «Дарим <b>ск</b>идку» — каретка в «идку» должна
+	// расширяться на всё «скидку», а не на огрызок после тега
+	it("crosses inline formatting boundaries within the word", () => {
+		const editor = makeEditor({ tools: ["bold"] });
+		editor.editable.innerHTML = "<p>Дарим <b>ск</b>идку сегодня</p>";
+		const tail = editor.editable.querySelector("b")!.nextSibling!; // текст «идку сегодня»
+		caretAt(tail, 2);
+
+		expect(expandWords(editor, window.getSelection()!)).toBe("скидку");
+	});
+
+	// А вот перенос строки и готовую конструкцию слово не перепрыгивает
+	it("does not cross a line break", () => {
+		const editor = makeEditor({ tools: ["bold"] });
+		editor.editable.innerHTML = "<p>сло<br>во</p>";
+		const tail = editor.editable.querySelector("br")!.nextSibling!;
+		caretAt(tail, 1);
+
+		expect(expandWords(editor, window.getSelection()!)).toBe("во");
+	});
+
+	it("does not cross an atomic construct", () => {
+		const editor = makeEditor({ tools: ["bold"] });
+		editor.editable.innerHTML = '<p>до<span contenteditable="false">{ИМЯ}</span>хвост</p>';
+		const tail = editor.editable.querySelector("span")!.nextSibling!;
+		caretAt(tail, 2);
+
+		expect(expandWords(editor, window.getSelection()!)).toBe("хвост");
+	});
+
+	// Дефис и апостроф внутри слова — его часть, иначе «don't» разваливалось бы на «don»
+	it.each([
+		["апостроф", "don't stop", 2, "don't"],
+		["апостроф-кавычка", "don’t stop", 2, "don’t"],
+		["дефис", "по-русски дальше", 4, "по-русски"],
+	])("keeps a word joined by %s", (_, value, offset, expected) => {
+		const editor = makeEditor({ tools: ["bold"], value });
+		caretAt(editor.editable.firstChild!, offset);
+
+		expect(expandWords(editor, window.getSelection()!)).toBe(expected);
+	});
+
+	// Тире рядом со словом — не связка: с обеих сторон от него буквы должны быть, а тут пробелы
+	it("does not join words across a dash", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "раз - два" });
+		caretAt(editor.editable.firstChild!, 1);
+
+		expect(expandWords(editor, window.getSelection()!)).toBe("раз");
+	});
+
+	// Каретка не в слове: расширять нечего, и схлопнутый диапазон редактор понимает
+	// как «формат для того, что будут набирать»
+	it("expands nothing when the caret stands after punctuation", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "слово. дальше" });
+		caretAt(editor.editable.firstChild!, 6);
+
+		expect(expandWords(editor, window.getSelection()!)).toBe("");
+	});
+
+	// Явное выделение только растёт до целых слов — выделенные знаки из него не пропадают
+	it("keeps punctuation that the user selected explicitly", () => {
+		const editor = makeEditor({ tools: ["bold"], value: "слово. дальше" });
+		selectRange(editor.editable.firstChild!, 2, 6);
+
+		expect(expandWords(editor, window.getSelection()!)).toBe("слово.");
 	});
 
 	it("toggles formatting off when reapplied", () => {
@@ -968,6 +1064,56 @@ describe("RichEditor host buttons", () => {
 	});
 });
 
+// Панель шире редактора, и по его левому краю она уезжала бы за правый край экрана —
+// у поля в правой половине окна это видно и на десктопе, а на телефоне всегда.
+describe("RichEditor toolbar placement", () => {
+	// позиционирование меряет ширину экрана по documentElement.clientWidth — innerWidth
+	// включает полосу прокрутки страницы, и крайняя кнопка панели оказывалась бы под ней
+	const viewport = (width: number) =>
+		Object.defineProperty(document.documentElement, "clientWidth", { value: width, configurable: true });
+
+	it("keeps the toolbar inside the viewport when the editor sits at the right edge", () => {
+		const original = document.documentElement.clientWidth;
+		const editor = makeEditor({ tools: ["bold"] });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		const bar = document.querySelector<HTMLElement>(`.${TOOLBAR_CLASS}`)!;
+		Object.defineProperty(bar, "offsetWidth", { value: 400, configurable: true });
+		Object.defineProperty(bar, "offsetHeight", { value: 40, configurable: true });
+		editor.editable.getBoundingClientRect = () => ({ left: 900, top: 300 }) as DOMRect;
+
+		try {
+			viewport(1000);
+			formatToolbar.reposition();
+		} finally {
+			viewport(original);
+		}
+
+		expect(bar.style.left).toBe("596px"); // 1000 − 400 − 4, а не 900 от края редактора
+	});
+
+	// Панель шире самого экрана прижимается к левому краю: остальное прокручивается внутри неё.
+	it("pins the toolbar to the left edge when it is wider than the viewport", () => {
+		const original = document.documentElement.clientWidth;
+		const editor = makeEditor({ tools: ["bold"] });
+		editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+		const bar = document.querySelector<HTMLElement>(`.${TOOLBAR_CLASS}`)!;
+		Object.defineProperty(bar, "offsetWidth", { value: 500, configurable: true });
+		Object.defineProperty(bar, "offsetHeight", { value: 40, configurable: true });
+		editor.editable.getBoundingClientRect = () => ({ left: 20, top: 300 }) as DOMRect;
+
+		try {
+			viewport(360);
+			formatToolbar.reposition();
+		} finally {
+			viewport(original);
+		}
+
+		expect(bar.style.left).toBe("4px");
+	});
+});
+
 describe("RichEditor toolbar actions", () => {
 	it("adds no action buttons by default", () => {
 		const editor = makeEditor();
@@ -1655,6 +1801,246 @@ describe("RichEditor paste (plain text)", () => {
 
 		expect(editor.editable.textContent).toBe("fooA Bbar");
 		expect(selectionCharBounds(editor.editable, window.getSelection()!.getRangeAt(0))).toEqual([6, 6]);
+	});
+});
+
+// Значение хранится markdown — значит, маркеры во вставляемом простом тексте значат то же,
+// что в значении, и разбираются тем же путём и тем же объявленным набором.
+describe("RichEditor paste (markdown value)", () => {
+	const paste = (editor: RichEditor, { html = "", plain = "" }: { html?: string; plain?: string }) => {
+		const e = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
+		e.clipboardData = { getData: (type: string) => (type === "text/html" ? html : plain) };
+		editor.editable.dispatchEvent(e);
+		return e;
+	};
+
+	it("parses the markers of the declared tools", () => {
+		const editor = makeEditor({ tools: ["bold", "italic"], multiline: true, storage: "markdown", value: "foobar" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 3);
+
+		paste(editor, { plain: "**A**" });
+
+		expect(editor.editable.innerHTML).toBe("<p>foo<b>A</b>bar</p>");
+		expect(editor.getValue()).toBe("foo**A**bar");
+	});
+
+	// применяется только включённый формат: маркер снятого инструмента — обычный текст,
+	// как остался бы и в значении
+	it("leaves the markers of undeclared tools as text", () => {
+		const editor = makeEditor({ tools: ["italic"], multiline: true, storage: "markdown" });
+		caretAt(editor.editable, 0);
+
+		paste(editor, { plain: "**A** _B_" });
+
+		expect(editor.editable.querySelector("b")).toBeNull();
+		expect(editor.editable.querySelector("i")!.textContent).toBe("B");
+		expect(editor.getValue()).toBe("**A** _B_");
+	});
+
+	it("keeps the markers literal when the value is stored as html", () => {
+		const editor = makeEditor({ tools: ["bold"], multiline: true, value: "" });
+		caretAt(editor.editable, 0);
+
+		paste(editor, { plain: "**A**" });
+
+		expect(editor.editable.querySelector("b")).toBeNull();
+		expect(editor.editable.textContent).toBe("**A**");
+	});
+
+	// text/html точнее описывает скопированное — маркеры разбираются только когда его нет
+	it("prefers the clipboard html over the markers in the plain text", () => {
+		const editor = makeEditor({ tools: ["bold"], multiline: true, storage: "markdown" });
+		caretAt(editor.editable, 0);
+
+		paste(editor, { html: "<p><b>X</b></p>", plain: "**Y**" });
+
+		expect(editor.editable.querySelector("b")!.textContent).toBe("X");
+		expect(editor.editable.textContent).not.toContain("Y");
+	});
+
+	it("parses a declared block from the pasted text", () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown" });
+		caretAt(editor.editable, 0);
+
+		paste(editor, { plain: "> цитата" });
+
+		expect(editor.editable.querySelector("blockquote")!.textContent).toBe("цитата");
+		expect(editor.getValue()).toBe("> цитата");
+	});
+
+	// ограда из чужого маркдауна часто приходит с меткой языка (```text) — блок она открывает
+	// так же, метка отбрасывается
+	it("parses a pasted fence with a language tag", () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown" });
+		caretAt(editor.editable, 0);
+
+		paste(editor, { plain: "до\n\n```text\nгейт: бюджет\n```\n\nпосле" });
+
+		expect(editor.editable.querySelector("pre")!.textContent).toContain("гейт: бюджет");
+		expect(editor.getValue()).toBe("до\n\n```\nгейт: бюджет\n```\n\nпосле");
+	});
+
+	// внутри кода текст литерален: маркеры — содержимое, как и при простой вставке
+	it("keeps the markers literal inside a code block", () => {
+		const editor = makeEditor({
+			multiline: true,
+			storage: "markdown",
+			blocks: ["paragraph", "code"],
+			value: "```\nкод\n```",
+		});
+		const pre = editor.editable.querySelector("pre")!;
+		caretAt(pre.firstChild!, 3);
+
+		paste(editor, { plain: "**A**" });
+
+		expect(editor.editable.querySelector("b")).toBeNull();
+		expect(editor.getValue()).toBe("```\nкод**A**\n```");
+	});
+
+	// Редакторы кода отдают буфер строками в <div> внутри общей обёртки: границы строк обязаны
+	// стать переносами, а не склейкой встык. С собственной разметкой (<b>) вставка идёт html-веткой.
+	it("keeps the line structure of a wrapped div payload", () => {
+		const editor = makeEditor({ tools: ["bold"], multiline: true, storage: "markdown" });
+		caretAt(editor.editable, 0);
+
+		paste(editor, {
+			html: "<div><div><b>раз</b></div><div><br></div><div>два</div></div>",
+			plain: "**раз**\n\nдва",
+		});
+
+		expect(editor.getValue()).toBe("**раз**\n\nдва");
+	});
+
+	// Плоский html — голые строки без разметки — не знает ничего сверх text/plain, а маркеры
+	// в тексте понимает только разбор разметкой хранения: он и должен победить.
+	it("parses the plain-text markers when the clipboard html is flat", () => {
+		const editor = makeEditor({ tools: ["bold"], multiline: true, storage: "markdown" });
+		caretAt(editor.editable, 0);
+
+		paste(editor, {
+			html: "<div><div>**раз**</div><div><br></div><div>```text</div><div>код</div><div>```</div></div>",
+			plain: "**раз**\n\n```text\nкод\n```",
+		});
+
+		expect(editor.editable.querySelector("b")!.textContent).toBe("раз");
+		expect(editor.editable.querySelector("pre")!.textContent).toBe("код");
+		expect(editor.getValue()).toBe("**раз**\n\n```\nкод\n```");
+	});
+
+	// Документ — не плоская обёртка: буквальные символы маркеров в тексте веб-страницы видит
+	// и её читатель, и разбор разметкой хранения превращал бы их в форматирование.
+	it("keeps literal markers when pasting document html", () => {
+		const editor = makeEditor({ tools: ["bold", "italic"], multiline: true, storage: "markdown" });
+		caretAt(editor.editable, 0);
+
+		paste(editor, {
+			html: "<p>маркер **жирного** это две звёздочки, а _курсива_ одна черта</p>",
+			plain: "маркер **жирного** это две звёздочки, а _курсива_ одна черта",
+		});
+
+		expect(editor.editable.querySelector("i, b")).toBeNull();
+		expect(editor.editable.textContent).toBe("маркер **жирного** это две звёздочки, а _курсива_ одна черта");
+	});
+
+	// хук изменил текст — форматирование честно не сохранить, вставляется очищенный простой текст
+	it("falls back to the literal text when filterPaste transforms it", () => {
+		const editor = makeEditor({
+			tools: ["bold"],
+			multiline: true,
+			storage: "markdown",
+			filterPaste: (t) => t.slice(0, 4),
+		});
+		caretAt(editor.editable, 0);
+
+		paste(editor, { plain: "**AB**" });
+
+		expect(editor.editable.querySelector("b")).toBeNull();
+		expect(editor.editable.textContent).toBe("**AB");
+	});
+});
+
+// Бросок текстового файла — та же вставка, только текст приезжает файлом и читается асинхронно.
+describe("RichEditor file drop", () => {
+	// jsdom-овский File без Blob.text() читается FileReader-ом, а тот срабатывает через
+	// недетерминированное число тиков — дублёр с собственным text() решает предсказуемо
+	const file = (content: string, name: string, type = "") =>
+		({ name, type, text: () => Promise.resolve(content) }) as unknown as File;
+
+	const drop = (editor: RichEditor, files: File[]) => {
+		// в jsdom нет DragEvent — подкладываем dataTransfer вручную, как clipboardData у вставки
+		const e = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer: unknown };
+		e.dataTransfer = { files };
+		editor.editable.dispatchEvent(e);
+		return e;
+	};
+	// чтение файла — микрозадачи; setTimeout(0) дожидается всей цепочки вставки
+	const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+	it("inserts an .md file parsed with the declared tools", async () => {
+		const editor = makeEditor({ tools: ["bold"], multiline: true, storage: "markdown" });
+
+		// у .md на Windows тип часто не зарегистрирован — решает расширение
+		const e = drop(editor, [file("**A** _B_", "note.md")]);
+		await settle();
+
+		expect(e.defaultPrevented).toBe(true);
+		expect(editor.editable.querySelector("b")!.textContent).toBe("A");
+		expect(editor.editable.querySelector("i")).toBeNull(); // курсив не объявлен — маркеры текстом
+		expect(editor.getValue()).toBe("**A** _B_");
+	});
+
+	it("inserts a text file literally when the value is stored as html", async () => {
+		const editor = makeEditor({ tools: ["bold"], multiline: true, value: "" });
+
+		drop(editor, [file("**A**", "note.txt", "text/plain")]);
+		await settle();
+
+		expect(editor.editable.querySelector("b")).toBeNull();
+		expect(editor.editable.textContent).toBe("**A**");
+	});
+
+	it("joins several files with a blank line", async () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown" });
+
+		drop(editor, [file("раз", "a.txt", "text/plain"), file("два", "b.txt", "text/plain")]);
+		await settle();
+
+		expect(editor.getValue()).toBe("раз\n\nдва");
+	});
+
+	it("ignores non-text files but still swallows the drop", async () => {
+		const editor = makeEditor({ multiline: true, value: "abc" });
+
+		const e = drop(editor, [file("x", "pic.png", "image/png")]);
+		await settle();
+
+		expect(e.defaultPrevented).toBe(true); // иначе браузер открыл бы файл вместо страницы
+		expect(editor.editable.textContent).toBe("abc");
+	});
+
+	it("ignores drops in readonly", async () => {
+		const editor = makeEditor({ readonly: true, multiline: true, value: "abc" });
+
+		drop(editor, [file("раз", "a.txt", "text/plain")]);
+		await settle();
+
+		expect(editor.editable.textContent).toBe("abc");
+	});
+
+	it("passes the dropped text through filterPaste", async () => {
+		const rejected = jest.fn();
+		const editor = makeEditor({
+			multiline: true,
+			filterPaste: () => null,
+			onReject: rejected,
+			value: "abc",
+		});
+
+		drop(editor, [file("раз", "a.txt", "text/plain")]);
+		await settle();
+
+		expect(rejected).toHaveBeenCalled();
+		expect(editor.editable.textContent).toBe("abc");
 	});
 });
 

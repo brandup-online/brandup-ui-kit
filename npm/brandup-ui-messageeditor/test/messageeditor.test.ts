@@ -318,6 +318,30 @@ describe("MessageEditor", () => {
 		localStorage.clear();
 	});
 
+	// Значение хранится markdown — маркеры во вставляемом простом тексте разбираются как в
+	// значении, объявленным набором: снятый инструмент остаётся текстом.
+	it("parses markdown markers of the declared tools on plain paste", () => {
+		const { input } = setup({ value: "привет" });
+		input.dataset.tools = "bold";
+		const editor = new MessageEditor(input);
+
+		const paragraph = editor.editor.editable.querySelector("p")!;
+		const selection = window.getSelection()!;
+		const range = document.createRange();
+		range.setStart(paragraph.firstChild!, 6);
+		range.collapse(true);
+		selection.removeAllRanges();
+		selection.addRange(range);
+
+		const e = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
+		e.clipboardData = { getData: (type: string) => (type === "text/plain" ? " **раз** _два_" : "") };
+		editor.editor.editable.dispatchEvent(e);
+
+		expect(editor.editor.editable.querySelector("b")!.textContent).toBe("раз");
+		expect(editor.editor.editable.querySelector("i")).toBeNull(); // курсив не объявлен
+		expect(editor.getValue()).toBe("привет **раз** _два_");
+	});
+
 	// Персонализация нужна не всякому сообщению: без неё нет ни кнопки, ни подсветки,
 	// а `{ИМЯ}` остаётся обычным текстом, который правится как есть.
 	it("keeps personalization off until it is asked for", () => {
@@ -437,6 +461,60 @@ describe("MessageEditor", () => {
 		expect(editor.variablesEmpty).toBe("Из кода");
 	});
 
+	// Настройка полей адресом из атрибута: настоящая ссылка последней строкой окна; нажатие
+	// закрывает окно молча — фокус уходит на другой экран, и каретка в поле не возвращается.
+	it("shows the setup link from the attribute and closes the window silently", () => {
+		const { input } = setup();
+		input.setAttribute("data-variables-setup", "/settings/fields");
+		input.setAttribute("data-variables-setup-text", "Управление полями");
+		const editor = new MessageEditor(input);
+
+		expect(editor.personalization).toBe(true); // объявленная настройка — тоже согласие
+
+		editor.editor.editable.focus();
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
+
+		const link = document.querySelector<HTMLAnchorElement>(".messageeditor-variables .setup .setup-link")!;
+		expect(link.tagName).toBe("A");
+		expect(link.getAttribute("href")).toBe("/settings/fields");
+		expect(link.textContent).toBe("Управление полями");
+
+		link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(document.querySelector(".ui-modal")).toBeNull();
+		expect(document.activeElement).not.toBe(editor.editor.editable); // молча — без каретки в поле
+	});
+
+	it("runs the setup function and closes the window by default", () => {
+		const { input } = setup();
+		const run = jest.fn();
+		const editor = new MessageEditor(input, { variablesSetup: run });
+
+		editor.editor.editable.focus();
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
+
+		const link = document.querySelector<HTMLButtonElement>(".messageeditor-variables .setup .setup-link")!;
+		expect(link.tagName).toBe("BUTTON"); // без адреса действие делает хост — кнопка, не ссылка
+		link.click();
+
+		expect(run).toHaveBeenCalled();
+		expect(document.querySelector(".ui-modal")).toBeNull();
+	});
+
+	// хост открыл свой слой поверх и просит окно не трогать
+	it("keeps the window open when the setup function returns false", () => {
+		const { input } = setup();
+		const editor = new MessageEditor(input, { variablesSetup: () => false });
+
+		editor.editor.editable.focus();
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
+
+		document.querySelector<HTMLButtonElement>(".messageeditor-variables .setup .setup-link")!.click();
+
+		expect(document.querySelector(".ui-modal")).not.toBeNull();
+		document.querySelector<HTMLButtonElement>(".ui-modal .modal-close")!.click();
+	});
+
 	// Пока открыто окно, содержимое трогать нельзя: нормализация срезает краевые пробелы как
 	// лишние, а пересчёт смещений уводит каретку — вставленное вставало вплотную к слову.
 	it("keeps the space at the caret and returns the focus after the inserted variable", () => {
@@ -477,6 +555,55 @@ describe("MessageEditor", () => {
 	// Замена не должна сбрасывать оформление заменяемого: физически вставка оказывается снаружи
 	// тега (границы восстанавливаются по смещениям, а опустевший тег убирается), поэтому формат
 	// переносится на неё явно.
+	// Рандомизируют чаще всего то слово, на котором стоят: набирать его в окне заново незачем,
+	// а собранный спинтакс встаёт на его место, а не разрывает слово пополам.
+	it("seeds the randomizer with the word under the caret and replaces it", () => {
+		const { input } = setup({ value: "Дарим скидку сегодня" });
+		const editor = new MessageEditor(input);
+
+		editor.editor.editable.focus();
+		caretAt(editor.editor.editable.querySelector("p")!.firstChild!, 9); // внутри «скидку»
+
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="randomize"]')!.click();
+		editor.editor.editable.blur();
+
+		const fields = () => document.querySelectorAll<HTMLElement>(".messageeditor-randomizer .editable");
+		expect(fields()[0].textContent).toBe("скидку"); // слово под кареткой — первым вариантом
+
+		fields()[1].textContent = "подарок";
+		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .apply")!.click();
+
+		expect(editor.getValue()).toBe("Дарим [скидку|подарок] сегодня");
+	});
+
+	// Знаки препинания в слово не входят, поэтому каретка за точкой ни на каком слове не стоит:
+	// окно открывается пустым, а спинтакс встаёт в точку каретки.
+	it("opens the randomizer empty when the caret is not on a word", () => {
+		const { input } = setup({ value: "Дарим скидку. Ещё" });
+		const editor = new MessageEditor(input);
+
+		editor.editor.editable.focus();
+		caretAt(editor.editor.editable.querySelector("p")!.firstChild!, 13); // сразу за точкой
+
+		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="randomize"]')!.click();
+		editor.editor.editable.blur();
+
+		const fields = () => document.querySelectorAll<HTMLElement>(".messageeditor-randomizer .editable");
+		expect(fields()[0].textContent).toBe("");
+
+		// набираем оба варианта: событие ввода обязательно — по нему окно и заводит следующую
+		// строку, и включает «Сохранить»
+		const type = (index: number, text: string) => {
+			fields()[index].textContent = text;
+			fields()[index].dispatchEvent(new Event("input", { bubbles: true }));
+		};
+		type(0, "дарим");
+		type(1, "вручаем");
+		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .apply")!.click();
+
+		expect(editor.getValue()).toBe("Дарим скидку.[дарим|вручаем] Ещё");
+	});
+
 	it("keeps the formatting of the text the spintax replaces", () => {
 		const { input } = setup({ value: "Дарим **скидку** сегодня" });
 		const editor = new MessageEditor(input);

@@ -288,6 +288,49 @@ describe("VariablesModal", () => {
 
 		expect(modal.element!.querySelector(".variables .empty")!.textContent).toBe(VARIABLES_EMPTY_TEXT);
 	});
+
+	// настройку хост может не объявлять вовсе — мёртвая строка хуже отсутствующей
+	it("has no setup row unless the setup is given", () => {
+		const modal = open(new VariablesModal([{ key: "ИМЯ" }], () => {}));
+
+		expect(modal.element!.querySelector(".setup")).toBeNull();
+	});
+
+	// с адресом рисуется настоящая ссылка: работают средняя кнопка и «копировать адрес»
+	it("renders the setup as a real link and reports the click", () => {
+		const onClick = jest.fn();
+		const modal = open(
+			new VariablesModal([{ key: "ИМЯ" }], () => {}, null, { text: "Настроить", url: "/fields", onClick })
+		);
+
+		const link = modal.element!.querySelector<HTMLAnchorElement>(".setup .setup-link")!;
+		expect(link.tagName).toBe("A");
+		expect(link.getAttribute("href")).toBe("/fields");
+		expect(link.textContent).toBe("Настроить");
+
+		// подвал стоит последней строкой окна — и при пустом списке, и при заполненном
+		expect(modal.element!.querySelector(".setup")!.previousElementSibling!.classList.contains("variables")).toBe(
+			true
+		);
+
+		const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+		link.dispatchEvent(click);
+
+		expect(onClick).toHaveBeenCalled();
+		expect(click.defaultPrevented).toBe(false); // переход остаётся штатным переходом ссылки
+	});
+
+	// без адреса действие делает хост — рисуется кнопка в виде ссылки
+	it("renders the setup as a button when there is no url", () => {
+		const onClick = jest.fn();
+		const modal = open(new VariablesModal([], () => {}, null, { text: "Настроить", onClick }));
+
+		const link = modal.element!.querySelector<HTMLButtonElement>(".setup .setup-link")!;
+		expect(link.tagName).toBe("BUTTON");
+
+		link.click();
+		expect(onClick).toHaveBeenCalled();
+	});
 });
 
 describe("parseVariables", () => {

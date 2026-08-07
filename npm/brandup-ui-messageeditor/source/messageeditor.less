@@ -38,6 +38,27 @@
 	// свой стек — только запас на случай работы без темы
 	--messageeditor-source-font: var(--richeditor-code-font, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
 	--messageeditor-modes-gap: 6px;
+	// Подложка цитаты — в тон плашки, а не серым по умолчанию редактора: чёрная полупрозрачная
+	// на голубой заливке давала бы грязный оттенок. color-mix подмешивает чёрный к самой заливке,
+	// поэтому тон следует за ней, какой бы её ни задали.
+	--messageeditor-quote-fill: color-mix(in srgb, var(--messageeditor-fill) 94%, #000);
+	// Подсветка доменной разметки в тексте: спинтакс и переменные персонализации. Значения жили
+	// запасными прямо в правилах, но заливку теперь нужно знать дважды — из неё выводится вторая,
+	// для наведения, и держать одно значение в двух местах значило бы однажды их разойтись.
+	--messageeditor-spintax-fill: rgba(255, 193, 7, 0.28);
+	--messageeditor-variable-fill: rgba(76, 175, 80, 0.24);
+	--messageeditor-variable-unknown-fill: rgba(244, 67, 54, 0.24);
+	--messageeditor-variable-unknown-mark: rgba(244, 67, 54, 0.8);
+	// Наведение: та же заливка, притемнённая — конструкция правится кликом, и отклик показывает,
+	// что по ней можно попасть. color-mix подмешивает чёрный, поэтому оттенок следует за заливкой,
+	// какой бы её ни задали.
+	--hover--messageeditor-spintax-fill: color-mix(in srgb, var(--messageeditor-spintax-fill) 88%, #000);
+	--hover--messageeditor-variable-fill: color-mix(in srgb, var(--messageeditor-variable-fill) 88%, #000);
+	--hover--messageeditor-variable-unknown-fill: color-mix(
+		in srgb,
+		var(--messageeditor-variable-unknown-fill) 88%,
+		#000
+	);
 }
 
 // Коробка поля: у плашки и панели выхода она общая — это два вида одного значения, и подменять
@@ -90,6 +111,7 @@
 		& .ui-richeditor {
 			flex: 1 1 auto;
 			min-width: 0;
+			--richeditor-quote-fill: var(--messageeditor-quote-fill); // подложка цитаты — в тон плашки
 			// Вертикальные отступы плашки держит сам редактор — как .editor в textbox. Тогда он
 			// идёт от края до края плашки, полоса прокрутки — во всю её высоту, а текст на концах
 			// уходит под отступ, а не обрывается по нему.
@@ -296,22 +318,23 @@
 	& .variable {
 		border-radius: 3px;
 		padding: 0 1px;
+		transition: background-color ease 100ms;
 	}
 
 	& .spintax {
-		background-color: var(--messageeditor-spintax-fill, rgba(255, 193, 7, 0.28));
+		background-color: var(--messageeditor-spintax-fill);
 	}
 
 	& .variable {
-		background-color: var(--messageeditor-variable-fill, rgba(76, 175, 80, 0.24));
+		background-color: var(--messageeditor-variable-fill);
 	}
 
 	// Ключа нет в объявленном списке: подставить такую переменную нечем. Кроме заливки — волнистое
 	// подчёркивание: одним цветом отличие держалось бы только на нём, а зелёное от красного видно
 	// не всем, и в сообщении это ровно та разница, которую нельзя пропустить.
 	& .variable.unknown {
-		background-color: var(--messageeditor-variable-unknown-fill, rgba(244, 67, 54, 0.24));
-		text-decoration: underline wavy var(--messageeditor-variable-unknown-mark, rgba(244, 67, 54, 0.8));
+		background-color: var(--messageeditor-variable-unknown-fill);
+		text-decoration: underline wavy var(--messageeditor-variable-unknown-mark);
 		text-underline-offset: 2px;
 	}
 
@@ -329,13 +352,30 @@
 	}
 }
 
-// конструкции атомарны и правятся кликом — курсор указывает на это.
+// Конструкции атомарны и правятся кликом — курсор и потемнение при наведении показывают это.
 // Выделение при этом не запрещаем: неделимость держится на contenteditable="false", а user-select:
 // none лишь прятал бы подсветку выделения — конструкция посреди выделенного текста выглядела бы
 // невыделенной.
-.ui-messageeditor .bubble .ui-richeditor {
+//
+// Только там, где клик действительно работает: в выключенном поле и в поле только для чтения
+// обработчик выходит сразу (см. messageeditor.ts), и подсказка обещала бы несуществующее.
+.ui-messageeditor:not(.disabled):not(.readonly) .bubble .ui-richeditor {
 	& .spintax,
 	& .variable {
 		cursor: pointer;
+	}
+
+	& .spintax:hover {
+		background-color: var(--hover--messageeditor-spintax-fill);
+	}
+
+	& .variable:hover {
+		background-color: var(--hover--messageeditor-variable-fill);
+	}
+
+	// Отдельным правилом: без него зелёное наведение перебило бы красную заливку неизвестной
+	// переменной — здесь селектор тяжелее того, что её задаёт.
+	& .variable.unknown:hover {
+		background-color: var(--hover--messageeditor-variable-unknown-fill);
 	}
 }

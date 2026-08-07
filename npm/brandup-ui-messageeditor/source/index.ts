@@ -6,5 +6,7 @@ export {
 	buildVariable,
 	parseVariables,
 	VARIABLES_EMPTY_TEXT,
+	VARIABLES_SETUP_TEXT,
 	type MessageVariable,
+	type VariablesSetup,
 } from "./variables";

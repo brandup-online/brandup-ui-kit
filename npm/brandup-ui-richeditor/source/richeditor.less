@@ -13,8 +13,14 @@
 @richeditor-border: var(--input-border-type, solid) var(--input-border-width, 1px) var(--input-border-color, #aaa);
 
 :root {
-	// цитата: линия слева, как её рисуют мессенджеры
-	--richeditor-quote-line: rgba(0, 0, 0, 0.2);
+	// Цитата: линия слева и подложка, как её рисуют мессенджеры. Вертикальный отступ — тот же,
+	// что у абзаца: строка не должна прыгать при смене типа блока. Горизонтальный задаётся
+	// отдельно — от него зависит, насколько текст цитаты отходит от линии.
+	--richeditor-quote-line: #1872bc;
+	--richeditor-quote-line-width: 3px;
+	--richeditor-quote-fill: rgba(0, 0, 0, 0.04);
+	--richeditor-quote-padding-tb: 5px;
+	--richeditor-quote-padding-lr: 10px;
 
 	// код — и моноширинный, и блок
 	--richeditor-code-fill: rgba(0, 0, 0, 0.06);
@@ -46,6 +52,8 @@
 	// с ним не связана, а вычитание отступов задавало бы размер дважды и могло не сойтись.
 	--richeditor-toolbar-padding: 3px;
 	--richeditor-toolbar-button-size: 34px;
+	// зазор панели от краёв экрана; то же значение — в EDGE_GAP (toolbar.ts)
+	--richeditor-toolbar-edge-gap: 4px;
 
 	// панель смайликов
 	--richeditor-emoji-size: 32px;
@@ -79,12 +87,20 @@
 		}
 	}
 
-	// Цитата: линия слева, как её рисуют мессенджеры. Вертикальные поля те же, что у абзаца, —
-	// строка не должна прыгать при смене типа блока.
+	// Цитата: линия слева и подложка, как её рисуют мессенджеры. Значения — переменными
+	// (см. :root выше): подложке нужен и отступ справа, иначе текст упирался бы в её край.
 	& blockquote {
 		margin: 0;
-		padding: 5px 0 5px 10px;
-		border-left: 3px solid var(--richeditor-quote-line);
+		// Ширина по содержимому, а не во всю строку: с подложкой цитата — это плашка, и пустое
+		// место справа от короткой строки читалось бы её частью. Прижата влево, потому что
+		// поля по краям не заданы; длинная цитата переносится по границе редактора, а не вылезает
+		// за неё — на это max-width.
+		width: fit-content;
+		max-width: 100%;
+		padding: var(--richeditor-quote-padding-tb) var(--richeditor-quote-padding-lr);
+		border-left: var(--richeditor-quote-line-width) solid var(--richeditor-quote-line);
+		background-color: var(--richeditor-quote-fill);
+		border-radius: 3px;
 	}
 
 	// Блок кода: подложка на всю строку и моноширинный шрифт. Собственные поля тут нужны —
@@ -204,6 +220,9 @@
 	display: none;
 	position: fixed;
 	z-index: 1000;
+	// Не шире экрана: полный набор кнопок на телефоне в строку не влезает, и без ограничения
+	// панель уезжала бы за правый край. Что не поместилось — прокручивается (см. .toolbar-body).
+	max-width: calc(100vw - var(--richeditor-toolbar-edge-gap) * 2);
 
 	--svg-size: 18px;
 	--svg-fill: var(--input-color, #222);
@@ -218,6 +237,7 @@
 		left: 0;
 		bottom: 100%;
 		margin-bottom: 6px;
+		max-width: 100%; // предел задаёт контейнер: панель не шире поля, над которым стоит
 
 		&.link-editing {
 			right: 0;
@@ -229,6 +249,17 @@
 		flex-flow: row nowrap;
 		align-items: center;
 		gap: 2px;
+		// Что не поместилось по ширине — прокручивается: кнопки не переносятся и не прячутся,
+		// панель остаётся в одну строку. Полоса появляется только когда набор не влез.
+		max-width: 100%;
+		overflow-x: auto;
+		// дойдя до конца, не пролистывать страницу под панелью и не вызывать жест «назад»
+		overscroll-behavior-x: contain;
+		// Полоса тоньше обычной: она внутри панели высотой в одну кнопку, и обычная
+		// заметно её раздувала бы.
+		--scrollbar-size: 3px;
+		--scrollbar-edge-inset: 2px;
+
 		padding: var(--richeditor-toolbar-padding);
 		background-color: var(--input-fill, #fff);
 		border: @richeditor-border;
@@ -240,6 +271,9 @@
 
 	// разделитель между инструментами форматирования и действиями
 	& .split {
+		// Сжиматься нельзя: кнопки этого не умеют (flex: 0 0 auto), и всю нехватку ширины
+		// выбирал бы один разделитель — при полном наборе на узком экране он схлопывался в ноль.
+		flex: 0 0 auto;
 		width: 1px;
 		align-self: stretch;
 		margin: 2px 3px;

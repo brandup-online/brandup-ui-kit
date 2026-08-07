@@ -111,6 +111,21 @@ describe("deserialize blocks", () => {
 		expect(toHtml("```\na *b*\n```")).toBe("<pre>a *b*</pre>");
 	});
 
+	// ограда с меткой языка открывает блок так же, а метка отбрасывается: значение её не хранит
+	it("parses a fence with a language tag, dropping the tag", () => {
+		expect(toHtml("```text\na *b*\n```")).toBe("<pre>a *b*</pre>");
+	});
+
+	// остаток с символом ограды меткой не считается: ```` — не ограда с меткой `
+	it("does not take a fence character for a language tag", () => {
+		expect(toHtml("````\na\n```")).not.toContain("<pre>");
+	});
+
+	// закрывает блок только голая ограда: та же строка с меткой внутри — содержимое
+	it("does not close a fence with a language tag", () => {
+		expect(toHtml("```\na\n```text\nb\n```")).toBe("<pre>a<br>```text<br>b</pre>");
+	});
+
 	it("escapes html inside a fenced block", () => {
 		expect(toHtml("```\n<b>\n```")).toBe("<pre>&lt;b&gt;</pre>");
 	});
