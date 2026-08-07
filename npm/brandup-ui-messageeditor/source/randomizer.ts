@@ -17,6 +17,20 @@ const FORBIDDEN_KEYS = [SPINTAX_OPEN, SPINTAX_CLOSE, SPINTAX_SEPARATOR];
 const FORBIDDEN_CHARS = /[[\]|]/g;
 
 /**
+ * Приводит текст к годному варианту: в одну строку и без символов конструкции. Одни правила
+ * на все пути текста в вариант — вставку и исходное выделение: ввод их держит клавишами,
+ * а текст со стороны обязан пройти ту же чистку, иначе спинтакс развалился бы ими изнутри.
+ */
+function cleanVariant(text: string): string {
+	return text
+		.split(/\n/)
+		.map((line) => line.trim())
+		.filter(Boolean)
+		.join(" ")
+		.replace(FORBIDDEN_CHARS, "");
+}
+
+/**
  * Предел на число вариантов. Спинтакс уходит в текст сообщения целиком, и разрастаться ему
  * некуда: длинный набор нечитаем в поле и незачем — вариант всё равно выбирается один.
  */
@@ -63,6 +77,12 @@ export default class RandomizerModal extends Modal {
 		this.__list.addEventListener("paste", (e) => this.__onFieldPaste(e));
 		this.__list.addEventListener("input", () => this.__refresh());
 		this.__list.addEventListener("blur", (e) => this.__onFieldBlur(e), true);
+		// Перетащенный текст миновал бы и клавиши, и вставку — со скобками и переносами внутри
+		// варианта. Своей чистке событие не поддаётся так же просто, как вставка (браузер сам
+		// решает, куда встанет текст), поэтому бросать в вариант нельзя вовсе.
+		this.__list.addEventListener("drop", (e) => {
+			if (fieldOf(e.target)) e.preventDefault();
+		});
 
 		this.body.appendChild(this.__list);
 		this.body.appendChild(
@@ -88,11 +108,13 @@ export default class RandomizerModal extends Modal {
 			this.close();
 		});
 
-
 		this.registerCommand(CANCEL_COMMAND, () => this.close());
 
-		// лишнее из готового спинтакса отсекаем сразу: набрать столько всё равно бы не дали
+		// Лишнее из готового спинтакса отсекаем сразу: набрать столько всё равно бы не дали.
+		// Каждый вариант проходит ту же чистку, что и вставка: исходный текст приходит выделением
+		// из сообщения, и скобки с переносами в нём — не редкость (см. cleanVariant).
 		parseSpintax(text)
+			.map(cleanVariant)
 			.slice(0, MAX_VARIANTS)
 			.forEach((variant) => this.__addRow(variant));
 
@@ -142,20 +164,22 @@ export default class RandomizerModal extends Modal {
 	 * а вместо него показывается пояснение, почему список больше не растёт.
 	 */
 	private __refresh() {
-		let rows = this.__rows();
+		// один проход по строкам: их тексты нужны и приглашению, и пометке пустых, и кнопке
+		const rows = this.__rows();
+		const texts = rows.map((row) => textOf(row).trim());
 
-		if (rows.length < MAX_VARIANTS && (!rows.length || textOf(rows[rows.length - 1]).trim())) {
-			this.__addRow("");
-			rows = this.__rows();
+		if (rows.length < MAX_VARIANTS && (!rows.length || texts[texts.length - 1])) {
+			rows.push(this.__addRow(""));
+			texts.push("");
 		}
 
 		const last = rows.length - 1;
-		rows.forEach((row, index) => row.classList.toggle("blank", index === last && !textOf(row).trim()));
+		rows.forEach((row, index) => row.classList.toggle("blank", index === last && !texts[index]));
 
 		this.element?.classList.toggle("max-variants", rows.length >= MAX_VARIANTS);
 
 		// сохранять нечего, пока не набран ни один вариант: иначе нажатие просто ничего не делало бы
-		this.__applyButton.disabled = !this.__variants().length;
+		this.__applyButton.disabled = !texts.some(Boolean);
 	}
 
 	/**
@@ -204,12 +228,7 @@ export default class RandomizerModal extends Modal {
 
 		e.preventDefault();
 
-		const text = (e.clipboardData?.getData("text/plain") ?? "")
-			.split(/\n/)
-			.map((line) => line.trim())
-			.filter(Boolean)
-			.join(" ")
-			.replace(FORBIDDEN_CHARS, "");
+		const text = cleanVariant(e.clipboardData?.getData("text/plain") ?? "");
 		if (!text) return;
 
 		const doc = this.element?.ownerDocument;

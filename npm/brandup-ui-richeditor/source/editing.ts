@@ -103,7 +103,13 @@ export function applyBlocks(editable: HTMLElement, range: Range, type: BlockType
  * null — делить нечего: выделение и так захватило все строки блока.
  */
 function splitLines(block: HTMLElement, range: Range, type: BlockType): HTMLElement | null {
-	const breaks = Array.from(block.querySelectorAll("br"));
+	// Хвостовой перенос — заполнитель последней строки, а не разделитель: резать по нему
+	// нельзя, иначе каретка за ним считалась бы отдельной строкой и в значении появлялась бы
+	// пустая строка, которой не набирали. Ищется по дереву, как в pad(): мягкий перенос
+	// (а с ним и заполнитель) живёт и внутри инлайнового тега.
+	let trailing: Node | null = block.lastChild;
+	while (trailing?.lastChild) trailing = trailing.lastChild;
+	const breaks = Array.from(block.querySelectorAll("br")).filter((br) => br !== trailing);
 
 	// последний перенос перед выделением и первый после него — по ним и режем
 	const head = breaks.filter((br) => range.comparePoint(br, 0) < 0).pop();
@@ -111,6 +117,16 @@ function splitLines(block: HTMLElement, range: Range, type: BlockType): HTMLElem
 	if (!head && !tail) return null;
 
 	const original = blockTypeOf(block) ?? DEFAULT_BLOCK;
+
+	// Кусок, потерявший хвостовой разделитель, кончается переносом — значит, его последняя
+	// строка пустая. Одинокий хвостовой перенос — это заполнитель (см. ensureParagraphs),
+	// и без второго пустая строка пропала бы и с экрана, и из значения. Перенос ищется по
+	// дереву, а не по верхнему уровню: мягкий перенос живёт и внутри инлайнового тега.
+	const pad = (piece: HTMLElement) => {
+		let last: Node | null = piece.lastChild;
+		while (last?.lastChild) last = last.lastChild;
+		if (last?.nodeName === "BR") piece.appendChild(document.createElement("br"));
+	};
 
 	// Хвост выносим первым: он дальше по дереву, и вынос головы сдвинул бы его границы.
 	// Сам перенос-разделитель уходит вместе с ним — строки разъезжаются по блокам.
@@ -129,12 +145,7 @@ function splitLines(block: HTMLElement, range: Range, type: BlockType): HTMLElem
 		piece.appendChild(part.extractContents());
 		br.remove();
 
-		// Кусок «до» кончается переносом — значит, его последняя строка пустая. Одинокий
-		// хвостовой перенос — это заполнитель (см. ensureParagraphs), и без второго пустая
-		// строка пропала бы и с экрана, и из значения.
-		if (from === "before" && piece.lastChild?.nodeName === "BR")
-			piece.appendChild(document.createElement("br"));
-
+		if (from === "before") pad(piece);
 		fillEmptyParagraph(piece);
 
 		return piece;
@@ -145,6 +156,11 @@ function splitLines(block: HTMLElement, range: Range, type: BlockType): HTMLElem
 
 	const created = retagBlock(block, type);
 	if (!BLOCK_TYPES[type].inline) unwrapFormatting(created);
+
+	// Вынос хвоста забрал разделитель и у самого блока: пустая строка в конце выделения
+	// осталась бы без заполнителя. Кусок «после» в заполнителе не нуждается — его хвост
+	// и есть прежний хвост блока, заполнитель там свой.
+	if (tail) pad(created);
 
 	block.replaceWith(created);
 	fillEmptyParagraph(created);
@@ -283,11 +299,6 @@ export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT
 	caretToStart(next);
 }
 
-/**
- * Разрезает элемент по каретке: содержимое после неё уходит в такой же элемент следом,
- * а диапазон встаёт между половинами — вставленное туда окажется снаружи обоих. Пустые
- * половины не оставляем: печатать в них было бы нечего, а каретка попадала бы внутрь.
- */
 /**
  * Выводит хвост ссылки из неё, разрезав по каретке: перед переносом строки.
  *
@@ -485,14 +496,20 @@ export function sanitizePastedHtml(
 	const holder = document.createElement("template");
 	holder.innerHTML = deserialize(source.innerHTML, "html", tools, markers, true, types);
 
-	// внешний HTML: пробелы/переводы строк между тегами не значимы — схлопываем,
-	// иначе литеральные \n (pre-wrap) и отступы дают лишние переносы
-	const walker = document.createTreeWalker(holder.content, NodeFilter.SHOW_TEXT);
-	for (let t = walker.nextNode(); t; t = walker.nextNode())
-		t.textContent = (t.textContent ?? "").replace(/\s+/g, " ");
-
+	// Внешний HTML: пробелы/переводы строк между тегами не значимы — схлопываем, иначе
+	// литеральные \n (pre-wrap) и отступы дают лишние переносы. Кроме блока без инлайновой
+	// разметки (код): там переносы и отступы — содержимое, а не вёрстка.
 	const paras = Array.from(holder.content.children) as HTMLElement[];
-	for (const p of paras) trimParagraphEdges(p);
+	for (const p of paras) {
+		const type = blockTypeOf(p);
+		if (type && !BLOCK_TYPES[type].inline) continue;
+
+		const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+		for (let t = walker.nextNode(); t; t = walker.nextNode())
+			t.textContent = (t.textContent ?? "").replace(/\s+/g, " ");
+
+		trimParagraphEdges(p);
+	}
 
 	// отбрасываем пустые краевые абзацы (ведущие/хвостовые \n и <br>-обёртки из буфера),
 	// иначе перед и после вставленного текста появляются пустые строки

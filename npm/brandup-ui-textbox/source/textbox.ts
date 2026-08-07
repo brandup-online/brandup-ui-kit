@@ -1,10 +1,11 @@
 import "./textbox.less"; // стили компонента
 
-import { InputControl } from "@brandup/ui-input";
-import { IS_TOUCH_DEVICE, SCROLLABLE_CLASS } from "@brandup/ui-kit";
+import { EditorInputControl } from "@brandup/ui-input";
+import { IS_TOUCH_DEVICE, POPUP_CLASS, SCROLLABLE_CLASS } from "@brandup/ui-kit";
 import { DOM } from "@brandup/ui";
 import { FuncHelper } from "@brandup/ui-helpers";
 import RichEditor, {
+	TOOLBAR_CLASS,
 	defaultFormatMarkers,
 	parseBlockTypes,
 	parseEditorActions,
@@ -34,11 +35,10 @@ type TextBoxEvents = {
 	[CHANGE_EVENT]: (data: ChangeEventData) => void;
 };
 
-export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAreaElement, TextBoxEvents> {
-	private __editor: RichEditor;
+export default class TextBox extends EditorInputControl<RichEditor, ChangeEventData, TextBoxEvents> {
 	private __inputElem: HTMLElement; // редактируемый элемент (им владеет RichEditor)
 	private __symbolsCountElem: HTMLElement;
-	private __listenerAbort = new AbortController();
+	private __incorrectTimer?: number;
 
 	readonly type: TextBoxType;
 	readonly allowEmptyStrings: boolean;
@@ -98,7 +98,7 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		const multyline = valueElem instanceof HTMLTextAreaElement;
 		const copyButton = valueElem.hasAttribute("data-copy-button") || valueElem.hasAttribute("data-copybutton");
 		const disabled = valueElem.disabled;
-		const readonly = valueElem.hasAttribute("readonly") || valueElem.hasAttribute("data-readonly");
+		const readonly = TextBox.isReadonly(valueElem);
 
 		// форматирование доступно только для обычного текстового ввода
 		const format = type === "text" && valueElem.hasAttribute("data-format");
@@ -129,36 +129,39 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			actionsElem,
 		]);
 
-		TextBox.prepareValueElem(valueElem, container, INPUT_CLASS);
-
-		inputElem.tabIndex = disabled ? -1 : valueElem.tabIndex;
-		valueElem.tabIndex = -1;
-
 		if (multyline) container.classList.add("multyline");
 		if (symbolCounter) container.classList.add("counter");
 		if (inputmode) inputElem.inputMode = inputmode;
 
 		if (copyButton) {
-			// команда объявляется атрибутом data-command — по нему её ищет обработчик @brandup/ui
+			// команда объявляется атрибутом data-command — по нему её ищет обработчик @brandup/ui;
+			// type обязателен: кнопка без него внутри формы — submit, и клик отправлял бы форму
 			const buttonElem = DOM.tag(
 				"button",
-				{ command: "copy-text", title: "Скопировать в буфер обмена" },
+				{ type: "button", command: "copy-text", title: "Скопировать в буфер обмена" },
 				copyIcon
 			);
 			if (disabled) buttonElem.disabled = true;
 			actionsElem.insertAdjacentElement("beforeend", buttonElem);
 		}
 
-		// убираем висящую миниатюру, если есть, и вставляем container на место valueElem
+		// убираем висящую миниатюру, если есть, — до обёртки поля: после неё соседом поля станет контейнер
 		if (valueElem.nextElementSibling) {
 			const nextElem = valueElem.nextElementSibling as HTMLElement;
 			if (nextElem.classList.contains(MINIATURE_CLASS)) nextElem.remove();
 		}
-		valueElem.insertAdjacentElement("afterend", container);
-		container.insertAdjacentElement("afterbegin", valueElem);
+
+		// скрыть поле, подменить tabindex и обернуть контейнером — общая механика базового класса
+		TextBox.wrapValueElem(valueElem, container, INPUT_CLASS, inputElem, disabled);
 
 		// класс и подменённые атрибуты вернёт базовый класс при destroy
-		super("BrandUp.TextBox", container, valueElem, { class: INPUT_CLASS, attrs: originalAttrs });
+		super(
+			"BrandUp.TextBox",
+			container,
+			valueElem,
+			{ class: INPUT_CLASS, attrs: originalAttrs },
+			{ changeEvent: CHANGE_EVENT }
+		);
 
 		this.type = type;
 		this.maxlength = maxlength;
@@ -189,6 +192,9 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			multiline: multyline,
 			blocks,
 			readonly,
+			// disabled редактор знает сам: запрет правок как в readonly, плюс снятый contenteditable —
+			// без фокуса и выделения (визуал даёт класс .disabled от InputControl)
+			disabled,
 			// тулбар позиционируется относительно контейнера TextBox (а не document.body)
 			toolbarContainer: container,
 			value: valueElem.value,
@@ -207,16 +213,11 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 
 		if (type === "number" || type === "email" || maxlength > 0) {
 			options.filterChar = (char) => {
-				// достигнут лимит длины — отклоняем (выделение будет заменено, поэтому вычитаем его длину)
-				if (maxlength > 0) {
-					const selectionLength = window.getSelection()?.toString().length ?? 0;
-					if (this.__editor.getLength() - selectionLength >= maxlength) return false;
-				}
+				// достигнут лимит длины — отклоняем (выделение будет заменено, его длину учитывает helper)
+				if (maxlength > 0 && this.__lengthLeft() <= 0) return false;
 				return typeAllowsChar(char);
 			};
-		}
 
-		if (type === "number" || maxlength > 0) {
 			options.filterPaste = (text) => {
 				let pasted = text;
 
@@ -224,12 +225,16 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 					const numberData = /[\d\s]+/.exec(pasted);
 					if (!numberData || !numberData.length) return null;
 					pasted = numberData[0].replace(/\s/g, "");
+				} else if (type === "email") {
+					// вставка проходит тот же посимвольный фильтр, что и набор, — иначе запрещённые
+					// символы попадали бы в поле через буфер обмена
+					pasted = Array.from(pasted).filter(typeAllowsChar).join("");
+					if (!pasted) return null;
 				}
 
 				// обрезаем по количеству оставшихся символов (с учётом замены выделения)
 				if (maxlength > 0) {
-					const selectionLength = window.getSelection()?.toString().length ?? 0;
-					const left = maxlength - this.__editor.getLength() + selectionLength;
+					const left = this.__lengthLeft();
 					// не влезает ни одного символа — это отказ, а не пустая вставка: иначе
 					// вставка молча не делала бы ничего, тогда как ввод символа на пределе мигает ошибкой
 					if (left <= 0) return null;
@@ -240,17 +245,16 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 			};
 		}
 
-		this.__editor = new RichEditor(inputElem, options);
-
-		// RichEditor не знает про disabled — отключаем редактирование на стороне TextBox
-		// (визуал даёт класс .disabled от InputControl: затемнение, user-select: none)
-		if (disabled) inputElem.contentEditable = "false";
+		this.__attachEditor(new RichEditor(inputElem, options));
 
 		// синхронизируем скрытое поле с нормализованным содержимым редактора (без события)
 		this.__valueElem.value = this.__editor.getValue();
 
 		this.__initLogic();
 		this.__refreshSymbolsCount();
+		// значение из разметки может уже нарушать лимит длины — объявляем это полю сразу,
+		// не дожидаясь первой синхронизации
+		this.__refreshValidity();
 
 		if (this.autoFocus && !IS_TOUCH_DEVICE && !disabled && !readonly) this.__editor.focus();
 	}
@@ -274,24 +278,19 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 
 		// Счётчик — на каждый ввод, а не по change: длина считается по textContent и стоит копейки,
 		// тогда как значение поля синхронизируется реже (см. RichEditor.flushChange).
-		editable.addEventListener("input", () => this.__refreshSymbolsCount(), { signal });
+		// Выключенный счётчик скрыт — пересчитывать его на каждое нажатие незачем.
+		if (this.symbolCounter) editable.addEventListener("input", () => this.__refreshSymbolsCount(), { signal });
 
-		// состояние фокуса контрола (рамка/заливка) — на корневом элементе
-		editable.addEventListener("focus", () => !this.disabled && this.element.classList.add("focused"), { signal });
-		editable.addEventListener("blur", () => !this.disabled && this.element.classList.remove("focused"), { signal });
+		// Клик мимо текста — тоже клик по полю: контрол выглядит одним полем ввода, а его
+		// внутренние отступы, место справа от текста и полоса действий в редактируемый
+		// элемент не входят.
+		this.element.addEventListener("mousedown", (e) => this.__focusFromBox(e), { signal });
 
-		// гасим нативный change скрытого поля
-		this.__valueElem.addEventListener(
-			"change",
-			(e: Event) => {
-				e.preventDefault();
-				e.stopImmediatePropagation();
-			},
-			{ signal }
-		);
+		// таймер вспышки "incorrect" не должен переживать компонент — гасим его вместе со слушателями
+		signal.addEventListener("abort", () => window.clearTimeout(this.__incorrectTimer));
 
-		// двойной клик по readonly-полю с кнопкой копирования — выделить всё для копирования
 		if (this.copyButton) {
+			// двойной клик по readonly-полю с кнопкой копирования — выделить всё для копирования
 			editable.addEventListener(
 				"dblclick",
 				() => {
@@ -301,38 +300,56 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 				},
 				{ signal }
 			);
+
+			this.registerCommand("copy-text", async (context) => {
+				// повторный клик, пока показана галочка, запомнил бы её как исходную иконку —
+				// после возврата кнопка так и осталась бы с галочкой
+				if (!window.navigator.clipboard || this.disabled || context.target.classList.contains("success"))
+					return;
+
+				// копия значения в поле отстаёт на окно троттлинга — доводим её перед чтением
+				this.__syncValue();
+				await window.navigator.clipboard.writeText(this.__valueElem.value);
+
+				const prevHtml = context.target.innerHTML;
+				context.target.innerHTML = doneIcon;
+				context.target.classList.add("success");
+
+				// возврат иконки отменяем вместе с компонентом: иначе таймер переживает destroy
+				// и дописывает в уже отсоединённую кнопку
+				try {
+					await FuncHelper.delay(2000, signal);
+				} catch {
+					return;
+				}
+
+				context.target.innerHTML = prevHtml;
+				context.target.classList.remove("success");
+			});
 		}
-
-		this.registerCommand("copy-text", async (context) => {
-			// повторный клик, пока показана галочка, запомнил бы её как исходную иконку —
-			// после возврата кнопка так и осталась бы с галочкой
-			if (!window.navigator.clipboard || this.disabled || context.target.classList.contains("success")) return;
-
-			await window.navigator.clipboard.writeText(this.__valueElem.value);
-
-			const prevHtml = context.target.innerHTML;
-			context.target.innerHTML = doneIcon;
-			context.target.classList.add("success");
-
-			// возврат иконки отменяем вместе с компонентом: иначе таймер переживает destroy
-			// и дописывает в уже отсоединённую кнопку
-			try {
-				await FuncHelper.delay(2000, signal);
-			} catch {
-				return;
-			}
-
-			context.target.innerHTML = prevHtml;
-			context.target.classList.remove("success");
-		});
 	}
 
-	// Редактор откладывает событие изменения при печати, поэтому копия значения в поле формы
-	// отстаёт. Базовый класс зовёт этот хук перед каждым чтением значения снаружи —
-	// валидация, отправка формы, сбор FormData.
-	protected override __syncValue(): void {
-		this.__editor.flushChange();
-		this.__refreshValidity();
+	/**
+	 * Фокус по клику в контрол мимо текста: внутренние отступы, место справа от последней
+	 * строки и полоса действий в редактируемый элемент не входят, а выглядит всё это одним
+	 * полем ввода.
+	 *
+	 * Гасим нажатие: браузер иначе снял бы выделение и увёл фокус на корневой элемент, где
+	 * каретке места нет. Каретку редактор вернёт на прежнее место, а если её ещё не было —
+	 * в конец текста: клик мимо текста это клик за ним.
+	 */
+	private __focusFromBox(e: MouseEvent) {
+		// в выключенном поле редактируемого элемента нет вовсе — фокусировать нечего
+		if (this.disabled) return;
+
+		const target = e.target as HTMLElement | null;
+		if (!target || this.__inputElem.contains(target)) return; // в сам текст браузер попадёт и сам
+
+		// кнопка копирования, панель форматирования и её попапы живут внутри контрола и работают сами
+		if (target.closest(`button, a, input, textarea, select, .${TOOLBAR_CLASS}, .${POPUP_CLASS}`)) return;
+
+		e.preventDefault();
+		this.__editor.focus(true);
 	}
 
 	/**
@@ -344,20 +361,39 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 	 * разделители абзацев. Нативный maxLength здесь не помощник: он ограничивает набор, но не
 	 * помечает значение, выставленное из кода.
 	 */
-	private __refreshValidity(): void {
+	protected override __refreshValidity(): void {
 		if (this.maxlength <= 0) return;
 
 		const tooLong = this.maxlength < this.__editor.getLength();
 		this.__valueElem.setCustomValidity(tooLong ? `Не больше ${this.maxlength} символов.` : "");
 	}
 
+	/**
+	 * Сколько символов ещё поместится с учётом того, что выделение будет заменено вводом.
+	 *
+	 * Выделение берём у самого редактора: чужое выделение страницы (например, при вставке
+	 * с отсоединённой кареткой) к содержимому отношения не имеет и ёмкость не освобождает.
+	 * Длину выделения меряем так же, как getLength(), — по textContent, без переносов на границах
+	 * блоков, которые toString() у Selection добавляет, — иначе многострочное выделение
+	 * считалось бы длиннее содержимого.
+	 */
+	private __lengthLeft(): number {
+		const selection = this.__editor.selection;
+		const selectionLength = selection ? (selection.getRangeAt(0).cloneContents().textContent?.length ?? 0) : 0;
+
+		return this.maxlength - this.__editor.getLength() + selectionLength;
+	}
+
 	private __toIncorrect() {
 		this.element.classList.add("incorrect");
-		window.setTimeout(() => this.element.classList.remove("incorrect"), 200);
+
+		// каждый отказ перезапускает таймер: иначе таймер предыдущего отказа гасил бы вспышку раньше
+		window.clearTimeout(this.__incorrectTimer);
+		this.__incorrectTimer = window.setTimeout(() => this.element.classList.remove("incorrect"), 200);
 	}
 
 	private __refreshSymbolsCount() {
-		if (!this.__symbolsCountElem) return;
+		if (!this.symbolCounter) return;
 
 		const textLength = this.__editor.getLength();
 		let counterValue: string;
@@ -388,24 +424,6 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		return this.__editor;
 	}
 
-	onChange(handler: (e: ChangeEventData) => void) {
-		this.on(CHANGE_EVENT, handler);
-	}
-
-	hasValue(): boolean {
-		return !!this.getValue();
-	}
-
-	getValue(): string {
-		this.__syncValue(); // значение читают снаружи — отложенное изменение сюда обязано попасть
-		return this.__valueElem.value.trim();
-	}
-
-	setValue(value: string): void {
-		// RichEditor нормализует и сгенерирует change — он синхронизирует скрытое поле и вызовет textbox-change
-		this.__editor.setValue(value?.trim() ?? "");
-	}
-
 	override validate(): boolean {
 		let isValid = super.validate(); // super синхронизирует значение сам, через __syncValue
 		if (isValid) {
@@ -422,13 +440,6 @@ export default class TextBox extends InputControl<HTMLInputElement | HTMLTextAre
 		else this.element.classList.remove("invalid");
 
 		return isValid;
-	}
-
-	override destroy(): void {
-		this.__listenerAbort.abort();
-		this.__editor.destroy();
-
-		super.destroy(); // снимет слушатели формы и вернёт поле-носитель в исходный вид
 	}
 }
 

@@ -2,6 +2,8 @@
 // растущий по содержимому. Переменные наследуются от полей ввода кита, но имеют
 // собственные умолчания — компонент должен выглядеть цельно и без темы кита.
 
+@import (reference) "@brandup/ui-input/source/input.less";
+
 :root {
 	// Исходящее сообщение — заливка своя, а не как у полей ввода: на белой странице белая
 	// плашка держится только на тени и почти не читается.
@@ -32,7 +34,9 @@
 	--messageeditor-source-fill: var(--input-fill, #fff);
 	--messageeditor-source-border: var(--input-border-color, #dcdfe4);
 	--messageeditor-source-color: var(--messageeditor-color);
-	--messageeditor-source-font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	// моноширинный — тот же, что у кода в редакторе: у темы хоста один моно-шрифт на всё,
+	// свой стек — только запас на случай работы без темы
+	--messageeditor-source-font: var(--richeditor-code-font, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
 	--messageeditor-modes-gap: 6px;
 }
 
@@ -42,7 +46,10 @@
 // в высоту (box-sizing: border-box), поэтому и вычитается при расчёте отступов (см. :root выше).
 .messageeditor-box() {
 	box-sizing: border-box;
-	padding: var(--messageeditor-padding-tb) var(--input-padding-lr);
+	// Отступ по горизонтали — от полей ввода кита, чтобы текст стоял в линию с ними; запасное
+	// значение — само значение кита. Без него неразрешимая вне темы кита переменная делала бы
+	// недействительным весь shorthand — вместе с вертикальными отступами.
+	padding: var(--messageeditor-padding-tb) var(--input-padding-lr, 15px);
 	min-height: var(--input-height, 46px);
 	border-width: var(--messageeditor-border-width);
 	border-style: solid;
@@ -141,14 +148,21 @@
 		background-color: var(--messageeditor-source-fill);
 		border-color: var(--messageeditor-source-border);
 
-		// Пустое значение — пустая панель: без заглушки она выглядела бы сломанной, а не пустой
+		// Пустое значение — пустая панель: без заглушки она выглядела бы сломанной, а не пустой.
+		// Начертание — теми же токенами кита, что у заглушек полей ввода (см. richeditor.less).
 		&:empty::before {
 			content: attr(data-placeholder);
 			color: var(--placeholder-color, #999);
+			font-weight: var(--placeholder-font-weight, inherit);
+			font-style: var(--placeholder-font-style, inherit);
 		}
 	}
 
-	&.source {
+	// Класс режима меняем только мы, но прийти он может и со стороны: собственные классы
+	// поля-носителя переезжают на корневой элемент контрола (см. prepareValueElem в ui-input),
+	// и `class="source"` в разметке поля спрятал бы плашку, не показав взамен ничего. Поэтому
+	// прячем её лишь при собранной панели выхода — без включённого показа её нет вовсе.
+	&.source:has(> .messageeditor-source) {
 		& .bubble {
 			display: none;
 		}
@@ -239,14 +253,9 @@
 	}
 }
 
-// носитель значения участвует в форме, но не показывается (как и у textbox)
+// носитель значения участвует в форме, но не показывается — общий рецепт из @brandup/ui-input
 .messageeditor-input {
-	opacity: 0;
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	outline: none;
-	visibility: collapse;
+	.ui-input-hidden-value();
 }
 
 // подсветка доменной разметки в тексте: спинтакс и переменные персонализации

@@ -1,26 +1,31 @@
+@import (reference) "@brandup/ui-input/source/input.less";
+
+// Значения по умолчанию у переменных кита — их же канонические значения (см. vars.less кита):
+// без темы кита контрол выглядит так же, как с темой по умолчанию, а не разваливается.
+
 :root {
 	--textbox-maxheight: 200px;
 	--textbox-multyline-height: 100px;
 }
 
 .ui-textbox {
-	min-height: var(--input-height);
+	min-height: var(--input-height, 46px);
 	max-height: var(--textbox-maxheight);
 	display: flex;
 	flex-flow: row nowrap;
 	align-items: stretch;
 	position: relative;
-	background-color: var(--input-fill);
-	border-radius: var(--input-border-radius); // чтобы заливка при состояниях не выходила за пределы импута
+	background-color: var(--input-fill, #fff);
+	border-radius: var(--input-border-radius, 0); // чтобы заливка при состояниях не выходила за пределы импута
 	box-sizing: border-box;
 	outline: none;
 	transition: background-color ease 60ms;
-	line-height: var(--input-line-height);
-	font-size: var(--input-font-size);
-	font-weight: var(--input-font-weight);
-	color: var(--input-color);
+	line-height: var(--input-line-height, 1.2rem);
+	font-size: var(--input-font-size, 14px);
+	font-weight: var(--input-font-weight, inherit);
+	color: var(--input-color, #222);
 
-	--svg-fill: var(--input-color);
+	--svg-fill: var(--input-color, #222);
 	--svg-size: 18px;
 
 	& .decorator {
@@ -30,8 +35,8 @@
 		top: 0;
 		width: 100%;
 		height: 100%;
-		border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
-		border-radius: var(--input-border-radius);
+		border: var(--input-border-type, solid) var(--input-border-width, 1px) var(--input-border-color, #aaa);
+		border-radius: var(--input-border-radius, 0);
 		z-index: 1;
 		box-sizing: border-box;
 		transition: border-color ease 120ms;
@@ -42,13 +47,13 @@
 		display: flex;
 		flex-flow: row nowrap;
 		gap: 15px;
-		padding: calc((var(--input-height) - var(--input-line-height)) / 2) var(--input-padding-lr);
+		padding: calc((var(--input-height, 46px) - var(--input-line-height, 1.2rem)) / 2) var(--input-padding-lr, 15px);
 		box-sizing: border-box;
 		cursor: text;
 		position: relative;
 		z-index: 2;
 		margin-right: 5px;
-		padding-right: calc(var(--input-padding-lr) - 5px);
+		padding-right: calc(var(--input-padding-lr, 15px) - 5px);
 		overflow-y: auto; // полоса прокрутки — общая, от .ui-scrollable кита
 	}
 
@@ -81,15 +86,15 @@
 		display: flex;
 		flex-flow: row nowrap;
 		align-items: center;
-		height: var(--input-height);
+		height: var(--input-height, 46px);
 
 		& button {
 			display: flex;
 			flex-flow: row nowrap;
 			justify-content: center;
 			align-items: center;
-			width: var(--input-height);
-			height: var(--input-height);
+			width: var(--input-height, 46px);
+			height: var(--input-height, 46px);
 			background: transparent;
 			border: none;
 			padding: 0;
@@ -100,7 +105,7 @@
 			opacity: 0.7;
 
 			&.success {
-				--svg-fill: var(--color-success);
+				--svg-fill: var(--color-success, green);
 			}
 
 			&:hover,
@@ -143,30 +148,30 @@
 	}
 
 	&:hover {
-		--input-border-color: var(--hover--input-border-color);
-		--input-fill: var(--hover--input-fill);
-		--input-color: var(--hover--input-color);
-		--svg-fill: var(--hover--input-color);
+		--input-border-color: var(--hover--input-border-color, #666);
+		--input-fill: var(--hover--input-fill, #fff);
+		--input-color: var(--hover--input-color, inherit);
+		--svg-fill: var(--hover--input-color, inherit);
 	}
 
 	&.focused {
-		--input-border-color: var(--focus--input-border-color);
-		--input-fill: var(--focus--input-fill);
-		--input-color: var(--focus--input-color);
-		--svg-fill: var(--focus--input-color);
+		--input-border-color: var(--focus--input-border-color, #222);
+		--input-fill: var(--focus--input-fill, #fff);
+		--input-color: var(--focus--input-color, inherit);
+		--svg-fill: var(--focus--input-color, inherit);
 	}
 
 	&.readonly {
-		--input-fill: var(--readonly--input-fill);
-		--input-color: var(--readonly--input-color);
-		--svg-fill: var(--readonly--input-color);
+		--input-fill: var(--readonly--input-fill, #f7f7f7);
+		--input-color: var(--readonly--input-color, #222);
+		--svg-fill: var(--readonly--input-color, #222);
 	}
 
 	&.disabled {
-		--input-border-color: var(--disabled--input-border-color);
-		--input-fill: var(--disabled--input-fill);
-		--input-color: var(--disabled--input-color);
-		--svg-fill: var(--disabled--input-color);
+		--input-border-color: var(--disabled--input-border-color, #aaa);
+		--input-fill: var(--disabled--input-fill, #eee);
+		--input-color: var(--disabled--input-color, #a2a2a2);
+		--svg-fill: var(--disabled--input-color, #a2a2a2);
 
 		& .editor {
 			user-select: none;
@@ -178,42 +183,38 @@
 				cursor: default;
 
 				& svg {
-					fill: var(--disabled--input-color);
+					fill: var(--disabled--input-color, #a2a2a2);
 				}
 			}
 		}
 	}
 
 	&.invalid {
-		--input-border-color: var(--invalid--input-border-color);
-		--input-fill: var(--invalid--input-fill);
-		--input-color: var(--invalid--input-color);
-		--placeholder-color: var(--invalid--input-color);
-		--svg-fill: var(--invalid--input-color);
+		--input-border-color: var(--invalid--input-border-color, red);
+		--input-fill: var(--invalid--input-fill, rgb(255, 220, 220));
+		--input-color: var(--invalid--input-color, inherit);
+		--placeholder-color: var(--invalid--input-color, inherit);
+		--svg-fill: var(--invalid--input-color, inherit);
 
 		& .decorator {
-			transition-delay: 0;
+			transition-delay: 0s;
 		}
 	}
 
 	&.incorrect {
-		--input-fill: var(--incorrect--input-fill);
-		--input-color: var(--incorrect--input-color);
-		--svg-fill: var(--incorrect--input-color);
+		--input-fill: var(--incorrect--input-fill, rgb(255, 220, 220));
+		--input-color: var(--incorrect--input-color, #222);
+		--svg-fill: var(--incorrect--input-color, #222);
 
 		& .decorator {
-			transition-delay: 0;
+			transition-delay: 0s;
 		}
 	}
 }
 
+// поле уведено с экрана, но остаётся в форме — общий рецепт из @brandup/ui-input
 .textbox-input {
-	opacity: 0;
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	outline: none;
-	visibility: collapse;
+	.ui-input-hidden-value();
 }
 
 textarea.textbox-input ~ .textbox-miniature {
@@ -221,9 +222,9 @@ textarea.textbox-input ~ .textbox-miniature {
 }
 
 .textbox-miniature {
-	border: var(--input-border-type) var(--input-border-width) var(--input-border-color);
-	border-radius: var(--input-border-radius);
-	height: var(--input-height);
+	border: var(--input-border-type, solid) var(--input-border-width, 1px) var(--input-border-color, #aaa);
+	border-radius: var(--input-border-radius, 0);
+	height: var(--input-height, 46px);
 	background: white;
 	box-sizing: border-box;
 }

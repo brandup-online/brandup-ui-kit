@@ -1,4 +1,5 @@
 @import "@brandup/ui-kit/source/adaptive.less";
+@import (reference) "@brandup/ui-input/source/input.less";
 
 .ui-dropdown {
 	position: relative;
@@ -415,13 +416,9 @@
 	}
 });
 
+// носитель значения участвует в форме, но не показывается — общий рецепт из @brandup/ui-input
 .ui-dropdown-input {
-	opacity: 0;
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	outline: none;
-	visibility: collapse;
+	.ui-input-hidden-value();
 }
 
 .ui-dropdown-miniature {

@@ -8,6 +8,10 @@
 // Переменные --input-*, --hover--input-*, --focus--input-*, --placeholder-* и --svg-* приходят
 // из @brandup/ui-kit и здесь не объявляются: объявив их в :root, пакет перекрыл бы значения
 // кита. Их запасные значения остаются по месту — они на случай использования пакета без кита.
+// Рамка в цветах кита — одна на все коробки пакета (панель, поле адреса, разделитель
+// групп смайликов): менять её значит менять в одном месте.
+@richeditor-border: var(--input-border-type, solid) var(--input-border-width, 1px) var(--input-border-color, #aaa);
+
 :root {
 	// цитата: линия слева, как её рисуют мессенджеры
 	--richeditor-quote-line: rgba(0, 0, 0, 0.2);
@@ -227,7 +231,7 @@
 		gap: 2px;
 		padding: var(--richeditor-toolbar-padding);
 		background-color: var(--input-fill, #fff);
-		border: var(--input-border-type, solid) var(--input-border-width, 1px) var(--input-border-color, #aaa);
+		border: @richeditor-border;
 		border-radius: var(--input-border-radius, 0);
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 		// панель тоже монтируется в разметку хоста — курсор поля ввода ей не наследовать
@@ -328,7 +332,7 @@
 		box-sizing: border-box; // высота вместе с полями и рамкой, иначе поле выше кнопок
 		padding: 0 8px;
 		// оформление у поля общее с полями ввода кита — своих переменных ему не нужно
-		border: var(--input-border-type, solid) var(--input-border-width, 1px) var(--input-border-color, #aaa);
+		border: @richeditor-border;
 		border-radius: calc(var(--input-border-radius, 0) - 2px);
 		font: inherit;
 		color: inherit;
@@ -382,8 +386,7 @@
 	& .emoji-group + .emoji-group {
 		margin-top: 6px;
 		padding-top: 6px;
-		border-top: var(--input-border-type, solid) var(--input-border-width, 1px)
-			var(--input-border-color, #aaa);
+		border-top: @richeditor-border;
 	}
 
 	& .emoji {

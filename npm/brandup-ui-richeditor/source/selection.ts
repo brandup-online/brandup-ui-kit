@@ -78,6 +78,10 @@ export function innerSelection(root: HTMLElement): Selection | null {
 	const selection = documentSelection(root);
 	if (!selection || selection.rangeCount === 0 || !root.contains(selection.anchorNode)) return null;
 
+	// Оба конца, а не только якорь: выделение можно вытянуть из редактора на страницу,
+	// и правка по такому диапазону трогала бы DOM за пределами содержимого.
+	if (!root.contains(selection.focusNode)) return null;
+
 	return selection;
 }
 
@@ -233,7 +237,10 @@ function linesBefore(root: HTMLElement, container: Node, offset: number): number
  * пробелов и может уехать в соседнее слово.
  */
 export function mapCharOffset(before: string, after: string, offset: number): number {
-	const same = (a: string, b: string) => a === b || (b === " " && (a === " " || a === "\t"));
+	// Пробелом после нормализации становится и таб, и неразрывный пробел (U+00A0) — тот
+	// браузер сам подставляет в contenteditable; без него выравнивание срывалось бы на
+	// первом же nbsp, и каретка уезжала к нему.
+	const same = (a: string, b: string) => a === b || (b === " " && (a === " " || a === "\t" || a === " "));
 
 	let i = 0;
 	let j = 0;
@@ -433,13 +440,34 @@ function wrapNode(node: Node, tag: string): HTMLElement {
 	return wrapper;
 }
 
-/** Выносит ветку, содержащую node, наружу из элемента fmt (расщепляя fmt на «до» и «после»). */
+/** Выносит node наружу из элемента fmt (расщепляя fmt на «до» и «после»). */
 function unwrapAround(fmt: HTMLElement, node: Node) {
 	const parent = fmt.parentNode;
 	if (!parent) return;
 
+	// Промежуточные предки расщепляются вокруг узла: ветка целиком несла бы наружу и чужой
+	// текст — в <b><i>hello world</i></b> снятие жирного с «hello» уносило бы из <b> весь <i>,
+	// и « world» терял бы формат, который с него не снимали.
+	//
+	// Осознанная цена: расщеплённая ссылка становится двумя <a> с одним адресом — в значении
+	// два соседних куска вместо одного. Целая ссылка с чужим форматом снаружи стоила бы дороже:
+	// формат снимался бы с текста, которого не выделяли.
 	let child: Node = node;
-	while (child.parentNode && child.parentNode !== fmt) child = child.parentNode;
+	while (child.parentNode && child.parentNode !== fmt) {
+		const holder = child.parentNode as HTMLElement;
+
+		const left = holder.cloneNode(false) as HTMLElement;
+		while (holder.firstChild && holder.firstChild !== child) left.appendChild(holder.firstChild);
+		if (left.firstChild) holder.parentNode?.insertBefore(left, holder);
+
+		if (child.nextSibling) {
+			const right = holder.cloneNode(false) as HTMLElement;
+			while (child.nextSibling) right.appendChild(child.nextSibling);
+			holder.parentNode?.insertBefore(right, holder.nextSibling);
+		}
+
+		child = holder; // держит теперь только выносимую ветку
+	}
 	if (child.parentNode !== fmt) return;
 
 	const left = fmt.cloneNode(false) as HTMLElement;
@@ -610,7 +638,9 @@ const LINK_TAGS = TOOL_TAG_SETS.link;
  * По ней панель узнаёт текущий адрес: у ссылки состояние — не «включена», а «вот этот адрес».
  */
 export function linkAt(root: HTMLElement, range: Range): HTMLAnchorElement | null {
-	return formatAncestor(caretProbe(range), LINK_TAGS, root) as HTMLAnchorElement | null;
+	// Пробой бывает и сам тег ссылки, а не текст внутри него: границы выделения встают на
+	// элементы при Ctrl+A и selectAllContent — искать надо включая сам узел (см. formatAt).
+	return formatAt(caretProbe(range), LINK_TAGS, root) as HTMLAnchorElement | null;
 }
 
 /**
@@ -658,12 +688,6 @@ export function clearAllFormat(root: HTMLElement) {
 	root.normalize();
 }
 
-/**
- * Состояние форматирования на выделении указанными тегами.
- * `every` — отформатирован весь текст (подсветка кнопки инструмента),
- * `some` — отформатирована хоть какая-то часть (доступность очистки).
- * Обход прерывается на первом узле, решающем исход.
- */
 /** Есть ли форматирование хоть на части выделения (или под кареткой) — доступность кнопки очистки. */
 export function hasFormatting(root: HTMLElement, range: Range): boolean {
 	if (range.collapsed) return formatAncestor(caretProbe(range), MATCH_TAG_SET, root) !== null;
@@ -713,7 +737,13 @@ export function hasAnyFormatting(root: HTMLElement): boolean {
  * Вставляет текст в позицию каретки, оборачивая его в указанные форматы (режим набора).
  * Каретка ставится сразу после вставленного текста; соседние одинаковые теги склеиваются.
  */
-export function insertFormattedText(root: HTMLElement, data: string, tools: FormatTool[], selection: Selection) {
+export function insertFormattedText(
+	root: HTMLElement,
+	data: string,
+	tools: FormatTool[],
+	selection: Selection,
+	href = ""
+) {
 	if (!data || selection.rangeCount === 0) return;
 
 	const range = selection.getRangeAt(0);
@@ -724,6 +754,9 @@ export function insertFormattedText(root: HTMLElement, data: string, tools: Form
 	let node: Node = document.createTextNode(data);
 	for (const tool of tools) {
 		const el = document.createElement(FORMAT_TOOLS[tool].tag);
+		// Ссылка — не просто тег: без адреса она не переживёт сериализацию. Адрес передаёт
+		// вызывающий — с выделения, чьё оформление наследуется.
+		if (tool === "link" && href) el.setAttribute("href", href);
 		el.appendChild(node);
 		node = el;
 	}

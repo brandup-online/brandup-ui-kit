@@ -3,6 +3,7 @@
  */
 import { formatToolbar, selectionCharBounds } from "@brandup/ui-richeditor";
 import MessageEditor from "../source/messageeditor";
+import { highlight } from "../source/highlight";
 import { buildSpintax, parseSpintax } from "../source/randomizer";
 import { buildVariable } from "../source/variables";
 
@@ -298,6 +299,51 @@ describe("MessageEditor highlighting is idempotent", () => {
 
 		expect(editableOf(editor).querySelector("span.variable")).toBeNull();
 		expect(editor.getValue()).toBe("Привет, {ИМЯ");
+	});
+});
+
+// Конструкция не пересекает строку, и проверка соответствия обязана видеть разрывы: склеенный
+// через них текст выглядел бы конструкцией, вечно не совпадал с разметкой (обернуть его нельзя)
+// и запускал полную пересборку с возвратом каретки на каждый ввод.
+describe("MessageEditor highlighting across line breaks", () => {
+	it.each([
+		["мягкий перенос", "<p>раз {<br>Б} два</p>"],
+		["границу блоков", "<p>раз {</p><p>Б} два</p>"],
+	])("does not rebuild for a construct-looking text spanning %s", (_, html) => {
+		const root = document.createElement("div");
+		root.innerHTML = html;
+
+		expect(highlight(root)).toBe(false); // соответствие: пересобирать нечего
+		expect(root.querySelector("span")).toBeNull();
+	});
+});
+
+// Конструкция, дописанная вокруг уже подсвеченной: `{A` перед готовым `[x|y]` и `}` после.
+// Совпадение шире обёртки — повод пересобрать разметку: свежий разбор того же значения свернул
+// бы её в одну конструкцию, и показ при правке обязан совпадать с показом после перезагрузки.
+describe("MessageEditor highlighting composed around a wrapped construct", () => {
+	it("re-evaluates and matches a fresh parse of the same value", () => {
+		const root = document.createElement("div");
+		root.innerHTML = "<p>[x|y]</p>";
+		expect(highlight(root)).toBe(true);
+
+		const span = root.querySelector<HTMLElement>("span.spintax")!;
+		span.before("{A");
+		span.after("}");
+
+		expect(highlight(root)).toBe(true); // разметка пересобрана
+
+		expect(root.querySelector("span.spintax")).toBeNull();
+		expect(root.querySelector("span.variable")!.textContent).toBe("{A[x|y]}");
+
+		// пересборка привела показ ровно к тому, что дал бы свежий разбор значения
+		const fresh = document.createElement("div");
+		fresh.innerHTML = "<p>{A[x|y]}</p>";
+		highlight(fresh);
+		expect(root.innerHTML).toBe(fresh.innerHTML);
+
+		// и на этом успокоилась: дальше соответствие есть, пересборки нет
+		expect(highlight(root)).toBe(false);
 	});
 });
 

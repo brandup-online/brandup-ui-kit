@@ -11,6 +11,8 @@ import {
 	normalizeParagraphs,
 	type FormatTool,
 } from "../source/format";
+import { innerSelection, mapCharOffset } from "../source/selection";
+import { ensureParagraphs, paragraphsNormalized } from "../source/paragraphs";
 
 function makeRoot(html: string): HTMLElement {
 	document.body.innerHTML = "";
@@ -383,5 +385,139 @@ describe("markdown dialects", () => {
 		expect(parse("**жирный**", markers)).toBe('<b data-md="**">жирный</b>');
 		expect(print(parse("**жирный**", markers), markers)).toBe("**жирный**");
 		expect(print("<b>жирный</b>", markers)).toBe("*жирный*");
+	});
+});
+
+// Round-trip: то, что сериализовалось в значение, обязано прочитаться из него тем же смыслом.
+describe("markdown round-trip", () => {
+	const md = defaultFormatMarkers();
+	const tools: FormatTool[] = ["bold", "italic", "code", "link"];
+	const print = (html: string) => serialize(makeRoot(html), "markdown", tools, md);
+	const parse = (value: string) => deserialize(value, "markdown", tools, md);
+
+	// маркер не пересекает перенос строки — размечается каждая строка отдельно
+	it("splits a marker spanning a soft break into per-line markers", () => {
+		expect(print("<b>раз<br>два</b>")).toBe("**раз**\n**два**");
+		expect(parse("**раз**\n**два**")).toBe("<b>раз</b><br><b>два</b>");
+	});
+
+	// перенос внутри кода — содержимое, а не склейка строк
+	it("keeps the soft break inside pasted code", () => {
+		expect(print("<code>раз<br>два</code>")).toBe("`раз`\n`два`");
+	});
+
+	// адрес с вложенными скобками разбор не прочитает голым — только в угловых скобках
+	it("angle-wraps a url with nested parentheses", () => {
+		const value = print('<a href="http://ex.com/a(b(c))">т</a>');
+		expect(value).toBe("[т](<http://ex.com/a(b(c))>)");
+		expect(parse(value)).toBe('<a href="http://ex.com/a(b(c))">т</a>');
+	});
+
+	// один уровень скобок остаётся голым — им кончается половина ссылок на википедию
+	it("keeps single-level parentheses bare", () => {
+		const value = print('<a href="http://ex.com/a(b)">т</a>');
+		expect(value).toBe("[т](http://ex.com/a(b))");
+		expect(parse(value)).toBe('<a href="http://ex.com/a(b)">т</a>');
+	});
+
+	// бэктики в адресе — буквальные символы, а не разметка кода
+	it("keeps backticks inside a link url literal", () => {
+		expect(parse("[т](http://ex.com/`x`)")).toBe('<a href="http://ex.com/`x`">т</a>');
+	});
+});
+
+// Снятие формата с куска, делящего вложенный тег с чужим текстом: наружу выносится только
+// выделенное, а не вся ветка.
+describe("unwrap with shared nested formatting", () => {
+	it("keeps the format on the unselected part of a nested tag", () => {
+		const root = makeRoot("<b><i>hello world</i></b>");
+		const text = root.querySelector("i")!.firstChild!;
+		select(text, 0, text, 5);
+
+		toggle(root, "bold");
+
+		expect(root.innerHTML).toBe("<i>hello</i><b><i> world</i></b>");
+	});
+
+	it("splits the nested tag on both sides of the selection", () => {
+		const root = makeRoot("<b><i>ab cd ef</i></b>");
+		const text = root.querySelector("i")!.firstChild!;
+		select(text, 3, text, 5);
+
+		toggle(root, "bold");
+
+		expect(root.innerHTML).toBe("<b><i>ab </i></b><i>cd</i><b><i> ef</i></b>");
+	});
+});
+
+// Пересчёт смещения каретки после нормализации пробелов: nbsp, который браузер подставляет
+// сам, выравнивается с обычным пробелом, а не срывает выравнивание.
+describe("mapCharOffset", () => {
+	it("aligns a collapsed nbsp with the plain space", () => {
+		expect(mapCharOffset("a\u00A0bc", "a bc", 4)).toBe(4);
+	});
+
+	it("still accounts for removed characters", () => {
+		expect(mapCharOffset("a  b", "a b", 4)).toBe(3);
+	});
+});
+
+// Выделение, вытянутое из редактора на страницу, правкам не принадлежит.
+describe("innerSelection", () => {
+	it("rejects a selection whose focus lies outside the root", () => {
+		const root = makeRoot("абв");
+		const outside = document.createElement("span");
+		outside.textContent = "снаружи";
+		document.body.appendChild(outside);
+
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		const range = document.createRange();
+		range.setStart(root.firstChild!, 0);
+		range.setEnd(outside.firstChild!, 2);
+		sel.addRange(range);
+
+		expect(innerSelection(root)).toBeNull();
+	});
+});
+
+// html-хранение: перенос внутри кода остаётся тегом. Сырой \n в значении виден переносом
+// только под pre-wrap самого редактора — потребитель, рендерящий значение в обычном
+// контейнере, склеил бы строки.
+describe("html storage code breaks", () => {
+	const md = defaultFormatMarkers();
+	const tools: FormatTool[] = ["bold", "code"];
+
+	it("keeps the soft break inside code as a tag", () => {
+		const value = serialize(makeRoot("<code>раз<br>два</code>"), "html", tools, md);
+		expect(value).toBe("<code>раз<br>два</code>");
+		expect(deserialize(value, "html", tools, md)).toBe("<code>раз<br>два</code>");
+	});
+});
+
+// Дешёвая предпроверка paragraphsNormalized обязана быть точным зеркалом ensureParagraphs:
+// разойдись они — нормализация при наборе молча выключается (см. __ensureParagraphs).
+describe("paragraphsNormalized mirrors ensureParagraphs", () => {
+	it.each([
+		["<p>a</p>"],
+		["<p>a</p><p>b</p>"],
+		["текст без абзаца"],
+		["<b>инлайн</b>"],
+		["<div>чужой абзац</div>"],
+		["<p></p>"],
+		["<p><br></p>"],
+		["<p>a<br></p>"],
+		["<p>a<br><br></p>"],
+		["<p><br>a</p>"],
+		["<p>a</p>хвост"],
+		["<blockquote>q</blockquote>"],
+		["<blockquote>q<br></blockquote>"],
+		["<pre>код<br></pre>"],
+		["<p>a</p><div>b</div><p>c</p>"],
+	])("agrees with ensureParagraphs on %j", (html) => {
+		const root = makeRoot(html);
+		const predicted = paragraphsNormalized(root);
+
+		expect(ensureParagraphs(root)).toBe(!predicted);
 	});
 });

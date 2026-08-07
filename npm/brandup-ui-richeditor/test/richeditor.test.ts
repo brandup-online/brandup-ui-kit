@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { PopupManager } from "@brandup/ui-kit";
-import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS } from "../source/richeditor";
+import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS, formatToolbar } from "../source/richeditor";
 import { EMOJI_PICKER_CLASS } from "../source/emoji";
 import { EMOJIS, EMOJI_GROUPS } from "../source/emoji";
 import { ALL_FORMAT_TOOLS } from "../source/format-config";
@@ -275,6 +275,37 @@ describe("RichEditor formatting", () => {
 		selectRange(editor.editable.querySelector("b")!.firstChild!, 0, 3);
 		editor.applyFormat("bold");
 		expect(editor.editable.innerHTML).toBe("barbaz");
+	});
+
+	// перепечатка поверх выделения внутри ссылки наследует не только тег, но и адрес
+	it("keeps the link address when inserting over a selection inside a link", () => {
+		const editor = makeEditor({ tools: ["bold", "link"], value: '<a href="https://ex.com/">адрес</a>' });
+		const text = editor.editable.querySelector("a")!.firstChild as Text;
+		selectRange(text, 0, text.length);
+
+		editor.insertText("новый");
+
+		const link = editor.editable.querySelector("a")!;
+		expect(link.getAttribute("href")).toBe("https://ex.com/");
+		expect(link.textContent).toBe("новый");
+		expect(editor.editable.textContent).toBe("новый");
+	});
+
+	// границы выделения на элементах (Ctrl+A, selectAllContent) — адрес обязан находиться
+	// и там, где пробой служит сам тег ссылки, а не текст внутри него
+	it("keeps the link address when typing over a select-all selection", () => {
+		const editor = makeEditor({ tools: ["bold", "link"], value: '<a href="https://ex.com/">адрес</a>' });
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		const range = document.createRange();
+		range.selectNodeContents(editor.editable);
+		sel.addRange(range);
+
+		editor.insertText("новый");
+
+		const link = editor.editable.querySelector("a")!;
+		expect(link.getAttribute("href")).toBe("https://ex.com/");
+		expect(editor.editable.textContent).toBe("новый");
 	});
 
 	it("drops formatting tags that are not in the enabled tools", () => {
@@ -2026,5 +2057,253 @@ describe("RichEditor soft break inside monospace", () => {
 		enter(editor);
 
 		expect(editor.editable.querySelectorAll("code")).toHaveLength(1);
+	});
+});
+
+// Регрессии ревью: пустые шаги истории и потери при вставке.
+describe("RichEditor review regressions", () => {
+	const paste = (editor: RichEditor, { html = "", plain = "" }: { html?: string; plain?: string }) => {
+		const e = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
+		e.clipboardData = { getData: (type: string) => (type === "text/html" ? html : plain) };
+		editor.editable.dispatchEvent(e);
+		return e;
+	};
+	const undo = (editor: RichEditor) =>
+		editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "z", ctrlKey: true, cancelable: true, bubbles: true })
+		);
+
+	// правка формата, которой не было, не пишет шаг истории — иначе Ctrl+Z «ничего не делает»
+	it("does not record an undo step for a no-op format toggle", () => {
+		const editor = makeEditor({ tools: ["bold"], multiline: true, value: "а" });
+
+		selectRange(editor.editable.querySelector("p")!.firstChild!, 0, 1);
+		editor.applyFormat("bold");
+		expect(editor.editable.querySelector("b")).not.toBeNull();
+
+		// выделен заполнитель пустого абзаца: ни одного символа — правки нет
+		const empty = document.createElement("p");
+		empty.appendChild(document.createElement("br"));
+		editor.editable.appendChild(empty);
+
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		const r = document.createRange();
+		r.setStart(empty, 0);
+		r.setEnd(empty, 1);
+		sel.addRange(r);
+		editor.applyFormat("bold");
+
+		undo(editor);
+		expect(editor.editable.querySelector("b")).toBeNull(); // один Ctrl+Z снял жирный
+	});
+
+	// хвостовой <br>-заполнитель вставки снимается нормализацией — каретка не должна уезжать
+	// за конец вставленного, в чужой текст
+	it("multiline: caret lands right after the pasted content when its filler br is trimmed", () => {
+		const editor = makeEditor({ tools: ["bold"], multiline: true, value: "AB" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 1);
+
+		paste(editor, { html: "<p>x<br><br></p><p>y</p>", plain: "x\n\ny" });
+		editor.insertText("Z");
+
+		expect(editor.editable.textContent).toContain("yZ");
+		expect(editor.editable.textContent).not.toContain("BZ");
+	});
+
+	// внутри кода пробелы значимы — простая вставка не обрезает отступы строк
+	it("keeps indentation when pasting plain text into a code block", () => {
+		const editor = makeEditor({
+			multiline: true,
+			storage: "markdown",
+			blocks: ["paragraph", "code"],
+			value: "```\nкод\n```",
+		});
+		const pre = editor.editable.querySelector("pre")!;
+		caretAt(pre.firstChild!, 3);
+
+		paste(editor, { plain: "  раз\n    два" });
+
+		expect(editor.getValue()).toBe("```\nкод  раз\n    два\n```");
+	});
+
+	// пустая строка внутри вставляемого кода — содержимое блока, а не разделитель абзацев:
+	// иначе один блок кода разваливался бы на два
+	it("keeps a blank line when pasting plain text into a code block", () => {
+		const editor = makeEditor({
+			multiline: true,
+			storage: "markdown",
+			blocks: ["paragraph", "code"],
+			value: "```\nкод\n```",
+		});
+		const pre = editor.editable.querySelector("pre")!;
+		caretAt(pre.firstChild!, 3);
+
+		paste(editor, { plain: "\nif (a) {\n\n  b();\n}" });
+
+		expect(editor.editable.querySelectorAll("pre").length).toBe(1);
+		expect(editor.getValue()).toBe("```\nкод\nif (a) {\n\n  b();\n}\n```");
+	});
+
+	// вставка чужого HTML с <pre>: переносы и отступы кода — содержимое, а не вёрстка
+	it("keeps newlines and indentation when pasting an html code block", () => {
+		const editor = makeEditor({ multiline: true, storage: "markdown", blocks: ["paragraph", "code"] });
+		caretAt(editor.editable, 0);
+
+		paste(editor, { html: "<pre>if (x) {\n    y();\n}</pre>", plain: "if (x) {\n    y();\n}" });
+
+		expect(editor.getValue()).toBe("```\nif (x) {\n    y();\n}\n```");
+	});
+});
+
+// Панель с минимальным хостом: не всё из интерфейса ToolbarHost обязательно, и обновление
+// не вправе молча считать недостающее за «не в коде».
+describe("toolbar with a minimal host", () => {
+	it("falls back to isCodeActive when the host has no currentBlock", () => {
+		document.body.innerHTML = "";
+		const editable = document.createElement("div");
+		editable.contentEditable = "true";
+		document.body.appendChild(editable);
+
+		const host = {
+			editable,
+			formatTools: ["bold", "code"],
+			applyFormat: () => undefined,
+			isToolActive: () => false,
+			activeTools: () => new Set(),
+			isCodeActive: () => true,
+			isToolEnabled: (tool: string, codeActive?: boolean) => (tool === "code" ? true : !(codeActive ?? true)),
+		};
+
+		formatToolbar.attach(host as never);
+		formatToolbar.refresh();
+
+		const bold = document.querySelector<HTMLButtonElement>(
+			`.${TOOLBAR_CLASS} .format-button[data-format-tool="bold"]`
+		)!;
+		// хост в коде (isCodeActive), а currentBlock не реализован — кнопка формата гаснет
+		expect(bold.disabled).toBe(true);
+
+		formatToolbar.detach(host as never);
+	});
+});
+
+// Пустые шаги истории и снимок каретки при отпущенном фокусе — закрепление фиксов ревью.
+describe("RichEditor pinned regressions", () => {
+	const undo = (editor: RichEditor) =>
+		editor.editable.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "z", ctrlKey: true, cancelable: true, bubbles: true })
+		);
+
+	// ссылка на выделении без единого символа — правки нет и шага истории быть не должно
+	it("does not record an undo step for a no-op link apply", () => {
+		const editor = makeEditor({ tools: ["bold", "link"], multiline: true, value: "а" });
+
+		selectRange(editor.editable.querySelector("p")!.firstChild!, 0, 1);
+		editor.applyFormat("bold");
+		expect(editor.editable.querySelector("b")).not.toBeNull();
+
+		const empty = document.createElement("p");
+		empty.appendChild(document.createElement("br"));
+		editor.editable.appendChild(empty);
+
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		const r = document.createRange();
+		r.setStart(empty, 0);
+		r.setEnd(empty, 1);
+		sel.addRange(r);
+		editor.applyLink("https://ex.com/");
+
+		expect(editor.editable.querySelector("a")).toBeNull();
+		undo(editor);
+		expect(editor.editable.querySelector("b")).toBeNull(); // один Ctrl+Z снял жирный
+	});
+
+	// Пока фокус отпущен, место каретки хранит снимок; правка сдвигает каретку — снимок обязан
+	// сдвинуться следом, иначе второй смайлик подряд лёг бы ПЕРЕД первым (браузер без фокуса
+	// вправе потерять выделение — здесь это потеря смоделирована явным сбросом).
+	it("keeps the insertion order when the selection dies between detached inserts", () => {
+		const editor = makeEditor({ value: "аб" });
+		editor.editable.tabIndex = 0; // jsdom не считает contenteditable фокусируемым сам по себе
+		editor.editable.focus();
+		caretAt(editor.editable.firstChild!, 1);
+
+		editor.releaseFocus();
+		editor.insertText("X");
+		window.getSelection()!.removeAllRanges(); // выделение умерло без фокуса
+		editor.insertText("Y");
+
+		expect(editor.editable.textContent).toBe("аXYб");
+	});
+});
+
+// Прокрутка к каретке: переносы редактор делает сам (preventDefault), браузер к новой
+// строке не прокручивает, а прокручивается у хостов обёртка редактора. Раскладки в jsdom
+// нет — размеры и коробки мокируются.
+describe("RichEditor caret scrolling", () => {
+	const rect = (top: number, bottom: number) =>
+		({
+			top,
+			bottom,
+			height: bottom - top,
+			width: 10,
+			left: 0,
+			right: 10,
+			x: 0,
+			y: top,
+			toJSON: () => "",
+		}) as DOMRect;
+
+	it("scrolls the wrapping container down to the caret after Enter", () => {
+		const editor = makeEditor({ multiline: true, value: "раз" });
+
+		// обёртка с прокруткой — как .editor у textbox или плашка у messageeditor
+		const wrap = document.createElement("div");
+		wrap.style.overflowY = "auto";
+		document.body.appendChild(wrap);
+		wrap.appendChild(editor.editable);
+		Object.defineProperty(wrap, "scrollHeight", { value: 300, configurable: true });
+		Object.defineProperty(wrap, "clientHeight", { value: 100, configurable: true });
+		wrap.getBoundingClientRect = () => rect(0, 100);
+
+		// каретка после переноса — ниже видимой области обёртки
+		const original = Range.prototype.getBoundingClientRect;
+		Range.prototype.getBoundingClientRect = () => rect(150, 166);
+		try {
+			caretAt(editor.editable.querySelector("p")!.firstChild!, 3);
+			editor.editable.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", cancelable: true, bubbles: true })
+			);
+		} finally {
+			Range.prototype.getBoundingClientRect = original;
+		}
+
+		expect(wrap.scrollTop).toBeGreaterThan(0); // прокрутка дошла до каретки
+	});
+
+	it("leaves the scroll alone when the caret is visible", () => {
+		const editor = makeEditor({ multiline: true, value: "раз" });
+
+		const wrap = document.createElement("div");
+		wrap.style.overflowY = "auto";
+		document.body.appendChild(wrap);
+		wrap.appendChild(editor.editable);
+		Object.defineProperty(wrap, "scrollHeight", { value: 300, configurable: true });
+		Object.defineProperty(wrap, "clientHeight", { value: 100, configurable: true });
+		wrap.getBoundingClientRect = () => rect(0, 100);
+
+		const original = Range.prototype.getBoundingClientRect;
+		Range.prototype.getBoundingClientRect = () => rect(30, 46); // в середине видимого
+		try {
+			caretAt(editor.editable.querySelector("p")!.firstChild!, 3);
+			editor.editable.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", cancelable: true, bubbles: true })
+			);
+		} finally {
+			Range.prototype.getBoundingClientRect = original;
+		}
+
+		expect(wrap.scrollTop).toBe(0);
 	});
 });

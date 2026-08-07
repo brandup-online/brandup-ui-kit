@@ -67,9 +67,7 @@ export function highlight(root: HTMLElement, options: HighlightOptions = {}): bo
 
 	// В тексте нет ни конструкций, ни прежних обёрток — трогать DOM незачем. Проверка дешёвая
 	// и снимает работу с обычного набора, где ни спинтакса, ни переменных нет вовсе.
-	const hasMarkup = pattern.test(root.textContent ?? "");
-	pattern.lastIndex = 0;
-	if (!hasMarkup && !root.querySelector(MARKUP_SELECTOR)) return false;
+	if (!mayHaveMarkup(root, options)) return false;
 
 	// Разметка уже на месте — а перестройка не бесплатна: она пересобирает обёртки всего текста
 	// и заставляет вызывающего возвращать каретку по смещениям. Печать рядом с конструкцией даёт
@@ -84,6 +82,23 @@ export function highlight(root: HTMLElement, options: HighlightOptions = {}): bo
 	anchorMarkup(root);
 
 	return true;
+}
+
+/**
+ * Может ли подсветке найтись работа: в тексте есть похожее на конструкцию либо остались
+ * прежние обёртки. Дешёвая верхняя оценка для раннего выхода — по `textContent`, который
+ * склеивает строки, поэтому она бывает ложно-положительной (`{` в конце одной строки и `}`
+ * в начале следующей); точен уже {@link isHighlighted}, он строки различает. Вынесена наружу,
+ * чтобы хост мог выйти ещё до снятия снимка каретки — оно тоже не бесплатно.
+ */
+export function mayHaveMarkup(root: HTMLElement, options: HighlightOptions = {}): boolean {
+	const pattern = options.variables === false ? SPINTAX_ONLY : WITH_VARIABLES;
+
+	pattern.lastIndex = 0;
+	const found = pattern.test(root.textContent ?? "");
+	pattern.lastIndex = 0;
+
+	return found || !!root.querySelector(MARKUP_SELECTOR);
 }
 
 /**
@@ -108,23 +123,26 @@ function anchorMarkup(root: HTMLElement) {
 		if (!span.nextSibling) span.after(document.createTextNode(CARET_ANCHOR));
 }
 
+// Элементы, разрывающие строку на экране: <br> и блоки. Конструкция строку не пересекает,
+// поэтому текст по обе стороны разрыва склеивать нельзя — склейка давала бы ложное совпадение
+// на каждый ввод, а с ним и вечную пересборку. Инлайновая разметка (жирный и т.п.) строку
+// не рвёт, её узлы остаются в общей строке.
+const LINE_BREAK_TAGS = new Set(["BR", "P", "DIV", "BLOCKQUOTE", "PRE", "LI", "UL", "OL"]);
+
 /**
  * Соответствует ли текущая разметка тексту: каждая обёртка содержит ровно одну конструкцию,
- * а вне обёрток конструкций нет.
+ * а вне обёрток конструкция целиком не собирается.
  *
- * Идущие подряд текстовые узлы проверяются вместе: конструкция могла разорваться между ними
- * (правка вставляет узлы), и по отдельности такую не найти — как не находит её и {@link wrap},
- * которому текст перед разбором склеивает {@link unwrap}.
+ * Текст собирается в одну строку — включая идущие подряд текстовые узлы (конструкция могла
+ * разорваться между ними: правка вставляет узлы) и текст самих обёрток. Разрывы строк входят
+ * переносами: выражения конструкций перенос не пропускают, и склеенное через него не совпадёт.
+ *
+ * Границы обёрток запоминаются: совпадение, точно совпавшее с обёрткой, уже подсвечено, а любое
+ * другое — повод пересобрать разметку. Другим бывает и совпадение шире обёртки — конструкция,
+ * дописанная вокруг готовой (`{A` перед подсвеченным `[x|y]` и `}` после): пересборка склеит её
+ * в одну, ровно как свежий разбор того же значения.
  */
 function isHighlighted(root: HTMLElement, pattern: RegExp): boolean {
-	const matches = (text: string) => {
-		pattern.lastIndex = 0;
-		const found = pattern.test(text);
-		pattern.lastIndex = 0;
-
-		return found;
-	};
-
 	for (const span of Array.from(root.querySelectorAll<HTMLElement>(MARKUP_SELECTOR))) {
 		const text = span.textContent ?? "";
 		pattern.lastIndex = 0;
@@ -134,21 +152,39 @@ function isHighlighted(root: HTMLElement, pattern: RegExp): boolean {
 		if (!match || match[0] !== text) return false;
 	}
 
-	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
 	let run = "";
+	const wrapped: Array<[number, number]> = [];
 
 	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-		// текст обёртки уже проверен; она же разрывает цепочку соседних узлов
-		if (markupAt(node)) {
-			if (matches(run)) return false;
-			run = "";
+		if (node.nodeType === Node.ELEMENT_NODE) {
+			const elem = node as HTMLElement;
+
+			if (elem.matches(MARKUP_SELECTOR)) {
+				const text = elem.textContent ?? "";
+				wrapped.push([run.length, run.length + text.length]);
+				run += text;
+			} else if (LINE_BREAK_TAGS.has(elem.tagName)) run += "\n";
+
 			continue;
 		}
+
+		// текст обёртки уже добавлен целиком, когда обход прошёл её саму
+		if (markupAt(node)) continue;
 
 		run += (node as Text).data;
 	}
 
-	return !matches(run);
+	pattern.lastIndex = 0; // общий g-объект: matchAll стартует с его lastIndex
+
+	for (const match of run.matchAll(pattern)) {
+		const start = match.index;
+		const end = start + match[0].length;
+
+		if (!wrapped.some(([from, to]) => from === start && to === end)) return false;
+	}
+
+	return true;
 }
 
 /**

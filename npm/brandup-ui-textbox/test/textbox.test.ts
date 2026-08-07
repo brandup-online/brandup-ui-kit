@@ -78,6 +78,114 @@ describe("TextBox", () => {
 		expect(button.dataset.command).toBe("copy-text");
 	});
 
+	// кнопка без type внутри формы — submit: клик по ней отправлял бы форму вместо копирования
+	it("renders the copy button with type=button", () => {
+		const { input } = setup({ value: "text", copyButton: true });
+		new TextBox(input);
+
+		const button = input.parentElement!.querySelector("button")!;
+		expect(button.type).toBe("button");
+	});
+
+	// команда без кнопки никому не нужна — и не должна перехватывать одноимённый data-command
+	// из чужой разметки внутри контрола
+	it("registers the copy command only when the copy button is enabled", () => {
+		const { input: plain } = setup({ value: "text" });
+		expect(new TextBox(plain).hasCommand("copy-text")).toBe(false);
+
+		const { input: withButton } = setup({ value: "text", copyButton: true });
+		expect(new TextBox(withButton).hasCommand("copy-text")).toBe(true);
+	});
+
+	// поле-носитель уведено с экрана (visibility: collapse) и в браузере фокус не принимает —
+	// focus() обязан вести в редактируемый элемент
+	it("focus() puts focus into the editable element", () => {
+		const { input } = setup({ value: "abc" });
+		const tb = new TextBox(input);
+
+		tb.focus();
+
+		expect(document.activeElement).toBe(tb.editor.editable);
+	});
+
+	// выключенное поле фокус не принимает — нативный input игнорирует focus() сам, а
+	// редактируемый элемент программный фокус принял бы и увёл к себе прокрутку страницы
+	it("focus() does nothing in a disabled field", () => {
+		const { input } = setup({ value: "abc" });
+		input.disabled = true;
+		const tb = new TextBox(input);
+
+		const outside = document.createElement("button");
+		document.body.appendChild(outside);
+		outside.focus();
+
+		tb.focus();
+
+		expect(document.activeElement).toBe(outside);
+	});
+
+	// поле только для чтения фокусируется нативно: текст читают, выделяют и копируют
+	it("focus() still works in a readonly field", () => {
+		const { input } = setup({ value: "abc" });
+		input.readOnly = true;
+		const tb = new TextBox(input);
+
+		tb.focus();
+
+		expect(document.activeElement).toBe(tb.editor.editable);
+	});
+
+	// поля контрола и место справа от текста в редактируемый элемент не входят, а выглядит
+	// всё это одним полем ввода — клик по ним обязан вести каретку в текст
+	describe("click outside the text", () => {
+		const clickOn = (elem: Element) => {
+			const e = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+			elem.dispatchEvent(e);
+			return e;
+		};
+
+		it("focuses the editor when the padding around it is clicked", () => {
+			const { input } = setup({ value: "abc" });
+			const tb = new TextBox(input);
+
+			const e = clickOn(tb.element!.querySelector(".editor")!);
+
+			expect(document.activeElement).toBe(tb.editor.editable);
+			expect(e.defaultPrevented).toBe(true); // иначе браузер увёл бы фокус на корень
+		});
+
+		it("focuses the editor when the actions row is clicked", () => {
+			const { input } = setup({ value: "abc", copyButton: true });
+			const tb = new TextBox(input);
+
+			clickOn(tb.element!.querySelector(".actions")!);
+
+			expect(document.activeElement).toBe(tb.editor.editable);
+		});
+
+		// кнопка копирования работает сама — фокус ей не нужен, а нажатие гасить нельзя
+		it("leaves the copy button alone", () => {
+			const { input } = setup({ value: "abc", copyButton: true });
+			const tb = new TextBox(input);
+
+			const e = clickOn(tb.element!.querySelector("button")!);
+
+			expect(document.activeElement).not.toBe(tb.editor.editable);
+			expect(e.defaultPrevented).toBe(false);
+		});
+
+		it("does nothing in a disabled field", () => {
+			const { input } = setup({ value: "abc" });
+			input.disabled = true;
+			const tb = new TextBox(input);
+
+			const e = clickOn(tb.element!.querySelector(".editor")!);
+
+			expect(document.activeElement).not.toBe(tb.editor.editable);
+			expect(e.defaultPrevented).toBe(false);
+		});
+	});
+
 	it("setValue() updates the underlying input value", () => {
 		const { input } = setup();
 		const tb = new TextBox(input);
@@ -197,6 +305,37 @@ describe("TextBox", () => {
 		expect(tb.getValue()).toBe("a b");
 	});
 
+	// form.reset() возвращает поле к defaultValue, а редактор об этом сам не узнал бы —
+	// следующая синхронизация перезаписала бы сброс обратно
+	it("form.reset() brings the editor back to the default value", async () => {
+		const { input, form } = setup();
+		input.defaultValue = "initial";
+		const tb = new TextBox(input);
+
+		tb.setValue("edited");
+		expect(input.value).toBe("edited");
+
+		form.reset();
+		await new Promise((resolve) => setTimeout(resolve, 0)); // сброс применяется после события
+
+		expect(tb.editor.editable.textContent).toBe("initial");
+		expect(tb.getValue()).toBe("initial");
+	});
+
+	// отменённый сброс поле не меняет — и редактор трогать нельзя
+	it("a cancelled form.reset() leaves the editor untouched", async () => {
+		const { input, form } = setup();
+		input.defaultValue = "initial";
+		const tb = new TextBox(input);
+		form.addEventListener("reset", (e) => e.preventDefault());
+
+		tb.setValue("edited");
+		form.reset();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(tb.getValue()).toBe("edited");
+	});
+
 	it("destroy() removes the container and restores the original input to the DOM", () => {
 		const { input } = setup();
 		const tb = new TextBox(input);
@@ -273,6 +412,114 @@ describe("TextBox", () => {
 		editable.dispatchEvent(e);
 
 		expect(e.defaultPrevented).toBe(false);
+	});
+
+	// вставка должна проходить тот же посимвольный фильтр, что и набор, — иначе запрещённые
+	// символы попадали бы в поле через буфер обмена
+	it("strips characters rejected by the email filter from pasted text", () => {
+		const { input } = setup({ type: "email" });
+		const tb = new TextBox(input);
+
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		const r = document.createRange();
+		r.selectNodeContents(tb.editor.editable);
+		r.collapse(false);
+		sel.addRange(r);
+
+		const e = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
+		e.clipboardData = { getData: (t: string) => (t === "text/plain" ? "user name@ex ample.com!!" : "") };
+		tb.editor.editable.dispatchEvent(e);
+
+		expect(tb.getValue()).toBe("username@example.com");
+	});
+
+	// выделение может стоять вообще вне редактора (например, на странице) — оно не освобождает
+	// ёмкость поля и не должно пропускать ввод сверх лимита
+	it("ignores a selection outside the editor when measuring remaining capacity", () => {
+		const { input } = setup({ value: "abc", maxlength: 3 });
+		const tb = new TextBox(input);
+
+		const foreign = document.createElement("div");
+		foreign.textContent = "постороннее выделение";
+		document.body.appendChild(foreign);
+
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		const r = document.createRange();
+		r.selectNodeContents(foreign);
+		sel.addRange(r);
+
+		const e = new KeyboardEvent("keydown", { key: "x", cancelable: true, bubbles: true });
+		tb.editor.editable.dispatchEvent(e);
+
+		expect(e.defaultPrevented).toBe(true); // лимит достигнут, чужое выделение не в счёт
+	});
+
+	// заменяемое выделение освобождает ёмкость и для вставки, а не только для набора
+	it("lets a paste replace the selection using the freed capacity", () => {
+		const { input } = setup({ value: "abcde", maxlength: 5 });
+		const tb = new TextBox(input);
+
+		const sel = window.getSelection()!;
+		sel.removeAllRanges();
+		const r = document.createRange();
+		r.selectNodeContents(tb.editor.editable);
+		sel.addRange(r);
+
+		const e = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
+		e.clipboardData = { getData: (t: string) => (t === "text/plain" ? "vwxyz" : "") };
+		tb.editor.editable.dispatchEvent(e);
+
+		expect(tb.getValue()).toBe("vwxyz");
+		expect(tb.element!.classList.contains("incorrect")).toBe(false);
+	});
+
+	// значение из разметки может уже нарушать лимит — поле обязано знать об этом сразу,
+	// а не после первой синхронизации
+	it("declares a too-long markup value invalid right at construction", () => {
+		const { input } = setup({ value: "abcdef", maxlength: 3 });
+		new TextBox(input);
+
+		expect(input.validity.customError).toBe(true);
+		expect(input.checkValidity()).toBe(false);
+	});
+
+	// каждый отказ перезапускает таймер вспышки — быстрые повторы не должны обрезать её
+	it("rapid rejects extend the incorrect flash instead of truncating it", () => {
+		jest.useFakeTimers();
+		try {
+			const { input } = setup({ value: "abc", maxlength: 3 });
+			const tb = new TextBox(input);
+			const reject = () =>
+				tb.editor.editable.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "x", cancelable: true, bubbles: true })
+				);
+
+			reject();
+			jest.advanceTimersByTime(150);
+			reject(); // второй отказ до конца первой вспышки
+
+			jest.advanceTimersByTime(100); // 250мс от первого отказа, 100мс от второго
+			expect(tb.element!.classList.contains("incorrect")).toBe(true);
+
+			jest.advanceTimersByTime(100); // 200мс от второго отказа — вспышка гаснет
+			expect(tb.element!.classList.contains("incorrect")).toBe(false);
+		} finally {
+			jest.useRealTimers();
+		}
+	});
+
+	// выключенный счётчик скрыт — компонент не должен его вести вовсе
+	it("does not maintain the symbol counter when it is disabled", () => {
+		const { input } = setup({ value: "abc", maxlength: 10 });
+		const tb = new TextBox(input);
+		const counter = tb.element!.querySelector(".symbols")!;
+
+		tb.editor.editable.textContent = "abcdef";
+		tb.editor.editable.dispatchEvent(new Event("input", { bubbles: true }));
+
+		expect(counter.textContent).toBe("");
 	});
 
 	// ввод символа на пределе мигает ошибкой — вставка не должна молча ничего не делать
@@ -393,6 +640,24 @@ describe("TextBox", () => {
 
 			expect(tb.validate()).toBe(true);
 			expect(tb.element!.classList.contains("invalid")).toBe(false);
+		});
+
+		// копия значения в поле отстаёт на окно троттлинга — команда копирования обязана
+		// довести её перед чтением, иначе в буфер уходит устаревший текст
+		it("copy command writes the fresh value, not the stale throttled copy", () => {
+			const writeText = jest.fn().mockResolvedValue(undefined);
+			Object.defineProperty(window.navigator, "clipboard", { value: { writeText }, configurable: true });
+
+			const { input } = setup({ value: "a", copyButton: true });
+			const tb = new TextBox(input);
+
+			type(tb, "abc");
+			expect(input.value).toBe("a"); // ещё не синхронизировано
+
+			const button = tb.element!.querySelector("button")!;
+			tb.__execCommand("copy-text", button);
+
+			expect(writeText).toHaveBeenCalledWith("abc");
 		});
 
 		it("delivers textbox-change after the throttle window", () => {

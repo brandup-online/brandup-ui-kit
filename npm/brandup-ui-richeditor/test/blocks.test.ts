@@ -359,6 +359,67 @@ describe("merged code button", () => {
 		expect(editor.getValue()).toBe("раз\n\n```\nдва\n```");
 	});
 
+	// Та же пустая строка в конце выделения: вынос хвоста забирает разделитель у самого
+	// блока, и без заполнителя она пропадала бы уже из блока кода.
+	it("keeps the empty line at the end of the selection inside the code block", () => {
+		const editor = makeEditor({ value: "раз\nдва\n\nтри", paragraph: "break" });
+		const paragraph = editor.editable.firstChild!;
+		const lines = Array.from(paragraph.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE);
+		// конец выделения — на пустой строке: перед вторым из двух подряд переносов
+		selectRange(lines[1], 0, paragraph, 4);
+
+		editor.applyCode();
+		expect(editor.getValue()).toBe("раз\n```\nдва\n\n```\nтри");
+	});
+
+	// Перенос внутри инлайнового тега — тоже перенос: пустая строка после жирного текста
+	// не должна пропадать из-за того, что её разделитель спрятан в <b>. Такой DOM делает
+	// Shift+Enter внутри жирного: мягкий перенос не разрезает инлайновый тег.
+	it("keeps the empty line hidden inside an inline tag", () => {
+		const editor = makeEditor({ value: "x", paragraph: "break" });
+		const paragraph = editor.editable.firstChild as HTMLElement;
+		paragraph.innerHTML = "<b>жирный<br><br>два</b>";
+		const bold = paragraph.firstChild!;
+		caretAt(bold.childNodes[3], 1); // каретка в «два»
+
+		editor.applyCode();
+		expect(editor.getValue()).toBe("**жирный**\n\n```\nдва\n```");
+	});
+
+	// Заполнитель, спрятанный внутри инлайнового тега (Shift+Enter в конце жирного кладёт
+	// переносы внутрь <b>), — тоже заполнитель: резать по нему нельзя.
+	it("does not cut on a trailing pad hidden inside an inline tag", () => {
+		const editor = makeEditor({ value: "x", paragraph: "break" });
+		const paragraph = editor.editable.firstChild as HTMLElement;
+		paragraph.innerHTML = "<b>жирный<br><br></b>";
+		caretAt(paragraph, paragraph.childNodes.length); // за заполнителем
+
+		editor.applyCode();
+
+		// кодом стала пустая последняя строка; кусок «до» — без фантомной пустой строки
+		expect(editor.editable.querySelectorAll("pre").length).toBe(1);
+		expect(editor.editable.firstElementChild!.innerHTML).toBe("<b>жирный</b>");
+		expect(editor.getValue()).toBe("**жирный**");
+	});
+
+	// Каретка за хвостовым заполнителем — это всё ещё последняя (пустая) строка: заполнитель
+	// не разделитель, и резать по нему нельзя — иначе в значении появлялась бы лишняя пустая
+	// строка, которой не набирали.
+	it("does not invent an empty line when the caret sits after the trailing pad", () => {
+		const editor = makeEditor({ value: "а", paragraph: "break" });
+		const paragraph = editor.editable.firstChild!;
+		caretAt(paragraph.firstChild!, 1);
+		press(editor, "Enter"); // новая пустая строка: а<br><br>
+
+		caretAt(paragraph, paragraph.childNodes.length); // за заполнителем
+		editor.applyCode();
+
+		// кодом стала пустая строка (пустой блок в хвосте значения не виден), а не кусок «до»,
+		// и лишней пустой строки перед блоком не появилось
+		expect(editor.editable.querySelector("pre")).not.toBeNull();
+		expect(editor.getValue()).toBe("а");
+	});
+
 	// без выделения моноширинным делать нечего, а иначе блок был бы недостижим:
 	// в пустом поле не выделить строки, которых ещё нет
 	it("makes the block a code block without a selection", () => {
@@ -851,3 +912,36 @@ describe("adjacent paragraphs in the break mode", () => {
 		expect(editor.getValue()).toBe("```\nкод\n```\n\nтекст");
 	});
 });
+
+// Пустой абзац внутри содержимого — осознанная пустая строка (за цитатой его держит
+// и normalizeParagraphs). serializeParagraphs работает в обе стороны — этой же функцией
+// значение и читается, поэтому фильтровать пустые блоки здесь нельзя: терялись бы
+// пустые строки уже сохранённых значений при первой же загрузке.
+describe("interior empty paragraph", () => {
+	it("survives loading a stored html value", () => {
+		expect(toHtmlStorage("<blockquote>q</blockquote><p></p><p>b</p>")).toBe(
+			"<blockquote>q</blockquote><p><br></p><p>b</p>"
+		);
+	});
+
+	it("survives html serialization", () => {
+		expect(
+			serialize(
+				makeRoot("<p>a</p><p><br></p><p>b</p>"),
+				"html",
+				ALL_FORMAT_TOOLS,
+				defaultFormatMarkers(),
+				true,
+				ALL
+			)
+		).toBe("<p>a</p><p></p><p>b</p>");
+	});
+
+	// пустые цитата и код осмысленны сами по себе — тоже остаются
+	it("keeps an interior empty quote", () => {
+		expect(toMarkdown("<p>a</p><blockquote><br></blockquote><p>b</p>")).toBe("a\n\n>\n\nb");
+	});
+});
+
+const toHtmlStorage = (value: string) =>
+	deserialize(value, "html", ALL_FORMAT_TOOLS, defaultFormatMarkers(), true, ALL);

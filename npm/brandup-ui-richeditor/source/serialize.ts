@@ -72,7 +72,9 @@ function markdownUrl(href: string): string {
 function balancedParens(text: string): boolean {
 	let depth = 0;
 	for (const char of text) {
-		if (char === "(") depth++;
+		// Глубже одного уровня разбор ссылки не читает (LINK_PATTERN) — такой адрес
+		// должен уйти в угловые скобки, иначе ссылка при чтении распалась бы в текст.
+		if (char === "(" && ++depth > 1) return false;
 		else if (char === ")" && --depth < 0) return false;
 	}
 
@@ -100,6 +102,15 @@ function wrap(
 	const trailing = /\s*$/.exec(inner.slice(leading.length))![0];
 	const core = inner.slice(leading.length, inner.length - trailing.length);
 	if (!core) return inner; // одни пробелы — оборачивать нечего
+
+	// Маркер не пересекает перенос строки — тоже ни у нас, ни у мессенджера. Перенос внутри
+	// содержимого (Shift+Enter в жирном): размечаем каждую строку отдельно, иначе `**а\nб**`
+	// вернулось бы из значения буквальным текстом с маркерами.
+	if (core.includes("\n"))
+		return `${leading}${core
+			.split("\n")
+			.map((line) => wrap(storage, tool, line, markers, source))
+			.join("\n")}${trailing}`;
 
 	return `${leading}${marker}${core}${marker}${trailing}`;
 }
@@ -146,9 +157,19 @@ function serializeInline(
 
 		// В коде разметки нет: при разборе его содержимое не размечается, и вложенное
 		// форматирование не вернулось бы — значение разошлось бы с тем, что было в поле.
+		// Перенос внутри — тоже содержимое: textContent съел бы его, склеив строки. В html
+		// перенос пишется тегом: сырой \n виден только под pre-wrap самого редактора.
 		if (tool && FORMAT_TOOLS[tool].literal) {
-			const text = el.textContent ?? "";
-			result += wrap(storage, tool, storage === "html" ? escapeHtml(text) : text, markers, el);
+			const text = Array.from(el.childNodes)
+				.map((child) => (child.nodeName === "BR" ? "\n" : (child.textContent ?? "")))
+				.join("");
+			result += wrap(
+				storage,
+				tool,
+				storage === "html" ? escapeHtml(text).replace(/\n/g, "<br>") : text,
+				markers,
+				el
+			);
 			continue;
 		}
 
@@ -242,6 +263,10 @@ function serializeParagraphs(
 	}
 	flush();
 
+	// Пустой обычный блок ВНУТРИ содержимого — осознанная пустая строка (за цитатой или кодом
+	// её держит и normalizeParagraphs), поэтому здесь он не отбрасывается: этой же функцией
+	// значение и ЧИТАЕТСЯ (deserialize html идёт через неё), и фильтр молча терял бы пустые
+	// строки уже сохранённых значений при первой же загрузке.
 	const cleaned = blocks.map(([type, text]) => [type, trimTrailingBreaks(text, storage)] as const);
 
 	// Пустые блоки в хвосте в значение не идут: последний из них — место каретки, оставленное
@@ -448,11 +473,13 @@ function markdownInline(text: string, order: MarkerRule[], linked: boolean): str
 
 	// Код — первым: внутри него `*звёздочки*` остаются текстом, как у мессенджеров. Иначе
 	// содержимое кода размечалось бы, и то, что человек написал буквально, уезжало бы жирным.
-	const stash: Array<[inner: string, marked: string]> = []; // содержимое и чужой маркер, если был
+	// содержимое, чужой маркер (если был) и исходный текст целиком — для мест, где разметка
+	// не действует и спрятанное надо вернуть буквально (адрес ссылки)
+	const stash: Array<[inner: string, marked: string, literal: string]> = [];
 	for (const rule of order)
 		if (rule.tool === "code" && html.includes(rule.marker))
 			html = html.replace(pattern(rule), (_match, lead: string, inner: string) => {
-				stash.push([inner, rule.own ? "" : rule.marker]);
+				stash.push([inner, rule.own ? "" : rule.marker, `${rule.marker}${inner}${rule.marker}`]);
 
 				return `${lead}${STASH_MARK}${stash.length - 1}${STASH_MARK}`;
 			});
@@ -465,7 +492,10 @@ function markdownInline(text: string, order: MarkerRule[], linked: boolean): str
 	if (linked && html.includes("("))
 		html = html.replace(LINK_PATTERN, (match, inner: string, url: string) => {
 			// адрес в угловых скобках — форма для адресов с пробелами; сами скобки в него не входят
-			const raw = url.startsWith("&lt;") ? url.slice(4, -4) : url;
+			const bare = url.startsWith("&lt;") ? url.slice(4, -4) : url;
+			// Бэктики в адресе — буквальные символы: код успел спрятаться раньше (он разбирается
+			// первым), и без возврата метка уехала бы в href, а содержимое кода пропало бы.
+			const raw = bare.replace(STASH_PATTERN, (_m, index: string) => stash[+index][2]);
 			const href = safeUrl(raw);
 			const text = unescapeLinkText(inner);
 			if (!text || !href) return match; // без текста или без адреса ссылки нет
@@ -603,9 +633,10 @@ export function deserialize(
 	template.innerHTML = value;
 	const tagMap = buildTagMap(tools);
 
-	if (!paragraphs) return serializeInline(template.content.childNodes, "html", tagMap, defaultFormatMarkers());
+	// markers html-ветке не нужны (wrap выходит раньше), передаются лишь ради сигнатуры
+	if (!paragraphs) return serializeInline(template.content.childNodes, "html", tagMap, markers);
 
-	return serializeParagraphs(template.content, "html", tagMap, defaultFormatMarkers(), types, separate).replace(
+	return serializeParagraphs(template.content, "html", tagMap, markers, types, separate).replace(
 		/<([a-z]+)><\/\1>/g,
 		"<$1><br></$1>"
 	);

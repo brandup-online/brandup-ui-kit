@@ -27,6 +27,7 @@ import {
 	normalizeBlockTypes,
 	editorText,
 	charLength,
+	paragraphsNormalized,
 	preserveCaret,
 	mergeAdjacentBlocks,
 	normalizeParagraphs,
@@ -142,6 +143,12 @@ export interface RichEditorOptions {
 	keepFocus?: boolean;
 	/** Только для чтения — запрещает ввод и изменение текста (но не выделение/копирование). */
 	readonly?: boolean;
+	/**
+	 * Полное отключение: тот же запрет правок, что и readonly, но вдобавок с редактируемого
+	 * элемента снимается contenteditable — он не берёт ни фокус, ни выделение (в отличие от
+	 * readonly, где выделение и копирование остаются).
+	 */
+	disabled?: boolean;
 	/** Контейнер для панели форматирования; по умолчанию document.body (position: fixed над редактором). */
 	toolbarContainer?: HTMLElement | null;
 	/** Собственные кнопки хоста в панели — для действий, которых редактор не знает. */
@@ -215,7 +222,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	constructor(editable: HTMLElement, options: RichEditorOptions = {}) {
 		const format = !!options.format;
 		const multiline = !!options.multiline;
-		const readonly = !!options.readonly;
+		// disabled — тот же запрет правок, что и readonly, поэтому вся readonly-механика
+		// (блокировка ввода, снятие кнопок, выделение-только-чтение) действует и в нём
+		const disabled = !!options.disabled;
+		const readonly = !!options.readonly || disabled;
 		// Объявленный набор — от readonly не зависит: значение обязано разбираться и показываться
 		// и там, где разметку не переключить, иначе редактор для чтения показывал бы вместо
 		// жирного сырые звёздочки. Кнопки — уже без него.
@@ -252,8 +262,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.__history = format ? new EditorHistory(editable) : null;
 
 		// редактируемость есть всегда; правки в readonly блокируются на beforeinput,
-		// при этом остаётся возможность фокуса, выделения и копирования
-		editable.contentEditable = "true";
+		// при этом остаётся возможность фокуса, выделения и копирования.
+		// В disabled редактируемости нет вовсе: элемент не берёт ни фокус, ни выделение.
+		editable.contentEditable = disabled ? "false" : "true";
 
 		if (options.placeholder != null) editable.dataset.placeholder = options.placeholder;
 		if (multiline) editable.classList.add("multiline");
@@ -266,7 +277,14 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	}
 
 	get readonly(): boolean {
-		return !!this.__opts.readonly;
+		// disabled включает весь запрет правок readonly: на этот getter опирается вся
+		// readonly-механика редактора, и в disabled она обязана работать так же
+		return !!this.__opts.readonly || this.disabled;
+	}
+
+	/** Редактор отключён: как readonly, но без фокуса и выделения (contenteditable снят). */
+	get disabled(): boolean {
+		return !!this.__opts.disabled;
 	}
 
 	/**
@@ -551,10 +569,12 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	 * оставляют написанное буквальным, поэтому остальные инструменты там выключены — иначе
 	 * форматирование ставилось бы только чтобы пропасть при сохранении.
 	 */
-	isToolEnabled(tool: FormatTool): boolean {
+	isToolEnabled(tool: FormatTool, codeActive?: boolean): boolean {
 		if (this.readonly || !this.formatTools.includes(tool)) return false;
 		if (tool === CODE) return true;
-		if (this.currentBlock === CODE || this.isToolActive(CODE)) return false;
+		// Признак «в коде» — обход выделения: панель считает его один раз на обновление
+		// и передаёт сюда, чтобы не обходить выделение заново на каждую кнопку.
+		if (codeActive ?? this.isCodeActive()) return false;
 
 		// Ссылке нужен текст, который ею станет: оборачивать нечего — и делать нечего. Каретка
 		// в слове за текст считается (формат применяется к слову целиком), в готовой ссылке —
@@ -599,6 +619,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const target = this.__formatTarget();
 		if (!target) return;
 
+		// Выделение без единого символа правки не даёт (см. applyFormat) — кроме каретки
+		// в готовой ссылке, где правится её адрес.
+		if (!target.range.toString().length && !linkAt(this.editable, target.range)) return;
+
 		this.__history?.record("op");
 		applyLinkTo(this.editable, target.range, url.trim(), target.selection, target.original());
 
@@ -640,6 +664,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		}
 
 		this.__pendingFormats.clear();
+
+		// Выделение без единого символа (граница элементов, голый перенос) правки не даёт —
+		// пустой шаг истории делал бы следующий Ctrl+Z «ничего не делающим».
+		if (!target.range.toString().length) return;
 
 		this.__history?.record("op");
 
@@ -1133,7 +1161,11 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				// держать в двух местах, и стоило добавить кнопки хоста, как они разошлись бы
 				formatToolbar.attach(this);
 
-				if (this.readonly) selectAllContent(this.editable);
+				// В readonly фокус выделяет всё содержимое — его можно копировать;
+				// в disabled выделения нет, как и самого содержимого для правки.
+				if (this.readonly) {
+					if (!this.disabled) selectAllContent(this.editable);
+				}
 				// Каретку в конец ставим только когда её нет: клик ставит сам, а уже стоящую
 				// (фокус вернули из кода после вызова метода) двигать нельзя — уедет в конец текста.
 				else if (!this.__hasInputClick && !this.selection) caretToEnd(this.editable, this.multiline);
@@ -1181,15 +1213,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			"input",
 			() => {
 				if (this.multiline) {
-					// приведение к абзацам меняет структуру (обёртка в <p>, удаление <br>) и сбрасывает
-					// каретку — сохраняем её; если структура не менялась, выделение живо и переставлять
-					// его не нужно (лишний сброс способен прервать IME-набор)
-					preserveCaret(editable, () => {
-						const before = editable.innerHTML;
-						ensureParagraphs(editable); // блуждающий текст/div → <p>
-
-						return editable.innerHTML !== before;
-					});
+					this.__ensureParagraphs(); // блуждающий текст/div → <p>
 
 					// единственный пустой абзац → очищаем, чтобы показать placeholder
 					if (editable.children.length === 1) {
@@ -1203,6 +1227,63 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			},
 			{ signal }
 		);
+	}
+
+	/**
+	 * Доводит прокрутку до каретки. Переносы строк редактор делает сам (preventDefault), и
+	 * браузер к новой строке не прокручивает; к тому же у хостов (textbox, messageeditor)
+	 * прокручивается не редактируемый элемент, а его обёртка — после достижения предельной
+	 * высоты каретка у нижнего края уходила бы за пределы видимого.
+	 */
+	private __scrollCaretIntoView() {
+		const selection = this.selection;
+		if (!selection || selection.rangeCount === 0) return;
+
+		const range = selection.getRangeAt(0);
+
+		// в среде без раскладки (jsdom) у Range коробок нет вовсе
+		if (typeof range.getBoundingClientRect !== "function") return;
+
+		// У схлопнутой каретки на пустой строке нет собственной коробки — берём ближайший
+		// измеримый ориентир: узел перед кареткой (обычно свежий <br>), иначе родителя.
+		let rect = range.getBoundingClientRect();
+		if (!rect.height) {
+			const { startContainer: node, startOffset: offset } = range;
+			const anchor = node.nodeType === Node.ELEMENT_NODE ? (node.childNodes[offset - 1] ?? node) : node;
+			const el = anchor.nodeType === Node.ELEMENT_NODE ? (anchor as Element) : anchor.parentElement;
+			if (!el) return;
+			rect = el.getBoundingClientRect();
+		}
+		// раскладки нет (тестовая среда) — прокручивать не по чему
+		if (!rect.height && !rect.top && !rect.bottom) return;
+
+		// Ближайший прокручиваемый предок; прокручивается только он — внешним контейнерам
+		// каретка не адресована, крутить страницу из редактора нельзя.
+		const document = this.editable.ownerDocument;
+		for (let el: HTMLElement | null = this.editable; el && el !== document.body; el = el.parentElement) {
+			if (el.scrollHeight <= el.clientHeight) continue;
+			const overflow = document.defaultView?.getComputedStyle(el).overflowY;
+			if (overflow !== "auto" && overflow !== "scroll") continue;
+
+			const box = el.getBoundingClientRect();
+			// небольшой запас, чтобы строка не прилипала к самому краю
+			const pad = Math.min(rect.height || 16, 16);
+			if (rect.bottom > box.bottom - pad) el.scrollTop += rect.bottom - (box.bottom - pad);
+			else if (rect.top < box.top + pad) el.scrollTop -= box.top + pad - rect.top;
+			return;
+		}
+	}
+
+	/**
+	 * Приведение к абзацам с сохранением каретки. Дешёвая проверка — до снимка каретки:
+	 * нормализация идёт на каждое нажатие, менять почти всегда нечего, а снимок собирает
+	 * весь текст в строку. Если структура не менялась, выделение живо и переставлять его
+	 * не нужно (лишний сброс способен прервать IME-набор).
+	 */
+	private __ensureParagraphs() {
+		if (paragraphsNormalized(this.editable)) return;
+
+		preserveCaret(this.editable, () => ensureParagraphs(this.editable));
 	}
 
 	private __onKeydown(e: KeyboardEvent) {
@@ -1291,6 +1372,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			if (soft) insertSoftBreak(this.editable);
 			else insertParagraph(this.editable, DEFAULT_BLOCK);
 
+			// Перенос сделан вручную (preventDefault) — браузер к новой строке не прокрутит
+			this.__scrollCaretIntoView();
+
 			this.__clearPendingFormats();
 			this.__emitChange();
 			formatToolbar.refresh();
@@ -1350,9 +1434,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	private __pastePlain(text: string, selection: Selection) {
 		if (!text) return;
 
-		const lines = text.split(/\n/).map((line, index) => (index === 0 ? line.trimEnd() : line.trim()));
+		// Внутри блока без инлайновой разметки (код) пробелы значимы: отступы там — часть
+		// текста, и обрезка краёв строк ломала бы вставленный код. Пустая строка там — тоже
+		// содержимое, а не разделитель абзацев: деление разваливало бы один блок на два.
+		const literal = !BLOCK_TYPES[this.currentBlock].inline;
+		const lines = literal
+			? text.split(/\n/)
+			: text.split(/\n/).map((line, index) => (index === 0 ? line.trimEnd() : line.trim()));
 
-		this.__insertPasted(buildParagraphs(lines, this.__blockParagraphs), selection);
+		this.__insertPasted(buildParagraphs(lines, this.__blockParagraphs && !literal), selection);
 	}
 
 	// Вставка форматированного текста из text/html. Возвращает false, если вставлять нечего —
@@ -1383,12 +1473,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		let caret: number;
 
 		if (this.multiline) {
-			// длина вставки в координатах каретки: текст, переносы внутри абзацев и границы между
-			// ними (первый абзац вливается в текущий, поэтому границ на одну меньше)
-			caret = start + paras.reduce((length, p) => length + charLength(p), paras.length - 1);
+			// Длина вставки меряется по факту — разницей длины содержимого: ensureParagraphs
+			// подчищает вставленное (краевые <br>-заполнители), и посчитанная заранее длина
+			// уводила бы каретку за конец вставленного, в чужой текст.
+			const before = charLength(this.editable);
 
 			insertPastedParagraphs(this.editable, paras, range);
 			ensureParagraphs(this.editable); // заполнить пустые абзацы, убрать краевые <br>
+
+			caret = start + (charLength(this.editable) - before);
 		} else {
 			// инлайн: абзацы и переносы → пробелы, форматирование сохраняем
 			const doc = this.editable.ownerDocument;
@@ -1471,20 +1564,24 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		const range = selection.getRangeAt(0);
 		const inherited = range.collapsed ? [] : activeFormats(this.editable, range, this.formatTools);
 		const formats = new Set([...this.__pendingFormats, ...inherited]);
+		// Адрес наследуемой ссылки читается до правки: после deleteContents исходный тег
+		// пустеет и убирается, и адреса взять уже неоткуда.
+		const href = formats.has("link") ? (linkAt(this.editable, range)?.getAttribute("href") ?? "") : "";
 
-		insertFormattedText(this.editable, data, Array.from(formats), selection);
+		insertFormattedText(this.editable, data, Array.from(formats), selection, href);
 
 		// В пустом поле абзацев ещё нет, и каретке некуда встать внутрь — вставка из кода
 		// (смайлик, переменная) ложится прямо в редактор. Приводим к модели абзацев тем же
 		// способом, что и обработчик input при печати: он на программную вставку не приходит,
 		// а без <p> следующий Enter правит текст мимо абзаца.
-		if (this.multiline)
-			preserveCaret(this.editable, () => {
-				const before = this.editable.innerHTML;
-				ensureParagraphs(this.editable);
+		if (this.multiline) this.__ensureParagraphs();
 
-				return this.editable.innerHTML !== before;
-			});
+		// Вставка сдвинула каретку; пока фокус отпущен, её место хранит снимок — обновляем,
+		// иначе следующая вставка (второй смайлик подряд) легла бы по старому смещению,
+		// ПЕРЕД только что вставленным.
+		if (this.__detachedCaret) this.__detachedCaret = this.caretSnapshot() ?? this.__detachedCaret;
+
+		this.__scrollCaretIntoView(); // вставка из кода браузерной прокрутки к каретке не даёт
 
 		this.__emitChange();
 		formatToolbar.refresh();
