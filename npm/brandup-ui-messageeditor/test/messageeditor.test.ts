@@ -161,7 +161,7 @@ describe("MessageEditor", () => {
 		const toolbar = editor.element.querySelector(".ui-richeditor-toolbar")!;
 		expect(toolbar).not.toBeNull(); // панель внутри компонента, а не в document.body
 		expect(toolbar.classList.contains("in-container")).toBe(true);
-		expect(toolbar.querySelectorAll(".format-button")).toHaveLength(6); // словарь сообщений без скрытого спойлера
+		expect(toolbar.querySelectorAll(".format-button")).toHaveLength(7); // весь словарь сообщений, включая спойлер
 		// действие одно — очистка формата; смайлики вынесены в собственную кнопку компонента
 		expect(toolbar.querySelectorAll(".action-button")).toHaveLength(1);
 		expect(toolbar.querySelector('[data-editor-action="erase"]')).not.toBeNull();
@@ -294,6 +294,28 @@ describe("MessageEditor", () => {
 		// каретка была снята при отпускании фокуса — символ всё равно встал в текст
 		expect(picker.classList.contains("opened")).toBe(false);
 		expect(editor.getValue().startsWith("привет")).toBe(true);
+	});
+
+	// недавние хранит richeditor; свой попап плашки открывается через его openEmojiPicker
+	// и обязан освежать их группу при каждом показе
+	it("shows recently picked emojis first on the next open", () => {
+		localStorage.clear();
+		const { input } = setup({ value: "привет" });
+		const editor = new MessageEditor(input);
+
+		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		const picker = editor.element.querySelector<HTMLElement>(".ui-richeditor-emoji")!;
+		const buttons = picker.querySelectorAll<HTMLButtonElement>(".emoji");
+		const picked = buttons[3].textContent;
+		buttons[3].click(); // выбор закрывает попап и попадает в недавние
+
+		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+
+		const recent = picker.querySelector<HTMLElement>(".emoji-recent");
+		expect(recent).not.toBeNull();
+		expect(picker.querySelector(".emoji-list")!.firstElementChild).toBe(recent);
+		expect(recent!.querySelector(".emoji")!.textContent).toBe(picked);
+		localStorage.clear();
 	});
 
 	// Персонализация нужна не всякому сообщению: без неё нет ни кнопки, ни подсветки,

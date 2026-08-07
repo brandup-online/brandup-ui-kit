@@ -106,8 +106,11 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 		const formatTools = format ? parseFormatTools(valueElem.dataset.formatTools ?? null) : [];
 		// кнопки действий панели (очистка формата, отмена, повтор) — подключаются явно
 		const editorActions = format ? parseEditorActions(valueElem.dataset.editorActions ?? null) : [];
-		// типы блоков (цитата, блок кода) — тоже явно и только в многострочном поле
-		const blocks = parseBlockTypes(multyline ? (valueElem.dataset.blocks ?? null) : null);
+		// Типы блоков (цитата, блок кода) — тоже явно и только в многострочном поле. Без атрибута
+		// список пуст, а не «не задан»: незаданный редактор понимает как «все», и в поле без единого
+		// объявления всплывала бы панель с кнопками цитаты и кода.
+		const blocks =
+			multyline && valueElem.dataset.blocks !== undefined ? parseBlockTypes(valueElem.dataset.blocks) : [];
 
 		// markdown-маркеры с дефолтами, переопределяются атрибутами data-format-md-<tool>
 		const formatMarkers = defaultFormatMarkers();

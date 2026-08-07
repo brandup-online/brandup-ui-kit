@@ -730,6 +730,36 @@ describe("TextBox formatting", () => {
 		expect(toolbar.querySelectorAll(".format-button")).toHaveLength(2);
 	});
 
+	// Панель включают объявлением: без data-format и data-blocks поле остаётся простым. Раньше
+	// незаданный data-blocks значил «все типы», и в многострочном поле сама собой всплывала
+	// панель с кнопками цитаты и блока кода.
+	it("keeps the toolbar away from a multiline field with nothing declared", () => {
+		document.body.innerHTML = "";
+		const textarea = document.createElement("textarea");
+		document.body.appendChild(textarea);
+		const tb = new TextBox(textarea);
+
+		const editable = tb.element!.querySelector(".ui-richeditor") as HTMLElement;
+		editable.dispatchEvent(new FocusEvent("focus"));
+
+		expect(tb.editor.blockTypes).toEqual(["paragraph"]);
+		expect(document.querySelector(".ui-richeditor-toolbar.visible")).toBeNull();
+	});
+
+	it("shows block tools in a multiline field once data-blocks declares them", () => {
+		document.body.innerHTML = "";
+		const textarea = document.createElement("textarea");
+		textarea.setAttribute("data-blocks", "quote");
+		document.body.appendChild(textarea);
+		const tb = new TextBox(textarea);
+
+		const editable = tb.element!.querySelector(".ui-richeditor") as HTMLElement;
+		editable.dispatchEvent(new FocusEvent("focus"));
+
+		expect(tb.editor.blockTypes).toEqual(["paragraph", "quote"]);
+		expect(tb.element!.querySelector(".ui-richeditor-toolbar")).not.toBeNull();
+	});
+
 	it("limits tools via data-format-tools and ignores unknown values", () => {
 		const tb = new TextBox(setupFormat({ tools: "bold italic nonsense" }));
 		expect(tb.formatTools).toEqual(["bold", "italic"]);

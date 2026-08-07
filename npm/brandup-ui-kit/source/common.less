@@ -42,6 +42,9 @@
 	--scrollbar-size: @scrollbar-size;
 	--scrollbar-thumb: @scrollbar-thumb;
 	--scrollbar-thumb-radius: @scrollbar-thumb-radius;
+	--scrollbar-thumb-min: @scrollbar-thumb-min;
+	--scrollbar-track-inset: @scrollbar-track-inset;
+	--scrollbar-edge-inset: @scrollbar-edge-inset;
 	--scrollbar-gutter: @scrollbar-gutter;
 }
 
@@ -136,10 +139,30 @@ svg {
 //
 // Полоса рисуется по краю коробки, поэтому у элемента со скруглением её лучше уводить внутрь —
 // на вложенный прокручиваемый элемент, иначе угол выглядит срезанным.
+//
+// Отступы полосы задаются по двум осям отдельно — настраивать их приходится порознь:
+//
+//   --scrollbar-track-inset — вдоль полосы: её концы не доходят до краёв коробки (см. трек ниже).
+//   --scrollbar-edge-inset — поперёк: полоса отходит от края коробки (см. бегунок ниже).
+//
+// Толщина --scrollbar-size — у видимой полосы, а не у отведённого ей места: поперечный отступ
+// прибавляется к нему с обеих сторон.
 .ui-scrollable {
+	// Курсор — обычная стрелка, а не тот, что задан коробке. Своя полоса рисуется движком как
+	// часть элемента и курсор берёт от него: над полосой поля ввода стояла бы «печатная» каретка
+	// (cursor: text у .editor в textbox и у плашки в messageeditor), хотя писать по ней нельзя.
+	// Ставим каждой части отдельно: части наследуют от прокручиваемого элемента, а не друг от друга.
+	&::-webkit-scrollbar,
+	&::-webkit-scrollbar-track,
+	&::-webkit-scrollbar-thumb {
+		cursor: default;
+	}
+
+	// Место под полосу — её толщина плюс поперечный отступ с обеих сторон: отступ вычитается
+	// из него рамкой бегунка (см. ниже), а не отъедает саму полосу.
 	&::-webkit-scrollbar {
-		width: var(--scrollbar-size);
-		height: var(--scrollbar-size);
+		width: calc(var(--scrollbar-size) + var(--scrollbar-edge-inset) * 2);
+		height: calc(var(--scrollbar-size) + var(--scrollbar-edge-inset) * 2);
 		background: none;
 	}
 
@@ -147,9 +170,43 @@ svg {
 		background-color: transparent;
 	}
 
+	// «Парящая» полоса: отступ задаётся треку, а не прокручиваемому элементу — полоса рисуется
+	// по всему padding-box, и padding её концы не отодвинет. Ужатый трек не пускает бегунок
+	// в отступ, поэтому тот не упирается в края коробки. Отступ идёт вдоль полосы, поэтому
+	// вертикальной и горизонтальной он назначается по разным осям.
+	&::-webkit-scrollbar-track:vertical {
+		margin-block: var(--scrollbar-track-inset);
+	}
+
+	&::-webkit-scrollbar-track:horizontal {
+		margin-inline: var(--scrollbar-track-inset);
+	}
+
+	// Поперечный отступ — прозрачной рамкой бегунка: заливка обрезается по её внутреннему краю,
+	// поэтому видимая полоса отходит от края коробки, а раскладка не трогается вовсе. Отступом
+	// самого прокручиваемого элемента (margin) этого добиваться не нужно — он сдвинул бы и текст.
 	&::-webkit-scrollbar-thumb {
+		// размеры ниже — вместе с рамкой, иначе её пришлось бы держать в уме в каждом из них
+		box-sizing: border-box;
 		background-color: var(--scrollbar-thumb);
-		border-radius: var(--scrollbar-thumb-radius);
+		// Радиус задаётся по внешнему краю, а внутренний получается на ширину рамки меньше
+		// и при отрицательном значении обрезается до нуля. Заливка идёт по внутреннему краю,
+		// поэтому к нужному радиусу прибавляем рамку — иначе у полосы пропали бы скругления.
+		border-radius: calc(var(--scrollbar-thumb-radius) + var(--scrollbar-edge-inset));
+		border: var(--scrollbar-edge-inset) solid transparent;
+		background-clip: padding-box;
+	}
+
+	// Пол по длине: движок считает бегунок пропорционально содержимому, и на длинном тексте
+	// тот вырождается в точку — попасть в него мышью становится нечем. Отступ прибавляем,
+	// потому что видимая длина на рамку короче (см. выше). Задаётся по длине полосы, поэтому
+	// вертикальной и горизонтальной — по разным осям.
+	&::-webkit-scrollbar-thumb:vertical {
+		min-height: calc(var(--scrollbar-thumb-min) + var(--scrollbar-edge-inset) * 2);
+	}
+
+	&::-webkit-scrollbar-thumb:horizontal {
+		min-width: calc(var(--scrollbar-thumb-min) + var(--scrollbar-edge-inset) * 2);
 	}
 
 	// кнопки-стрелки по концам полосы: полоса и так узкая, а нажимать их всё равно некому

@@ -1,6 +1,18 @@
 export { default } from "./richeditor";
 export * from "./richeditor";
-export { EMOJIS, EMOJI_GROUPS, EMOJI_PICKER_CLASS, createEmojiPicker, type EmojiGroup } from "./emoji";
+export {
+	EMOJIS,
+	EMOJI_GROUPS,
+	EMOJI_PICKER_CLASS,
+	RECENT_EMOJIS_KEY,
+	RECENT_EMOJIS_LIMIT,
+	RECENT_GROUP_CLASS,
+	createEmojiPicker,
+	recentEmojis,
+	rememberEmoji,
+	refreshRecentEmojis,
+	type EmojiGroup,
+} from "./emoji";
 export {
 	ALL_BLOCK_TYPES,
 	ALL_EDITOR_ACTIONS,

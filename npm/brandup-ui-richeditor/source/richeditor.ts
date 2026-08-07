@@ -59,6 +59,7 @@ import {
 	trimSelectionWhitespace,
 } from "./editing";
 import { EditorHistory } from "./history";
+import { refreshRecentEmojis } from "./emoji";
 import { formatToolbar, TOOLBAR_CLASS, type ToolbarButton } from "./toolbar";
 
 export { formatToolbar, TOOLBAR_CLASS, type ToolbarHost, type ToolbarButton } from "./toolbar";
@@ -108,6 +109,65 @@ function codeLetter(e: KeyboardEvent): string {
 // Совпадает ли нажатие с латинской буквой хоткея — по e.key (латиница/AZERTY) или e.code (кириллица и пр.).
 function isHotkeyLetter(e: KeyboardEvent, letter: string): boolean {
 	return e.key.toLowerCase() === letter || codeLetter(e) === letter;
+}
+
+/** Коробка строки — какую высоту занимает строка текста. */
+type LineBox = { top: number; bottom: number; height: number };
+
+/**
+ * Коробки строк, занятых узлом. У переносимого текста их несколько, и общая коробка накрывает
+ * их все — для доводки прокрутки нужна конкретная строка, поэтому берём список, а не объединение.
+ * В среде без раскладки (jsdom) список пуст, там остаётся общая коробка.
+ */
+function lineRects(node: Node): LineBox[] {
+	let source: { getClientRects?: () => DOMRectList; getBoundingClientRect?: () => DOMRect } | null = null;
+
+	if (node.nodeType === Node.TEXT_NODE) {
+		const range = node.ownerDocument?.createRange();
+		if (range) {
+			range.selectNodeContents(node);
+			source = range;
+		}
+	} else if (node.nodeType === Node.ELEMENT_NODE) {
+		source = node as Element;
+	}
+
+	if (typeof source?.getBoundingClientRect !== "function") return [];
+
+	const rects = Array.from(source.getClientRects?.() ?? []);
+	return rects.length ? rects : [source.getBoundingClientRect()];
+}
+
+/**
+ * Строка, на которой стоит каретка, когда собственной коробки у неё нет — так бывает на пустой
+ * строке. Ищем ближайший измеримый ориентир на ТОЙ ЖЕ строке.
+ */
+function caretLineBox(range: Range): LineBox | null {
+	const { startContainer: node, startOffset: offset } = range;
+
+	if (node.nodeType === Node.ELEMENT_NODE) {
+		// Узел ПОСЛЕ каретки стоит на её строке: <br> рисуется в конце строки, которую завершает,
+		// а текст за кареткой с этой строки начинается. Узел ДО каретки лежит строкой выше —
+		// по нему прокрутка недоезжала ровно на строку.
+		const next = node.childNodes[offset];
+		if (next) return lineRects(next)[0] ?? null;
+
+		// Каретка за последним узлом: своей строки у неё ещё нет, а предыдущий <br> завершает
+		// предыдущую — она ровно на строку ниже него.
+		const previous = node.childNodes[offset - 1];
+		if (previous) {
+			const rects = lineRects(previous);
+			const last = rects[rects.length - 1];
+			if (!last) return null;
+
+			const shift = previous.nodeName === "BR" ? last.height : 0;
+			return { top: last.top + shift, bottom: last.bottom + shift, height: last.height };
+		}
+	}
+
+	// Соседей нет вовсе: пустой блок и есть строка каретки.
+	const own = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+	return own ? (lineRects(own)[0] ?? null) : null;
 }
 
 export interface RichEditorOptions {
@@ -376,6 +436,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// это два всплывающих окна над одним полем. Попап самой панели — её собственный слой,
 		// прятать его носителя незачем и нечем.
 		const inToolbar = !!picker.closest(`.${TOOLBAR_CLASS}`);
+
+		// Недавние — по хранилищу на момент показа: попап живёт между открытиями, а хранилище
+		// тем временем пополняют и другие попапы страницы.
+		refreshRecentEmojis(picker);
 
 		PopupManager.open(picker, {
 			initiator,
@@ -1207,6 +1271,17 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		this.element.addEventListener("paste", (e: ClipboardEvent) => this.__onPaste(e), { signal });
 		editable.addEventListener("keydown", (e: KeyboardEvent) => this.__onKeydown(e), { signal });
 
+		// Каретку двигали клавишами: браузер к ней прокручивает сам, но до края коробки —
+		// под отступы прокручиваемого контейнера. Поправляем после него, на keyup: на keydown
+		// своей прокрутки он ещё не сделал, и поправка ушла бы впустую.
+		editable.addEventListener(
+			"keyup",
+			(e: KeyboardEvent) => {
+				if (NAV_KEYS.includes(e.key)) this.__scrollCaretIntoView();
+			},
+			{ signal }
+		);
+
 		editable.addEventListener("beforeinput", (e: InputEvent) => this.__onBeforeInput(e), { signal });
 
 		editable.addEventListener(
@@ -1223,6 +1298,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 				} else if (editable.firstChild?.nodeName === "BR") {
 					editable.innerHTML = "";
 				}
+				// При наборе браузер прокручивает к каретке сам, но доводит её лишь до края
+				// коробки — под отступы контейнера. Доводим до текста.
+				this.__scrollCaretIntoView();
+
 				this.__emitChange(true); // печать — единственный посимвольный источник, его и откладываем
 			},
 			{ signal }
@@ -1230,46 +1309,58 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	}
 
 	/**
-	 * Доводит прокрутку до каретки. Переносы строк редактор делает сам (preventDefault), и
-	 * браузер к новой строке не прокручивает; к тому же у хостов (textbox, messageeditor)
-	 * прокручивается не редактируемый элемент, а его обёртка — после достижения предельной
-	 * высоты каретка у нижнего края уходила бы за пределы видимого.
+	 * Доводит прокрутку до каретки. Нужна там, где браузер не справляется сам: переносы строк
+	 * редактор делает вручную (preventDefault), и к новой строке браузер не прокручивает; в
+	 * textbox прокручивается не редактируемый элемент, а его обёртка; а своей прокруткой браузер
+	 * доводит каретку лишь до края коробки — под отступы, которые едут вместе с текстом.
 	 */
 	private __scrollCaretIntoView() {
 		const selection = this.selection;
 		if (!selection || selection.rangeCount === 0) return;
 
-		const range = selection.getRangeAt(0);
+		const range = selection.getRangeAt(0).cloneRange();
 
 		// в среде без раскладки (jsdom) у Range коробок нет вовсе
 		if (typeof range.getBoundingClientRect !== "function") return;
 
-		// У схлопнутой каретки на пустой строке нет собственной коробки — берём ближайший
-		// измеримый ориентир: узел перед кареткой (обычно свежий <br>), иначе родителя.
-		let rect = range.getBoundingClientRect();
-		if (!rect.height) {
-			const { startContainer: node, startOffset: offset } = range;
-			const anchor = node.nodeType === Node.ELEMENT_NODE ? (node.childNodes[offset - 1] ?? node) : node;
-			const el = anchor.nodeType === Node.ELEMENT_NODE ? (anchor as Element) : anchor.parentElement;
-			if (!el) return;
-			rect = el.getBoundingClientRect();
+		// Выделение тянут клавишами (Shift+стрелки): вести нужно за его подвижным концом.
+		// Коробка всего выделения накрывает все занятые строки, и прокрутка ушла бы к концу
+		// неподвижному, уводя подвижный за пределы видимого.
+		if (!range.collapsed) {
+			const toStart = selection.focusNode === range.startContainer && selection.focusOffset === range.startOffset;
+			range.collapse(toStart);
+		}
+
+		let { top, bottom, height } = range.getBoundingClientRect();
+		if (!height) {
+			const line = caretLineBox(range);
+			if (!line) return;
+			({ top, bottom, height } = line);
 		}
 		// раскладки нет (тестовая среда) — прокручивать не по чему
-		if (!rect.height && !rect.top && !rect.bottom) return;
+		if (!height && !top && !bottom) return;
 
 		// Ближайший прокручиваемый предок; прокручивается только он — внешним контейнерам
 		// каретка не адресована, крутить страницу из редактора нельзя.
 		const document = this.editable.ownerDocument;
 		for (let el: HTMLElement | null = this.editable; el && el !== document.body; el = el.parentElement) {
 			if (el.scrollHeight <= el.clientHeight) continue;
-			const overflow = document.defaultView?.getComputedStyle(el).overflowY;
+			const style = document.defaultView?.getComputedStyle(el);
+			if (!style) continue;
+			const overflow = style.overflowY;
 			if (overflow !== "auto" && overflow !== "scroll") continue;
 
+			// Границей служит не коробка, а область, свободная от отступов: они едут вместе
+			// с текстом (см. .editor в textbox, .ui-richeditor в messageeditor), и доведённая
+			// до края коробки строка встала бы под них. Своего отступа у контейнера может
+			// и не быть — тогда держим небольшой запас, чтобы строка не прилипала к краю.
+			const gap = Math.min(height || 16, 16);
 			const box = el.getBoundingClientRect();
-			// небольшой запас, чтобы строка не прилипала к самому краю
-			const pad = Math.min(rect.height || 16, 16);
-			if (rect.bottom > box.bottom - pad) el.scrollTop += rect.bottom - (box.bottom - pad);
-			else if (rect.top < box.top + pad) el.scrollTop -= box.top + pad - rect.top;
+			const viewTop = box.top + el.clientTop + (parseFloat(style.paddingTop) || gap);
+			const viewBottom = box.top + el.clientTop + el.clientHeight - (parseFloat(style.paddingBottom) || gap);
+
+			if (bottom > viewBottom) el.scrollTop += bottom - viewBottom;
+			else if (top < viewTop) el.scrollTop -= viewTop - top;
 			return;
 		}
 	}
