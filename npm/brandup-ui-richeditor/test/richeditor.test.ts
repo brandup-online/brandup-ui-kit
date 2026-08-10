@@ -106,13 +106,14 @@ describe("RichEditor structure", () => {
 	});
 
 	it("destroy() keeps the host element in the DOM and strips editor styling", () => {
-		const editor = makeEditor();
+		// режимный класс тоже снимаем: элемент хоста переживает редактор и может быть переиспользован
+		const editor = makeEditor({ multiline: true, paragraph: "break" });
 		const editable = editor.editable;
 
 		editor.destroy();
 
 		expect(editable.isConnected).toBe(true);
-		expect(editable.classList.contains(ROOT_CLASS)).toBe(false);
+		expect(editable.className).toBe("");
 		expect(editable.getAttribute("contenteditable")).toBeNull();
 	});
 });
@@ -623,6 +624,39 @@ describe("RichEditor paste (formatted)", () => {
 		});
 
 		expect(editor.editable.innerHTML).toBe("<p><b>A</b> B</p>"); // без пустых строк вокруг
+	});
+
+	// Письма и документы разделяют абзацы абзацем из одного &nbsp;. После обрезки в нём остаётся
+	// пустой текстовый узел, и без заполнителя такая строка пропадала при склейке абзацев —
+	// вставленный текст слипался в сплошную простыню.
+	it("keeps the blank line between paragraphs pasted from a document (break mode)", () => {
+		const editor = makeEditor({ multiline: true, paragraph: "break" });
+		caretAt(editor.editable, 0); // пустое поле — вставляем всё содержимое
+
+		paste(editor, { html: "<p>A</p><p>&nbsp;</p><p>B</p>", plain: "A\n \nB" });
+		editor.editable.dispatchEvent(new FocusEvent("blur"));
+
+		// та же модель, что и у вставки простым текстом: пустая строка — пустой абзац
+		expect(editor.editable.innerHTML).toBe("<p>A</p><p><br></p><p>B</p>");
+	});
+
+	// Выделение через всё поле забирает содержимое краевых абзацев, но их самих — нет: они задеты
+	// лишь частично. Вставка между этими оболочками давала пустые строки сверху и снизу.
+	it("replaces the whole field without empty lines around it", () => {
+		const editor = makeEditor({ multiline: true, paragraph: "break", value: "старое\nзначение" });
+
+		// выделение мышью/Ctrl+A встаёт по краям текста, а не по краям редактора
+		const sel = window.getSelection()!;
+		const last = editor.editable.lastElementChild!.firstChild as Text;
+		const range = document.createRange();
+		range.setStart(editor.editable.firstElementChild!.firstChild!, 0);
+		range.setEnd(last, last.length);
+		sel.removeAllRanges();
+		sel.addRange(range);
+
+		paste(editor, { html: "<p>A</p><p>&nbsp;</p><p>B</p>", plain: "A\n \nB" });
+
+		expect(editor.editable.innerHTML).toBe("<p>A</p><p><br></p><p>B</p>");
 	});
 
 	it("falls back to plain text when there is no HTML", () => {
@@ -1235,26 +1269,26 @@ describe("RichEditor paragraph mode", () => {
 		expect(editor.getValue()).toBe("раз\n\nдва");
 	});
 
-	// в мессенджерах Enter переносит строку, а абзац набирается двумя переносами
-	it("break: Enter makes a soft line break", () => {
+	// в мессенджерах Enter переносит строку, а абзац здесь и есть строка
+	it("break: Enter starts a new line", () => {
 		const editor = makeEditor({ multiline: true, storage: "markdown", paragraph: "break", value: "раз" });
 
 		pressEnter(editor, 3);
 		editor.insertText("два");
 
-		expect(editor.editable.querySelectorAll("p")).toHaveLength(1);
+		expect(editor.editable.querySelectorAll("p")).toHaveLength(2);
 		expect(editor.getValue()).toBe("раз\nдва");
 	});
 
-	// Модификатор в этом режиме ничего не меняет: отдельный абзац дал бы в значении ту же пустую
-	// строку, что и второй перенос, — только она получалась бы с одного нажатия.
-	it("break: the modifier breaks the line too", () => {
+	// Модификатор в этом режиме ничего не меняет: мягкому переносу тут неоткуда взяться —
+	// в значении он дал бы ровно ту же строку.
+	it("break: the modifier starts a new line too", () => {
 		const editor = makeEditor({ multiline: true, storage: "markdown", paragraph: "break", value: "раз" });
 
 		pressEnter(editor, 3, true);
 		editor.insertText("два");
 
-		expect(editor.editable.querySelectorAll("p")).toHaveLength(1);
+		expect(editor.editable.querySelectorAll("p")).toHaveLength(2);
 		expect(editor.getValue()).toBe("раз\nдва");
 	});
 
@@ -1752,13 +1786,13 @@ describe("RichEditor paste (plain text)", () => {
 		expect(editor.getValue()).toBe("one\ntwo");
 	});
 
-	it("break mode: every line break is soft, paragraphs are not created", () => {
+	it("break mode: every line becomes a paragraph, blank lines included", () => {
 		const editor = makeEditor({ multiline: true, paragraph: "break", storage: "markdown" });
 		caretAt(editor.editable, 0);
 
 		pastePlain(editor, "one\n\ntwo");
 
-		expect(editor.editable.innerHTML).toBe("<p>one<br><br>two</p>");
+		expect(editor.editable.innerHTML).toBe("<p>one</p><p><br></p><p>two</p>");
 		expect(editor.getValue()).toBe("one\n\ntwo");
 	});
 
@@ -2441,7 +2475,8 @@ describe("RichEditor trailing empty line", () => {
 			value: "текст\n\n> цитата",
 		});
 
-		expect(editor.editable.firstElementChild!.querySelectorAll("br")).toHaveLength(2);
+		// пустая строка — отдельный абзац с заполнителем, а не два переноса внутри первого
+		expect(editor.editable.children[1].innerHTML).toBe("<br>");
 		expect(editor.getValue()).toBe("текст\n\n> цитата");
 	});
 
@@ -2532,7 +2567,7 @@ describe("RichEditor soft break inside monospace", () => {
 
 		enter(editor);
 
-		expect(editor.editable.innerHTML).toBe("<p><code>раз</code><br><code>два</code></p>");
+		expect(editor.editable.innerHTML).toBe("<p><code>раз</code></p><p><code>два</code></p>");
 		expect(editor.getValue()).toBe("`раз`\n`два`");
 	});
 

@@ -173,6 +173,43 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Changed
 
+- **In `paragraph: "break"` a line is a paragraph.** The mode used to hold the
+  whole message in a single `<p>` with `<br>` between the lines; now every line
+  is its own `<p>` and a blank line of the message is an empty one. Enter and
+  Shift/Ctrl+Enter both start a new line — a soft break has nowhere to come
+  from — and the `breaks` class drops the paragraph padding so two lines never
+  show a gap the message would not have. Soft breaks arriving from outside (a
+  pasted document, a foreign value) are split into the same model. The stored
+  value is unchanged in shape: a paragraph border serializes to a single `\n`,
+  a blank line to `\n\n`, and values round-trip through the editor untouched.
+  A block button over several selected lines now makes one quote or code block
+  instead of one per line.
+
+- **A block button over a selection that already contains a block of that type
+  no longer reorders the lines.** The merged block was built in place of the
+  first line of a different type, so a quote or code block sitting in the middle
+  of the selection ended up after the merged content.
+
+- **The caret survives turning a multi-line block back into plain text.** The
+  lines were split into paragraphs after the caret had been restored, and a
+  live range does not survive the block being replaced — the caret dropped to
+  the start of the field.
+
+- **A field left with nothing but empty lines clears itself.** The value was
+  already empty, but the paragraphs stayed, so the placeholder never came back.
+
+- **Pasting over the whole field no longer leaves an empty line above and below
+  the pasted text.** A selection that starts in one paragraph and ends in
+  another takes their content but not the paragraphs themselves — they are only
+  partially covered — and the paste landed between the two empty shells. The
+  shells are now collapsed into the one the editing continues in.
+
+- **A blank line pasted from a document survives.** Mail and word processors
+  separate paragraphs with a `&nbsp;`-only paragraph; trimming left an empty
+  text node behind, the paragraph was not recognized as empty, and the line was
+  lost when the blocks were joined — the pasted text collapsed into one solid
+  paragraph. Emptiness is now decided by content, not by the presence of nodes.
+
 - **A word, for format-to-word expansion, is a whitespace-delimited token
   without its non-letter edges.** Interior punctuation belongs to the word —
   a link with the caret in `info@example.com` wraps the whole address (it

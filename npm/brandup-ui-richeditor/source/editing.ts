@@ -4,7 +4,7 @@
 
 import { deserialize } from "./serialize";
 import { blockAt, blockTypeOf, blocksInRange, createBlock, isBlock } from "./paragraphs";
-import { documentSelection, innerSelection, linkAt, literalAncestor } from "./selection";
+import { cleanupFormatting, documentSelection, innerSelection, linkAt, literalAncestor } from "./selection";
 import { BLOCK_TYPES, DEFAULT_BLOCK, type BlockType, type FormatMarkers, type FormatTool } from "./format-config";
 
 // убирает пустые текст-узлы и ставит <br>-заполнитель в пустой абзац (для видимости и каретки)
@@ -58,8 +58,11 @@ export interface BlockChange {
  *
  * У типа без инлайновой разметки (код) форматирование снимается: внутри него написанное
  * остаётся буквальным, и сохранить его всё равно было бы негде.
+ *
+ * При `merge` выделенные блоки собираются в один блок нового типа: там, где абзац это строка,
+ * кнопка на трёх строках даёт один блок, а не три подряд.
  */
-export function applyBlocks(editable: HTMLElement, range: Range, type: BlockType): BlockChange {
+export function applyBlocks(editable: HTMLElement, range: Range, type: BlockType, merge = false): BlockChange {
 	const blocks = blocksInRange(editable, range);
 
 	// Пустой редактор: блоков ещё нет, но тип задать можно — иначе в пустое поле его было бы
@@ -77,6 +80,26 @@ export function applyBlocks(editable: HTMLElement, range: Range, type: BlockType
 	if (blocks.length === 1 && type !== DEFAULT_BLOCK && blockTypeOf(blocks[0]) !== type) {
 		const created = splitLines(blocks[0], range, type);
 		if (created) return { changed: true, created };
+	}
+
+	// Собираем ВСЕ задетые блоки, а не только чужого типа: блок нужного типа посреди выделения
+	// иначе остался бы на месте, а собранный блок встал бы перед ним — строки менялись местами.
+	if (merge && type !== DEFAULT_BLOCK && blocks.length > 1) {
+		const replacement = retagBlock(blocks[0], type);
+
+		for (const block of blocks.slice(1)) {
+			// строки склеиваем переносом — тем же, что разделяет их внутри блока (mergeAdjacentBlocks)
+			if (replacement.lastChild?.nodeName !== "BR") replacement.appendChild(document.createElement("br"));
+
+			while (block.firstChild) replacement.appendChild(block.firstChild);
+			block.remove();
+		}
+
+		if (!BLOCK_TYPES[type].inline) unwrapFormatting(replacement);
+		if (replacement !== blocks[0]) blocks[0].replaceWith(replacement);
+		fillEmptyParagraph(replacement);
+
+		return { changed: true, created: null };
 	}
 
 	let changed = false;
@@ -291,6 +314,11 @@ export function insertParagraph(editable: HTMLElement, type: BlockType = DEFAULT
 	// хвост уехал в блок другого типа — его правила распространяются и на содержимое
 	if (!BLOCK_TYPES[type].inline) unwrapFormatting(next);
 
+	// Разрез по краю оформленного куска оставляет от него пустой тег в одной из половин:
+	// продолжать им нечего, а набор в него попадал бы оформленным (см. insertSoftBreak).
+	cleanupFormatting(para);
+	cleanupFormatting(next);
+
 	// extractContents в конце абзаца оставляет пустой текст-узел → <p></p> без заполнителя
 	// (невидим/нефокусируем, каретка не встаёт). Чистим и ставим <br> в опустевшие абзацы.
 	fillEmptyParagraph(para);
@@ -379,6 +407,31 @@ export function insertSoftBreak(editable: HTMLElement) {
 	selection.addRange(after);
 }
 
+/**
+ * Схлопывает пустые оболочки, оставшиеся от удалённого выделения. Выделение, начатое и
+ * законченное в разных абзацах, забирает их содержимое, но сами абзацы задевает лишь частично —
+ * и они остаются пустыми по краям каретки. Правка продолжается в одном из них: иначе вокруг
+ * набранного или вставленного появлялись бы пустые строки, которых не было.
+ */
+export function collapseEmptyEdges(editable: HTMLElement, range: Range) {
+	if (range.startContainer !== editable) return;
+
+	// от удалённого текста остаются пустые текстовые узлы — пустоту смотрим по содержимому
+	const empty = (node: ChildNode | null) =>
+		!!node && blockTypeOf(node) === DEFAULT_BLOCK && !node.textContent && !(node as HTMLElement).querySelector("br");
+
+	const before = editable.childNodes[range.startOffset - 1] ?? null;
+	const after = editable.childNodes[range.startOffset] ?? null;
+
+	const kept = empty(before) ? before : empty(after) ? after : null;
+	if (!kept) return;
+
+	if (kept === before && empty(after)) after.remove();
+
+	range.setStart(kept, 0);
+	range.collapse(true);
+}
+
 /** Вставляет санитизированные абзацы <p> в позицию каретки, разбивая текущий абзац. */
 export function insertPastedParagraphs(editable: HTMLElement, paras: HTMLElement[], range: Range) {
 	const block = blockOf(editable, range.startContainer);
@@ -445,16 +498,17 @@ function trimParagraphEdges(p: HTMLElement) {
 }
 
 /**
- * Строки вставляемого текста → абзацы `<p>` с мягкими переносами `<br>` внутри.
+ * Строки вставляемого текста → абзацы `<p>` с мягкими переносами `<br>` внутри. Вставка ложится
+ * в ту же модель, которую даёт Enter, и значение после неё разбирается обратно:
  *
- * При `blocks` абзацы разделяет пустая строка (режим `block` многострочного редактора);
- * иначе весь текст — один абзац, а все переносы мягкие: так вставка ложится в ту же модель,
- * которую даёт Enter, и значение после неё разбирается обратно.
+ * - `block` — абзацы разделяет пустая строка (режим `block` многострочного редактора);
+ * - `line` — каждая строка сама себе абзац (режим мягких переносов);
+ * - `single` — весь текст одним абзацем, все переносы мягкие (буквальное содержимое блока кода).
  */
-export function buildParagraphs(lines: string[], blocks: boolean): HTMLElement[] {
+export function buildParagraphs(lines: string[], mode: "block" | "line" | "single"): HTMLElement[] {
 	const groups: string[][] = [];
 
-	if (blocks) {
+	if (mode === "block") {
 		let group: string[] = [];
 		for (const line of lines) {
 			if (line !== "") group.push(line);
@@ -464,6 +518,8 @@ export function buildParagraphs(lines: string[], blocks: boolean): HTMLElement[]
 			}
 		}
 		if (group.length) groups.push(group);
+	} else if (mode === "line") {
+		for (const line of lines) groups.push([line]);
 	} else if (lines.length) groups.push(lines);
 
 	return groups.map((group) => {

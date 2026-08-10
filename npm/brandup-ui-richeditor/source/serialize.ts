@@ -287,18 +287,11 @@ function serializeParagraphs(
 			})
 			.join("");
 
-	// Пустая строка между блоками нужна там, где она их и разделяет. Блок с собственной
-	// разметкой (цитата, код) узнаётся и без неё, а в режиме мягких переносов пустая строка —
-	// это пустая строка сообщения: поставив её от себя, редактор менял бы текст.
+	// Пустая строка между блоками нужна там, где она их и разделяет. В режиме мягких переносов
+	// блок — это строка, а не абзац: граница блоков там и есть перевод строки, а пустая строка
+	// сообщения хранится пустым блоком. Поставив её от себя, редактор менял бы текст.
 	return cleaned
-		.map(([type, text], index) => {
-			if (!index) return markdownBlock(type, text);
-
-			const previous = cleaned[index - 1][0];
-			const blank = separate || (previous === DEFAULT_BLOCK && type === DEFAULT_BLOCK);
-
-			return `${blank ? "\n\n" : "\n"}${markdownBlock(type, text)}`;
-		})
+		.map(([type, text], index) => (index ? `${separate ? "\n\n" : "\n"}` : "") + markdownBlock(type, text))
 		.join("");
 }
 
@@ -319,6 +312,9 @@ function markdownBlock(type: BlockType, text: string): string {
 /**
  * Сериализует содержимое редактора в строку для хранения. Сохраняются только включённые инструменты.
  * При paragraphs=true применяется модель «абзацы (<p>/\n\n) + мягкие переносы (<br>/\n)».
+ *
+ * При separate=false блоки разделяет один перевод строки: там абзац — это строка, а пустая строка
+ * сообщения хранится пустым блоком.
  */
 export function serialize(
 	root: HTMLElement,
@@ -656,8 +652,9 @@ export function deserialize(
  * строкой. Незакрытое ограждение разметкой не считается — его строки остаются текстом, как
  * у мессенджеров: иначе одна случайная кавычка съедала бы весь остаток сообщения.
  *
- * При `separate = false` пустая строка блоки не делит: в режиме мягких переносов она сама по себе
- * строка сообщения, и разбиение съедало бы её.
+ * При `separate = false` пустая строка блоки не делит: в режиме мягких переносов блок — это строка,
+ * а не абзац, поэтому каждая строка выходит своим блоком, и пустая среди них тоже. Разметку это
+ * не рвёт: маркер и так не пересекает перенос строки — ни в значении, ни в поле.
  */
 function markdownBlocks(value: string, types: BlockType[], separate: boolean): Array<[BlockType, string]> {
 	const fenced = types.filter((type) => BLOCK_TYPES[type].fence);
@@ -668,7 +665,10 @@ function markdownBlocks(value: string, types: BlockType[], separate: boolean): A
 	let buffer: string[] = [];
 
 	const flush = () => {
-		if (buffer.length) blocks.push([DEFAULT_BLOCK, buffer.join("\n")]);
+		if (separate) {
+			if (buffer.length) blocks.push([DEFAULT_BLOCK, buffer.join("\n")]);
+		} else for (const line of buffer) blocks.push([DEFAULT_BLOCK, line]);
+
 		buffer = [];
 	};
 
