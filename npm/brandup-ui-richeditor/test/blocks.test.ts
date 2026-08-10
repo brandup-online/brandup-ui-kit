@@ -346,8 +346,8 @@ describe("merged code button", () => {
 	// три кавычки — на выделенные строки, а не на всё сообщение
 	it("fences only the selected lines", () => {
 		const editor = makeEditor({ value: "раз\nдва\nтри", paragraph: "break" });
-		const lines = Array.from(editor.editable.firstChild!.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE);
-		selectRange(lines[0], 0, lines[1], 3);
+		const lines = Array.from(editor.editable.children);
+		selectRange(lines[0].firstChild!, 0, lines[1].firstChild!, 3);
 
 		editor.applyCode();
 		expect(editor.getValue()).toBe("```\nраз\nдва\n```\nтри");
@@ -355,8 +355,7 @@ describe("merged code button", () => {
 
 	it("makes the line under the caret a code block", () => {
 		const editor = makeEditor({ value: "раз\nдва", paragraph: "break" });
-		const lines = Array.from(editor.editable.firstChild!.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE);
-		caretAt(lines[1], 1);
+		caretAt(editor.editable.children[1].firstChild!, 1);
 
 		editor.applyCode();
 		expect(editor.getValue()).toBe("раз\n```\nдва\n```");
@@ -367,8 +366,7 @@ describe("merged code button", () => {
 	// пропадала бы и с экрана, и из значения.
 	it("keeps the empty line above the new code block", () => {
 		const editor = makeEditor({ value: "раз\n\nдва", paragraph: "break" });
-		const lines = Array.from(editor.editable.firstChild!.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE);
-		caretAt(lines[1], 1);
+		caretAt(editor.editable.children[2].firstChild!, 1); // «два» — за пустой строкой
 
 		editor.applyCode();
 		expect(editor.getValue()).toBe("раз\n\n```\nдва\n```");
@@ -378,10 +376,9 @@ describe("merged code button", () => {
 	// блока, и без заполнителя она пропадала бы уже из блока кода.
 	it("keeps the empty line at the end of the selection inside the code block", () => {
 		const editor = makeEditor({ value: "раз\nдва\n\nтри", paragraph: "break" });
-		const paragraph = editor.editable.firstChild!;
-		const lines = Array.from(paragraph.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE);
-		// конец выделения — на пустой строке: перед вторым из двух подряд переносов
-		selectRange(lines[1], 0, paragraph, 4);
+		const lines = Array.from(editor.editable.children);
+		// конец выделения — на пустой строке (это отдельный пустой абзац)
+		selectRange(lines[1].firstChild!, 0, lines[2], 0);
 
 		editor.applyCode();
 		expect(editor.getValue()).toBe("раз\n```\nдва\n\n```\nтри");
@@ -417,16 +414,14 @@ describe("merged code button", () => {
 		expect(editor.getValue()).toBe("**жирный**");
 	});
 
-	// Каретка за хвостовым заполнителем — это всё ещё последняя (пустая) строка: заполнитель
-	// не разделитель, и резать по нему нельзя — иначе в значении появлялась бы лишняя пустая
-	// строка, которой не набирали.
-	it("does not invent an empty line when the caret sits after the trailing pad", () => {
+	// Пустая последняя строка кодом становится сама по себе: кусок «до» она за собой не тянет,
+	// иначе в значении появлялась бы пустая строка, которой не набирали.
+	it("does not invent an empty line when the caret sits on the last empty line", () => {
 		const editor = makeEditor({ value: "а", paragraph: "break" });
-		const paragraph = editor.editable.firstChild!;
-		caretAt(paragraph.firstChild!, 1);
-		press(editor, "Enter"); // новая пустая строка: а<br><br>
+		caretAt(editor.editable.firstChild!.firstChild!, 1);
+		press(editor, "Enter"); // новая пустая строка — отдельным абзацем
 
-		caretAt(paragraph, paragraph.childNodes.length); // за заполнителем
+		caretAt(editor.editable.lastElementChild!, 0);
 		editor.applyCode();
 
 		// кодом стала пустая строка (пустой блок в хвосте значения не виден), а не кусок «до»,
@@ -474,13 +469,24 @@ describe("merged code button", () => {
 		expect(editor.getValue()).toBe("```\nраз\n```\n\n```\nдва\n```");
 	});
 
-	it("takes a soft break inside the block as lines", () => {
+	it("takes a selection across lines as a code block", () => {
 		const editor = makeEditor({ value: "a\nb", paragraph: "break" });
-		const block = editor.editable.firstElementChild!;
-		selectRange(block.firstChild!, 0, block.lastChild!, 1);
+		const [first, second] = Array.from(editor.editable.children);
+		selectRange(first.firstChild!, 0, second.firstChild!, 1);
 
 		editor.applyCode();
 		expect(editor.currentBlock).toBe("code");
+	});
+
+	// Собирается весь охват выделения, а не только строки чужого типа: блок нужного типа посреди
+	// него оставался на месте, а собранный вставал перед ним — строки менялись местами.
+	it("keeps the order when a block of the same type sits in the middle", () => {
+		const editor = makeEditor({ value: "раз\n```\nдва\n```\nтри", paragraph: "break" });
+		const lines = Array.from(editor.editable.children);
+		selectRange(lines[0].firstChild!, 0, lines[2].firstChild!, 3);
+
+		editor.applyCode();
+		expect(editor.getValue()).toBe("```\nраз\nдва\nтри\n```");
 	});
 
 	it("removes monospace by a second press", () => {
@@ -733,7 +739,8 @@ describe("editor blocks", () => {
 		it("keeps a blank line inside plain text", () => {
 			const editor = breakEditor("a\n\nb\n> q");
 
-			expect(editor.editable.innerHTML).toBe("<p>a<br><br>b</p><blockquote>q</blockquote>");
+			// абзац здесь — строка, поэтому пустая строка это пустой абзац
+			expect(editor.editable.innerHTML).toBe("<p>a</p><p><br></p><p>b</p><blockquote>q</blockquote>");
 			expect(editor.getValue()).toBe("a\n\nb\n> q");
 		});
 
@@ -743,10 +750,10 @@ describe("editor blocks", () => {
 			expect(editor.getValue()).toBe("a\n```\nx\n```\nb");
 		});
 
-		it("keeps plain text in one block when the types are restricted", () => {
+		it("keeps the quote marker as text when the types are restricted", () => {
 			const editor = makeEditor({ paragraph: "break", blocks: [], value: "a\n> q" });
 
-			expect(editor.editable.innerHTML).toBe("<p>a<br>&gt; q</p>");
+			expect(editor.editable.innerHTML).toBe("<p>a</p><p>&gt; q</p>");
 		});
 	});
 
@@ -887,13 +894,14 @@ describe("adjacent quotes", () => {
 describe("adjacent paragraphs in the break mode", () => {
 	const blur = (editor: RichEditor) => editor.editable.dispatchEvent(new FocusEvent("blur"));
 
-	it("merges into one", () => {
+	// абзац здесь — строка: соседние остаются собой, а чужой мягкий перенос приводится к ним же
+	it("keeps them apart and splits soft breaks into lines", () => {
 		const editor = makeEditor({ paragraph: "break" });
 		editor.editable.innerHTML = "<p>раз</p><p>два<br>три</p>";
 
 		blur(editor);
 
-		expect(editor.editable.innerHTML).toBe("<p>раз<br>два<br>три</p>");
+		expect(editor.editable.innerHTML).toBe("<p>раз</p><p>два</p><p>три</p>");
 		expect(editor.getValue()).toBe("раз\nдва\nтри");
 	});
 
@@ -907,8 +915,35 @@ describe("adjacent paragraphs in the break mode", () => {
 		expect(editor.getValue()).toBe("раз\n\nдва");
 	});
 
-	// первая строка абзаца тоже бывает пустой: два Enter после блока и печать во вторую строку
-	it("keeps the empty first line while typing into the next one", () => {
+	// Каретку возвращают по текстовым смещениям, а разбиение абзаца живой Range не переживает:
+	// пока строки разводились после возврата, каретка после снятия блока падала в начало поля.
+	it("keeps the caret when a multi-line block goes back to plain text", () => {
+		const editor = makeEditor({ paragraph: "break", value: "> раз\n> два" });
+		const quote = editor.editable.firstElementChild!;
+		caretAt(quote.lastChild!, 1); // внутри «два»
+
+		editor.applyBlock("quote"); // снимаем цитату
+
+		expect(editor.editable.innerHTML).toBe("<p>раз</p><p>два</p>");
+
+		const selection = window.getSelection()!;
+		expect(selection.anchorNode!.textContent).toBe("два");
+		expect(selection.anchorOffset).toBe(1);
+	});
+
+	// пустое поле должно оставаться пустым, иначе не покажется заглушка
+	it("clears the field made of empty lines only", () => {
+		const editor = makeEditor({ paragraph: "break" });
+		editor.editable.innerHTML = "<p><br></p><p><br></p>";
+
+		blur(editor);
+
+		expect(editor.editable.innerHTML).toBe("");
+		expect(editor.getValue()).toBe("");
+	});
+
+	// пустая строка после блока остаётся своим абзацем, когда печатают в следующую
+	it("keeps the empty line while typing into the next one", () => {
 		const editor = makeEditor({ paragraph: "break", value: "```\nкод\n```" });
 		const selection = window.getSelection()!;
 		const range = document.createRange();
@@ -923,7 +958,8 @@ describe("adjacent paragraphs in the break mode", () => {
 		editor.insertText("текст");
 		editor.editable.dispatchEvent(new Event("input", { bubbles: true }));
 
-		expect(editor.editable.lastElementChild!.innerHTML).toBe("<br>текст");
+		expect(editor.editable.lastElementChild!.innerHTML).toBe("текст");
+		expect(editor.editable.lastElementChild!.previousElementSibling!.innerHTML).toBe("<br>");
 		expect(editor.getValue()).toBe("```\nкод\n```\n\nтекст");
 	});
 });

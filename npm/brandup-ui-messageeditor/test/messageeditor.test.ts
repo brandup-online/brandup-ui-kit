@@ -127,8 +127,8 @@ describe("MessageEditor", () => {
 		editable.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
 
 		expect(editor.editor.multiline).toBe(true);
-		expect(editable.querySelectorAll("p")).toHaveLength(1); // абзац один, внутри мягкий перенос
-		expect(editable.querySelector("br")).not.toBeNull();
+		expect(editable.querySelectorAll("p")).toHaveLength(2); // новая строка — новый абзац
+		expect(editable.lastElementChild!.innerHTML).toBe("<br>"); // заполнитель пустой строки
 		expect(submit).not.toHaveBeenCalled();
 	});
 
@@ -543,7 +543,7 @@ describe("MessageEditor", () => {
 		const editor = new MessageEditor(input);
 
 		editor.editor.editable.focus();
-		caretAt(editor.editor.editable.querySelector("p")!.lastChild!, 0);
+		caretAt(editor.editor.editable.children[1].firstChild!, 0); // начало второй строки
 		editor.editor.insertText(" ");
 
 		openVariables(editor);
@@ -755,17 +755,15 @@ describe("MessageEditor", () => {
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).not.toBeNull();
 	});
 
-	// Значение не должно расходиться с тем, что видно: каждый \n — ровно один перенос на экране.
-	// Абзацными блоками `a\n\nb` рисовалось бы двумя <p>, а без отступов между ними это
-	// неотличимо от одного переноса.
+	// Значение не должно расходиться с тем, что видно: каждый \n — ровно одна строка на экране.
+	// Строка здесь и есть абзац, поэтому у абзацев нет отступов, а пустая строка — пустой абзац.
 	it.each([["раз\nдва"], ["раз\n\nдва"], ["раз\n\n\nдва"], ["одна строка"]])(
-		"renders %j as the same number of breaks and gives it back unchanged",
+		"renders %j as one paragraph per line and gives it back unchanged",
 		(value) => {
 			const { input } = setup({ value });
 			const editor = new MessageEditor(input);
 
-			expect(editor.editor.editable.querySelectorAll("p")).toHaveLength(1);
-			expect(editor.editor.editable.querySelectorAll("br")).toHaveLength(value.split("\n").length - 1);
+			expect(editor.editor.editable.querySelectorAll("p")).toHaveLength(value.split("\n").length);
 			expect(editor.getValue()).toBe(value);
 		}
 	);
@@ -951,18 +949,18 @@ describe("caret after a line with markup", () => {
 	it("stays on the new line", () => {
 		const { input } = setup({ value: "Привет, {ИМЯ}" });
 		const editor = new MessageEditor(input, { personalization: true });
-		const block = editor.editor.editable.firstElementChild!;
+		const editable = editor.editor.editable;
+		const block = editable.firstElementChild!;
 
 		caretAt(block, block.childNodes.length); // конец строки, сразу за конструкцией
 		pressEnter(editor);
 
-		const selection = window.getSelection()!;
-		const breaks = block.querySelectorAll("br");
-		expect(breaks).toHaveLength(2); // сам перенос и заполнитель новой строки
+		expect(editable.children).toHaveLength(2);
 
-		// каретка между переносом и заполнителем — это и есть новая строка
-		expect(selection.anchorNode).toBe(block);
-		expect(selection.anchorOffset).toBe(Array.from(block.childNodes).indexOf(breaks[0]) + 1);
+		// каретка в новой строке, а не в прежней
+		const next = editable.lastElementChild!;
+		expect(next.innerHTML).toBe("<br>"); // заполнитель пустой строки
+		expect(next.contains(window.getSelection()!.anchorNode)).toBe(true);
 	});
 
 	it("keeps typing on the new line", () => {

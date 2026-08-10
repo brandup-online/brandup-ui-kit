@@ -55,6 +55,7 @@ export {
 	createBlock,
 	normalizeWhitespace,
 	mergeAdjacentBlocks,
+	splitSoftBreaks,
 	normalizeParagraphs,
 	ensureParagraphs,
 	paragraphsNormalized,

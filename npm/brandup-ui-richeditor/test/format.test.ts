@@ -506,6 +506,7 @@ describe("paragraphsNormalized mirrors ensureParagraphs", () => {
 		["<div>чужой абзац</div>"],
 		["<p></p>"],
 		["<p><br></p>"],
+		["<p><b></b></p>"], // узлы есть, содержимого нет — тоже пустой абзац
 		["<p>a<br></p>"],
 		["<p>a<br><br></p>"],
 		["<p><br>a</p>"],

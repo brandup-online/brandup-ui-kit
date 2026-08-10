@@ -153,9 +153,25 @@ export function normalizeWhitespace(root: HTMLElement) {
 /**
  * Нормализует абзацы многострочного режима: удаляет пустые абзацы (без текстового содержимого).
  * Если содержимого нет вовсе — редактор остаётся пустым (показывается placeholder).
+ *
+ * В режиме мягких переносов (`softBreaks`) абзац — это строка: пустой абзац там осмыслен сам по
+ * себе (пустая строка сообщения) и не удаляется, а мягкий перенос внутри абзаца приводится
+ * к той же модели — делит его на строки-абзацы.
  */
-export function normalizeParagraphs(root: HTMLElement, merge = false) {
-	if (merge) mergeAdjacentBlocks(root);
+export function normalizeParagraphs(root: HTMLElement, softBreaks = false) {
+	if (softBreaks) {
+		mergeAdjacentBlocks(root);
+		splitSoftBreaks(root);
+
+		// Пустая строка здесь осмысленна сама по себе, поэтому пустые абзацы не удаляются —
+		// кроме случая, когда всё поле из них и состоит: в значение они не идут (хвост
+		// обрезается), а пока они в поле, оно не пустое и не покажет заглушку.
+		const lines = Array.from(root.children);
+		const blank = (el: Element) => blockTypeOf(el) === DEFAULT_BLOCK && !(el.textContent ?? "").trim();
+		if (lines.length && lines.every(blank)) for (const el of lines) el.remove();
+
+		return;
+	}
 
 	for (const el of Array.from(root.children)) {
 		// Пустой блок другого типа не трогаем: его завели осознанно и в него сейчас будут писать,
@@ -178,18 +194,18 @@ export function normalizeParagraphs(root: HTMLElement, merge = false) {
 }
 
 /**
- * Склеивает соседние блоки одного типа — в режиме мягких переносов, где граница между блоками
- * в значение не попадает. Подряд идущие строки с маркером цитаты разбор собирает в одну цитату,
- * а два обычных абзаца там и вовсе неразличимы: пустой строки между ними на экране нет, а в
- * значении она была бы. Два блока в поле показывали бы то, чего в сообщении не будет.
+ * Склеивает соседние блоки одного типа — в режиме мягких переносов, где граница между ними
+ * в значение не попадает: подряд идущие строки с маркером цитаты разбор собирает в одну цитату,
+ * и два блока в поле показывали бы то, чего в сообщении не будет.
  *
- * Блоки с ограждением (код) не трогаем: у них есть свои границы, и два подряд разбираются
+ * Обычные абзацы не трогаем: там граница блоков — это перевод строки, и она в значение как раз
+ * попадает. Блоки с ограждением (код) — тоже: у них есть свои границы, и два подряд разбираются
  * ровно как два.
  */
 export function mergeAdjacentBlocks(root: HTMLElement) {
 	for (const el of Array.from(root.children) as HTMLElement[]) {
 		const type = blockTypeOf(el);
-		if (!type || BLOCK_TYPES[type].fence) continue;
+		if (!type || type === DEFAULT_BLOCK || BLOCK_TYPES[type].fence) continue;
 
 		const previous = el.previousElementSibling;
 		if (!previous || blockTypeOf(previous) !== type) continue;
@@ -201,6 +217,46 @@ export function mergeAdjacentBlocks(root: HTMLElement) {
 
 		while (el.firstChild) previous.appendChild(el.firstChild);
 		el.remove();
+	}
+}
+
+/**
+ * Делит обычные абзацы по мягким переносам — в режиме, где абзац это строка. Собственный перенос
+ * приходит извне (вставка документа, чужое значение), и без деления одна строка модели была бы
+ * то `<br>`, то границей абзацев.
+ *
+ * Хвостовой перенос строкой не считается: это заполнитель, которым браузер показывает последнюю
+ * пустую строку (см. ensureParagraphs), — от него делить нечего.
+ */
+export function splitSoftBreaks(root: HTMLElement) {
+	for (const el of Array.from(root.children) as HTMLElement[]) {
+		if (blockTypeOf(el) !== DEFAULT_BLOCK) continue;
+
+		const parts: ChildNode[][] = [[]];
+		for (const node of Array.from(el.childNodes)) {
+			if (node.nodeName === "BR") parts.push([]);
+			else parts[parts.length - 1].push(node);
+		}
+		if (parts.length === 1) continue;
+
+		// Перенос, спрятанный внутри инлайнового тега (мягкий перенос его не разрезает), делит
+		// строки наравне с верхним, но по границам тега — с ним и хвостовой перенос абзаца уже
+		// не обязательно заполнитель. Такой абзац оставляем как есть: делить его по половине
+		// переносов значило бы терять строки.
+		if (el.querySelectorAll("br").length !== parts.length - 1) continue;
+
+		const empty = (nodes: ChildNode[]) => !nodes.some((node) => node.textContent);
+		if (empty(parts[parts.length - 1])) parts.pop();
+
+		el.replaceWith(
+			...parts.map((nodes) => {
+				const p = document.createElement(BLOCK_TYPES[DEFAULT_BLOCK].tag);
+				for (const node of nodes) p.appendChild(node);
+				if (empty(nodes)) p.appendChild(document.createElement("br")); // заполнитель пустой строки
+
+				return p;
+			})
+		);
 	}
 }
 
@@ -217,7 +273,7 @@ export function paragraphsNormalized(root: HTMLElement): boolean {
 	for (const node of root.childNodes) {
 		const el = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
 		if (!el || !isBlock(el) || el.tagName === "DIV") return false;
-		if (!el.firstChild) return false;
+		if (!(el.textContent ?? "") && !el.querySelector("br")) return false;
 
 		const tail = el.lastChild!;
 		if (tail.nodeName === "BR" && tail.previousSibling?.nodeName !== "BR" && (el.textContent ?? "").length > 0)
@@ -266,7 +322,11 @@ export function ensureParagraphs(root: HTMLElement): boolean {
 	flushRun(null);
 
 	for (const p of Array.from(root.children) as HTMLElement[]) {
-		if (!p.firstChild) {
+		// Пустой абзац опознаём по содержимому, а не по наличию узлов: из буфера обмена приходят
+		// абзацы из одних пробелов, и после обрезки в них остаются пустые текстовые узлы. Без
+		// заполнителя такой абзац не занимает строки, и в режиме мягких переносов склейка теряет
+		// его вместе с пустой строкой между абзацами (см. mergeAdjacentBlocks).
+		if (!(p.textContent ?? "") && !p.querySelector("br")) {
 			p.appendChild(document.createElement("br")); // пустой абзац — заполнитель для видимости строки
 			changed = true;
 			continue;
