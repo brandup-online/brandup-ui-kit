@@ -16,11 +16,14 @@ import RichEditor, {
 	type ToolbarButton,
 } from "@brandup/ui-richeditor";
 import {
-	CARET_ANCHOR,
+	anchorAfter,
 	highlight,
+	mapVariableNames,
 	markupAt,
+	markupBeside,
 	mayHaveMarkup,
 	unknownVariables as findUnknownVariables,
+	withoutAnchors,
 	MARKUP_SELECTOR,
 	VARIABLE_CLASS,
 	type VariableNames,
@@ -53,11 +56,6 @@ export const CHANGE_EVENT = "messageeditor-change";
 
 /** Формат хранения значения: сообщение уходит разметкой мессенджеров, а не HTML. */
 const STORAGE: FormatStorage = "markdown";
-
-const ANCHORS = new RegExp(CARET_ANCHOR, "g");
-
-/** Снимает опоры каретки: в поле они нужны, в сообщении — нет. */
-const withoutAnchors = (value: string) => value.replace(ANCHORS, "");
 
 /**
  * Режимы показа: сообщение и его выход. Подпись выхода — название разметки, знакомое пишущему
@@ -333,14 +331,15 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		});
 		this.__attachEditor(editor);
 
-		// приводим носитель значения к нормализованному содержимому редактора (без события)
-		this.__valueElem.value = this.__messageValue();
-
 		this.__initLogic();
 		if (emojiElem && emojiHolder) this.__initEmoji(emojiElem, emojiHolder);
 		if (modes) this.__initModes(modes.elem, modes.buttons);
 
 		this.__highlight(); // начальное значение события change не поднимает
+
+		// Носитель приводим к содержимому редактора после подсветки: она подменяет написанные
+		// названия переменных ключами (см. __mapNames), и в форму значение обязано уйти с ключами.
+		this.__valueElem.value = this.__messageValue();
 	}
 
 	private __initLogic() {
@@ -348,7 +347,17 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		const editable = this.__inputElem;
 
 		this.__editor.onChange((data) => {
-			this.__valueElem.value = withoutAnchors(data.value);
+			// Подсветка идёт до записи значения: она подменяет написанные названия переменных
+			// ключами (см. __mapNames), и записанное раньше неё ушло бы хосту названием, которого
+			// в поле уже нет. Пересчитываем значение только тогда, когда подмена что-то нашла:
+			// сериализация недешёвая, а меняет текст она редко.
+			//
+			// Destroying the editor flushes the deferred change: the host must still get the value,
+			// but rebuilding the highlight is pointless — the field is going away, and moving the
+			// caret inside it even more so.
+			const remapped = !this.__disposing && this.__highlight();
+
+			this.__valueElem.value = remapped ? this.__messageValue() : withoutAnchors(data.value);
 
 			// Значение перечитываем у поля-носителя, а не берём записанное: браузер приводит его
 			// по типу поля — input, например, срезает переносы строк, — и хост обязан получить
@@ -356,16 +365,9 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 			// значение только что записали, а не ещё одна синхронизация с редактором.
 			const value = this.__valueElem.value;
 
-			// Destroying the editor flushes the deferred change: the host must still get the value,
-			// but rebuilding the highlight is pointless — the field is going away, and moving the
-			// caret inside it even more so.
-			if (!this.__disposing) {
-				this.__highlight();
-
-				// Показанный выход следует за значением: пока панель открыта, менять его может
-				// и хост через setValue, и окно правки, открытое до переключения.
-				if (this.sourceMode) this.__renderSource();
-			}
+			// Показанный выход следует за значением: пока панель открыта, менять его может
+			// и хост через setValue, и окно правки, открытое до переключения.
+			if (!this.__disposing && this.sourceMode) this.__renderSource();
 
 			// Подпись невалидности следует за значением — ровно одной проверкой на изменение.
 			// Помеченное невалидным поле перепроверяем целиком: validate() освежает подпись сам
@@ -386,6 +388,9 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		// Клик мимо текста — тоже клик по полю: плашка выглядит и ведёт себя как одно поле ввода,
 		// а её поля и место справа от текста в редактируемый элемент не входят.
 		this.element.addEventListener("mousedown", (e) => this.__focusFromBubble(e), { signal });
+
+		// стирание конструкций — до нативного удаления: рядом с ними оно ненадёжно (см. __deleteMarkup)
+		editable.addEventListener("keydown", (e) => this.__deleteMarkup(e), { signal });
 
 		// правка конструкций — только через своё окно: в тексте они атомарны
 		editable.addEventListener(
@@ -480,25 +485,79 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	}
 
 	/**
-	 * Подсветка спинтакса и переменных. Текст от неё не меняется, поэтому каретка
+	 * Подсветка спинтакса и переменных. Сама подсветка текст не меняет, поэтому каретка
 	 * восстанавливается по смещениям точно; возвращаем её всякий раз, когда разметку
 	 * перестраивали, — обёртки собираются заново, и старое выделение указывало бы в никуда.
 	 *
+	 * Возвращает true, если текст поля всё же изменился — написанное название переменной стало
+	 * ключом (см. {@link __mapNames}): посчитанное до этого значение разошлось бы с полем.
+	 *
 	 * Во время IME-композиции не вмешиваемся: перестановка каретки прервала бы набор.
 	 */
-	private __highlight() {
-		if (this.__composing) return;
+	private __highlight(): boolean {
+		if (this.__composing) return false;
 
 		const options = { names: this.__names, variables: this.personalization };
 
 		// Снимок каретки для preserveCaret не бесплатен: он считает смещения обходом содержимого,
 		// и на обычном наборе — где ни конструкций, ни обёрток нет — доставался бы зря на каждый
 		// ввод. Поэтому дешёвая проверка идёт до снимка, а не только внутри highlight().
-		if (!mayHaveMarkup(this.__inputElem, options)) return;
+		if (!mayHaveMarkup(this.__inputElem, options)) return false;
+
+		// Название вместо ключа подменяем до подсветки: она обязана сохранять текст — по нему
+		// возвращается каретка, — а подмена его меняет.
+		const mapped = this.__mapNames();
 
 		preserveCaret(this.__inputElem, () => highlight(this.__inputElem, options));
 
 		this.__escapeMarkup();
+
+		return mapped;
+	}
+
+	/**
+	 * Приводит написанное название переменной к её ключу (см. {@link mapVariableNames}).
+	 * Возвращает true, если текст поля изменился.
+	 *
+	 * Пока проверять не по чему, не трогаем ничего: без объявленного списка названий нет, а
+	 * без персонализации `{ИМЯ}` — обычный текст. Во время IME-композиции — тоже: подмена
+	 * под набором прервала бы его.
+	 */
+	private __mapNames(): boolean {
+		if (this.__composing || !this.__checksVariables) return false;
+
+		return mapVariableNames(this.__inputElem, this.__names);
+	}
+
+	/**
+	 * Backspace и Delete у конструкции стирают её целиком.
+	 *
+	 * Конструкция неделима — стереть в ней символ нельзя, — а нативное удаление рядом с
+	 * нередактируемым элементом браузеры делают по-разному: где-то он сперва выделяется, где-то
+	 * исчезает разом. Вдобавок за конструкцией в конце строки стоит невидимая опора каретки
+	 * (см. CARET_ANCHOR), и нажатие уходило бы на неё: опору тут же возвращает подсветка, и
+	 * набранную с клавиатуры переменную не получалось бы стереть вовсе.
+	 *
+	 * Удаление словами и строками (Ctrl, Alt, Cmd) оставляем браузеру: это правка текста вокруг,
+	 * а не самой конструкции.
+	 */
+	private __deleteMarkup(e: KeyboardEvent) {
+		if (e.defaultPrevented || this.disabled || this.readonly || this.__composing) return;
+
+		const back = e.key === "Backspace";
+		if ((!back && e.key !== "Delete") || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+
+		const selection = this.__editor.selection;
+		if (!selection) return;
+
+		const span = markupBeside(this.__inputElem, selection, back);
+		if (!span) return;
+
+		e.preventDefault();
+
+		// вместе с конструкцией уходит и её опора: держать место больше не за чем
+		const anchor = anchorAfter(span);
+		this.__editor.deleteNodes(anchor ? [span, anchor] : [span]);
 	}
 
 	/**

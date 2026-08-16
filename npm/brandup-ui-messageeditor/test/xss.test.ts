@@ -54,14 +54,18 @@ describe("text is never rendered as markup", () => {
 		expect(empty.textContent).toBe(PAYLOAD);
 	});
 
-	it("keeps a highlighted variable key as text", () => {
+	it("keeps a highlighted variable key and label as text", () => {
 		const root = document.createElement("div");
 		root.textContent = `{${PAYLOAD}}`;
 
-		highlight(root, { names: new Map([[PAYLOAD, "Имя"]]) });
+		highlight(root, { names: new Map([[PAYLOAD, PAYLOAD]]) });
 
-		const key = root.querySelector<HTMLElement>(".variable .key")!;
-		expect(key.querySelector("img")).toBeNull();
-		expect(key.textContent).toBe(`{${PAYLOAD}}`);
+		const variable = root.querySelector<HTMLElement>(".variable")!;
+		expect(variable.querySelector("img")).toBeNull();
+		// ключ — в своей обёртке, скобки вокруг него — в своих; текст конструкции цел
+		expect(variable.querySelector<HTMLElement>(".key")!.textContent).toBe(PAYLOAD);
+		expect(variable.textContent).toBe(`{${PAYLOAD}}`);
+		// подпись рисуется оформлением из атрибута — разметкой она не станет и там
+		expect(variable.querySelector<HTMLElement>(".label")!.dataset.label).toBe(PAYLOAD);
 	});
 });

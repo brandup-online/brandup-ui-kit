@@ -53,14 +53,18 @@ describe("MessageEditor highlighting", () => {
 		const spans = editor.editor.editable.querySelectorAll<HTMLElement>("span.variable");
 		expect(spans).toHaveLength(2);
 
-		// с названием: на экран уходит оно — в скобках, как и ключ, — а ключ спрятан в обёртке
-		expect(spans[0].getAttribute("data-label")).toBe("{Имя подписчика}");
-		expect(spans[0].querySelector(".key")!.textContent).toBe("{ИМЯ}");
+		// с названием: на экран оно уходит оформлением пустой обёртки, а ключ спрятан в своей.
+		// Скобки — в обёртках символов конструкции, и текст от этого прежний.
+		expect(spans[0].querySelector<HTMLElement>(".label")!.dataset.label).toBe("Имя подписчика");
+		expect(spans[0].querySelector(".label")!.textContent).toBe(""); // текста у подписи нет
+		expect(spans[0].querySelector(".key")!.textContent).toBe("ИМЯ");
+		expect(Array.from(spans[0].querySelectorAll(".mark")).map((m) => m.textContent)).toEqual(["{", "}"]);
 		expect(spans[0].textContent).toBe("{ИМЯ}");
 
-		// без названия — как было, ключ прямо в обёртке
-		expect(spans[1].getAttribute("data-label")).toBeNull();
+		// без названия — подписи нет вовсе, ключ лежит между скобками обычным текстом
+		expect(spans[1].querySelector(".label")).toBeNull();
 		expect(spans[1].querySelector(".key")).toBeNull();
+		expect(spans[1].textContent).toBe("{ГОРОД}");
 
 		expect(editor.getValue()).toBe("Привет, {ИМЯ} и {ГОРОД}!");
 	});
@@ -190,6 +194,38 @@ describe("MessageEditor highlighting", () => {
 
 		expect(editor.editor.editable.querySelector("span")).toBeNull();
 		expect(editor.getValue()).toBe("ИМЯ");
+	});
+});
+
+// Скобки и разделитель вариантов оформляются отдельно от содержимого (отступ, а дальше и цвет),
+// поэтому у каждого своя обёртка. Текст конструкции при этом обязан остаться прежним: из него
+// собирается значение сообщения.
+describe("MessageEditor markup characters", () => {
+	const marks = (span: Element) => Array.from(span.querySelectorAll(".mark")).map((m) => m.textContent);
+
+	it.each([
+		["{ИМЯ}", "span.variable", ["{", "}"]],
+		["[раз|два]", "span.spintax", ["[", "|", "]"]],
+		["[раз|два|три]", "span.spintax", ["[", "|", "|", "]"]],
+		["[|два]", "span.spintax", ["[", "|", "]"]], // пустому варианту узла не достаётся
+	])("wraps the characters of %s", (value, selector, expected) => {
+		const editor = setup(value as string);
+		const span = editor.editor.editable.querySelector(selector as string)!;
+
+		expect(marks(span)).toEqual(expected);
+		expect(span.textContent).toBe(value); // текст конструкции цел
+		expect(editor.getValue()).toBe(value);
+	});
+
+	// Варианты стали отдельными узлами, а нормализация пробелов идёт по всей строке разом:
+	// схлопни она пробел на границе узла — значение разошлось бы с набранным.
+	it("keeps the spaces inside variants through normalization", () => {
+		const value = "Дарим [скидку сегодня | подарок к заказу] всем";
+		const editor = setup(value);
+
+		editor.editor.editable.dispatchEvent(new FocusEvent("blur")); // конец правки — нормализация
+
+		expect(editor.getValue()).toBe(value);
 	});
 });
 
