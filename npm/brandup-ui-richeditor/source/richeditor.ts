@@ -11,6 +11,7 @@ import {
 	blockAt,
 	blockTypeOf,
 	blocksInRange,
+	cleanupFormatting,
 	clearAllFormat,
 	clearFormat,
 	defaultFormatMarkers,
@@ -447,6 +448,52 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 		this.__history?.record("op");
 		this.__insertText(text);
+	}
+
+	/**
+	 * Удаляет узлы содержимого одной правкой: с записью в историю, кареткой на их месте и одним
+	 * изменением значения. Каретка встаёт туда, где стоял первый узел списка, поэтому передавать
+	 * их нужно в порядке текста.
+	 *
+	 * Для неделимых объектов хоста (`contenteditable="false"`): в тексте они атомарны, и стирать
+	 * их приходится целиком, а нативное удаление рядом с ними браузеры делают по-разному — где-то
+	 * объект сперва выделяется, где-то исчезает разом. Что именно удалить, решает хост — он же
+	 * свои объекты и собирал; редактор проводит это как свою правку.
+	 */
+	deleteNodes(nodes: Node[]): void {
+		if (this.readonly) return;
+
+		// только своё: чужие узлы правке не подлежат, сам редактируемый элемент — тем более
+		const targets = nodes.filter((node) => node !== this.editable && this.editable.contains(node));
+		if (!targets.length) return;
+
+		this.__history?.record("op");
+
+		// Место каретки запоминаем текстовым смещением до правки: узлы исчезнут, а соседние тексты
+		// склеятся — живой Range после этого указывал бы в никуда.
+		const range = this.editable.ownerDocument.createRange();
+		range.setStartBefore(targets[0]);
+		range.collapse(true);
+		const caret = selectionCharBounds(this.editable, range)[0];
+		// выделение снимаем до правки: удаляемое могло его и держать
+		const selection = this.selection;
+
+		targets.forEach((node) => node.parentNode?.removeChild(node));
+
+		// Опустевшее оформление убираем, а соседние тексты склеиваем: несклеенные, они мешают
+		// и разбору значения, и смещениям каретки. Без форматирования хватает склейки.
+		if (this.format) cleanupFormatting(this.editable);
+		else this.editable.normalize();
+
+		if (this.multiline) this.__ensureParagraphs(); // опустевший абзац получает заполнитель
+		this.__clearEmptyContent(); // стёрли последнее — возвращаем заглушку
+
+		if (selection) {
+			restoreSelection(this.editable, caret, caret, selection);
+			this.__scrollCaretIntoView(); // правка из кода браузерной прокрутки к каретке не даёт
+		}
+
+		this.__emitChange();
 	}
 
 	/**
@@ -1359,17 +1406,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		editable.addEventListener(
 			"input",
 			() => {
-				if (this.multiline) {
-					this.__ensureParagraphs(); // блуждающий текст/div → <p>
+				if (this.multiline) this.__ensureParagraphs(); // блуждающий текст/div → <p>
+				this.__clearEmptyContent();
 
-					// единственный пустой абзац → очищаем, чтобы показать placeholder
-					if (editable.children.length === 1) {
-						const only = editable.firstElementChild!;
-						if (only.tagName === "P" && (only.textContent ?? "") === "") DOM.empty(editable);
-					}
-				} else if (editable.firstChild?.nodeName === "BR") {
-					editable.innerHTML = "";
-				}
 				// При наборе браузер прокручивает к каретке сам, но доводит её лишь до края
 				// коробки — под отступы контейнера. Доводим до текста.
 				this.__scrollCaretIntoView();
@@ -1447,6 +1486,22 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (paragraphsNormalized(this.editable)) return;
 
 		preserveCaret(this.editable, () => ensureParagraphs(this.editable));
+	}
+
+	/**
+	 * Очищает содержимое, от которого остался один пустой каркас: абзац с заполнителем или
+	 * висящий `<br>`. Без этого не показывается заглушка — стёртое поле выглядит непустым.
+	 */
+	private __clearEmptyContent() {
+		if (!this.multiline) {
+			if (this.editable.firstChild?.nodeName === "BR") this.editable.innerHTML = "";
+			return;
+		}
+
+		if (this.editable.children.length !== 1) return;
+
+		const only = this.editable.firstElementChild!;
+		if (only.tagName === "P" && (only.textContent ?? "") === "") DOM.empty(this.editable);
 	}
 
 	private __onKeydown(e: KeyboardEvent) {

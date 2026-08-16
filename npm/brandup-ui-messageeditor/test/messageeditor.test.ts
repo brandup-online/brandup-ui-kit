@@ -635,7 +635,8 @@ describe("MessageEditor", () => {
 
 		const span = editor.editor.editable.querySelector<HTMLElement>("span.variable")!;
 		editor.editor.editable.focus();
-		caretAt(span.firstChild!, 2); // клик пришёлся внутрь конструкции
+		// клик пришёлся внутрь конструкции: первый её узел — обёртка скобки, за ней ключ
+		caretAt(span.childNodes[1], 2);
 		span.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		editor.editor.editable.blur();
 

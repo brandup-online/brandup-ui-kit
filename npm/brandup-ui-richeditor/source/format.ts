@@ -42,6 +42,7 @@ export {
 	linkAt,
 	clearFormat,
 	clearAllFormat,
+	cleanupFormatting,
 	hasFormatting,
 	hasAnyFormatting,
 	insertFormattedText,
