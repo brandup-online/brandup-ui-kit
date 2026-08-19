@@ -15,6 +15,8 @@ export interface ModalOptions {
 	className?: string | null;
 	/** Закрывать по клику вне окна (по умолчанию да). */
 	closeOnBackdrop?: boolean;
+	/** Крестик в шапке (по умолчанию да). */
+	closeButton?: boolean;
 }
 
 /**
@@ -43,8 +45,25 @@ export default abstract class Modal extends UIElement {
 
 		const body = DOM.tag("div", { class: "modal-body" });
 
-		// закрытие — через систему команд, как у остальных контролов кита; крестик и подложка
-		// объявляют одну и ту же команду, обработчик находит её по ближайшему data-command
+		// the title is host data — text, not markup (see textTag)
+		const title = options.title ? textTag("div", { class: "modal-title" }, options.title) : null;
+
+		// Закрытие — через систему команд, как у остальных контролов кита: крестик и подложка
+		// объявляют одну и ту же команду, обработчик находит её по ближайшему data-command.
+		// Крестик убирают у окна, которое обязано кончиться выбором внутри тела; Esc и подложка
+		// при этом остаются на своих настройках — места в шапке они не занимают.
+		const closeButton =
+			options.closeButton === false
+				? null
+				: DOM.tag(
+						"button",
+						{ type: "button", class: "modal-close", title: "Закрыть", command: MODAL_CLOSE_COMMAND },
+						closeIcon
+					);
+
+		// шапки нет вовсе, когда показывать в ней нечего: пустая занимала бы отступ над телом
+		const header = title || closeButton ? DOM.tag("div", { class: "modal-header" }, [title, closeButton]) : null;
+
 		const root = DOM.tag("div", { class: [MODAL_CLASS].concat(options.className ? [options.className] : []) }, [
 			DOM.tag(
 				"div",
@@ -52,18 +71,7 @@ export default abstract class Modal extends UIElement {
 					? { class: "modal-backdrop" }
 					: { class: "modal-backdrop", command: MODAL_CLOSE_COMMAND }
 			),
-			DOM.tag("div", { class: "modal-window", role: "dialog", "aria-modal": "true" }, [
-				DOM.tag("div", { class: "modal-header" }, [
-					// the title is host data — text, not markup (see textTag)
-					options.title ? textTag("div", { class: "modal-title" }, options.title) : null,
-					DOM.tag(
-						"button",
-						{ type: "button", class: "modal-close", title: "Закрыть", command: MODAL_CLOSE_COMMAND },
-						closeIcon
-					),
-				]),
-				body,
-			]),
+			DOM.tag("div", { class: "modal-window", role: "dialog", "aria-modal": "true" }, [header, body]),
 		]);
 
 		this.__body = body;
