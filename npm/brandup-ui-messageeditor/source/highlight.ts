@@ -231,6 +231,29 @@ function isHighlighted(root: HTMLElement, pattern: RegExp): boolean {
 		if (!match || match[0] !== text) return false;
 	}
 
+	const { run, wrapped } = collectRun(root);
+
+	pattern.lastIndex = 0; // общий g-объект: matchAll стартует с его lastIndex
+
+	for (const match of run.matchAll(pattern)) {
+		const start = match.index;
+		const end = start + match[0].length;
+
+		if (!wrapped.some(([from, to]) => from === start && to === end)) return false;
+	}
+
+	return true;
+}
+
+/**
+ * Текст содержимого одной строкой — так, как его видят выражения конструкций: идущие подряд
+ * текстовые узлы склеены, текст обёрток входит целиком, а разрывы строк — переносами
+ * (конструкция строку не пересекает, и склейка через разрыв давала бы ложное совпадение).
+ *
+ * Вместе с текстом отдаются границы обёрток в нём: они нужны проверке соответствия разметки
+ * ({@link isHighlighted}), а собирать их отдельным обходом значило бы пройти дерево дважды.
+ */
+function collectRun(root: HTMLElement): { run: string; wrapped: Array<[number, number]> } {
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
 	let run = "";
 	const wrapped: Array<[number, number]> = [];
@@ -254,16 +277,64 @@ function isHighlighted(root: HTMLElement, pattern: RegExp): boolean {
 		run += (node as Text).data;
 	}
 
+	return { run, wrapped };
+}
+
+/** Сколько символов отводится переменной при подсчёте длины, пока хост не задал своего. */
+export const DEFAULT_VARIABLE_LENGTH = 30;
+
+// Из настроек подсветки длине нужна одна: объявленные переменные на счёт не влияют — считается
+// подставляемое значение, а не название. Приняв их, счёт обещал бы поправку, которой не делает.
+export interface LengthOptions extends Pick<HighlightOptions, "variables"> {
+	/**
+	 * Сколько символов считать вместо переменной: подставленное значение длиннее ключа,
+	 * и точной длины у сообщения с переменными нет — только оценка.
+	 * По умолчанию — {@link DEFAULT_VARIABLE_LENGTH}.
+	 */
+	variableLength?: number;
+}
+
+/**
+ * Длина сообщения с поправкой на конструкции: спинтакс считается самым длинным вариантом
+ * (в отправку уйдёт один из них, и лимит обязан выдержать любой), переменная — условной длиной
+ * подставляемого значения. Вложенных конструкций нет (см. {@link writtenVariables}): переменная
+ * внутри варианта спинтакса — часть его текста и считается по буквам.
+ *
+ * Длина оценивается по видимому тексту, как в textbox: в сериализованном значении маркеры
+ * форматирования, и они получателю не показываются. Обрезана по краям — ровно как значение,
+ * которое уходит хосту (`getValue()` контрола возвращает его обрезанным).
+ *
+ * С выключенной подсветкой переменных (`variables: false`) `{ИМЯ}` — обычный текст,
+ * и считается он по буквам, ровно как показывается.
+ */
+export function messageLength(root: HTMLElement, options: LengthOptions = {}): number {
+	const pattern = options.variables === false ? SPINTAX_ONLY : WITH_VARIABLES;
+	const variableLength = options.variableLength ?? DEFAULT_VARIABLE_LENGTH;
+
+	// опоры каретки — служебные символы поля: в сообщение они не уходят и в длину не входят
+	const text = withoutAnchors(collectRun(root).run).trim();
+
+	let length = text.length;
+
 	pattern.lastIndex = 0; // общий g-объект: matchAll стартует с его lastIndex
 
-	for (const match of run.matchAll(pattern)) {
-		const start = match.index;
-		const end = start + match[0].length;
+	for (const match of text.matchAll(pattern)) {
+		const construct = match[0];
+		const key = variableKey(construct);
+		const counted =
+			key === null
+				? Math.max(
+						...construct
+							.slice(1, -1)
+							.split(SPINTAX_SEPARATOR)
+							.map((variant) => variant.length)
+					)
+				: variableLength;
 
-		if (!wrapped.some(([from, to]) => from === start && to === end)) return false;
+		length += counted - construct.length;
 	}
 
-	return true;
+	return length;
 }
 
 /**

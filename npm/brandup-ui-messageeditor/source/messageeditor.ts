@@ -22,8 +22,10 @@ import {
 	markupAt,
 	markupBeside,
 	mayHaveMarkup,
+	messageLength as countLength,
 	unknownVariables as findUnknownVariables,
 	withoutAnchors,
+	DEFAULT_VARIABLE_LENGTH,
 	MARKUP_SELECTOR,
 	VARIABLE_CLASS,
 	type VariableNames,
@@ -167,6 +169,15 @@ export interface MessageEditorOptions {
 	 * Без этой опции берётся из разметки: атрибут `data-source` поля-носителя.
 	 */
 	source?: boolean;
+	/**
+	 * Сколько символов отводится переменной при подсчёте {@link MessageEditor.messageLength};
+	 * по умолчанию — 30 ({@link DEFAULT_VARIABLE_LENGTH}).
+	 * Ключ в тексте — не длина значения: `{ИМЯ}` может развернуться и в «Александра Константиновна».
+	 * Сколько на самом деле — знает приложение, оно и задаёт.
+	 *
+	 * Без этой опции берётся из атрибута `data-variable-length` поля-носителя.
+	 */
+	variableLength?: number;
 }
 
 type MessageEditorEvents = {
@@ -206,6 +217,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	readonly blocks: BlockType[];
 	readonly tools: FormatTool[];
 	readonly source: boolean;
+	readonly variableLength: number;
 
 	constructor(valueElem: HTMLInputElement | HTMLTextAreaElement, options: MessageEditorOptions = {}) {
 		const placeholder = valueElem.getAttribute("placeholder");
@@ -293,6 +305,13 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		this.__inputElem = inputElem;
 		this.source = source;
 		this.__sourceTextElem = sourceTextElem;
+		// Негодная длина переменной — умолчание, а не ноль: Number("") и Number(" ") дают 0,
+		// и пустой атрибут молча выключал бы поправку, которую никто не выключал. Дробная — тоже
+		// негодная: длина считается в символах, и половина символа не бывает.
+		const variableLengthAttr = valueElem.dataset.variableLength?.trim();
+		const variableLength = options.variableLength ?? (variableLengthAttr ? Number(variableLengthAttr) : NaN);
+		this.variableLength =
+			Number.isInteger(variableLength) && variableLength >= 0 ? variableLength : DEFAULT_VARIABLE_LENGTH;
 
 		const editor = new RichEditor(inputElem, {
 			placeholder,
@@ -459,6 +478,21 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		this.__valueElem.setCustomValidity(
 			unknown.length ? `Неизвестные переменные: ${unknown.map(buildVariable).join(", ")}.` : ""
 		);
+	}
+
+	/**
+	 * Длина сообщения с поправкой на конструкции: спинтакс считается самым длинным вариантом
+	 * (в отправку уйдёт один из них, и лимит обязан выдержать любой), переменная — условной
+	 * длиной подставляемого значения ({@link variableLength}). Без персонализации `{ИМЯ}` —
+	 * обычный текст и считается по буквам, ровно как показывается.
+	 *
+	 * Считается на месте, по текущему содержимому: свой лимит канала хост проверяет сам.
+	 */
+	get messageLength(): number {
+		return countLength(this.__inputElem, {
+			variables: this.personalization,
+			variableLength: this.variableLength,
+		});
 	}
 
 	/**
