@@ -45,4 +45,36 @@ describe("Modal", () => {
 
 		expect(modal.element!.querySelector(".modal-title")).toBeNull();
 	});
+
+	it("renders the close button by default", () => {
+		const modal = open(new TestModal());
+
+		expect(modal.element!.querySelector(".modal-close")).not.toBeNull();
+	});
+
+	// the button is dropped from the markup, not hidden by styles: a hidden one is still
+	// reachable by keyboard
+	it("renders no close button when it is turned off", () => {
+		const modal = open(new TestModal({ title: "Заголовок", closeButton: false }));
+
+		expect(modal.element!.querySelector(".modal-close")).toBeNull();
+		expect(modal.element!.querySelector(".modal-header")).not.toBeNull();
+	});
+
+	// an empty header would still take its padding above the body
+	it("renders no header without a title and a close button", () => {
+		const modal = open(new TestModal({ closeButton: false }));
+
+		expect(modal.element!.querySelector(".modal-header")).toBeNull();
+	});
+
+	// Esc and the backdrop have their own settings — dropping the button leaves them alone
+	it("still closes by Esc without the close button", () => {
+		const modal = open(new TestModal({ closeButton: false }));
+
+		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+
+		expect(document.querySelector(".ui-modal")).toBeNull();
+		expect(modal.element).toBeUndefined();
+	});
 });
