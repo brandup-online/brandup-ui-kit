@@ -1,3 +1,17 @@
-export const IS_TOUCH_DEVICE = window.document.documentElement
-	? "ontouchstart" in window.document.documentElement
-	: false;
+// Признаки окружения читаются при загрузке модуля, поэтому проверяем и само окружение:
+// пакет собирают и там, где DOM появится позже или не появится вовсе (серверный рендер).
+const HAS_DOM = typeof window !== "undefined" && !!window.document?.documentElement;
+
+export const IS_TOUCH_DEVICE = HAS_DOM && "ontouchstart" in window.document.documentElement;
+
+/**
+ * Грубый ли основной указатель — палец или стилус, то есть точного наведения нет, а текст
+ * вводят экранной клавиатурой.
+ *
+ * Не то же, что {@link IS_TOUCH_DEVICE}: тот отвечает «есть ли у устройства сенсор», и ноутбук
+ * с сенсорным экраном попадает в него наравне с телефоном, хотя работают на нём мышью.
+ *
+ * Спрашиваем при каждом вызове, а не один раз при загрузке: на гибридных устройствах ответ
+ * меняется по ходу работы — планшет ставят в док-станцию с мышью и обратно.
+ */
+export const isCoarsePointer = (): boolean => (HAS_DOM && window.matchMedia?.("(pointer: coarse)").matches) ?? false;

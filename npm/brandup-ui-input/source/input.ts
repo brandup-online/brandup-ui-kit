@@ -1,10 +1,74 @@
 import { UIElementBound } from "@brandup/ui";
+// Из кита берём ровно два признака и берём их напрямую: его общий вход тянет за собой попап,
+// модальное окно, стили и @brandup/ui-app — базе ввода это не нужно, а сборке пакета мешает.
+import { isCoarsePointer } from "@brandup/ui-kit/source/utils/compatibility";
+import { hasUserScrolled } from "@brandup/ui-kit/source/utils/user-scroll";
 import "./input.less";
 
 type InputType = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
 type FormInput<T> = T extends InputType ? T : never;
 
 export const INPUT_CSS_CLASS = "ui-input";
+
+/** Контрол, ждущий появления в документе: `__onConnected` возвращает `true`, когда дождался. */
+interface ConnectedWaiter {
+	__onConnected(): boolean;
+}
+
+/**
+ * Ждущие контролы — слабыми ссылками, и наблюдатель один на документ.
+ *
+ * Один на документ, потому что вставку страницы видит любой, а каждый лишний наблюдатель платит
+ * обходом всех мутаций документа. Слабыми, потому что контрол, собранный во фрагмент и там же
+ * выброшенный, ждать иначе не перестанет: авторазрушение снимает контрол, удалённый из документа,
+ * а никогда не вставленный не удаляют — сильная ссылка держала бы и его, и всё его дерево
+ * до ухода со страницы.
+ *
+ * Наблюдатель живёт, только пока есть кого ждать: последнее снятое ожидание его отключает.
+ */
+const connectedWaiters = new Map<Document, { observer: MutationObserver; waiters: Set<WeakRef<ConnectedWaiter>> }>();
+
+function waitConnected(doc: Document, waiter: WeakRef<ConnectedWaiter>): void {
+	let entry = connectedWaiters.get(doc);
+
+	if (!entry) {
+		const observer = new MutationObserver(() => {
+			const current = connectedWaiters.get(doc);
+			if (!current) return;
+
+			for (const ref of [...current.waiters]) {
+				const pending = ref.deref();
+				if (!pending || pending.__onConnected()) current.waiters.delete(ref); // убранный сборщиком тоже отжил
+			}
+
+			if (!current.waiters.size) stopObserving(doc);
+		});
+
+		connectedWaiters.set(doc, (entry = { observer, waiters: new Set() }));
+		observer.observe(doc, { childList: true, subtree: true });
+	}
+
+	entry.waiters.add(waiter);
+}
+
+function stopWaitConnected(doc: Document, waiter: WeakRef<ConnectedWaiter>): void {
+	const entry = connectedWaiters.get(doc);
+	if (!entry?.waiters.delete(waiter) || entry.waiters.size) return;
+
+	stopObserving(doc);
+}
+
+function stopObserving(doc: Document): void {
+	connectedWaiters.get(doc)?.observer.disconnect();
+	connectedWaiters.delete(doc);
+}
+
+/** Принимает ли элемент ввод текста — то есть значит ли фокус на нём, что в нём работают. */
+const isTextEntry = (elem: Element): boolean =>
+	elem instanceof HTMLInputElement ||
+	elem instanceof HTMLTextAreaElement ||
+	elem instanceof HTMLSelectElement ||
+	(elem instanceof HTMLElement && elem.isContentEditable);
 
 export abstract class InputControl<T extends InputType, TEvents = {}>
 	extends UIElementBound<TEvents>
@@ -17,11 +81,18 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 	private __overrides?: ValueElemOverrides;
 	private __isValidating?: boolean; // true, когда выполняется checkValidity в validate.
 
+	/** Объявлен ли автофокус; ставит его наследник вызовом {@link __applyAutoFocus}. */
+	readonly autoFocus: boolean;
+
+	/** Ожидание появления контрола в документе — только пока автофокус отложен. */
+	private __autoFocusWait?: WeakRef<ConnectedWaiter>;
+
 	constructor(typeName: string, elem: HTMLElement, valueElem: FormInput<T>, overrides?: ValueElemOverrides) {
 		super(typeName, elem);
 
 		this.__valueElem = valueElem;
 		this.__overrides = overrides;
+		this.autoFocus = InputControl.isAutoFocus(valueElem);
 
 		// то, что раньше делал _onRenderElement-override; теперь применяем после super, чтобы видеть valueElem
 		elem.classList.add(INPUT_CSS_CLASS);
@@ -41,6 +112,23 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 	 */
 	protected static isReadonly(valueElem: HTMLElement): boolean {
 		return valueElem.hasAttribute("readonly") || valueElem.hasAttribute("data-readonly");
+	}
+
+	/**
+	 * Объявлен ли автофокус: нативный `autofocus` либо `data-autofocus` — второй нужен разметке,
+	 * которой нативный атрибут не подходит по другим причинам (валидаторы, серверный рендер).
+	 *
+	 * Браузер разбирает нативный атрибут при разборе разметки, когда контрола ещё нет: поле,
+	 * скрытое классом уже в разметке, он пропустит, а видимое — сфокусирует, но перенос поля
+	 * в контейнер контрола этот фокус тут же собьёт (браузер снимает фокус с перемещаемого узла).
+	 * Так что фокус в любом случае ставит контрол — см. {@link __applyAutoFocus}, — а атрибут
+	 * остаётся объявлением намерения.
+	 *
+	 * Статический, потому что контролам это нужно и до `super(...)`; после конструирования
+	 * то же самое отдаёт {@link autoFocus}.
+	 */
+	protected static isAutoFocus(valueElem: HTMLElement): boolean {
+		return valueElem.hasAttribute("autofocus") || valueElem.hasAttribute("data-autofocus");
 	}
 
 	/**
@@ -181,12 +269,17 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 	 *
 	 * Поле только для чтения фокусируется: это его нативное поведение — текст читают,
 	 * выделяют и копируют, и уводить от него клавиатуру нельзя.
+	 *
+	 * `scroll` — насколько двигать вид: по умолчанию контрол выводится в середину экрана, потому
+	 * что фокус из кода обычно ведут к тому, что нужно показать (ошибка формы, шаг мастера).
+	 * Автофокус просит `"nearest"` — там страницу ещё не читали, и сдвигать её ради поля,
+	 * которое и так на виду, не за чем.
 	 */
-	focus(): void {
+	focus(scroll: ScrollLogicalPosition = "center"): void {
 		if (this.disabled) return;
 
 		this.__focusValue();
-		this.element.scrollIntoView({ block: "center", inline: "center" });
+		this.element.scrollIntoView({ block: scroll, inline: scroll });
 	}
 
 	/**
@@ -196,6 +289,76 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 	 */
 	protected __focusValue(): void {
 		this.__valueElem.focus();
+	}
+
+	/**
+	 * Ставит фокус в контрол, если поле объявило автофокус (см. {@link isAutoFocus}). Зовёт
+	 * наследник в конце своего конструктора: базовый отработал раньше, чем собран ввод контрола
+	 * (редактор привязывается уже после `super(...)`), и фокусировать там было бы нечего.
+	 *
+	 * Отказывает молча, потому что автофокус — пожелание разметки, а не команда:
+	 * - выключенное поле фокус не принимает, а поле только для чтения нечего править;
+	 * - вводят пальцем — экранная клавиатура закрыла бы страницу, которую ещё не читали;
+	 * - пользователь уже прокрутил страницу сам — вид принадлежит ему;
+	 * - фокус держит поле ввода или другой контрол — там уже работают.
+	 *
+	 * @returns Поставлен ли фокус сейчас; отложенный до появления в документе даёт `false`.
+	 */
+	protected __applyAutoFocus(): boolean {
+		if (!this.autoFocus) return false;
+
+		// Контрол собирают и вне документа: страница рендерится во фрагмент и попадает на экран
+		// уже собранной. В неподключённый элемент браузер фокус не ставит, а прокручивать нечего,
+		// поэтому ждём появления в документе — и там же перепроверяем условия заново: за время
+		// ожидания пользователь мог и прокрутить страницу, и встать в другое поле.
+		if (!this.element.isConnected) {
+			this.__waitConnected();
+			return false;
+		}
+
+		this.__stopWaitConnected();
+
+		if (this.disabled || this.readonly || isCoarsePointer() || hasUserScrolled()) return false;
+
+		// Чужой фокус не отбираем: его держит либо поле ввода — там уже печатают, — либо контрол
+		// ввода, инициализированный раньше (двух автофокусов на странице не бывает). Кнопка или
+		// ссылка, которой пришли на страницу, автофокусу не помеха: фокус на ней остался от клика,
+		// а не ради ввода. Фокус внутри самого контрола — тем более.
+		const active = this.__valueElem.ownerDocument.activeElement;
+		if (active && !this.element.contains(active) && (isTextEntry(active) || active.closest(`.${INPUT_CSS_CLASS}`)))
+			return false;
+
+		this.focus("nearest");
+
+		return true;
+	}
+
+	/** Ждёт появления контрола в документе, чтобы поставить отложенный автофокус. */
+	private __waitConnected() {
+		if (this.__autoFocusWait) return;
+
+		// приведение — ради приватного метода: реестру ожиданий нужен только он
+		this.__autoFocusWait = new WeakRef(this as unknown as ConnectedWaiter);
+		waitConnected(this.__valueElem.ownerDocument, this.__autoFocusWait);
+	}
+
+	/**
+	 * Контрол появился в документе — ставим отложенный автофокус. Не приватный только потому,
+	 * что зовут его снаружи класса — из реестра ожиданий этого модуля.
+	 */
+	protected __onConnected(): boolean {
+		if (!this.element.isConnected) return false;
+
+		this.__applyAutoFocus(); // подключённый контрол сам снимет ожидание
+
+		return true;
+	}
+
+	private __stopWaitConnected() {
+		if (!this.__autoFocusWait) return;
+
+		stopWaitConnected(this.__valueElem.ownerDocument, this.__autoFocusWait);
+		this.__autoFocusWait = undefined;
 	}
 
 	/**
@@ -219,6 +382,8 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 	}
 
 	override destroy() {
+		this.__stopWaitConnected();
+
 		if (this.form && this.__submitEvent) this.form.removeEventListener("submit", this.__submitEvent);
 
 		if (this.__submitCaptureEvent)
@@ -250,8 +415,9 @@ export interface IInputControl {
 	get disabled(): boolean;
 	get required(): boolean;
 	get readonly(): boolean;
+	get autoFocus(): boolean;
 
 	validate(): boolean;
-	focus(): void;
+	focus(scroll?: ScrollLogicalPosition): void;
 	destroy(): void;
 }

@@ -1,7 +1,7 @@
 import "./textbox.less"; // стили компонента
 
-import { EditorInputControl } from "@brandup/ui-input";
-import { IS_TOUCH_DEVICE, POPUP_CLASS, SCROLLABLE_CLASS } from "@brandup/ui-kit";
+import { EditorInputControl, parseFocusCaret } from "@brandup/ui-input";
+import { POPUP_CLASS, SCROLLABLE_CLASS } from "@brandup/ui-kit";
 import { DOM } from "@brandup/ui";
 import { FuncHelper } from "@brandup/ui-helpers";
 import RichEditor, {
@@ -48,7 +48,6 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 	readonly maxlength: number;
 	readonly inputmode: string;
 	readonly symbolCounter: boolean;
-	readonly autoFocus: boolean;
 	readonly format: boolean;
 	readonly formatStorage: FormatStorage;
 	readonly formatTools: FormatTool[];
@@ -91,7 +90,8 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 
 		const maxlength = valueElem.maxLength;
 		const symbolCounter = valueElem.hasAttribute("data-symbolcounter");
-		const autoFocus = valueElem.hasAttribute("data-autofocus");
+		// куда встаёт каретка при фокусе из кода: data-caret="start|end|all", по умолчанию в конец
+		const caret = parseFocusCaret(valueElem.dataset.caret);
 		const allowEmptyStrings = valueElem.hasAttribute("data-allow-empty-strings");
 		const placeholder = valueElem.getAttribute("placeholder");
 		const inputmode = valueElem.inputMode;
@@ -163,13 +163,12 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 			container,
 			valueElem,
 			{ class: INPUT_CLASS, attrs: originalAttrs },
-			{ changeEvent: CHANGE_EVENT }
+			{ changeEvent: CHANGE_EVENT, caret }
 		);
 
 		this.type = type;
 		this.maxlength = maxlength;
 		this.symbolCounter = symbolCounter;
-		this.autoFocus = autoFocus;
 		this.allowEmptyStrings = allowEmptyStrings;
 		this.placeholder = placeholder;
 		this.inputmode = inputmode;
@@ -259,7 +258,7 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 		// не дожидаясь первой синхронизации
 		this.__refreshValidity();
 
-		if (this.autoFocus && !IS_TOUCH_DEVICE && !disabled && !readonly) this.__editor.focus();
+		this.__applyAutoFocus(); // автофокус — вместе с прокруткой к полю; условия у базового класса
 	}
 
 	private __initLogic() {

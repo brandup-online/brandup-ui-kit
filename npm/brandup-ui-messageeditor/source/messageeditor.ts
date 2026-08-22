@@ -275,8 +275,8 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 			container,
 			valueElem,
 			{ class: INPUT_CLASS, attrs: [["tabindex", tabIndexAttr]] },
-			// фокус из кода ставит каретку в конец текста, если её ещё не было
-			{ changeEvent: CHANGE_EVENT, focusAtEnd: true }
+			// каретку фокус из кода ставит в конец текста — режим по умолчанию
+			{ changeEvent: CHANGE_EVENT }
 		);
 
 		this.placeholder = placeholder;
@@ -359,6 +359,8 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		// Носитель приводим к содержимому редактора после подсветки: она подменяет написанные
 		// названия переменных ключами (см. __mapNames), и в форму значение обязано уйти с ключами.
 		this.__valueElem.value = this.__messageValue();
+
+		this.__applyAutoFocus(); // автофокус — вместе с прокруткой к плашке; условия у базового класса
 	}
 
 	private __initLogic() {
