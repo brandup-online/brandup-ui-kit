@@ -21,11 +21,32 @@ export interface ValueEditor {
 	destroy(): void;
 }
 
+/**
+ * Куда встаёт каретка, когда фокус в контрол ставят из кода — автофокусом или вызовом
+ * {@link InputControl.focus}: в начало текста, в конец или на весь текст выделением, чтобы
+ * следующий ввод его заменил.
+ *
+ * Фокус мышью и с клавиатуры это не трогает: там место каретки выбирает пользователь.
+ */
+export type FocusCaret = "start" | "end" | "all";
+
+/** Разбирает режим каретки из разметки: всё, кроме объявленных режимов, — режим по умолчанию. */
+export const parseFocusCaret = (value: string | null | undefined): FocusCaret =>
+	value === "start" || value === "all" ? value : "end";
+
 /** Что базовому классу нужно знать о конкретном контроле. */
 export interface EditorControlInit {
 	/** Имя события изменения контрола — на него подписывает {@link EditorInputControl.onChange}. */
 	changeEvent: string;
-	/** Ставить ли при {@link EditorInputControl.focus} каретку в конец текста, если её ещё не было. */
+	/**
+	 * Куда ставить каретку при фокусе из кода. По умолчанию — в конец текста: фокус получают,
+	 * чтобы продолжать писать, а не чтобы вставлять перед написанным.
+	 */
+	caret?: FocusCaret;
+	/**
+	 * @deprecated Замещён {@link caret} и учитывается, только если тот не задан: `true` — то же,
+	 * что `"end"`, `false` — `"start"`.
+	 */
 	focusAtEnd?: boolean;
 }
 
@@ -148,6 +169,14 @@ export abstract class EditorInputControl<TEditor extends ValueEditor, TChangeDat
 	 */
 	protected __refreshValidity(): void {}
 
+	/** Куда контрол ставит каретку при фокусе из кода (см. {@link EditorControlInit.caret}). */
+	get caret(): FocusCaret {
+		const { caret, focusAtEnd } = this.__init;
+		if (caret) return caret;
+
+		return focusAtEnd === false ? "start" : "end"; // устаревший флаг, пока его ещё передают
+	}
+
 	onChange(handler: (e: TChangeData) => void) {
 		// имя события у каждого контрола своё — типизацию даёт TEvents наследника
 		this.on(this.__init.changeEvent as keyof TEvents & string, handler as never);
@@ -172,9 +201,31 @@ export abstract class EditorInputControl<TEditor extends ValueEditor, TChangeDat
 	 * Поле-носитель уведено с экрана (visibility: collapse) и в браузере фокус не принимает —
 	 * ведём фокус в редактор. Проверки состояния и прокрутку к контролу делает базовый
 	 * {@link InputControl.focus}.
+	 *
+	 * Каретку ставим по режиму контрола (см. {@link EditorControlInit.caret}). Режим по умолчанию
+	 * доверяем редактору: своё место каретки, если оно было, он бережёт сам — правку продолжают
+	 * там, где прервали. Начало и выделение всего текста этому не подчиняются: их просили явно,
+	 * поэтому ставим их сами и после редактора.
 	 */
 	protected override __focusValue(): void {
-		this.__editor?.focus(this.__init.focusAtEnd);
+		if (!this.__editor) return;
+
+		const caret = this.caret;
+		const editable = this.__editor.editable;
+
+		this.__editor.focus(caret === "end");
+		if (caret === "end") return;
+
+		const selection = editable.ownerDocument.defaultView?.getSelection();
+		if (!selection) return;
+
+		if (caret === "all") return selection.selectAllChildren(editable);
+
+		const range = editable.ownerDocument.createRange();
+		range.selectNodeContents(editable);
+		range.collapse(true); // схлопываем к началу содержимого
+		selection.removeAllRanges();
+		selection.addRange(range);
 	}
 
 	override destroy(): void {

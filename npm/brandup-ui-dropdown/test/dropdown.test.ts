@@ -3,6 +3,12 @@
  */
 import DropDown, { ROOT_CLASS, INPUT_CLASS, CHANGE_EVENT } from "../source/dropdown";
 
+// jsdom не реализует Element.scrollTo, а открытие списка прокручивает его к выбранному пункту:
+// без заглушки обработчик падал бы на полпути и не доходил до остальной работы.
+beforeAll(() => {
+	Element.prototype.scrollTo = Element.prototype.scrollTo ?? function () {};
+});
+
 function makeSelect(options: Array<[value: string, text: string]>): HTMLSelectElement {
 	document.body.innerHTML = "";
 	const select = document.createElement("select");
@@ -238,6 +244,196 @@ describe("DropDown", () => {
 		expect(
 			[...dd.element!.querySelectorAll("ul li.ok")].map((li) => li.querySelector("span")?.textContent)
 		).toEqual(["Banana"]);
+	});
+
+	it("clicking the view button opens the popup", () => {
+		const select = makeSelect([["a", "Alpha"]]);
+		const dd = new DropDown(select);
+
+		const view = dd.element!.querySelector(".view") as HTMLElement;
+		view.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(dd.element!.classList.contains("expanded")).toBe(true);
+	});
+
+	it("readonly select (data-readonly) does not open the popup", () => {
+		const select = makeSelect([["a", "Alpha"]]);
+		select.setAttribute("data-readonly", "");
+		const dd = new DropDown(select);
+
+		const view = dd.element!.querySelector(".view") as HTMLElement;
+		view.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(dd.element!.classList.contains("expanded")).toBe(false);
+	});
+
+	it("readonly select does not change value when a list item is clicked", () => {
+		const select = makeSelect([
+			["a", "Alpha"],
+			["b", "Beta"],
+		]);
+		select.setAttribute("data-readonly", "");
+		const dd = new DropDown(select);
+		const handler = jest.fn();
+		dd.on(CHANGE_EVENT, handler);
+
+		const item = dd.element!.querySelector('li[data-index="1"]') as HTMLElement;
+		item.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(handler).not.toHaveBeenCalled();
+		expect(dd.getValue()).toBe("a");
+	});
+
+	it("disabled select does not open the popup", () => {
+		const select = makeSelect([["a", "Alpha"]]);
+		select.disabled = true;
+		const dd = new DropDown(select);
+
+		const view = dd.element!.querySelector(".view") as HTMLElement;
+		view.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(dd.element!.classList.contains("expanded")).toBe(false);
+	});
+
+	it("setValue() selects the value, updates the view text and fires dropdown-change", () => {
+		const select = makeSelect([
+			["a", "Alpha"],
+			["b", "Beta"],
+		]);
+		const dd = new DropDown(select);
+		const handler = jest.fn();
+		dd.on(CHANGE_EVENT, handler);
+
+		dd.setValue("b");
+
+		expect(dd.getValue()).toBe("b");
+		expect(dd.element!.querySelector(".view span")?.textContent).toBe("Beta");
+		expect((dd.element!.querySelector("li.hasvalue") as HTMLElement).dataset.value).toBe("b");
+		expect(handler).toHaveBeenCalledWith(expect.objectContaining({ value: "b", title: "Beta", index: 1 }));
+	});
+
+	it("setValue() with the already shown value does not fire dropdown-change", () => {
+		const select = makeSelect([
+			["a", "Alpha"],
+			["b", "Beta"],
+		]);
+		select.value = "b";
+		const dd = new DropDown(select);
+		const handler = jest.fn();
+		dd.on(CHANGE_EVENT, handler);
+
+		dd.setValue("b");
+
+		expect(handler).not.toHaveBeenCalled();
+	});
+
+	// сценарий восстановления черновика: значение уже записано в поле-носитель напрямую,
+	// setValue должен показать его в контроле, сравнивая с UI, а не с полем
+	it("setValue() refreshes the view even when the select value was written directly beforehand", () => {
+		const select = makeSelect([
+			["a", "Alpha"],
+			["b", "Beta"],
+		]);
+		const dd = new DropDown(select);
+
+		select.value = "b";
+		dd.setValue("b");
+
+		expect(dd.element!.querySelector(".view span")?.textContent).toBe("Beta");
+		expect((dd.element!.querySelector("li.hasvalue") as HTMLElement).dataset.value).toBe("b");
+	});
+
+	// поле выключили с уже открытым списком: выбор запрещён, но выход из списка обязан работать,
+	// иначе на узком экране (список во весь экран) с клавиатуры остаётся только Escape
+	it("close-popup still works when the select gets disabled while the popup is open", () => {
+		const select = makeSelect([["a", "Alpha"]]);
+		const dd = new DropDown(select);
+
+		(dd.element!.querySelector(".view") as HTMLElement).dispatchEvent(
+			new MouseEvent("click", { bubbles: true, cancelable: true })
+		);
+		expect(dd.element!.classList.contains("expanded")).toBe(true);
+
+		select.disabled = true;
+		(dd.element!.querySelector("button.cancel") as HTMLElement).dispatchEvent(
+			new MouseEvent("click", { bubbles: true, cancelable: true })
+		);
+
+		expect(dd.element!.classList.contains("expanded")).toBe(false);
+	});
+
+	// значение показанного пункта может совпасть со значением «ничего не выбрано» — сравнивать
+	// нужно сам пункт, иначе неизвестное значение оставит на экране прежний выбор
+	it("setValue() with an unknown value clears a shown empty-value option", () => {
+		const select = makeSelect([
+			["a", "Alpha"],
+			["", "Не указано"],
+		]);
+		const dd = new DropDown(select);
+		dd.setValue("");
+		expect(dd.element!.querySelector(".view span")?.textContent).toBe("Не указано");
+
+		dd.setValue("unknown");
+
+		expect(dd.getValue()).toBeNull();
+		expect(dd.element!.querySelector("li.hasvalue")).toBeNull();
+		expect(dd.element!.querySelector(".view span")?.textContent).toBe("Select");
+	});
+
+	// пустой пункт-подсказка своего <li> не имеет, поэтому «выбран он» и «не выбрано ничего» —
+	// одно и то же состояние экрана: повторная установка не должна выглядеть как изменение
+	it("setValue() to the empty placeholder option twice fires dropdown-change only once", () => {
+		const select = makeSelect([
+			["", ""],
+			["a", "Alpha"],
+		]);
+		select.value = "a";
+		const dd = new DropDown(select);
+		const handler = jest.fn();
+		dd.on(CHANGE_EVENT, handler);
+
+		dd.setValue("");
+		dd.setValue("");
+		dd.setValue("");
+
+		expect(handler).toHaveBeenCalledTimes(1);
+		expect(dd.getValue()).toBeNull();
+	});
+
+	it("setValue() with empty or unknown value clears the selection and shows the placeholder", () => {
+		const select = makeSelect([
+			["", ""],
+			["a", "Alpha"],
+		]);
+		select.value = "a";
+		const dd = new DropDown(select);
+
+		dd.setValue("");
+
+		expect(dd.getValue()).toBeNull();
+		expect(dd.element!.querySelector("li.hasvalue")).toBeNull();
+		expect(dd.element!.classList.contains("hasvalue")).toBe(false);
+		expect(dd.element!.querySelector(".view span")?.textContent).toBe("Select");
+	});
+
+	// Пункт с пустым значением не на первом месте — не placeholder, а свой вариант выбора.
+	// Выбор пункта нельзя переносить в поле присваиванием value: браузер выберет ПЕРВЫЙ
+	// option с таким значением, то есть placeholder, и контрол показал бы не то, что нажали.
+	it("selecting a later empty-value option shows that option, not the placeholder", () => {
+		const select = makeSelect([
+			["", ""],
+			["a", "Alpha"],
+			["", "Не указано"],
+		]);
+		const dd = new DropDown(select);
+
+		const item = dd.element!.querySelector('li[data-index="2"]') as HTMLElement;
+		expect(item).not.toBeNull();
+		item.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(select.selectedIndex).toBe(2);
+		expect(dd.element!.querySelector(".view span")?.textContent).toBe("Не указано");
+		expect((dd.element!.querySelector("li.hasvalue") as HTMLElement).dataset.index).toBe("2");
 	});
 
 	it("destroy() removes the container and restores the original select to the DOM", () => {

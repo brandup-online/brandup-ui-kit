@@ -145,12 +145,21 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 		this.__renderItems();
 		this.__initLogic();
+
+		this.__applyAutoFocus(); // автофокус — вместе с прокруткой к контролу; условия у базового класса
 	}
 
-	// рендер элементов и выбор текущего
+	/**
+	 * Поле-носитель уведено с экрана и фокус не принимает — ведём его в кнопку показа списка:
+	 * с неё же начинается работа с клавиатуры (пробел и Enter открывают список).
+	 */
+	protected override __focusValue(): void {
+		this.__focusView();
+	}
+
+	// рендер элементов; текущий выбор отмечает __renderSelection, когда список уже в DOM
 	private __renderItems() {
 		const optionsCount = this.__valueElem.options.length;
-		const selectedIndex = this.__valueElem.selectedIndex;
 
 		if (!optionsCount) this.__textElem.innerText = this.placeholder;
 
@@ -200,15 +209,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 			itemTranscripts.set(itemElem, transcriptText(itemText));
 
-			const isSelected = selectedIndex === i;
-			if (isSelected) itemElem.classList.add("hasvalue");
-
 			popupItemsFragment.append(itemElem);
-
-			if (isSelected) {
-				this.__container.classList.add("hasvalue");
-				this.__textElem.innerText = itemText;
-			}
 
 			elemCount++;
 		}
@@ -216,6 +217,8 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		if (this.__hasEmptyValue && !elemCount) this.element.classList.add("empty");
 
 		this.__listElem.append(popupItemsFragment);
+
+		this.__renderSelection(); // список уже в DOM — отметку и текст ставит общий с setValue путь
 	}
 
 	private __initLogic() {
@@ -223,39 +226,14 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.registerCommand("close-popup", () => this.__closePopup());
 
 		this.registerCommand("select", (context) => {
-			const newIndex = context.target.dataset.index;
-
-			this.element.classList.remove("invalid");
 			this.__clearSearch();
 			this.__closePopup();
+			this.__focusView();
 
-			const currentSelect = this.__getSelectedElem();
-			if (currentSelect && newIndex === currentSelect.own.dataset.index) return; // если выбор остался таким же
+			const index = Number(context.target.dataset.index);
+			if (!Number.isInteger(index)) return; // пункт без своего индекса выбрать нечем
 
-			DOM.removeClass(this.element, ".hasvalue", "hasvalue");
-
-			if (currentSelect && currentSelect.own.closest(`.${ROOT_CLASS}`))
-				this.__textElem.innerText = this.placeholder ?? "";
-
-			// делаем новый выбор
-			this.__valueElem.value = context.target.dataset.value || "";
-
-			const newSelected = this.__getElemsByIndex(Number(newIndex));
-
-			if (newSelected) {
-				newSelected.own.classList.add("hasvalue");
-
-				const newDropDown = newSelected.own.closest(`.${ROOT_CLASS}`);
-
-				if (newDropDown) {
-					this.__textElem.innerText = newSelected.own.innerText.trim();
-					newDropDown.classList.add("hasvalue");
-					this.__closePopup();
-					this.__focusPopup();
-				}
-			}
-
-			this.__onChange();
+			this.__applySelection(index);
 		});
 
 		this.__searchInput.addEventListener("input", () => {
@@ -292,7 +270,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 				case "Escape": {
 					e.preventDefault();
 					this.__closePopup();
-					this.__focusPopup();
+					this.__focusView();
 					break;
 				}
 				case "Tab": {
@@ -319,7 +297,8 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		});
 	}
 
-	private __focusPopup() {
+	/** Фокус в кнопку показа списка — она первым элементом контейнера, поле-носитель последним. */
+	private __focusView() {
 		(<HTMLElement>this.__container.firstElementChild).focus();
 	}
 
@@ -332,9 +311,23 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		});
 	}
 
-	private __togglePopup() {
-		if (this.element.classList.contains("disabled")) return;
+	/**
+	 * Выключенный контрол не работает целиком, а только-для-чтения — показывает значение, но
+	 * менять его не даёт: гейт закрывает открытие списка и выбор пункта. Состояние читаем
+	 * с поля-носителя, а не по классу-отражению: атрибут могли переключить после инициализации.
+	 *
+	 * Закрытие списка не запрещаем никогда: гейт в `@brandup/ui` общий на все команды элемента,
+	 * а поле могли выключить уже с открытым списком (например, форма гасит поля на время отправки) —
+	 * тогда запрет запер бы открытый список, и на узком экране, где это лист во весь экран,
+	 * выхода с клавиатуры не осталось бы вовсе.
+	 */
+	protected override _onCanExecCommand(name: string): boolean {
+		if (name.toLowerCase() === "close-popup") return true;
 
+		return !this.disabled && !this.readonly;
+	}
+
+	private __togglePopup() {
 		if (this.element.classList.contains("expanded")) {
 			// уже открыт — закрываем чисто, чтобы и body-класс, и mouseup-листенер ушли
 			this.__closePopup();
@@ -474,8 +467,67 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		return this.__getElems(".hasvalue[data-index]");
 	}
 
+	/** Индекс пункта, отмеченного сейчас в списке; -1 — контрол показывает placeholder. */
+	private __shownIndex(): number {
+		const index = this.__getSelectedElem()?.own.dataset.index;
+		return index === undefined ? -1 : Number(index);
+	}
+
+	/**
+	 * Переносит выбор в поле-носитель и показывает его; событие изменения поднимается только
+	 * при действительной смене показанного пункта.
+	 *
+	 * Работаем индексом, а не значением: значение в списке может повторяться — пустой пункт-подсказка
+	 * и свой вариант вроде «Не указано» оба с пустым value, — а присваивание `value` выбрало бы ПЕРВЫЙ
+	 * совпавший option, то есть не тот пункт, что нажали.
+	 *
+	 * С показанным пунктом сравниваем, а не с полем: значение могли записать в поле напрямую
+	 * (так делает восстановление черновика формы), и сравнение с полем сделало бы такой вызов пустым.
+	 */
+	private __applySelection(index: number) {
+		// Пункта в списке может и не быть: пустой пункт-подсказка своего <li> не получает, как и
+		// дубликат уже добавленного значения. На экране это то же самое, что «не выбрано ничего»,
+		// — приводим к одному виду, иначе повторная установка выглядела бы сменой выбора.
+		const target = this.__getElemsByIndex(index) ? index : -1;
+		if (target === this.__shownIndex()) return; // показанный выбор остался таким же
+
+		this.__valueElem.selectedIndex = index;
+
+		this.element.classList.remove("invalid");
+		this.__renderSelection();
+		this.__onChange();
+	}
+
+	/** Отражает текущее значение поля-носителя в контроле: отметка в списке и текст на кнопке. */
+	private __renderSelection() {
+		DOM.removeClass(this.element, ".hasvalue", "hasvalue"); // removeClass обходит потомков — класс контейнера снимаем отдельно
+		this.__container.classList.remove("hasvalue");
+		this.__textElem.innerText = this.placeholder;
+
+		const selected = this.__getElemsByIndex(this.__valueElem.selectedIndex);
+		if (!selected) return; // пустое или неизвестное значение — контрол показывает placeholder
+
+		selected.own.classList.add("hasvalue");
+		this.__container.classList.add("hasvalue");
+		this.__textElem.innerText = (selected.own.firstElementChild?.textContent ?? "").trim();
+	}
+
 	getValue(): string | null {
 		return this.__valueElem.value || null;
+	}
+
+	/**
+	 * Программная установка значения — например, восстановление черновика формы. Пишет значение
+	 * в поле-носитель и показывает его в контроле; значение без своего пункта в списке даёт
+	 * пустой выбор. Событие изменения поднимается, только когда показанный выбор действительно
+	 * сменился: сравниваем с UI, а не с полем — вызывающий мог записать значение в поле сам.
+	 */
+	setValue(value: string | null): void {
+		// значение ищем средствами самого поля: оно встанет на первый подходящий option,
+		// а дальше выбор переносится и показывается уже по индексу
+		this.__valueElem.value = value ?? "";
+
+		this.__applySelection(this.__valueElem.selectedIndex);
 	}
 
 	getSelectedIndex(): number {

@@ -913,3 +913,37 @@ describe("TextBox implicit submission", () => {
 		expect(tb.editor.editable.querySelectorAll("p")).toHaveLength(2);
 	});
 });
+
+describe("TextBox focus caret", () => {
+	const TEXT = "написанный текст";
+
+	function makeInput(caret?: string): HTMLInputElement {
+		document.body.innerHTML = "";
+		const input = document.createElement("input");
+		input.type = "text";
+		input.value = TEXT;
+		if (caret !== undefined) input.setAttribute("data-caret", caret);
+		document.body.appendChild(input);
+		return input;
+	}
+
+	it("puts the caret at the end without the attribute", () => {
+		expect(new TextBox(makeInput()).caret).toBe("end");
+	});
+
+	it("reads the mode from data-caret", () => {
+		expect(new TextBox(makeInput("start")).caret).toBe("start");
+		expect(new TextBox(makeInput("all")).caret).toBe("all");
+	});
+
+	// автофокус идёт через тот же focus(), поэтому каретка встаёт по режиму контрола
+	it("selects the whole text on autofocus with data-caret=all", () => {
+		const input = makeInput("all");
+		input.setAttribute("data-autofocus", "");
+
+		const tb = new TextBox(input);
+
+		expect(document.activeElement).toBe(tb.editor.editable);
+		expect(window.getSelection()?.toString()).toBe(TEXT);
+	});
+});
