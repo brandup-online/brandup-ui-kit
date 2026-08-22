@@ -33,7 +33,9 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	private __textElem: HTMLElement;
 	private __emptyElem: HTMLElement;
 	private __searchInput: HTMLInputElement;
+	private __pressPopupFunc: (e: MouseEvent) => void;
 	private __closePopupFunc: (e: MouseEvent) => void;
+	private __pressedInPopup = false;
 	private __reposAbort?: AbortController;
 	private __hasEmptyValue: boolean = false;
 
@@ -128,19 +130,22 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.__emptyElem = emptyElem;
 		this.__searchInput = searchInput;
 
-		this.__closePopupFunc = (e: MouseEvent) => {
-			const t = e.target as HTMLElement;
-			const dd = t.closest(`.${ROOT_CLASS}`);
-			if (
-				!dd ||
-				(dd === this.__container &&
-					!t.closest("li[data-index]") &&
-					t !== this.__searchInput &&
-					!t.closest(".search"))
-			) {
-				this.__closePopup();
-				this.__clearSearch();
-			}
+		// Список закрывает нажатие мимо него, и решает это начало нажатия, а не место, где
+		// отпустили: перетаскивание полосы прокрутки списка и выделение текста заканчиваются
+		// где угодно, а список при этом закрываться не должен.
+		this.__pressPopupFunc = (e: MouseEvent) => {
+			this.__pressedInPopup = this.__popupElem.contains(e.target as Node);
+		};
+
+		this.__closePopupFunc = () => {
+			const pressedInPopup = this.__pressedInPopup;
+			this.__pressedInPopup = false; // жест закончился, следующий начнётся со своего нажатия
+
+			// внутри списка работают с ним самим: прокрутка, поиск, промах мимо пункта
+			if (pressedInPopup) return;
+
+			this.__closePopup();
+			this.__clearSearch();
 		};
 
 		this.__renderItems();
@@ -367,6 +372,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 		this.__listElem.scrollTo({ left: 0, top: top, behavior: "instant" });
 
+		document.body.addEventListener("mousedown", this.__pressPopupFunc);
 		document.body.addEventListener("mouseup", this.__closePopupFunc);
 	}
 
@@ -388,8 +394,10 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	}
 
 	private __closePopup() {
+		this.__pressedInPopup = false; // от прошлого показа не наследуем
 		document.body.classList.remove(BODY_EXPANDED);
 		this.element.classList.remove("expanded");
+		document.body.removeEventListener("mousedown", this.__pressPopupFunc);
 		document.body.removeEventListener("mouseup", this.__closePopupFunc);
 		this.__reposAbort?.abort();
 		this.__reposAbort = undefined;

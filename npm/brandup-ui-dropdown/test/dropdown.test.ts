@@ -22,6 +22,31 @@ function makeSelect(options: Array<[value: string, text: string]>): HTMLSelectEl
 	return select;
 }
 
+// Контролы тестов живут до сборки мусора DOM: пока их элементы не убрали, слушатели на body
+// и класс открытого списка достались бы следующему тесту.
+afterEach(() => {
+	document.body.innerHTML = "";
+	document.body.className = "";
+});
+
+const press = (elem: HTMLElement) => elem.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+const release = (elem: HTMLElement) => elem.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+/** Dropdown с открытым списком — состояние, в котором проверяют его закрытие. */
+function openedDropDown(): DropDown {
+	const dd = new DropDown(
+		makeSelect([
+			["a", "Alpha"],
+			["b", "Beta"],
+		])
+	);
+
+	const view = dd.element!.querySelector(".view") as HTMLElement;
+	view.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+	return dd;
+}
+
 describe("DropDown", () => {
 	it("wraps the select in a ui-dropdown container", () => {
 		const select = makeSelect([["1", "One"]]);
@@ -254,6 +279,52 @@ describe("DropDown", () => {
 		view.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
 		expect(dd.element!.classList.contains("expanded")).toBe(true);
+	});
+
+	// в списке работают с ним самим: промах мимо пункта, поиск, полоса прокрутки
+	it("keeps the popup open when the press lands inside it", () => {
+		const dd = openedDropDown();
+		const popup = dd.element!.querySelector(".popup") as HTMLElement;
+		const list = dd.element!.querySelector("ul") as HTMLElement;
+
+		press(list);
+		release(list);
+		press(popup);
+		release(popup);
+
+		expect(dd.element!.classList.contains("expanded")).toBe(true);
+	});
+
+	// перетаскивание полосы прокрутки списка отпускают где угодно — список остаётся открытым
+	it("keeps the popup open when a press started inside ends outside", () => {
+		const dd = openedDropDown();
+		const list = dd.element!.querySelector("ul") as HTMLElement;
+
+		press(list);
+		release(document.body);
+
+		expect(dd.element!.classList.contains("expanded")).toBe(true);
+	});
+
+	// признак нажатия внутри не должен пережить сам жест, иначе список перестал бы закрываться
+	it("forgets the press inside once the gesture is over", () => {
+		const dd = openedDropDown();
+		const list = dd.element!.querySelector("ul") as HTMLElement;
+
+		press(list);
+		release(document.body); // перетащили полосу и отпустили мимо списка
+		release(document.body); // отпускание без своего нажатия — свежий жест мимо списка
+
+		expect(dd.element!.classList.contains("expanded")).toBe(false);
+	});
+
+	it("closes the popup on a press outside it", () => {
+		const dd = openedDropDown();
+
+		press(document.body);
+		release(document.body);
+
+		expect(dd.element!.classList.contains("expanded")).toBe(false);
 	});
 
 	it("readonly select (data-readonly) does not open the popup", () => {
