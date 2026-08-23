@@ -418,7 +418,10 @@ export function collapseEmptyEdges(editable: HTMLElement, range: Range) {
 
 	// от удалённого текста остаются пустые текстовые узлы — пустоту смотрим по содержимому
 	const empty = (node: ChildNode | null) =>
-		!!node && blockTypeOf(node) === DEFAULT_BLOCK && !node.textContent && !(node as HTMLElement).querySelector("br");
+		!!node &&
+		blockTypeOf(node) === DEFAULT_BLOCK &&
+		!node.textContent &&
+		!(node as HTMLElement).querySelector("br");
 
 	const before = editable.childNodes[range.startOffset - 1] ?? null;
 	const after = editable.childNodes[range.startOffset] ?? null;
