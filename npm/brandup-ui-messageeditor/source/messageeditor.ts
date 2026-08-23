@@ -27,12 +27,16 @@ import {
 	withoutAnchors,
 	DEFAULT_VARIABLE_LENGTH,
 	MARKUP_SELECTOR,
+	NEW_CLASS,
+	UNKNOWN_CLASS,
 	VARIABLE_CLASS,
+	type HighlightOptions,
 	type VariableNames,
 } from "./highlight";
 import RandomizerModal from "./randomizer";
 import VariablesModal, {
 	VARIABLES_SETUP_TEXT,
+	VariableKeyModal,
 	buildVariable,
 	cleanVariables,
 	parseVariables,
@@ -112,6 +116,19 @@ export interface MessageEditorOptions {
 	 * объявленный там же список переменных — объявили, значит нужна.
 	 */
 	personalization?: boolean;
+	/**
+	 * Режим новых переменных: ключ, которого нет в объявленном списке, — не ошибка, а заявка
+	 * на переменную, которую заведёт приложение. Отправку формы такая переменная не
+	 * останавливает, в тексте помечается своим цветом (`span.variable.new`), а в окне
+	 * персонализации становится записью с пометкой «новая» — чтобы её можно было вставить ещё раз.
+	 * По умолчанию выключен: без него необъявленный ключ — ошибка значения.
+	 *
+	 * Список ключей, которые предстоит завести, отдаёт свойство {@link MessageEditor.unknownVariables}.
+	 *
+	 * Без этой опции берётся из разметки: атрибут `data-new-variables` поля-носителя.
+	 * Объявленный режим — тоже согласие на персонализацию, как и объявленный список.
+	 */
+	newVariables?: boolean;
 	/**
 	 * Текст в окне персонализации, когда список пуст; по умолчанию — «Переменные не заданы.».
 	 * Без него берётся из атрибута `data-variables-empty` поля-носителя.
@@ -199,6 +216,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	private __inputElem: HTMLElement; // редактируемый элемент (им владеет RichEditor)
 	private __composing = false; // идёт IME-ввод — подсветку откладываем
 	private __names: VariableNames; // названия переменных по ключу — для подсветки
+	private __highlightOptions: HighlightOptions; // всё, что подсветке нужно знать; за время жизни не меняется
 	private __modal: Modal | null = null; // открытое окно правки — его закрывает и destroy
 	private __emojiPicker: HTMLElement | null = null; // свой попап смайликов — см. __initEmoji
 	private __disposing = false; // компонент снимают или уже сняли: фокус и каретку возвращать некуда
@@ -214,6 +232,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	readonly variablesSetup: string | (() => void | boolean) | null;
 	readonly variablesSetupText: string;
 	readonly personalization: boolean;
+	readonly newVariables: boolean;
 	readonly blocks: BlockType[];
 	readonly tools: FormatTool[];
 	readonly source: boolean;
@@ -289,19 +308,29 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		this.variablesSetup = options.variablesSetup ?? valueElem.dataset.variablesSetup ?? null;
 		this.variablesSetupText =
 			options.variablesSetupText ?? valueElem.dataset.variablesSetupText ?? VARIABLES_SETUP_TEXT;
+		this.newVariables = options.newVariables ?? "newVariables" in valueElem.dataset;
 		// Объявленный список — тоже согласие: иначе переданные переменные молча никуда не вели бы.
 		// Настройка полей — так же: объявленная, она обязана быть досягаемой, а живёт в окне.
+		// Режим новых переменных — тоже: он про переменные и без них не значит ничего.
 		this.personalization =
 			options.personalization ??
 			("personalization" in valueElem.dataset ||
 				!!this.variables.length ||
 				!!this.variablesEmpty ||
-				!!this.variablesSetup);
+				!!this.variablesSetup ||
+				this.newVariables);
 		this.blocks = options.blocks ?? parseBlockTypes(valueElem.dataset.blocks ?? null);
 		this.tools = options.tools ?? parseFormatTools(valueElem.dataset.tools ?? null);
 		// Все объявленные ключи, а не только названные: по этому же набору подсветка отличает
 		// чужую переменную от известной. В тексте показываем название, если оно задано.
 		this.__names = new Map(this.variables.map((v) => [v.key, v.name ?? null]));
+		// Собирается один раз: ничего из этого после сборки не меняется, а подсветка идёт
+		// на каждое нажатие — и дважды за проход, ранней проверкой и самой перестройкой.
+		this.__highlightOptions = {
+			names: this.__names,
+			variables: this.personalization,
+			newVariables: this.newVariables,
+		};
 		this.__inputElem = inputElem;
 		this.source = source;
 		this.__sourceTextElem = sourceTextElem;
@@ -446,32 +475,46 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	}
 
 	/**
-	 * Есть ли по чему проверять переменные: персонализация включена и список объявлен. Без
-	 * персонализации `{ИМЯ}` — обычный текст, а пустой список может быть просто ещё не известен.
+	 * Есть ли по чему отличать объявленную переменную от чужой: персонализация включена и список
+	 * объявлен. Без персонализации `{ИМЯ}` — обычный текст, а пустой список в строгом режиме может
+	 * быть просто ещё не известен (см. isUnknown в ./highlight). В режиме новых переменных пустой
+	 * список — рабочее начало: переменные и заводятся по мере того, как их набирают.
+	 */
+	private get __knowsVariables(): boolean {
+		return this.personalization && (this.newVariables || this.__names.size > 0);
+	}
+
+	/**
+	 * Останавливает ли необъявленная переменная отправку формы: в режиме новых переменных нет —
+	 * там она заявка, а не ошибка, и заведёт её приложение.
 	 *
 	 * Он же признак того, что подпись невалидности на поле наша: пока проверять не по чему,
 	 * поле не трогаем вовсе — стёрли бы чужую, выставленную приложением.
 	 */
 	private get __checksVariables(): boolean {
-		return this.personalization && this.__names.size > 0;
+		return this.__knowsVariables && !this.newVariables;
 	}
 
 	/**
 	 * Ключи переменных из текста, которых нет в объявленном списке, — в порядке появления.
 	 *
-	 * Приложению это нужно, чтобы объяснить, что не так: подсветка показывает место, а сообщение
-	 * рядом с полем — что делать.
+	 * В строгом режиме приложению это нужно, чтобы объяснить, что не так: подсветка показывает
+	 * место, а сообщение рядом с полем — что делать. В режиме новых переменных это список того,
+	 * что предстоит завести: отправку он не держит, но кто-то должен его выполнить.
 	 */
 	get unknownVariables(): string[] {
-		if (!this.__checksVariables) return [];
+		if (!this.__knowsVariables) return [];
 
-		return findUnknownVariables(this.__inputElem, this.__names);
+		return findUnknownVariables(this.__inputElem, this.__names, this.newVariables);
 	}
 
 	/**
 	 * Неизвестная переменная — ошибка значения, а не оформления: подставить её нечем, и получателю
 	 * она уйдёт скобками наружу. Объявляем полю-носителю через setCustomValidity, как textbox
 	 * объявляет свой лимит длины: дальше решает браузер — он же блокирует отправку формы.
+	 *
+	 * В режиме новых переменных проверки нет вовсе: необъявленный ключ там ожидаем, и подпись
+	 * поля остаётся приложению.
 	 */
 	protected override __refreshValidity(): void {
 		if (!this.__checksVariables) return;
@@ -533,7 +576,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	private __highlight(): boolean {
 		if (this.__composing) return false;
 
-		const options = { names: this.__names, variables: this.personalization };
+		const options = this.__highlightOptions;
 
 		// Снимок каретки для preserveCaret не бесплатен: он считает смещения обходом содержимого,
 		// и на обычном наборе — где ни конструкций, ни обёрток нет — доставался бы зря на каждый
@@ -555,14 +598,14 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	 * Приводит написанное название переменной к её ключу (см. {@link mapVariableNames}).
 	 * Возвращает true, если текст поля изменился.
 	 *
-	 * Пока проверять не по чему, не трогаем ничего: без объявленного списка названий нет, а
-	 * без персонализации `{ИМЯ}` — обычный текст. Во время IME-композиции — тоже: подмена
-	 * под набором прервала бы его.
+	 * Пока отличать не по чему, не трогаем ничего: без персонализации `{ИМЯ}` — обычный текст,
+	 * а без объявленных названий подменять нечего (см. {@link mapVariableNames}). Во время
+	 * IME-композиции — тоже: подмена под набором прервала бы его.
 	 */
 	private __mapNames(): boolean {
-		if (this.__composing || !this.__checksVariables) return false;
+		if (this.__composing || !this.__knowsVariables) return false;
 
-		return mapVariableNames(this.__inputElem, this.__names);
+		return mapVariableNames(this.__inputElem, this.__names, this.newVariables);
 	}
 
 	/**
@@ -642,22 +685,46 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 
 	/** Открывает окно правки конструкции; результат заменяет её целиком. */
 	private __editMarkup(span: HTMLElement) {
-		const variable = span.classList.contains(VARIABLE_CLASS);
 		// без персонализации переменные и не подсвечиваются, но проверка дешевле, чем догадка
-		if (variable && !this.personalization) return;
+		if (span.classList.contains(VARIABLE_CLASS) && !this.personalization) return;
 
-		this.__openModal(
-			variable ? this.__variablesModal : (apply) => new RandomizerModal(span.textContent ?? "", apply),
-			span
-		);
+		this.__openModal(this.__markupModal(span), span);
+	}
+
+	/**
+	 * Каким окном правят конструкцию: спинтакс — рандомизацией, объявленную переменную — списком.
+	 *
+	 * Необъявленную в режиме новых переменных — правкой ключа: в списке её нет и быть не может,
+	 * её набрали здесь же, и опечатку в ней исправляют текстом, а не выбором. В строгом режиме
+	 * необъявленная — ошибка, и список там ровно то, что нужно: исправить её можно только
+	 * объявленной переменной.
+	 */
+	private __markupModal(span: HTMLElement): (apply: (text: string) => void) => Modal {
+		const text = span.textContent ?? "";
+
+		if (!span.classList.contains(VARIABLE_CLASS)) return (apply) => new RandomizerModal(text, apply);
+
+		const declared = !span.classList.contains(NEW_CLASS) && !span.classList.contains(UNKNOWN_CLASS);
+		if (this.newVariables && !declared) return (apply) => new VariableKeyModal(text, apply);
+
+		return this.__variablesModal;
 	}
 
 	/**
 	 * Фабрика окна персонализации: окно одно и то же, а открывают его и кнопка панели, и клик
 	 * по конструкции. Стрелка, а не метод: фабрика передаётся в {@link __openModal} как есть.
+	 *
+	 * Новые переменные берутся из текста на каждое открытие: набранная только что должна найтись
+	 * в списке сразу, а собранный однажды список отставал бы от поля.
 	 */
 	private __variablesModal = (apply: (text: string) => void): Modal =>
-		new VariablesModal(this.variables, apply, this.variablesEmpty, this.__variablesSetup());
+		new VariablesModal(
+			this.variables,
+			apply,
+			this.variablesEmpty,
+			this.__variablesSetup(),
+			this.newVariables ? this.unknownVariables : null
+		);
 
 	/**
 	 * Ссылка на настройку полей для окна переменных — поведение нажатия собирается здесь:

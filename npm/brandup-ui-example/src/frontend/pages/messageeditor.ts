@@ -29,8 +29,7 @@ export default class MessageEditorPage extends Page {
 			.forEach((elem) => {
 				// переменные объявлены в разметке — пусть компонент разберёт их сам, иначе переданные
 				// в опциях имеют приоритет и атрибуты в примере ничего бы не показали
-				const fromMarkup =
-					elem.hasAttribute("data-variables") || elem.hasAttribute("data-variables-empty");
+				const fromMarkup = elem.hasAttribute("data-variables") || elem.hasAttribute("data-variables-empty");
 				const options: MessageEditorOptions = fromMarkup ? {} : { variables: VARIABLES };
 
 				// Настройка полей — действие приложения (SPA-переход или своё окно); в примере
@@ -45,12 +44,22 @@ export default class MessageEditorPage extends Page {
 			});
 	}
 
-	// Живое значение под плашкой: показывает разметку, которая уйдёт в хранилище.
+	// Живое значение под плашкой: показывает разметку, которая уйдёт в хранилище. В режиме новых
+	// переменных к нему дописывается то, что предстоит завести, — этот список и есть работа хоста.
 	private __bindValue(editor: MessageEditor) {
 		const valueElem = editor.element.closest(".field")?.querySelector<HTMLElement>(".value");
 		if (!valueElem) return;
 
-		const print = () => (valueElem.textContent = editor.getValue() || "(пусто)");
+		const print = () => {
+			const value = editor.getValue() || "(пусто)";
+			const toCreate = editor.newVariables ? editor.unknownVariables : [];
+
+			valueElem.textContent = toCreate.length
+				? `${value}
+
+Завести: ${toCreate.join(", ")}`
+				: value;
+		};
 
 		editor.onChange(print);
 		print();

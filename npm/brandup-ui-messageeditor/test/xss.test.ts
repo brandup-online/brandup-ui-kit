@@ -2,13 +2,16 @@
  * @jest-environment jsdom
  */
 import RandomizerModal from "../source/randomizer";
-import VariablesModal from "../source/variables";
+import VariablesModal, { VariableKeyModal } from "../source/variables";
 import { highlight } from "../source/highlight";
 
 // Message text and variable lists come from outside: typing in the field, a stored template,
 // attributes of the value element. A string child of DOM.tag is inserted as HTML, so everything
 // that is not our own markup has to reach the DOM as text.
 const PAYLOAD = '<img src=x onerror="window.__pwned = 1">';
+// Тот же payload, обёрнутый в годные границы ключа: конструкцией считается только то, что
+// начинается и кончается буквой или цифрой, а начать проверку разбора надо с конструкции.
+const KEY_PAYLOAD = `a${PAYLOAD}b`;
 
 const opened: Array<{ close(): void }> = [];
 const open = <T extends { close(): void }>(modal: T): T => {
@@ -46,6 +49,14 @@ describe("text is never rendered as markup", () => {
 		expect(button.querySelector(".key")!.textContent).toBe(PAYLOAD);
 	});
 
+	// Ключ приходит из сообщения — в поле правки он идёт значением, а не разметкой.
+	it("keeps a key under edit as text", () => {
+		const modal = open(new VariableKeyModal(`{${KEY_PAYLOAD}}`, () => {}));
+
+		expect(modal.element!.querySelector("img")).toBeNull();
+		expect(modal.element!.querySelector<HTMLInputElement>(".key-field")!.value).toBe(KEY_PAYLOAD);
+	});
+
 	it("keeps the empty-list hint as text", () => {
 		const modal = open(new VariablesModal([], () => {}, PAYLOAD));
 		const empty = modal.element!.querySelector<HTMLElement>(".variables .empty")!;
@@ -56,16 +67,16 @@ describe("text is never rendered as markup", () => {
 
 	it("keeps a highlighted variable key and label as text", () => {
 		const root = document.createElement("div");
-		root.textContent = `{${PAYLOAD}}`;
+		root.textContent = `{${KEY_PAYLOAD}}`;
 
-		highlight(root, { names: new Map([[PAYLOAD, PAYLOAD]]) });
+		highlight(root, { names: new Map([[KEY_PAYLOAD, KEY_PAYLOAD]]) });
 
 		const variable = root.querySelector<HTMLElement>(".variable")!;
 		expect(variable.querySelector("img")).toBeNull();
 		// ключ — в своей обёртке, скобки вокруг него — в своих; текст конструкции цел
-		expect(variable.querySelector<HTMLElement>(".key")!.textContent).toBe(PAYLOAD);
-		expect(variable.textContent).toBe(`{${PAYLOAD}}`);
+		expect(variable.querySelector<HTMLElement>(".key")!.textContent).toBe(KEY_PAYLOAD);
+		expect(variable.textContent).toBe(`{${KEY_PAYLOAD}}`);
 		// подпись рисуется оформлением из атрибута — разметкой она не станет и там
-		expect(variable.querySelector<HTMLElement>(".label")!.dataset.label).toBe(PAYLOAD);
+		expect(variable.querySelector<HTMLElement>(".label")!.dataset.label).toBe(KEY_PAYLOAD);
 	});
 });

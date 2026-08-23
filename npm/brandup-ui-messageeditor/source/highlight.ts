@@ -4,7 +4,7 @@
 
 import { textTag } from "@brandup/ui-kit";
 import { SPINTAX_OPEN, SPINTAX_SEPARATOR } from "./randomizer";
-import { buildVariable, VARIABLE_OPEN } from "./variables";
+import { buildVariable, isVariableKey, parseVariable, plainVariableKey, VARIABLE_OPEN } from "./variables";
 
 export const SPINTAX_CLASS = "spintax";
 export const VARIABLE_CLASS = "variable";
@@ -14,11 +14,16 @@ export const KEY_CLASS = "key";
 export const MARK_CLASS = "mark";
 /** Пустая обёртка подписи: название выводится её оформлением, а не текстом (см. buildMarkup). */
 export const LABEL_CLASS = "label";
-/** Переменная с ключом, которого нет в объявленном списке. */
+/** Переменная с ключом, которого нет в объявленном списке, — в строгом режиме это ошибка. */
 export const UNKNOWN_CLASS = "unknown";
+/** То же в режиме новых переменных: не ошибка, а ещё не заведённая переменная. */
+export const NEW_CLASS = "new";
 
 /** Подсказка на неизвестной переменной: почему она выделена не так, как остальные. */
 export const UNKNOWN_TITLE = "Переменная не объявлена — при отправке не подставится.";
+
+/** Подсказка на новой переменной: почему она выделена не так, как объявленные. */
+export const NEW_TITLE = "Новая переменная — её ещё нет в списке.";
 
 /**
  * Объявленные переменные: ключ → название (`null` — названия нет, показывается ключ).
@@ -33,6 +38,11 @@ export interface HighlightOptions {
 	names?: VariableNames;
 	/** Подсвечивать ли переменные (по умолчанию да): выключенная персонализация их не выделяет. */
 	variables?: boolean;
+	/**
+	 * Режим новых переменных: необъявленный ключ — не ошибка, а заявка на переменную, которую
+	 * заведёт хост. Помечается своим классом ({@link NEW_CLASS}), а не как чужая.
+	 */
+	newVariables?: boolean;
 }
 
 /** Обёртки подсвеченных конструкций — по нему их находят и подсветка, и правки редактора. */
@@ -113,12 +123,17 @@ export function anchorAfter(span: HTMLElement): Text | null {
 // Спинтакс — только с разделителем: `[текст]` без `|` вариантов не содержит.
 // Ни одна из конструкций не пересекает строку и не вкладывается друг в друга.
 const SPINTAX_PATTERN = /\[[^[\]\n]*\|[^[\]\n]*\]/;
-const VARIABLE_PATTERN = /\{[^{}\n]+\}/;
+// Переменная — только то, что и правда может ею быть: буква, цифра или подчёркивание по краям
+// ключа (см. isVariableKey в ./variables), между ними что угодно в пределах строки. Иначе `{ }`
+// и `{...}` становились бы конструкцией — неделимой, кликабельной и просящейся в список,
+// хотя завести такую переменную нельзя.
+const VARIABLE_PATTERN = /\{[\p{L}\p{N}_](?:[^{}\n]*[\p{L}\p{N}_])?\}/u;
 
 // Выключенная персонализация не подсвечивает переменные вовсе: подсвеченная конструкция неделима,
 // и без своего окна её нельзя было бы ни поправить, ни разобрать по частям.
-const WITH_VARIABLES = new RegExp(`${SPINTAX_PATTERN.source}|${VARIABLE_PATTERN.source}`, "g");
-const SPINTAX_ONLY = new RegExp(SPINTAX_PATTERN.source, "g");
+// Флаг u — ради `\p{L}` и `\p{N}` в переменной; спинтаксу он безразличен, но выражение общее.
+const WITH_VARIABLES = new RegExp(`${SPINTAX_PATTERN.source}|${VARIABLE_PATTERN.source}`, "gu");
+const SPINTAX_ONLY = new RegExp(SPINTAX_PATTERN.source, "gu");
 
 /**
  * Перестраивает подсветку в редактируемом элементе.
@@ -144,7 +159,7 @@ export function highlight(root: HTMLElement, options: HighlightOptions = {}): bo
 	}
 
 	unwrap(root);
-	wrap(root, pattern, options.names);
+	wrap(root, pattern, options);
 	anchorMarkup(root);
 
 	return true;
@@ -345,7 +360,7 @@ export function messageLength(root: HTMLElement, options: LengthOptions = {}): n
  * другое.
  */
 function variableKey(text: string): string | null {
-	return text.startsWith(SPINTAX_OPEN) ? null : text.slice(1, -1);
+	return text.startsWith(SPINTAX_OPEN) ? null : parseVariable(text);
 }
 
 /**
@@ -370,19 +385,46 @@ function* writtenVariables(text: string): Generator<{ written: string; start: nu
 }
 
 /**
+ * Объявленный ключ, совпавший с написанным без оглядки на регистр, или null.
+ * Он же ответ на вопрос «объявлена ли такая переменная» — один источник на обе задачи.
+ */
+function declaredKey(written: string, names?: VariableNames): string | null {
+	if (!names?.size) return null;
+
+	return keysByPlain(names).get(plainVariableKey(written)) ?? null;
+}
+
+/**
  * Объявлена ли переменная с таким ключом.
  *
- * Пустой список — не повод считать чужими все: он может быть ещё не известен (переменные
- * появляются после выбора аудитории), и тогда проверять не по чему. Помечать в этом случае
- * весь текст значило бы кричать там, где приложение само не знает набора.
+ * В строгом режиме пустой список — не повод считать чужими все: он может быть ещё не известен
+ * (переменные появляются после выбора аудитории), и тогда проверять не по чему. Помечать
+ * в этом случае весь текст значило бы кричать там, где приложение само не знает набора.
+ *
+ * В режиме новых переменных пустой список ничему не мешает: необъявленный ключ там не ошибка,
+ * а заявка, и цена ошибки — другой цвет вместо остановленной отправки. Начинают в этом режиме
+ * как раз с пустого списка — переменные заводятся по мере того, как их набирают.
  */
-function isUnknown(key: string, names?: VariableNames): boolean {
-	return !!names?.size && !names.has(key);
+function isUnknown(key: string, names?: VariableNames, newVariables?: boolean): boolean {
+	return newVariables ? !declaredKey(key, names) : !!names?.size && !declaredKey(key, names);
+}
+
+/**
+ * Новая ли переменная: необъявленная — и такая, какой её и правда можно завести.
+ *
+ * Ключ с символами разметки объявить нельзя вовсе, а пробелы по краям при объявлении срезаются
+ * (см. {@link isVariableKey}) — заявка на такой ключ никогда не была бы выполнена, и написанное
+ * осталось бы новым навсегда. Помечаем такие по-прежнему чужими: подставить их и правда нечем.
+ */
+function isNewVariable(key: string, names?: VariableNames, newVariables?: boolean): boolean {
+	return !!newVariables && !declaredKey(key, names) && isVariableKey(key);
 }
 
 /**
  * Ключи переменных из текста, которых нет среди объявленных, — в порядке появления, без повторов.
- * Пустой список объявленных даёт пустой результат: см. {@link isUnknown}.
+ * Пустой список объявленных даёт пустой результат, пока не включён режим новых: см. {@link isUnknown}.
+ * В режиме новых отдаются только те ключи, которые можно завести как есть: остальные — не заявка,
+ * а ошибка (см. {@link isNewVariable}).
  *
  * Текст берётся из тех же узлов, что и подсветка, и тем же выражением: результат обязан совпадать
  * с тем, что видно в поле. Обойти узлы по отдельности здесь так же важно, как и там — по
@@ -390,13 +432,21 @@ function isUnknown(key: string, names?: VariableNames): boolean {
  * Готовая обёртка при этом разбирается целиком: её текст разложен по узлам оформления
  * (см. buildMarkup), и по отдельности ни один из них конструкцией не выглядит.
  */
-export function unknownVariables(root: HTMLElement, names?: VariableNames): string[] {
+export function unknownVariables(root: HTMLElement, names?: VariableNames, newVariables?: boolean): string[] {
 	// Проверка идёт на каждое чтение значения снаружи, а открывающей скобки в тексте обычно нет
 	// вовсе — тогда и обходить нечего. Так же дёшево выходит и сама highlight().
-	if (!names?.size || !(root.textContent ?? "").includes(VARIABLE_OPEN)) return [];
+	if ((!names?.size && !newVariables) || !(root.textContent ?? "").includes(VARIABLE_OPEN)) return [];
+
+	// Один предикат на весь обход: в строгом режиме нужны все необъявленные, в режиме новых —
+	// только те, что помечены новыми, иначе список звал бы завести незаводимое.
+	const wanted = (key: string) =>
+		newVariables ? isNewVariable(key, names, newVariables) : isUnknown(key, names, newVariables);
 
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	const found: string[] = [];
+	// Повторы снимаем по сравнимому виду: `{Скидка}` и `{СКИДКА}` — одна переменная, и звать
+	// завести её дважды значило бы просить два поля вместо одного. Остаётся написанное первым.
+	const seen = new Set<string>();
 	let wrapper: HTMLElement | null = null;
 
 	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -406,34 +456,47 @@ export function unknownVariables(root: HTMLElement, names?: VariableNames): stri
 
 		wrapper = span;
 
-		for (const { written } of writtenVariables(span?.textContent ?? (node as Text).data))
-			if (isUnknown(written, names) && !found.includes(written)) found.push(written);
+		for (const { written } of writtenVariables(span?.textContent ?? (node as Text).data)) {
+			const plain = plainVariableKey(written);
+			if (!wanted(written) || seen.has(plain)) continue;
+
+			seen.add(plain);
+			found.push(written);
+		}
 	}
 
 	return found;
 }
 
 /**
- * Подменяет написанное название переменной её ключом: набранное или вставленное
- * `{Имя клиента}` становится `{ИМЯ}`. Возвращает true, если текст изменился.
+ * Приводит написанное в скобках к объявленному ключу: `{Имя клиента}` и `{имя}` становятся
+ * `{ИМЯ}`. Возвращает true, если текст изменился.
  *
  * И в поле, и в списке переменная показывается названием — набирают её с экрана, тем, что
  * видно. Само по себе название подставить нечем: в сообщение уходит ключ, и получателю такая
  * переменная ушла бы скобками наружу. Поэтому написанное название приводим к ключу сразу,
  * пока пишущий видит, что вышло, — на экране от этого ничего не меняется: там снова название.
  *
+ * Ключ набирают руками, поэтому его регистр тоже приводим к объявленному: сверяется он без
+ * оглядки на регистр (см. plainVariableKey в ./variables), а уходить в сообщение обязан
+ * объявленным — подстановка ищет его буква в букву.
+ *
+ * Ключ новой переменной приводим к верхнему регистру: объявлять его нечему, но заводить будут
+ * ровно то, что набрано, и `{Скидка}` рядом с `{СКИДКА}` развели бы два поля вместо одного.
+ *
  * Ключ важнее названия: написанное, совпавшее с объявленным ключом, остаётся как есть — иначе
- * одна переменная превращалась бы в другую. Регистр и лишние пробелы в написанном не важны:
+ * одна переменная превращалась бы в другую. Лишние пробелы в написанном названии не важны:
  * название — человеческий текст, а не код.
  *
  * Текст от подмены меняется, поэтому она идёт до подсветки, а не внутри неё: подсветка обязана
  * текст сохранять — по нему она возвращает каретку. Свою каретку подмена правит сама: правка
  * местная, смещения в соседних узлах остаются верными.
  */
-export function mapVariableNames(root: HTMLElement, names?: VariableNames): boolean {
+export function mapVariableNames(root: HTMLElement, names?: VariableNames, newVariables?: boolean): boolean {
 	// Ни объявленных названий, ни открывающей скобки в тексте — подменять нечего. Проверка идёт
-	// на каждый ввод, а скобки в обычном наборе не встречаются вовсе.
-	if (!names?.size || !(root.textContent ?? "").includes(VARIABLE_OPEN)) return false;
+	// на каждый ввод, а скобки в обычном наборе не встречаются вовсе. В режиме новых переменных
+	// пустой список работе не мешает: регистр новой переменной правится и без объявленных.
+	if ((!names?.size && !newVariables) || !(root.textContent ?? "").includes(VARIABLE_OPEN)) return false;
 
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	let mapped = false;
@@ -442,7 +505,7 @@ export function mapVariableNames(root: HTMLElement, names?: VariableNames): bool
 		// в готовой обёртке лежит уже ключ — её собрала подсветка
 		if (markupAt(node)) continue;
 
-		if (mapNode(node as Text, names)) mapped = true;
+		if (mapNode(node as Text, names, newVariables)) mapped = true;
 	}
 
 	return mapped;
@@ -451,7 +514,7 @@ export function mapVariableNames(root: HTMLElement, names?: VariableNames): bool
 /** Замена в тексте узла: начало и конец написанного и длина вставшего на его место ключа. */
 type Replacement = [start: number, end: number, length: number];
 
-function mapNode(node: Text, names: VariableNames): boolean {
+function mapNode(node: Text, names?: VariableNames, newVariables?: boolean): boolean {
 	const text = node.data;
 	if (!text.includes(VARIABLE_OPEN)) return false;
 
@@ -460,7 +523,7 @@ function mapNode(node: Text, names: VariableNames): boolean {
 	let last = 0;
 
 	for (const { written, start, end } of writtenVariables(text)) {
-		const key = keyByName(written, names);
+		const key = keyFor(written, names, newVariables);
 		if (!key) continue;
 
 		const construct = buildVariable(key);
@@ -517,19 +580,57 @@ function shiftOffset(done: Replacement[], offset: number): number {
 }
 
 /**
- * Ключ переменной по написанному в скобках — если написано её название; иначе null.
- * Сам ключ подмены не требует: он и уходит в сообщение.
+ * Ключ, которым надо заменить написанное в скобках, или null, если менять нечего.
+ *
+ * Три случая по убыванию точности: написан ключ объявленной переменной (пусть и в другом
+ * регистре), написано её название, написан ключ новой переменной не в верхнем регистре.
+ *
+ * Ключ важнее названия — сверяем его первым: иначе написанное, совпавшее с ключом одной
+ * переменной и с названием другой, превращалось бы в другую. Новая — последней: объявленное
+ * название важнее догадки о новой переменной.
  */
-function keyByName(written: string, names: VariableNames): string | null {
-	if (names.has(written)) return null;
+function keyFor(written: string, names?: VariableNames, newVariables?: boolean): string | null {
+	const declared = declaredKey(written, names);
+	// написанное слово в слово менять не на что: оно и уходит в сообщение
+	if (declared) return declared === written ? null : declared;
 
-	return keysByName(names).get(plainName(written)) ?? null;
+	const named = names?.size ? keysByName(names).get(plainName(written)) : null;
+	if (named) return named;
+
+	if (!isNewVariable(written, names, newVariables)) return null;
+
+	// Ключ новой — верхним регистром: объявить его пока нечем, а заведут ровно то, что набрано.
+	const upper = written.toUpperCase();
+
+	return upper === written ? null : upper;
 }
 
 // Название сверяем без оглядки на регистр и лишние пробелы: его набирают с экрана по памяти,
 // и «имя клиента» — то же самое название, что «Имя клиента».
 function plainName(value: string): string {
 	return value.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+// Объявленные ключи по сравнимому виду: сверка идёт без оглядки на регистр, а отдать нужно
+// объявленный ключ как есть. Считаются один раз на список — как и ключи по названиям.
+const KEYS_BY_PLAIN = new WeakMap<VariableNames, ReadonlyMap<string, string>>();
+
+function keysByPlain(names: VariableNames): ReadonlyMap<string, string> {
+	const cached = KEYS_BY_PLAIN.get(names);
+	if (cached) return cached;
+
+	const keys = new Map<string, string>();
+
+	// Два ключа, различающихся только регистром, — дело хоста: в тексте они неразличимы,
+	// и выбирать между ними не по чему. Берём первый объявленный, как и с названиями.
+	for (const key of names.keys()) {
+		const plain = plainVariableKey(key);
+		if (!keys.has(plain)) keys.set(plain, key);
+	}
+
+	KEYS_BY_PLAIN.set(names, keys);
+
+	return keys;
 }
 
 // Ключи по названиям — обратная сторона объявленного списка. Считаются один раз на список:
@@ -567,7 +668,7 @@ function unwrap(root: HTMLElement) {
 	root.normalize();
 }
 
-function wrap(root: HTMLElement, pattern: RegExp, names?: VariableNames) {
+function wrap(root: HTMLElement, pattern: RegExp, options: HighlightOptions) {
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	const targets: Text[] = [];
 
@@ -578,10 +679,10 @@ function wrap(root: HTMLElement, pattern: RegExp, names?: VariableNames) {
 		node = walker.nextNode() as Text | null;
 	}
 
-	targets.forEach((target) => wrapNode(target, pattern, names));
+	targets.forEach((target) => wrapNode(target, pattern, options));
 }
 
-function wrapNode(node: Text, pattern: RegExp, names?: VariableNames) {
+function wrapNode(node: Text, pattern: RegExp, options: HighlightOptions) {
 	const text = node.data;
 	const fragment = document.createDocumentFragment();
 	let last = 0;
@@ -590,7 +691,7 @@ function wrapNode(node: Text, pattern: RegExp, names?: VariableNames) {
 		const start = match.index;
 		if (start > last) fragment.appendChild(document.createTextNode(text.slice(last, start)));
 
-		fragment.appendChild(buildMarkup(match[0], names));
+		fragment.appendChild(buildMarkup(match[0], options));
 
 		last = start + match[0].length;
 	}
@@ -612,7 +713,8 @@ function wrapNode(node: Text, pattern: RegExp, names?: VariableNames) {
  * У переменной с названием ключ прячется, а на экран выводится оформлением подпись из атрибута
  * (см. `data-label` там же) — так текст остаётся нетронутым.
  */
-function buildMarkup(text: string, names?: VariableNames): HTMLElement {
+function buildMarkup(text: string, options: HighlightOptions = {}): HTMLElement {
+	const { names, newVariables } = options;
 	const span = document.createElement("span");
 	const key = variableKey(text);
 
@@ -627,17 +729,23 @@ function buildMarkup(text: string, names?: VariableNames): HTMLElement {
 		return span;
 	}
 
-	// Ключа нет среди объявленных: подставить такую переменную будет нечем, и получателю она
-	// уйдёт скобками наружу. Выглядит она при этом ровно как рабочая, поэтому помечаем — опечатка
-	// в ключе иначе замечается уже по отправленному сообщению.
-	if (isUnknown(key, names)) {
-		span.classList.add(UNKNOWN_CLASS);
-		span.setAttribute("title", UNKNOWN_TITLE);
+	// Ключа нет среди объявленных. В строгом режиме подставить такую переменную будет нечем,
+	// и получателю она уйдёт скобками наружу; выглядит она при этом ровно как рабочая, поэтому
+	// помечаем — опечатка в ключе иначе замечается уже по отправленному сообщению. В режиме
+	// новых переменных это не ошибка, а ещё не заведённая переменная: пометка другая — своим
+	// цветом и своей подсказкой, — но она нужна не меньше, ведь заводить её кому-то придётся.
+	if (isUnknown(key, names, newVariables)) {
+		const isNew = isNewVariable(key, names, newVariables);
+
+		span.classList.add(isNew ? NEW_CLASS : UNKNOWN_CLASS);
+		span.setAttribute("title", isNew ? NEW_TITLE : UNKNOWN_TITLE);
 		fillVariable(span, text, key);
 		return span;
 	}
 
-	const name = names?.get(key);
+	// Написанное могло отличаться от объявленного регистром: подмена приводит его к объявленному
+	// до подсветки, но полагаться на порядок здесь незачем — название берём по объявленному ключу.
+	const name = names?.get(declaredKey(key, names) ?? key);
 	// ключ спрятан, а знать его иногда нужно — например когда у двух переменных одно название
 	if (name) span.setAttribute("title", text);
 

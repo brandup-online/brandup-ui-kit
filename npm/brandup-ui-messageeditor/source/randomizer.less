@@ -1,3 +1,5 @@
+@import (reference) "./modal.less"; // общее оформление действий окна
+
 // Окно рандомизации: список вариантов и кнопки под ним. Рамка и подложка — от базового окна
 // кита, поля ввода оформляются его же общими правилами, здесь только раскладка и кнопки.
 
@@ -93,32 +95,7 @@
 
 	// действия окна слева: сначала сохранение, рядом отмена; пояснение про предел — справа
 	& .actions {
-		display: flex;
-		flex-flow: row wrap;
-		align-items: center;
-		gap: var(--messageeditor-randomizer-gap);
-		margin-top: calc(var(--messageeditor-randomizer-gap) * 2);
-
-		& button {
-			min-height: var(--input-height, 46px);
-			padding: 0 var(--input-padding-lr, 15px);
-			border-style: var(--input-border-type, solid);
-			border-width: var(--input-border-width, 1px);
-			border-color: var(--input-border-color, #aaa);
-			border-radius: var(--input-border-radius, 0);
-			background: var(--input-fill, #fff);
-			cursor: pointer;
-
-			&:hover {
-				border-color: var(--hover--input-border-color, var(--input-border-color, #aaa));
-			}
-
-			// сохранять нечего, пока не набран ни один вариант
-			&[disabled] {
-				opacity: 0.5;
-				cursor: default;
-			}
-		}
+		.messageeditor-modal-actions(var(--messageeditor-randomizer-gap); var(--messageeditor-randomizer-accent));
 
 		// Почему список перестал расти: пустого варианта внизу больше нет, и без пояснения
 		// это выглядело бы поломкой. Показывается только на пределе — класс ставит окно.
@@ -127,13 +104,6 @@
 			color: var(--placeholder-color, #999);
 			font-size: 0.9em;
 			display: none;
-		}
-
-		// главное действие окна — залито акцентом
-		& .apply {
-			border-color: var(--messageeditor-randomizer-accent);
-			background: var(--messageeditor-randomizer-accent);
-			color: #fff;
 		}
 	}
 
