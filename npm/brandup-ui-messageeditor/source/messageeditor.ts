@@ -10,6 +10,7 @@ import RichEditor, {
 	parseBlockTypes,
 	parseFormatTools,
 	preserveCaret,
+	safeUrl,
 	type BlockType,
 	type FormatStorage,
 	type FormatTool,
@@ -324,7 +325,14 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 			? cleanVariables(options.variables)
 			: parseVariables(valueElem.dataset.variables);
 		this.variablesEmpty = options.variablesEmpty ?? valueElem.dataset.variablesEmpty ?? null;
-		this.variablesSetup = options.variablesSetup ?? valueElem.dataset.variablesSetup ?? null;
+		const declaredSetup = options.variablesSetup ?? valueElem.dataset.variablesSetup ?? null;
+		// Адрес настройки уходит в `href`, а `javascript:` там — исполнение кода, пришедшего вместе
+		// с разметкой (см. safeUrl в @brandup/ui-richeditor). Негодный адрес — как необъявленная
+		// настройка: строки в окне не будет вовсе. Про потерю говорим в консоль: молча пропавшая
+		// ссылка выглядит как «её забыли объявить».
+		const unsafeSetup = typeof declaredSetup === "string" && !!declaredSetup.trim() && !safeUrl(declaredSetup);
+		if (unsafeSetup) console.error("MessageEditor: настройка полей отброшена — негодный адрес.", declaredSetup);
+		this.variablesSetup = unsafeSetup ? null : declaredSetup;
 		this.variablesSetupText =
 			options.variablesSetupText ?? valueElem.dataset.variablesSetupText ?? VARIABLES_SETUP_TEXT;
 		this.newVariables = options.newVariables ?? dataFlag(valueElem.dataset, "newVariables");

@@ -485,6 +485,24 @@ describe("MessageEditor", () => {
 		expect(document.activeElement).not.toBe(editor.editor.editable); // молча — без каретки в поле
 	});
 
+	// Адрес настройки уходит в href, а `javascript:` там — исполнение кода, пришедшего вместе
+	// с разметкой: атрибут обычно печатает сервер. Негодный адрес — как необъявленная настройка.
+	it.each([["javascript:alert(1)"], ["JaVaScRiPt:alert(1)"], ["data:text/html,<script>alert(1)</script>"]])(
+		"drops the setup address %j",
+		(url) => {
+			const { input } = setup();
+			input.setAttribute("data-variables-setup", url);
+			const errors = jest.spyOn(console, "error").mockImplementation(() => {});
+
+			const editor = new MessageEditor(input);
+
+			expect(editor.variablesSetup).toBeNull();
+			expect(editor.personalization).toBe(false); // отброшенная настройка согласием не считается
+			expect(errors).toHaveBeenCalled(); // молча пропавшая ссылка выглядела бы как забытая
+			errors.mockRestore();
+		}
+	);
+
 	it("runs the setup function and closes the window by default", () => {
 		const { input } = setup();
 		const run = jest.fn();

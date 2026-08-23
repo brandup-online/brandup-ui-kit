@@ -2,6 +2,7 @@
 // на чистом Selection/Range API (без execCommand), плюс сохранение/восстановление выделения.
 
 import { ALL_FORMAT_TOOLS, FORMAT_TOOLS, blockTypeOfTag, type FormatTool } from "./format-config";
+import { safeUrl } from "./url";
 
 /** Канонические теги форматирования (в верхнем регистре, как tagName). */
 const FORMAT_TAG_NAMES = ALL_FORMAT_TOOLS.map((t) => FORMAT_TOOLS[t].tag.toUpperCase());
@@ -648,6 +649,11 @@ export function linkAt(root: HTMLElement, range: Range): HTMLAnchorElement | nul
  *
  * Не переключатель, в отличие от {@link toggleFormat}: у ссылки есть данные, и повторное
  * применение с другим адресом — это правка, а не снятие. Снятие выражается пустым адресом.
+ *
+ * Адрес проверяется здесь, у самой записи в DOM: через это место идут и панель, и хост, а
+ * `javascript:` в href — исполнение кода, пришедшего вместе с адресом. Негодный адрес равносилен
+ * пустому: ссылки с таким адресом не бывает и в значении (см. safeUrl в ./url), и поле обязано
+ * показывать то же, что уйдёт хосту.
  */
 export function applyLink(
 	root: HTMLElement,
@@ -656,19 +662,21 @@ export function applyLink(
 	selection: Selection,
 	restoreBounds?: [number, number]
 ) {
+	const href = safeUrl(url);
+
 	editSelection(root, range, selection, restoreBounds, (nodes) => {
 		for (const node of nodes) {
 			const existing = formatAncestor(node, LINK_TAGS, root);
 
-			if (!url) {
+			if (!href) {
 				if (existing) removeFormatFromNode(node, LINK_TAGS, root);
 				continue;
 			}
 
 			// Уже в ссылке — меняем адрес у неё целиком: разрезать её ради части выделения значит
 			// сделать из одной ссылки две, а просили поправить адрес.
-			if (existing) existing.setAttribute("href", url);
-			else wrapNode(node, "a").setAttribute("href", url);
+			if (existing) existing.setAttribute("href", href);
+			else wrapNode(node, "a").setAttribute("href", href);
 		}
 	});
 }
@@ -755,8 +763,9 @@ export function insertFormattedText(
 	for (const tool of tools) {
 		const el = document.createElement(FORMAT_TOOLS[tool].tag);
 		// Ссылка — не просто тег: без адреса она не переживёт сериализацию. Адрес передаёт
-		// вызывающий — с выделения, чьё оформление наследуется.
-		if (tool === "link" && href) el.setAttribute("href", href);
+		// вызывающий — с выделения, чьё оформление наследуется; проверяем и его, как в applyLink.
+		const url = tool === "link" ? safeUrl(href) : "";
+		if (url) el.setAttribute("href", url);
 		el.appendChild(node);
 		node = el;
 	}

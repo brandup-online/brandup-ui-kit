@@ -298,6 +298,24 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Fixed
 
+- **A `javascript:` address typed into the link panel reached the DOM.** The
+  address went into `href` unchecked, so the editable held a live
+  `<a href="javascript:…">` and `currentLink` reported it — a middle click or
+  "Open link" from the context menu runs it, and the href survived in undo
+  snapshots. Serializing already dropped such a link, so the value was never
+  affected. The check (`safeUrl`, now its own module and exported) moved to the
+  DOM writes themselves — `applyLink` and the formatted insert — so every path
+  into the markup goes through one rule: value, paste and panel alike. An
+  unsafe address counts as empty: no link is created, and one whose address is
+  changed to an unsafe one is removed.
+
+- **`@brandup/ui-messageeditor` put the fields-setup address into `href`
+  unchecked.** `variablesSetup` (and the `data-variables-setup` attribute a
+  server usually prints) accepted `javascript:`, and the link in the
+  personalization window executed it on click. The address now goes through the
+  same `safeUrl`; a rejected one is dropped with a console message, so the row
+  is not rendered at all and the setup no longer implies personalization.
+
 - **A message editor never validated its initial value.** The unknown-variable
   constraint was applied on change only, and native constraint validation runs
   before the `submit` event — so a server-rendered field holding `{TYPO}` was

@@ -1,6 +1,7 @@
 // Разбор и сериализация значения редактора (HTML | Markdown), модель абзацев и мягких переносов.
 
 import { blockTypeOf } from "./paragraphs";
+import { safeUrl } from "./url";
 import {
 	ALL_BLOCK_TYPES,
 	ALL_FORMAT_TOOLS,
@@ -448,25 +449,6 @@ const HREF_PATTERN = /&#1;(\d+)&#1;/g;
  * Разбирается по уже заэкранированному тексту, поэтому угловые скобки здесь — `&lt;`/`&gt;`.
  */
 const LINK_PATTERN = /\[((?:\\.|[^\\[\]\n])*)\]\((&lt;[^\n]*?&gt;|(?:[^\s()]|\([^()]*\))*)\)/g;
-
-const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
-const SAFE_SCHEME = /^(?:https?|mailto|tel):/i;
-
-/**
- * Адрес, безопасный для `href`; пустая строка — такой ссылке не быть.
- *
- * `javascript:` в адресе — это исполнение кода, пришедшего вместе со значением: та же дыра, от
- * которой бережёт вывод текста текстом. Пропускаем известные схемы и адреса без схемы вовсе —
- * относительные и протокол-относительные.
- */
-function safeUrl(href: string): string {
-	const value = href.trim();
-	// Схему читаем так же, как её прочитает браузер: всё, из чего схема состоять не может,
-	// он из неё выбрасывает — и без этого `java<таб>script:` прошло бы мимо проверки.
-	const probe = value.replace(/[^a-z0-9+.:/-]/gi, "");
-
-	return !SCHEME.test(probe) || SAFE_SCHEME.test(probe) ? value : "";
-}
 
 // Markdown-разметка одного абзаца → инлайновый HTML (escape, маркеры, \n→<br>).
 function markdownInline(text: string, order: MarkerRule[], linked: boolean): string {

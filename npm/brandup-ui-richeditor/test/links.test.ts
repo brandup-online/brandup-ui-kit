@@ -215,6 +215,53 @@ describe("applying a link", () => {
 		expect(editor.getValue()).toBe("");
 	});
 
+	// `javascript:` в адресе — исполнение кода, пришедшего вместе с адресом. Проверка стоит у самой
+	// записи в DOM, поэтому такой ссылки не бывает и в поле, а не только в значении: клик средней
+	// кнопкой и «Открыть ссылку» из меню работают и в редактируемой области.
+	it.each([
+		["javascript:alert(1)"],
+		["  javascript:alert(1)"],
+		["JaVaScRiPt:alert(1)"],
+		["java	script:alert(1)"], // схему браузер читает без мусорных символов — и мы так же
+		["data:text/html,<script>alert(1)</script>"],
+		["vbscript:msgbox(1)"],
+	])("refuses %j", (url) => {
+		const editor = editorWith("раз два");
+		select(editor, 0, 3);
+
+		editor.applyLink(url);
+
+		expect(editor.editable.querySelector("a")).toBeNull();
+		expect(editor.currentLink).toBe("");
+		expect(editor.getValue()).toBe("раз два");
+	});
+
+	// Отказ не должен задеть обычные адреса: относительный и протокол-относительный схемы не имеют,
+	// а известные схемы разрешены.
+	it.each([["https://example.com"], ["/page"], ["//cdn.example/x"], ["mailto:a@b.c"], ["tel:+79990000000"]])(
+		"keeps %j",
+		(url) => {
+			const editor = editorWith("раз два");
+			select(editor, 0, 3);
+
+			editor.applyLink(url);
+
+			expect(editor.editable.querySelector("a")!.getAttribute("href")).toBe(url);
+		}
+	);
+
+	// Негодный адрес равносилен пустому: ссылки с ним не бывает и в значении, а поле обязано
+	// показывать то же, что уйдёт хосту.
+	it("removes a link whose address is changed to an unsafe one", () => {
+		const editor = editorWith("[раз](https://a.example) два");
+		caret(editor, 1);
+
+		editor.applyLink("javascript:alert(1)");
+
+		expect(editor.editable.querySelector("a")).toBeNull();
+		expect(editor.getValue()).toBe("раз два");
+	});
+
 	// Формат применяется к слову целиком — значит и слово под кареткой есть что делать ссылкой
 	it("links the whole word under the caret", () => {
 		const editor = editorWith("раз два");

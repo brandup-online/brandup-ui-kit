@@ -13,6 +13,7 @@ export {
 	refreshRecentEmojis,
 	type EmojiGroup,
 } from "./emoji";
+export { safeUrl } from "./url";
 export {
 	ALL_BLOCK_TYPES,
 	ALL_EDITOR_ACTIONS,
