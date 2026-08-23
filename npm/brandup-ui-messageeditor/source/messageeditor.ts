@@ -18,6 +18,7 @@ import RichEditor, {
 import {
 	anchorAfter,
 	highlight,
+	joinSplitMarkup,
 	mapVariableNames,
 	markupAt,
 	markupBeside,
@@ -97,6 +98,24 @@ function buildModes(): { elem: HTMLElement; buttons: HTMLButtonElement[] } {
  */
 function keepEditorFocus(elem: HTMLElement, signal: AbortSignal) {
 	elem.addEventListener("mousedown", (e) => e.preventDefault(), { signal });
+}
+
+/**
+ * Признак из атрибута поля-носителя: `data-*` без значения, `true` или `1` — да; `false` и `0` —
+ * нет; нет атрибута — тоже нет.
+ *
+ * Одного присутствия мало: атрибут ставит сервер, а шаблон обычно печатает в него значение
+ * (`data-personalization="false"`), а не решает, писать ли его вовсе, — и выключенный признак
+ * выглядел бы включённым. Остальные значения считаем согласием, как у нативных булевых атрибутов:
+ * написали — значит нужно.
+ */
+function dataFlag(dataset: DOMStringMap, name: string): boolean {
+	const value = dataset[name];
+	if (value === undefined) return false;
+
+	const plain = value.trim().toLowerCase();
+
+	return plain !== "false" && plain !== "0";
 }
 
 export interface MessageEditorOptions {
@@ -260,7 +279,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		// Показ выхода — по объявлению, а не всегда: сырая разметка нужна тому, кто её сверяет,
 		// а пишущему сообщение она только мешает. Панель выхода прокручивается так же, как текст
 		// в плашке, — общим классом кита.
-		const source = options.source ?? "source" in valueElem.dataset;
+		const source = options.source ?? dataFlag(valueElem.dataset, "source");
 		const modes = source ? buildModes() : null;
 		// tabindex — ради прокрутки: длинная разметка прокручивается в панели, а с клавиатуры
 		// прокручивают только то, что можно взять в фокус (текст плашки берётся сам, он редактируемый).
@@ -308,13 +327,13 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		this.variablesSetup = options.variablesSetup ?? valueElem.dataset.variablesSetup ?? null;
 		this.variablesSetupText =
 			options.variablesSetupText ?? valueElem.dataset.variablesSetupText ?? VARIABLES_SETUP_TEXT;
-		this.newVariables = options.newVariables ?? "newVariables" in valueElem.dataset;
+		this.newVariables = options.newVariables ?? dataFlag(valueElem.dataset, "newVariables");
 		// Объявленный список — тоже согласие: иначе переданные переменные молча никуда не вели бы.
 		// Настройка полей — так же: объявленная, она обязана быть досягаемой, а живёт в окне.
 		// Режим новых переменных — тоже: он про переменные и без них не значит ничего.
 		this.personalization =
 			options.personalization ??
-			("personalization" in valueElem.dataset ||
+			(dataFlag(valueElem.dataset, "personalization") ||
 				!!this.variables.length ||
 				!!this.variablesEmpty ||
 				!!this.variablesSetup ||
@@ -327,8 +346,8 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		// Собирается один раз: ничего из этого после сборки не меняется, а подсветка идёт
 		// на каждое нажатие — и дважды за проход, ранней проверкой и самой перестройкой.
 		this.__highlightOptions = {
-			names: this.__names,
-			variables: this.personalization,
+			variables: this.__names,
+			enable: this.personalization,
 			newVariables: this.newVariables,
 		};
 		this.__inputElem = inputElem;
@@ -388,6 +407,12 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		// Носитель приводим к содержимому редактора после подсветки: она подменяет написанные
 		// названия переменных ключами (см. __mapNames), и в форму значение обязано уйти с ключами.
 		this.__valueElem.value = this.__messageValue();
+
+		// Начальное значение события изменения не поднимает, а проверить его надо: разметку
+		// с чужой переменной отдаёт сервер, и до первой правки поля подписи невалидности не было
+		// бы вовсе — форма ушла бы с переменной, которую нечем подставить (нативная проверка
+		// ограничений идёт до события submit, и синхронизация в нём опаздывает).
+		this.__refreshValidity();
 
 		this.__applyAutoFocus(); // автофокус — вместе с прокруткой к плашке; условия у базового класса
 	}
@@ -475,13 +500,16 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	}
 
 	/**
-	 * Есть ли по чему отличать объявленную переменную от чужой: персонализация включена и список
-	 * объявлен. Без персонализации `{ИМЯ}` — обычный текст, а пустой список в строгом режиме может
-	 * быть просто ещё не известен (см. isUnknown в ./highlight). В режиме новых переменных пустой
-	 * список — рабочее начало: переменные и заводятся по мере того, как их набирают.
+	 * Есть ли по чему отличать объявленную переменную от чужой. Отличать не по чему только тогда,
+	 * когда персонализация выключена: `{ИМЯ}` там обычный текст, и переменных в поле нет вовсе.
+	 *
+	 * Пустой список этому не мешает: он значит, что не объявлено ничего, — и чужой становится любая
+	 * переменная (см. isUnknown в ./highlight). Приложение, которому набор ещё не известен, включает
+	 * персонализацию тогда же, когда узнаёт набор. В режиме новых переменных пустой список — рабочее
+	 * начало: переменные и заводятся по мере того, как их набирают.
 	 */
 	private get __knowsVariables(): boolean {
-		return this.personalization && (this.newVariables || this.__names.size > 0);
+		return this.personalization;
 	}
 
 	/**
@@ -535,7 +563,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	 */
 	get messageLength(): number {
 		return countLength(this.__inputElem, {
-			variables: this.personalization,
+			enable: this.personalization,
 			variableLength: this.variableLength,
 		});
 	}
@@ -582,6 +610,11 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		// и на обычном наборе — где ни конструкций, ни обёрток нет — доставался бы зря на каждый
 		// ввод. Поэтому дешёвая проверка идёт до снимка, а не только внутри highlight().
 		if (!mayHaveMarkup(this.__inputElem, options)) return false;
+
+		// Конструкция, разорванная инлайновой разметкой (`{` перед жирным словом и `}` после),
+		// не находится ни подменой названий, ни подсветкой — обе идут по текстовым узлам.
+		// Склеиваем до них: дальше это обычная конструкция в одном узле.
+		preserveCaret(this.__inputElem, () => joinSplitMarkup(this.__inputElem, options));
 
 		// Название вместо ключа подменяем до подсветки: она обязана сохранять текст — по нему
 		// возвращается каретка, — а подмена его меняет.

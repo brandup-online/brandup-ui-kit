@@ -34,10 +34,13 @@ export const NEW_TITLE = "Новая переменная — её ещё нет
 export type VariableNames = ReadonlyMap<string, string | null>;
 
 export interface HighlightOptions {
-	/** Объявленные переменные; без них показывается ключ и ничего не проверяется. */
-	names?: VariableNames;
-	/** Подсвечивать ли переменные (по умолчанию да): выключенная персонализация их не выделяет. */
-	variables?: boolean;
+	/**
+	 * Включена ли персонализация (по умолчанию да): без неё `{ИМЯ}` — обычный текст, и подсвечен
+	 * будет только спинтакс.
+	 */
+	enable?: boolean;
+	/** Объявленные переменные: чего в них нет, то в тексте чужое. */
+	variables?: VariableNames;
 	/**
 	 * Режим новых переменных: необъявленный ключ — не ошибка, а заявка на переменную, которую
 	 * заведёт хост. Помечается своим классом ({@link NEW_CLASS}), а не как чужая.
@@ -144,7 +147,7 @@ const SPINTAX_ONLY = new RegExp(SPINTAX_PATTERN.source, "gu");
  * ровно такой же. Текст при перестройке не меняется, поэтому смещения совпадают точно.
  */
 export function highlight(root: HTMLElement, options: HighlightOptions = {}): boolean {
-	const pattern = options.variables === false ? SPINTAX_ONLY : WITH_VARIABLES;
+	const pattern = options.enable === false ? SPINTAX_ONLY : WITH_VARIABLES;
 
 	// В тексте нет ни конструкций, ни прежних обёрток — трогать DOM незачем. Проверка дешёвая
 	// и снимает работу с обычного набора, где ни спинтакса, ни переменных нет вовсе.
@@ -159,6 +162,9 @@ export function highlight(root: HTMLElement, options: HighlightOptions = {}): bo
 	}
 
 	unwrap(root);
+	// Разорванную инлайновой разметкой конструкцию склеиваем до разбора: по узлам она
+	// не находится вовсе (см. joinSplitMarkup).
+	joinSplitMarkup(root, options);
 	wrap(root, pattern, options);
 	anchorMarkup(root);
 
@@ -173,7 +179,7 @@ export function highlight(root: HTMLElement, options: HighlightOptions = {}): bo
  * чтобы хост мог выйти ещё до снятия снимка каретки — оно тоже не бесплатно.
  */
 export function mayHaveMarkup(root: HTMLElement, options: HighlightOptions = {}): boolean {
-	const pattern = options.variables === false ? SPINTAX_ONLY : WITH_VARIABLES;
+	const pattern = options.enable === false ? SPINTAX_ONLY : WITH_VARIABLES;
 
 	pattern.lastIndex = 0;
 	const found = pattern.test(root.textContent ?? "");
@@ -246,7 +252,7 @@ function isHighlighted(root: HTMLElement, pattern: RegExp): boolean {
 		if (!match || match[0] !== text) return false;
 	}
 
-	const { run, wrapped } = collectRun(root);
+	const { run, parts } = collectRun(root);
 
 	pattern.lastIndex = 0; // общий g-объект: matchAll стартует с его lastIndex
 
@@ -254,7 +260,7 @@ function isHighlighted(root: HTMLElement, pattern: RegExp): boolean {
 		const start = match.index;
 		const end = start + match[0].length;
 
-		if (!wrapped.some(([from, to]) => from === start && to === end)) return false;
+		if (!parts.some((part) => part.wrapped && part.start === start && part.end === end)) return false;
 	}
 
 	return true;
@@ -265,13 +271,14 @@ function isHighlighted(root: HTMLElement, pattern: RegExp): boolean {
  * текстовые узлы склеены, текст обёрток входит целиком, а разрывы строк — переносами
  * (конструкция строку не пересекает, и склейка через разрыв давала бы ложное совпадение).
  *
- * Вместе с текстом отдаются границы обёрток в нём: они нужны проверке соответствия разметки
- * ({@link isHighlighted}), а собирать их отдельным обходом значило бы пройти дерево дважды.
+ * Вместе с текстом отдаются куски, из которых он собран: они нужны и проверке соответствия
+ * разметки ({@link isHighlighted}), и склейке разорванных конструкций ({@link joinSplitMarkup}),
+ * а собирать их отдельным обходом значило бы пройти дерево дважды.
  */
-function collectRun(root: HTMLElement): { run: string; wrapped: Array<[number, number]> } {
+function collectRun(root: HTMLElement): { run: string; parts: RunPart[] } {
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
 	let run = "";
-	const wrapped: Array<[number, number]> = [];
+	const parts: RunPart[] = [];
 
 	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
 		if (node.nodeType === Node.ELEMENT_NODE) {
@@ -279,7 +286,7 @@ function collectRun(root: HTMLElement): { run: string; wrapped: Array<[number, n
 
 			if (elem.matches(MARKUP_SELECTOR)) {
 				const text = elem.textContent ?? "";
-				wrapped.push([run.length, run.length + text.length]);
+				parts.push({ node: elem, start: run.length, end: run.length + text.length, wrapped: true });
 				run += text;
 			} else if (LINE_BREAK_TAGS.has(elem.tagName)) run += "\n";
 
@@ -289,18 +296,26 @@ function collectRun(root: HTMLElement): { run: string; wrapped: Array<[number, n
 		// текст обёртки уже добавлен целиком, когда обход прошёл её саму
 		if (markupAt(node)) continue;
 
-		run += (node as Text).data;
+		const text = node as Text;
+		parts.push({ node: text, start: run.length, end: run.length + text.data.length, wrapped: false });
+		run += text.data;
 	}
 
-	return { run, wrapped };
+	return { run, parts };
 }
+
+/**
+ * Кусок собранной строки и его границы в ней: текстовый узел либо готовая обёртка целиком —
+ * её текст разложен по узлам оформления (см. buildMarkup) и неделим.
+ */
+type RunPart = { node: Node; start: number; end: number; wrapped: boolean };
 
 /** Сколько символов отводится переменной при подсчёте длины, пока хост не задал своего. */
 export const DEFAULT_VARIABLE_LENGTH = 30;
 
 // Из настроек подсветки длине нужна одна: объявленные переменные на счёт не влияют — считается
 // подставляемое значение, а не название. Приняв их, счёт обещал бы поправку, которой не делает.
-export interface LengthOptions extends Pick<HighlightOptions, "variables"> {
+export interface LengthOptions extends Pick<HighlightOptions, "enable"> {
 	/**
 	 * Сколько символов считать вместо переменной: подставленное значение длиннее ключа,
 	 * и точной длины у сообщения с переменными нет — только оценка.
@@ -319,11 +334,11 @@ export interface LengthOptions extends Pick<HighlightOptions, "variables"> {
  * форматирования, и они получателю не показываются. Обрезана по краям — ровно как значение,
  * которое уходит хосту (`getValue()` контрола возвращает его обрезанным).
  *
- * С выключенной подсветкой переменных (`variables: false`) `{ИМЯ}` — обычный текст,
+ * С выключенной персонализацией (`enable: false`) `{ИМЯ}` — обычный текст,
  * и считается он по буквам, ровно как показывается.
  */
 export function messageLength(root: HTMLElement, options: LengthOptions = {}): number {
-	const pattern = options.variables === false ? SPINTAX_ONLY : WITH_VARIABLES;
+	const pattern = options.enable === false ? SPINTAX_ONLY : WITH_VARIABLES;
 	const variableLength = options.variableLength ?? DEFAULT_VARIABLE_LENGTH;
 
 	// опоры каретки — служебные символы поля: в сообщение они не уходят и в длину не входят
@@ -397,16 +412,18 @@ function declaredKey(written: string, names?: VariableNames): string | null {
 /**
  * Объявлена ли переменная с таким ключом.
  *
- * В строгом режиме пустой список — не повод считать чужими все: он может быть ещё не известен
- * (переменные появляются после выбора аудитории), и тогда проверять не по чему. Помечать
- * в этом случае весь текст значило бы кричать там, где приложение само не знает набора.
+ * Список закрытый: чего в нём нет, то в тексте чужое — и пустой список не исключение.
+ * Подставить такую переменную нечем, а выглядит она ровно как рабочая, и молчать о ней значило бы
+ * обещать подстановку, которой не будет. Приложение, которому набор ещё не известен (переменные
+ * появляются после выбора аудитории), персонализацию до тех пор не включает: без неё `{ИМЯ}` —
+ * обычный текст.
  *
- * В режиме новых переменных пустой список ничему не мешает: необъявленный ключ там не ошибка,
- * а заявка, и цена ошибки — другой цвет вместо остановленной отправки. Начинают в этом режиме
- * как раз с пустого списка — переменные заводятся по мере того, как их набирают.
+ * Открытым список делает режим новых переменных: там необъявленный ключ — не ошибка, а заявка,
+ * и цена ошибки — другой цвет вместо остановленной отправки. Начинают в этом режиме как раз
+ * с пустого списка: переменные заводятся по мере того, как их набирают.
  */
-function isUnknown(key: string, names?: VariableNames, newVariables?: boolean): boolean {
-	return newVariables ? !declaredKey(key, names) : !!names?.size && !declaredKey(key, names);
+function isUnknown(key: string, names?: VariableNames): boolean {
+	return !declaredKey(key, names);
 }
 
 /**
@@ -422,9 +439,9 @@ function isNewVariable(key: string, names?: VariableNames, newVariables?: boolea
 
 /**
  * Ключи переменных из текста, которых нет среди объявленных, — в порядке появления, без повторов.
- * Пустой список объявленных даёт пустой результат, пока не включён режим новых: см. {@link isUnknown}.
- * В режиме новых отдаются только те ключи, которые можно завести как есть: остальные — не заявка,
- * а ошибка (см. {@link isNewVariable}).
+ * Пустой список объявленных делает чужой любую переменную (см. {@link isUnknown}). В режиме новых
+ * отдаются только те ключи, которые можно завести как есть: остальные — не заявка, а ошибка
+ * (см. {@link isNewVariable}).
  *
  * Текст берётся из тех же узлов, что и подсветка, и тем же выражением: результат обязан совпадать
  * с тем, что видно в поле. Обойти узлы по отдельности здесь так же важно, как и там — по
@@ -435,12 +452,11 @@ function isNewVariable(key: string, names?: VariableNames, newVariables?: boolea
 export function unknownVariables(root: HTMLElement, names?: VariableNames, newVariables?: boolean): string[] {
 	// Проверка идёт на каждое чтение значения снаружи, а открывающей скобки в тексте обычно нет
 	// вовсе — тогда и обходить нечего. Так же дёшево выходит и сама highlight().
-	if ((!names?.size && !newVariables) || !(root.textContent ?? "").includes(VARIABLE_OPEN)) return [];
+	if (!(root.textContent ?? "").includes(VARIABLE_OPEN)) return [];
 
 	// Один предикат на весь обход: в строгом режиме нужны все необъявленные, в режиме новых —
 	// только те, что помечены новыми, иначе список звал бы завести незаводимое.
-	const wanted = (key: string) =>
-		newVariables ? isNewVariable(key, names, newVariables) : isUnknown(key, names, newVariables);
+	const wanted = (key: string) => (newVariables ? isNewVariable(key, names, newVariables) : isUnknown(key, names));
 
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	const found: string[] = [];
@@ -655,6 +671,91 @@ function keysByName(names: VariableNames): ReadonlyMap<string, string> {
 	return keys;
 }
 
+/**
+ * Склеивает конструкцию, разорванную инлайновой разметкой: `{` перед жирным словом и `}` после
+ * него — одна конструкция, но лежит она в трёх узлах, и ни подсветка, ни подмена названий её
+ * не видят: обе идут по текстовым узлам. Без склейки такая конструкция не подсвечивается,
+ * не проверяется по объявленному списку и уходит в значение вместе с маркерами разметки внутри
+ * скобок (`{**ИМЯ**}`) — подставить её приложению нечем.
+ *
+ * Разметки внутри конструкции не бывает и так: форматирование выделенного текста ставит маркеры
+ * вокруг неё, а не внутрь (см. подсветку в редакторе). Поэтому склейка её снимает — остаётся
+ * ровно текст конструкции. Сам текст поля при этом не меняется, и каретка возвращается
+ * по смещениям точно.
+ *
+ * Конструкции, задевающие готовую обёртку, не трогаем: такую разметку пересобирает сама
+ * {@link highlight} — снимает обёртки и разбирает текст заново.
+ *
+ * Возвращает true, если что-то склеили.
+ */
+export function joinSplitMarkup(root: HTMLElement, options: HighlightOptions = {}): boolean {
+	const pattern = options.enable === false ? SPINTAX_ONLY : WITH_VARIABLES;
+	let joined = false;
+
+	// Склейка меняет дерево, и собранные смещения после неё уже не верны — собираем заново.
+	// За проход склеивается одна конструкция, а больше, чем их есть в тексте, не выйдет.
+	while (joinFirstSplit(root, pattern)) joined = true;
+
+	return joined;
+}
+
+/** Склеивает первую разорванную конструкцию; false — таких больше нет. */
+function joinFirstSplit(root: HTMLElement, pattern: RegExp): boolean {
+	const { run, parts } = collectRun(root);
+
+	pattern.lastIndex = 0; // общий g-объект: matchAll стартует с его lastIndex
+
+	for (const match of run.matchAll(pattern)) {
+		const start = match.index;
+		const end = start + match[0].length;
+		const first = parts.find((part) => part.start <= start && start < part.end);
+		const last = parts.find((part) => part.start < end && end <= part.end);
+
+		// конструкция целиком в одном куске — она и так найдётся; обёртки оставляем подсветке
+		if (!first || !last || first === last || first.wrapped || last.wrapped) continue;
+
+		const doc = root.ownerDocument;
+		const range = doc.createRange();
+
+		// Узлы разметки, из которых конструкция забирает текст: те, что попали в замену целиком,
+		// удалит сама замена, а надрезанные останутся — и пустыми, если весь их текст ушёл внутрь.
+		const touched = [...ancestors(first.node, root), ...ancestors(last.node, root)];
+
+		range.setStart(first.node, start - first.start);
+		range.setEnd(last.node, end - last.start);
+		range.deleteContents();
+		range.insertNode(doc.createTextNode(match[0]));
+
+		// вставленный текст должен лечь в один узел с соседним: по узлам конструкция не найдётся.
+		// Опустевшие узлы разметки заодно теряют пустые текстовые узлы — только после этого видно,
+		// что убирать.
+		root.normalize();
+		pruneEmptyMarkup(touched);
+
+		return true;
+	}
+
+	return false;
+}
+
+/** Узлы, внутри которых лежит `node`, от ближайшего к внешним; сам корень не в счёт. */
+function* ancestors(node: Node, root: HTMLElement): Generator<HTMLElement> {
+	for (let elem = node.parentElement; elem && elem !== root; elem = elem.parentElement) yield elem;
+}
+
+/**
+ * Узлы разметки, оставшиеся от склейки пустыми: весь их текст уехал в конструкцию. В значении их
+ * не видно, но каретке они дают лишнюю позицию, а правке — место, писать в которое нечего.
+ * Чужой пустоты не касаемся — пустой узел разметки бывает и рабочим (в нём стоит каретка, когда
+ * жирное включили до набора), поэтому убираем только надрезанные склейкой.
+ *
+ * Блоки не трогаем: пустой абзац — это пустая строка, и убирать её нельзя.
+ */
+function pruneEmptyMarkup(touched: HTMLElement[]) {
+	// от глубоких к внешним: опустевший внутренний узел оставляет пустым и того, кто его держал
+	for (const elem of touched) if (!elem.firstChild && !LINE_BREAK_TAGS.has(elem.tagName)) elem.remove();
+}
+
 /** Снимает прежние обёртки: разметка могла разъехаться после правки текста. */
 function unwrap(root: HTMLElement) {
 	root.querySelectorAll<HTMLElement>(MARKUP_SELECTOR).forEach((span) => {
@@ -714,7 +815,7 @@ function wrapNode(node: Text, pattern: RegExp, options: HighlightOptions) {
  * (см. `data-label` там же) — так текст остаётся нетронутым.
  */
 function buildMarkup(text: string, options: HighlightOptions = {}): HTMLElement {
-	const { names, newVariables } = options;
+	const { variables: names, newVariables } = options;
 	const span = document.createElement("span");
 	const key = variableKey(text);
 
@@ -734,7 +835,7 @@ function buildMarkup(text: string, options: HighlightOptions = {}): HTMLElement 
 	// помечаем — опечатка в ключе иначе замечается уже по отправленному сообщению. В режиме
 	// новых переменных это не ошибка, а ещё не заведённая переменная: пометка другая — своим
 	// цветом и своей подсказкой, — но она нужна не меньше, ведь заводить её кому-то придётся.
-	if (isUnknown(key, names, newVariables)) {
+	if (isUnknown(key, names)) {
 		const isNew = isNewVariable(key, names, newVariables);
 
 		span.classList.add(isNew ? NEW_CLASS : UNKNOWN_CLASS);

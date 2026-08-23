@@ -2,6 +2,7 @@
  * @jest-environment jsdom
  */
 import MessageEditor from "../source/messageeditor";
+import type { MessageVariable } from "../source/variables";
 import { messageLength, DEFAULT_VARIABLE_LENGTH } from "../source/highlight";
 
 function setup(
@@ -11,6 +12,7 @@ function setup(
 		variableLength?: number;
 		variableLengthAttr?: string;
 		maxlength?: number;
+		variables?: MessageVariable[];
 	} = {}
 ) {
 	document.body.innerHTML = "";
@@ -25,6 +27,7 @@ function setup(
 	const editor = new MessageEditor(input, {
 		personalization: opts.personalization ?? true,
 		variableLength: opts.variableLength,
+		variables: opts.variables,
 	});
 
 	return { input, editor };
@@ -130,7 +133,8 @@ describe("MessageEditor length", () => {
 	// Оценка с конструкциями форму не держит: остановка отправки по догадке отняла бы у хоста
 	// его же решение — свой лимит он проверяет сам.
 	it("does not block the form over the maxlength of the value element", () => {
-		const { input, editor } = setup({ value: "{ИМЯ}", maxlength: 10 });
+		// переменная объявлена: чужая остановила бы отправку сама, и проверка вышла бы не о том
+		const { input, editor } = setup({ value: "{ИМЯ}", maxlength: 10, variables: [{ key: "ИМЯ" }] });
 
 		expect(editor.messageLength).toBeGreaterThan(10);
 		expect(editor.validate()).toBe(true);
@@ -167,6 +171,6 @@ describe("messageLength", () => {
 	});
 
 	it("leaves variables to the literal count when they are not highlighted", () => {
-		expect(messageLength(root("{ИМЯ} [а|бв]"), { variables: false })).toBe(5 + 1 + 2);
+		expect(messageLength(root("{ИМЯ} [а|бв]"), { enable: false })).toBe(5 + 1 + 2);
 	});
 });

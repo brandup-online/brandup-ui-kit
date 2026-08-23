@@ -517,3 +517,38 @@ describe("new variables mode", () => {
 		});
 	});
 });
+
+// Атрибут ставит сервер, а шаблон обычно печатает в него значение, а не решает, писать ли его
+// вовсе: `data-new-variables="false"` обязан значить «выключено», иначе выключенный режим
+// выглядел бы включённым.
+describe("data-new-variables value", () => {
+	it.each([
+		["", true],
+		["true", true],
+		["1", true],
+		["false", false],
+		["0", false],
+		["FALSE", false],
+	])("reads %j as %s", (value, expected) => {
+		document.body.innerHTML = "";
+		const input = document.createElement("textarea");
+		input.setAttribute("data-new-variables", value);
+		input.dataset.variables = "ИМЯ";
+		input.value = "{СКИДКА}";
+		document.body.appendChild(input);
+
+		const editor = new MessageEditor(input);
+
+		expect(editor.newVariables).toBe(expected);
+		expect(editor.editor.editable.querySelector("span.variable")!.classList.contains("new")).toBe(expected);
+	});
+
+	it("stays off without the attribute", () => {
+		document.body.innerHTML = "";
+		const input = document.createElement("textarea");
+		input.dataset.variables = "ИМЯ";
+		document.body.appendChild(input);
+
+		expect(new MessageEditor(input).newVariables).toBe(false);
+	});
+});

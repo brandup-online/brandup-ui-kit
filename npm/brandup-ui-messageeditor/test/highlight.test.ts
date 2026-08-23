@@ -5,7 +5,7 @@ import { formatToolbar, selectionCharBounds } from "@brandup/ui-richeditor";
 import MessageEditor from "../source/messageeditor";
 import { highlight } from "../source/highlight";
 import { buildSpintax, parseSpintax } from "../source/randomizer";
-import { buildVariable } from "../source/variables";
+import { buildVariable, type MessageVariable } from "../source/variables";
 
 function setup(value = "") {
 	document.body.innerHTML = "";
@@ -498,5 +498,114 @@ describe("caret behind a construct", () => {
 		editable.dispatchEvent(new Event("input", { bubbles: true }));
 
 		expect(editable.textContent).toBe("{ИМЯ}​");
+	});
+});
+
+// Конструкцию разрывает инлайновая разметка: жирное слово, вокруг которого дописали скобки,
+// лежит в трёх узлах. По узлам её не видят ни подсветка, ни подмена названий, а в значение она
+// ушла бы вместе с маркерами внутри скобок (`{**ИМЯ**}`) — подставить такую приложению нечем.
+describe("a construct split by formatting", () => {
+	// Неснятый компонент остаётся подписанным на уход своего элемента из DOM, а разборка jsdom
+	// дёргает эту подписку, когда окружения уже нет.
+	const alive: MessageEditor[] = [];
+	afterEach(() => {
+		alive.forEach((editor) => editor.destroy());
+		alive.length = 0;
+	});
+
+	function bold(value: string, variables: MessageVariable[] = [{ key: "ИМЯ", name: "Имя" }]) {
+		document.body.innerHTML = "";
+		const form = document.createElement("form");
+		const input = document.createElement("textarea");
+		input.value = value;
+		form.appendChild(input);
+		document.body.appendChild(form);
+
+		const editor = new MessageEditor(input, { variables });
+		alive.push(editor);
+
+		return editor;
+	}
+
+	// скобки дописывают вокруг готового жирного слова — с обеих сторон от его узла
+	function typeBraces(editor: MessageEditor) {
+		const b = editor.editor.editable.querySelector("b")!;
+		b.before(document.createTextNode("{"));
+		b.after(document.createTextNode("}"));
+		editor.editor.editable.dispatchEvent(new Event("input", { bubbles: true }));
+	}
+
+	it("joins it and drops the formatting inside", () => {
+		const editor = bold("раз **ИМЯ** три");
+
+		typeBraces(editor);
+
+		const span = editor.editor.editable.querySelector<HTMLElement>("span.variable")!;
+		expect(span.textContent).toBe("{ИМЯ}");
+		expect(span.classList.contains("unknown")).toBe(false);
+		expect(editor.editor.editable.querySelector("b")).toBeNull(); // разметки внутри конструкции не бывает
+		expect(editor.getValue()).toBe("раз {ИМЯ} три");
+	});
+
+	// склеенную конструкцию подмена названий обязана увидеть так же, как набранную одним узлом
+	it("maps a name written across the formatting", () => {
+		const editor = bold("раз **Имя** три");
+
+		typeBraces(editor);
+
+		expect(editor.getValue()).toBe("раз {ИМЯ} три");
+	});
+
+	it("joins a spintax the same way", () => {
+		const editor = bold("раз **два** три", []);
+		const b = editor.editor.editable.querySelector("b")!;
+
+		b.before(document.createTextNode("[раз|"));
+		b.after(document.createTextNode("]"));
+		editor.editor.editable.dispatchEvent(new Event("input", { bubbles: true }));
+
+		expect(editor.editor.editable.querySelector("span.spintax")!.textContent).toBe("[раз|два]");
+		expect(editor.getValue()).toBe("раз [раз|два] три");
+	});
+
+	// Узел разметки, у которого склейка забрала весь текст, остаётся пустым: в значении его не
+	// видно, но каретке он даёт лишнюю позицию, а правке — место, писать в которое нечего.
+	it("takes away the markup nodes it emptied", () => {
+		const editor = bold("**{**_ИМЯ_**}**");
+		const editable = editor.editor.editable;
+
+		editable.dispatchEvent(new Event("input", { bubbles: true }));
+
+		expect(editable.querySelector<HTMLElement>("span.variable")!.textContent).toBe("{ИМЯ}");
+		expect(editable.querySelector("b")).toBeNull();
+		expect(editable.querySelector("i")).toBeNull();
+		expect(editor.getValue()).toBe("{ИМЯ}");
+	});
+
+	// Пустой узел разметки бывает и рабочим: в нём стоит каретка, когда жирное включили до набора.
+	// Склейка касается только тех, у кого забрала текст сама.
+	it("keeps an empty markup node it did not touch", () => {
+		const editor = bold("раз **ИМЯ** три");
+		const editable = editor.editor.editable;
+		const spare = document.createElement("b");
+		editable.querySelector("p")!.appendChild(spare);
+
+		typeBraces(editor);
+
+		expect(spare.isConnected).toBe(true);
+		expect(editable.querySelector("span.variable")!.textContent).toBe("{ИМЯ}");
+	});
+
+	// Пока конструкция не склеена, разметка не совпадает с текстом, и подсветка пересобирает её
+	// на каждый ввод — вместе с возвратом каретки по смещениям.
+	it("stops rebuilding the markup once it is joined", () => {
+		const editor = bold("раз **ИМЯ** три");
+		typeBraces(editor);
+		const span = editor.editor.editable.querySelector("span.variable")!;
+
+		editor.editor.editable.dispatchEvent(new Event("input", { bubbles: true }));
+
+		// та же обёртка, а не собранная заново: перестройка отдаёт новый узел и двигает каретку
+		expect(editor.editor.editable.querySelector("span.variable")).toBe(span);
 	});
 });

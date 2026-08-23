@@ -41,14 +41,18 @@ describe("unknown variables", () => {
 		expect(editor.unknownVariables).toEqual([]);
 	});
 
-	// Пустой список — не «все чужие»: набор может быть ещё не известен (переменные появляются
-	// после выбора аудитории), и тогда проверять не по чему.
-	it("marks nothing while the declared list is empty", () => {
+	// Пустой список — это «не объявлено ничего», а не «набор пока не известен»: подставить
+	// переменную нечем ни в том, ни в другом случае. Приложение, которому набор ещё предстоит
+	// узнать (переменные появляются после выбора аудитории), включает персонализацию тогда же,
+	// когда узнаёт набор.
+	it("marks every key while the declared list is empty", () => {
 		const editor = setup("{ЧТО_УГОДНО}", { personalization: true });
 		const span = editor.editor.editable.querySelector<HTMLElement>("span.variable")!;
+		const valueElem = editor.element.querySelector("textarea")!;
 
-		expect(span.classList.contains("unknown")).toBe(false);
-		expect(editor.unknownVariables).toEqual([]);
+		expect(span.classList.contains("unknown")).toBe(true);
+		expect(editor.unknownVariables).toEqual(["ЧТО_УГОДНО"]);
+		expect(valueElem.validity.customError).toBe(true);
 	});
 
 	// без персонализации `{ИМЯ}` — обычный текст, а не конструкция
@@ -143,14 +147,52 @@ describe("unknown variables", () => {
 	});
 
 	// Проверять не по чему — значит и подпись не наша: приложение могло выставить свою через
-	// setCustomValidity, и пустая строка стёрла бы её.
+	// setCustomValidity, и пустая строка стёрла бы её. Без персонализации переменных в поле нет
+	// вовсе, и проверять правда нечего.
 	it("keeps a host-set custom validity when there is nothing to check", () => {
-		const editor = setup("{ЧТО_УГОДНО}", { personalization: true });
+		const editor = setup("{ЧТО_УГОДНО}", { personalization: false });
 		const valueElem = editor.element.querySelector("textarea")!;
 
 		valueElem.setCustomValidity("Своя проверка приложения.");
 
 		expect(editor.validate()).toBe(false);
 		expect(valueElem.validationMessage).toBe("Своя проверка приложения.");
+		expect(editor.unknownVariables).toEqual([]);
+	});
+});
+
+// Ограничение объявляется полю-носителю, а нативная проверка ограничений идёт до события submit:
+// не проверив начальное значение, поле пропустило бы первую отправку. Разметку с чужой переменной
+// отдаёт сервер, и до первой правки события изменения не случается вовсе.
+describe("initial value", () => {
+	it("makes the field invalid before any interaction", () => {
+		const editor = setup("{ЧУЖАЯ}", declared);
+		const valueElem = editor.element.querySelector("textarea")!;
+
+		expect(valueElem.validity.customError).toBe(true);
+		expect(valueElem.form!.checkValidity()).toBe(false);
+	});
+
+	it("stops the first submit", () => {
+		const editor = setup("{ЧУЖАЯ}", declared);
+		const form = editor.element.querySelector("textarea")!.form!;
+		let submitted = false;
+		form.addEventListener("submit", (e) => {
+			e.preventDefault();
+			submitted = true;
+		});
+
+		form.requestSubmit();
+
+		expect(submitted).toBe(false);
+		expect(editor.element.classList.contains("invalid")).toBe(true);
+	});
+
+	it("leaves a declared one alone", () => {
+		const editor = setup("{ИМЯ}", declared);
+		const valueElem = editor.element.querySelector("textarea")!;
+
+		expect(valueElem.validity.customError).toBe(false);
+		expect(valueElem.form!.checkValidity()).toBe(true);
 	});
 });

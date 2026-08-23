@@ -69,7 +69,7 @@ describe("text is never rendered as markup", () => {
 		const root = document.createElement("div");
 		root.textContent = `{${KEY_PAYLOAD}}`;
 
-		highlight(root, { names: new Map([[KEY_PAYLOAD, KEY_PAYLOAD]]) });
+		highlight(root, { variables: new Map([[KEY_PAYLOAD, KEY_PAYLOAD]]) });
 
 		const variable = root.querySelector<HTMLElement>(".variable")!;
 		expect(variable.querySelector("img")).toBeNull();

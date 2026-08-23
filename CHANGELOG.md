@@ -173,6 +173,26 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Changed
 
+- **An empty variable list in `@brandup/ui-messageeditor` is now checked like
+  any other.** It used to mean "the set is not known yet" and marked nothing,
+  so with personalization on every `{KEY}` looked like a working variable and
+  the form went through — the editor promised a substitution nothing would
+  perform. Nothing declared now means every variable in the text is foreign:
+  it gets `.unknown` and blocks the submit. An app that learns its variables
+  later (after an audience is picked) turns personalization on at that point;
+  until then `{KEY}` is plain text. The open-list mode is unchanged — with
+  `newVariables` an undeclared key is a request, not an error.
+
+- **Boolean `data-*` attributes are read with their value.** Presence alone
+  used to be enough, so `data-new-variables="false"` turned the mode on.
+  `false` and `0` now mean off; an empty value, `true` and `1` mean on;
+  no attribute means off. Applies to `data-personalization`,
+  `data-new-variables` and `data-source`.
+
+- **`HighlightOptions` fields renamed:** `variables` (the on/off flag) is now
+  `enable`, and `names` (the declared map) is now `variables`. `LengthOptions`
+  picks `enable` accordingly.
+
 - **In `paragraph: "break"` a line is a paragraph.** The mode used to hold the
   whole message in a single `<p>` with `<br>` between the lines; now every line
   is its own `<p>` and a blank line of the message is an empty one. Enter and
@@ -277,6 +297,21 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   from 72.7 KiB → 38.7 KiB minified (~47%).
 
 ### Fixed
+
+- **A message editor never validated its initial value.** The unknown-variable
+  constraint was applied on change only, and native constraint validation runs
+  before the `submit` event — so a server-rendered field holding `{TYPO}` was
+  submitted once before the field ever went invalid. The constraint is now
+  applied when the control is built.
+
+- **A construct split by inline formatting was invisible to the editor.**
+  Braces typed around an already bold word (`{` + `<b>NAME</b>` + `}`) left the
+  construct in three nodes: highlighting and the name-to-key mapping both walk
+  text nodes and saw nothing, the value went out as `{**NAME**}` — which no
+  substitution can resolve — and the markup was rebuilt on every keystroke
+  because the text matched a construct the wrappers did not. Such a construct
+  is now joined into one text node before parsing (`joinSplitMarkup`), and the
+  formatting inside it is dropped: markup goes around a construct, never in it.
 
 - **The shared toolbar measured itself against its own stale position.** The
   panel is one for all editors and its inline `left` survives hiding, so
