@@ -354,7 +354,8 @@ describe("MessageEditor highlighting across line breaks", () => {
 	});
 });
 
-// Конструкция, дописанная вокруг уже подсвеченной: `{A` перед готовым `[x|y]` и `}` после.
+// Конструкция, дописанная вокруг уже подсвеченной: `{A` перед готовым `[x|y]` и `Z}` после
+// (границы ключа — буква или цифра, поэтому закрывающая скобка идёт следом за буквой).
 // Совпадение шире обёртки — повод пересобрать разметку: свежий разбор того же значения свернул
 // бы её в одну конструкцию, и показ при правке обязан совпадать с показом после перезагрузки.
 describe("MessageEditor highlighting composed around a wrapped construct", () => {
@@ -365,16 +366,16 @@ describe("MessageEditor highlighting composed around a wrapped construct", () =>
 
 		const span = root.querySelector<HTMLElement>("span.spintax")!;
 		span.before("{A");
-		span.after("}");
+		span.after("Z}");
 
 		expect(highlight(root)).toBe(true); // разметка пересобрана
 
 		expect(root.querySelector("span.spintax")).toBeNull();
-		expect(root.querySelector("span.variable")!.textContent).toBe("{A[x|y]}");
+		expect(root.querySelector("span.variable")!.textContent).toBe("{A[x|y]Z}");
 
 		// пересборка привела показ ровно к тому, что дал бы свежий разбор значения
 		const fresh = document.createElement("div");
-		fresh.innerHTML = "<p>{A[x|y]}</p>";
+		fresh.innerHTML = "<p>{A[x|y]Z}</p>";
 		highlight(fresh);
 		expect(root.innerHTML).toBe(fresh.innerHTML);
 

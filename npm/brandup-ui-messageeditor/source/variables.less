@@ -1,3 +1,5 @@
+@import (reference) "./modal.less"; // общее оформление действий окна
+
 // Окно персонализации: список переменных для вставки. Оформление рамки и подложки берётся
 // от базового окна кита, здесь — только содержимое тела.
 
@@ -5,6 +7,45 @@
 	--messageeditor-variables-gap: 2px;
 	// Запись выглядит так же, как вставленная переменная в тексте: связь видна без пояснений
 	--messageeditor-variables-preview-fill: var(--messageeditor-variable-fill, rgba(76, 175, 80, 0.24));
+	// Новая переменная — тем же цветом, каким она помечена в тексте: запись в списке и
+	// конструкция в сообщении обязаны узнаваться друг в друге
+	--messageeditor-variables-new-fill: var(--messageeditor-variable-new-fill, rgba(156, 39, 176, 0.2));
+	--messageeditor-variables-new-color: var(--messageeditor-variable-new-mark, rgba(156, 39, 176, 0.7));
+}
+
+// Правка ключа новой переменной: поле, подсказка и два действия. Кнопки — как в окне
+// рандомизации: там же главное действие залито акцентом, и второе окно не должно выглядеть
+// другим приложением.
+.messageeditor-variable-key {
+	& .key-field {
+		box-sizing: border-box;
+		width: 100%;
+		min-height: var(--input-height, 46px);
+		padding: 0 var(--input-padding-lr, 15px);
+		border-style: var(--input-border-type, solid);
+		border-width: var(--input-border-width, 1px);
+		border-color: var(--input-border-color, #aaa);
+		border-radius: var(--input-border-radius, 0);
+		background: var(--input-fill, #fff);
+		color: var(--input-color, #222);
+		font: inherit;
+
+		&:focus {
+			outline: none;
+			border-color: var(--focus--input-border-color, #4a9eff);
+		}
+	}
+
+	// Правило, а не жалоба: стоит всегда — набирающий видит его до того, как кнопка погаснет.
+	& .hint {
+		margin-top: 6px;
+		color: var(--placeholder-color, #999);
+		font-size: 0.9em;
+	}
+
+	& .actions {
+		.messageeditor-modal-actions();
+	}
 }
 
 .messageeditor-variables {
@@ -47,14 +88,27 @@
 			background-color: var(--messageeditor-variables-preview-fill);
 		}
 
-		// ключ лишь уточняет, что уйдёт в текст, — мельче и приглушён
-		& .key {
+		// Уточнение справа: у объявленной это ключ (что именно уйдёт в текст), у новой — пометка
+		// вместо него (ключа у такой записи нет, а объяснить отличие надо там же). Место и вид
+		// общие, различает их только цвет — иначе пометка выглядела бы другой строкой.
+		& .key,
+		& .note {
 			flex: 0 0 auto;
-			margin-left: auto; // ключ у правого края записи, виды выстраиваются в столбец
+			margin-left: auto; // у правого края записи, виды выстраиваются в столбец
 			color: var(--placeholder-color, #999);
 			font-size: 0.9em;
 			white-space: nowrap; // `{ИМЯ КЛИЕНТА}` читается как один знак
 		}
+
+		& .note {
+			color: var(--messageeditor-variables-new-color);
+		}
+	}
+
+	// Новая переменная: в тексте она помечена своим цветом — тем же помечаем и вид в списке,
+	// иначе выбранная из списка запись выглядела бы в сообщении иначе, чем в окне.
+	& .variable.new .preview {
+		background-color: var(--messageeditor-variables-new-fill);
 	}
 
 	// список пуст — объяснение занимает место записей, чтобы окно не выглядело сломанным

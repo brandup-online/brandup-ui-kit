@@ -149,6 +149,44 @@ describe("variables written by name", () => {
 		expect(editor.getValue()).toBe("{Имя клиента}");
 	});
 
+	// Ключ набирают руками, глядя на экран, и `{имя}` — та же переменная, что `{ИМЯ}`. Считать
+	// их разными значило бы пометить набранное чужим на ровном месте. В сообщение при этом уходит
+	// объявленный ключ: подстановка ищет его буква в букву.
+	it.each([["{имя}"], ["{Имя}"], ["{иМЯ}"]])("maps %s to the declared key", (value) => {
+		const { editor, input } = setup(value, declared);
+		const span = editor.editor.editable.querySelector<HTMLElement>("span.variable")!;
+
+		expect(editor.getValue()).toBe("{ИМЯ}");
+		expect(input.value).toBe("{ИМЯ}");
+		expect(span.classList.contains("unknown")).toBe(false);
+		expect(editor.unknownVariables).toEqual([]);
+		// название показывается и здесь: оно берётся по объявленному ключу, а не по написанному
+		expect(span.querySelector<HTMLElement>(".label")!.dataset.label).toBe("Имя клиента");
+	});
+
+	// ключ без названия приводится так же — показывать нечего, но в значение уходит объявленный
+	it("maps a key without a name to the declared case", () => {
+		const { editor } = setup("{город}", declared);
+
+		expect(editor.getValue()).toBe("{ГОРОД}");
+		expect(editor.unknownVariables).toEqual([]);
+	});
+
+	// Отправку такое поле останавливать не должно: переменная объявлена, набрана она просто иначе.
+	it("keeps the value valid when the key is typed in another case", () => {
+		const { editor, input } = setup("{гОрОд}", declared);
+
+		expect(editor.validate()).toBe(true);
+		expect(input.validity.customError).toBe(false);
+	});
+
+	// два ключа, различающихся только регистром, — дело хоста: в тексте они неразличимы
+	it("takes the first of two keys that differ only in case", () => {
+		const { editor } = setup("{имя}", { variables: [{ key: "ИмЯ" }, { key: "ИМЯ" }] });
+
+		expect(editor.getValue()).toBe("{ИмЯ}");
+	});
+
 	// одно название у двух переменных — дело хоста: на экране они неразличимы, берём первую
 	it("takes the first variable of two with the same name", () => {
 		const { editor } = setup("{Имя}", {

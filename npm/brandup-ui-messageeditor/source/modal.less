@@ -1,0 +1,47 @@
+// Общее оформление действий модального окна: у рандомизации и у правки ключа это одни и те же
+// кнопки — «Сохранить» акцентом и «Отмена» рядом, — и расходиться им нельзя: два окна одного
+// компонента, показанные подряд, не должны выглядеть из разных приложений.
+//
+// Отдельным файлом-миксином, а не общим селектором: окна лежат в разных модулях со своими
+// стилями, и правило в одном из них означало бы, что второе окно зависит от загрузки первого.
+//
+// Зазор и акцент приходят снаружи: у каждого окна они свои переменные оформления, и подменять
+// их общими значило бы убрать у хоста ручки, которые он уже мог настроить.
+.messageeditor-modal-actions(
+	@gap: 12px;
+	@accent: var(--messageeditor-accent, var(--focus--input-border-color, #4a9eff))
+) {
+	display: flex;
+	flex-flow: row wrap;
+	align-items: center;
+	gap: @gap;
+	margin-top: calc(@gap * 2);
+
+	& button {
+		min-height: var(--input-height, 46px);
+		padding: 0 var(--input-padding-lr, 15px);
+		border-style: var(--input-border-type, solid);
+		border-width: var(--input-border-width, 1px);
+		border-color: var(--input-border-color, #aaa);
+		border-radius: var(--input-border-radius, 0);
+		background: var(--input-fill, #fff);
+		cursor: pointer;
+
+		&:hover {
+			border-color: var(--hover--input-border-color, var(--input-border-color, #aaa));
+		}
+
+		// сохранять нечего — кнопка гаснет, но остаётся на месте: исчезни она, окно бы прыгало
+		&[disabled] {
+			opacity: 0.5;
+			cursor: default;
+		}
+	}
+
+	// главное действие окна — залито акцентом
+	& .apply {
+		border-color: @accent;
+		background: @accent;
+		color: #fff;
+	}
+}

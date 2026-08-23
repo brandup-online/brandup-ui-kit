@@ -49,6 +49,10 @@
 	--messageeditor-variable-fill: rgba(76, 175, 80, 0.24);
 	--messageeditor-variable-unknown-fill: rgba(244, 67, 54, 0.24);
 	--messageeditor-variable-unknown-mark: rgba(244, 67, 54, 0.8);
+	// Новая переменная — не ошибка, а ещё не заведённое поле: свой цвет, не красный и не зелёный
+	// объявленной, и подчёркивание пунктиром вместо волны — волна читается как опечатка.
+	--messageeditor-variable-new-fill: rgba(156, 39, 176, 0.2);
+	--messageeditor-variable-new-mark: rgba(156, 39, 176, 0.7);
 	// Наведение: та же заливка, притемнённая — конструкция правится кликом, и отклик показывает,
 	// что по ней можно попасть. color-mix подмешивает чёрный, поэтому оттенок следует за заливкой,
 	// какой бы её ни задали.
@@ -59,6 +63,7 @@
 		var(--messageeditor-variable-unknown-fill) 88%,
 		#000
 	);
+	--hover--messageeditor-variable-new-fill: color-mix(in srgb, var(--messageeditor-variable-new-fill) 88%, #000);
 }
 
 // Коробка поля: у плашки и панели выхода она общая — это два вида одного значения, и подменять
@@ -338,6 +343,14 @@
 		text-underline-offset: 2px;
 	}
 
+	// Новая переменная: отличается от объявленной, но не тревожит — пунктир вместо волны,
+	// потому что заводить её собираются, а не исправлять.
+	& .variable.new {
+		background-color: var(--messageeditor-variable-new-fill);
+		text-decoration: underline dotted var(--messageeditor-variable-new-mark);
+		text-underline-offset: 2px;
+	}
+
 	// Символы самой конструкции — скобки и разделитель вариантов: у каждого отступ по пикселю
 	// с обеих сторон, иначе текст стоит к ним вплотную и конструкция читается сплошным словом.
 	& .mark {
@@ -381,5 +394,9 @@
 	// переменной — здесь селектор тяжелее того, что её задаёт.
 	& .variable.unknown:hover {
 		background-color: var(--hover--messageeditor-variable-unknown-fill);
+	}
+
+	& .variable.new:hover {
+		background-color: var(--hover--messageeditor-variable-new-fill);
 	}
 }
