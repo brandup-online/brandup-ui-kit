@@ -1,7 +1,7 @@
 ﻿import { DOM, UIElement } from "@brandup/ui";
 import { AjaxQueue, AjaxResponse } from "@brandup/ui-ajax";
 import { ExampleApplication } from "../app";
-import type { PageNavigationData, PageSubmitData } from "frontend/typings/app";
+import type { PageNavigationData, PageSubmitData } from "../typings/app";
 import { NavigateContext, SubmitContext } from "@brandup/ui-app";
 import "./base.less";
 
@@ -9,7 +9,6 @@ export abstract class Page extends UIElement {
 	readonly app: ExampleApplication;
 	private __context: NavigateContext<ExampleApplication, PageNavigationData>;
 	readonly ajax: AjaxQueue;
-	private __hash: string | null;
 
 	get context() {
 		return this.__context;
@@ -23,7 +22,6 @@ export abstract class Page extends UIElement {
 		this.ajax = new AjaxQueue();
 
 		this.__context.data.page = this;
-		this.__hash = context.hash;
 	}
 
 	async render(): Promise<DocumentFragment> {
@@ -38,7 +36,7 @@ export abstract class Page extends UIElement {
 		return content;
 	}
 
-	protected _onRenderElement(element: HTMLElement) {
+	protected override _onRenderElement(element: HTMLElement) {
 		element.appendChild(DOM.tag("header", { class: "page-header" }, [DOM.tag("h1", null, this.header)]));
 	}
 
@@ -51,9 +49,6 @@ export abstract class Page extends UIElement {
 		if (!this.element) return;
 
 		this.__context = context;
-
-		if (newHash) this.__hash = newHash;
-		else this.__hash = null;
 
 		await this.onChangedHash(newHash, oldHash);
 	}
@@ -70,11 +65,11 @@ export abstract class Page extends UIElement {
 		return Promise.resolve();
 	}
 	protected async onFormSubmitted(
-		response: AjaxResponse,
-		context: SubmitContext<ExampleApplication, PageSubmitData>
+		_response: AjaxResponse,
+		_context: SubmitContext<ExampleApplication, PageSubmitData>
 	) {}
 
-	destroy() {
+	override destroy() {
 		this.ajax.destroy();
 		this.element?.remove();
 

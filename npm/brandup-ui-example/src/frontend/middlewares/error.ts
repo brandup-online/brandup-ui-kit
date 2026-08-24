@@ -5,7 +5,7 @@ import type { PageNavigationData } from "../typings/app";
 const ErrorMiddlewareFactory = (): Middleware => {
 	return {
 		name: "error",
-		navigate: async (context: NavigateContext<ExampleApplication, PageNavigationData>, next: MiddlewareNext) => {
+		navigate: async (_context: NavigateContext<ExampleApplication, PageNavigationData>, next: MiddlewareNext) => {
 			await next();
 		},
 	};

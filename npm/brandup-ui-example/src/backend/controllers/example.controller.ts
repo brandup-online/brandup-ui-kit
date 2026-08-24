@@ -42,7 +42,7 @@ export default class ExampleController {
 		res.type("png").send("hello");
 	}
 
-	delay(_req: Request, res: Response, next: VoidFunction): void {
+	delay(_req: Request, res: Response, _next: VoidFunction): void {
 		setTimeout(() => {
 			res.type("text").send("hello");
 		}, 5000);
