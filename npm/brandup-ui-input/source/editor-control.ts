@@ -1,4 +1,5 @@
 import { InputControl, type ValueElemOverrides } from "./input";
+import { INPUT } from "./names";
 
 /** Поле формы, которое контрол на редакторе оставляет носителем значения. */
 type EditorValueElem = HTMLInputElement | HTMLTextAreaElement;
@@ -135,8 +136,16 @@ export abstract class EditorInputControl<TEditor extends ValueEditor, TChangeDat
 		const editable = editor.editable;
 
 		// состояние фокуса контрола — на корневом элементе
-		editable.addEventListener("focus", () => !this.disabled && this.element.classList.add("focused"), { signal });
-		editable.addEventListener("blur", () => !this.disabled && this.element.classList.remove("focused"), { signal });
+		editable.addEventListener(
+			"focus",
+			() => !this.disabled && this.element.classList.add(INPUT.CLASS.STATE.FOCUSED),
+			{ signal }
+		);
+		editable.addEventListener(
+			"blur",
+			() => !this.disabled && this.element.classList.remove(INPUT.CLASS.STATE.FOCUSED),
+			{ signal }
+		);
 
 		// form.reset() возвращает поле-носитель к defaultValue, а редактор об этом сам не узнал бы —
 		// следующая синхронизация перезаписала бы сброс обратно. Сброс применяется после события,

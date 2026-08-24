@@ -4,7 +4,8 @@
  * Блочная модель: цитата и блок кода в разборе, печати и правке. Обычный текст — такой же тип,
  * поэтому здесь же проверяется, что его поведение от появления блоков не изменилось.
  */
-import RichEditor, { TOOLBAR_CLASS } from "../source/richeditor";
+import RichEditor from "../source/richeditor";
+import { RICHEDITOR } from "../source/names";
 import { serialize, deserialize, defaultFormatMarkers, ALL_FORMAT_TOOLS, type BlockType } from "../source/format";
 import { applyBlocks } from "../source/editing";
 import { blocksInRange } from "../source/paragraphs";
@@ -248,9 +249,11 @@ describe("applyBlocks", () => {
 });
 
 describe("toolbar blocks", () => {
-	const blockButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .block-button`);
+	const blockButtons = () => document.querySelectorAll(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .block-button`);
 	const blockButton = (type: BlockType) =>
-		document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} .block-button[data-block-type="${type}"]`);
+		document.querySelector<HTMLButtonElement>(
+			`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .block-button[data-block-type="${type}"]`
+		);
 
 	const focus = (editor: RichEditor) => editor.editable.dispatchEvent(new FocusEvent("focus"));
 
@@ -270,7 +273,9 @@ describe("toolbar blocks", () => {
 		const editor = makeEditor({ value: "a" });
 		focus(editor);
 
-		expect(document.querySelector(`.${TOOLBAR_CLASS} .format-button[data-format-tool="spoiler"]`)).not.toBeNull();
+		expect(
+			document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .format-button[data-format-tool="spoiler"]`)
+		).not.toBeNull();
 	});
 
 	// поле ограничивают явным пустым списком: цитаты и код нужны не везде
@@ -302,7 +307,9 @@ describe("toolbar blocks", () => {
 // В мессенджерах моноширинный и блок кода делает одна кнопка, а вид выбирает выделение.
 describe("merged code button", () => {
 	const codeButton = () =>
-		document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} .format-button[data-format-tool="code"]`);
+		document.querySelector<HTMLButtonElement>(
+			`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .format-button[data-format-tool="code"]`
+		);
 
 	const focus = (editor: RichEditor) => editor.editable.dispatchEvent(new FocusEvent("focus"));
 
@@ -313,7 +320,9 @@ describe("merged code button", () => {
 
 		expect(codeButton()).not.toBeNull();
 		expect(codeButton()!.title).toBe("Код");
-		expect(document.querySelector(`.${TOOLBAR_CLASS} .block-button[data-block-type="code"]`)).toBeNull();
+		expect(
+			document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .block-button[data-block-type="code"]`)
+		).toBeNull();
 	});
 
 	// без моноширинного сводить нечего — у блока остаётся своя кнопка
@@ -321,7 +330,9 @@ describe("merged code button", () => {
 		const editor = makeEditor({ value: "a", tools: ["bold"] });
 		focus(editor);
 
-		expect(document.querySelector(`.${TOOLBAR_CLASS} .block-button[data-block-type="code"]`)).not.toBeNull();
+		expect(
+			document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .block-button[data-block-type="code"]`)
+		).not.toBeNull();
 	});
 
 	it("makes a part of the line monospace", () => {

@@ -1,7 +1,11 @@
 /**
  * @jest-environment jsdom
  */
-import DropDown, { ROOT_CLASS, INPUT_CLASS, CHANGE_EVENT } from "../source/dropdown";
+import DropDown from "../source/dropdown";
+import { DROPDOWN } from "../source/names";
+import { DROPDOWN as PACKAGE_NAMES } from "../source/index";
+import { UIKIT } from "@brandup/ui-kit";
+import { UIKIT as KIT_NAMES_SUBPATH } from "@brandup/ui-kit/names";
 
 // jsdom не реализует Element.scrollTo, а открытие списка прокручивает его к выбранному пункту:
 // без заглушки обработчик падал бы на полпути и не доходил до остальной работы.
@@ -51,7 +55,7 @@ describe("DropDown", () => {
 	it("wraps the select in a ui-dropdown container", () => {
 		const select = makeSelect([["1", "One"]]);
 		const dd = new DropDown(select);
-		expect(dd.element?.classList.contains(ROOT_CLASS)).toBe(true);
+		expect(dd.element?.classList.contains(DROPDOWN.CLASS.ROOT)).toBe(true);
 	});
 
 	it("renders each option as an <li> item", () => {
@@ -157,14 +161,14 @@ describe("DropDown", () => {
 		expect(dd.getSelectedIndex()).toBe(2);
 	});
 
-	it("fires dropdown-change with new value/title when a list item is clicked", () => {
+	it("fires ui:dropdown:change with new value/title when a list item is clicked", () => {
 		const select = makeSelect([
 			["a", "Alpha"],
 			["b", "Beta"],
 		]);
 		const dd = new DropDown(select);
 		const handler = jest.fn();
-		dd.on(CHANGE_EVENT, handler);
+		dd.on(DROPDOWN.EVENT.CHANGE, handler);
 
 		const item = dd.element!.querySelector('li[data-index="1"]') as HTMLElement;
 		item.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -346,7 +350,7 @@ describe("DropDown", () => {
 		select.setAttribute("data-readonly", "");
 		const dd = new DropDown(select);
 		const handler = jest.fn();
-		dd.on(CHANGE_EVENT, handler);
+		dd.on(DROPDOWN.EVENT.CHANGE, handler);
 
 		const item = dd.element!.querySelector('li[data-index="1"]') as HTMLElement;
 		item.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -366,14 +370,14 @@ describe("DropDown", () => {
 		expect(dd.element!.classList.contains("expanded")).toBe(false);
 	});
 
-	it("setValue() selects the value, updates the view text and fires dropdown-change", () => {
+	it("setValue() selects the value, updates the view text and fires ui:dropdown:change", () => {
 		const select = makeSelect([
 			["a", "Alpha"],
 			["b", "Beta"],
 		]);
 		const dd = new DropDown(select);
 		const handler = jest.fn();
-		dd.on(CHANGE_EVENT, handler);
+		dd.on(DROPDOWN.EVENT.CHANGE, handler);
 
 		dd.setValue("b");
 
@@ -383,7 +387,7 @@ describe("DropDown", () => {
 		expect(handler).toHaveBeenCalledWith(expect.objectContaining({ value: "b", title: "Beta", index: 1 }));
 	});
 
-	it("setValue() with the already shown value does not fire dropdown-change", () => {
+	it("setValue() with the already shown value does not fire ui:dropdown:change", () => {
 		const select = makeSelect([
 			["a", "Alpha"],
 			["b", "Beta"],
@@ -391,7 +395,7 @@ describe("DropDown", () => {
 		select.value = "b";
 		const dd = new DropDown(select);
 		const handler = jest.fn();
-		dd.on(CHANGE_EVENT, handler);
+		dd.on(DROPDOWN.EVENT.CHANGE, handler);
 
 		dd.setValue("b");
 
@@ -416,7 +420,7 @@ describe("DropDown", () => {
 
 	// поле выключили с уже открытым списком: выбор запрещён, но выход из списка обязан работать,
 	// иначе на узком экране (список во весь экран) с клавиатуры остаётся только Escape
-	it("close-popup still works when the select gets disabled while the popup is open", () => {
+	it("closing the popup still works when the select gets disabled while it is open", () => {
 		const select = makeSelect([["a", "Alpha"]]);
 		const dd = new DropDown(select);
 
@@ -453,7 +457,7 @@ describe("DropDown", () => {
 
 	// пустой пункт-подсказка своего <li> не имеет, поэтому «выбран он» и «не выбрано ничего» —
 	// одно и то же состояние экрана: повторная установка не должна выглядеть как изменение
-	it("setValue() to the empty placeholder option twice fires dropdown-change only once", () => {
+	it("setValue() to the empty placeholder option twice fires ui:dropdown:change only once", () => {
 		const select = makeSelect([
 			["", ""],
 			["a", "Alpha"],
@@ -461,7 +465,7 @@ describe("DropDown", () => {
 		select.value = "a";
 		const dd = new DropDown(select);
 		const handler = jest.fn();
-		dd.on(CHANGE_EVENT, handler);
+		dd.on(DROPDOWN.EVENT.CHANGE, handler);
 
 		dd.setValue("");
 		dd.setValue("");
@@ -524,6 +528,217 @@ describe("DropDown", () => {
 		const select = makeSelect([["a", "Alpha"]]);
 		new DropDown(select).destroy();
 
-		expect(select.classList.contains(INPUT_CLASS)).toBe(false);
+		expect(select.classList.contains(DROPDOWN.CLASS.INPUT)).toBe(false);
+	});
+});
+
+describe("DropDown layers", () => {
+	const escape = () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+	it("Escape closes the popup and returns to the view button", () => {
+		const dd = openedDropDown();
+		const popup = dd.element!.querySelector(".popup") as HTMLElement;
+		popup.focus();
+
+		escape();
+
+		expect(dd.element!.classList.contains("expanded")).toBe(false);
+		expect(document.activeElement).toBe(dd.element!.querySelector(".view"));
+	});
+
+	// список раскрыт во весь экран и придерживает прокрутку — отпускает её только он сам
+	it("holds and releases the page by the body class", () => {
+		openedDropDown();
+		expect(document.body.classList.contains(DROPDOWN.CLASS.BODY)).toBe(true);
+
+		escape();
+
+		expect(document.body.classList.contains(DROPDOWN.CLASS.BODY)).toBe(false);
+	});
+
+	// прежний список оставался бы со своими слушателями закрытия и своим слоем в стеке
+	it("opening another dropdown closes the previous one completely", () => {
+		// свой контрол рядом с прежним: makeSelect чистит body, а здесь нужны оба разом
+		const openAnother = (): DropDown => {
+			const select = document.createElement("select");
+			for (const [value, text] of [
+				["a", "Alpha"],
+				["b", "Beta"],
+			]) {
+				const opt = document.createElement("option");
+				opt.value = value;
+				opt.textContent = text;
+				select.appendChild(opt);
+			}
+			document.body.appendChild(select);
+
+			const dd = new DropDown(select);
+			(dd.element!.querySelector(".view") as HTMLElement).dispatchEvent(
+				new MouseEvent("click", { bubbles: true, cancelable: true })
+			);
+
+			return dd;
+		};
+
+		const first = openAnother();
+		const second = openAnother();
+
+		expect(first.element!.classList.contains("expanded")).toBe(false);
+		expect(second.element!.classList.contains("expanded")).toBe(true);
+
+		escape();
+
+		// класс держал один список — и снялся вместе с ним, а не остался от закрытого
+		expect(document.body.classList.contains(DROPDOWN.CLASS.BODY)).toBe(false);
+	});
+});
+
+describe("DropDown names", () => {
+	// Те же строки прописаны селекторами в dropdown.less: переименование значения молча разъехалось
+	// бы со стилями, и контрол остался бы без оформления.
+	it("matches the CSS contract", () => {
+		expect(DROPDOWN.CLASS.ROOT).toBe("ui-dropdown");
+		expect(DROPDOWN.CLASS.INPUT).toBe("ui-dropdown-input");
+		expect(DROPDOWN.CLASS.MINIATURE).toBe("ui-dropdown-miniature");
+		expect(DROPDOWN.CLASS.BODY).toBe("body-dropdown-opened");
+		expect(DROPDOWN.CLASS.ELEMENT).toEqual({
+			POPUP: "popup",
+			CONTENT: "content",
+			HEADER: "header",
+			SEARCH: "search",
+			VIEW: "view",
+			CANCEL: "cancel",
+			EMPTY: "empty",
+		});
+		expect(DROPDOWN.CLASS.STATE).toEqual({
+			EXPANDED: "expanded",
+			HAS_VALUE: "hasvalue",
+			EMPTY: "empty",
+			SEARCHABLE: "searchable",
+			INVALID: "invalid",
+			RESULT: "result",
+			NOT_FOUND: "notfound",
+			MATCH: "ok",
+			TOP: "top",
+			RIGHT: "right",
+		});
+	});
+
+	// README учит импортировать имена из пакета — до этого index их не отдавал вовсе
+	it("reaches the consumer through the package entry", () => {
+		expect(PACKAGE_NAMES).toBe(DROPDOWN);
+	});
+
+	// короткий путь к именам соседнего пакета: за строкой класса не тянутся стили и код контрола
+	it("takes the kit names by their own subpath", () => {
+		expect(KIT_NAMES_SUBPATH).toBe(UIKIT);
+	});
+});
+
+describe("DropDown accessibility", () => {
+	const escape = () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+	it("binds the view button to the list it opens", () => {
+		const dd = new DropDown(makeSelect([["a", "Alpha"]]));
+		const view = dd.element!.querySelector(".view")!;
+		// ссылка ведёт на сам список, а не на коробку попапа вокруг него
+		const list = dd.element!.querySelector("ul")!;
+
+		expect(list.id).toBeTruthy();
+		expect(view.getAttribute("aria-controls")).toBe(list.id);
+		expect(view.getAttribute("aria-haspopup")).toBe("listbox");
+		expect(view.getAttribute("aria-expanded")).toBe("false");
+	});
+
+	// два контрола на странице не должны ссылаться на один и тот же список
+	it("gives each control its own list id", () => {
+		const first = new DropDown(makeSelect([["a", "Alpha"]]));
+		const firstId = first.element!.querySelector("ul")!.id;
+
+		const second = new DropDown(makeSelect([["a", "Alpha"]]));
+
+		expect(second.element!.querySelector("ul")!.id).not.toBe(firstId);
+	});
+
+	it("announces the expanded state while the list is open", () => {
+		const dd = openedDropDown();
+		const view = dd.element!.querySelector(".view")!;
+		expect(view.getAttribute("aria-expanded")).toBe("true");
+
+		escape();
+
+		expect(view.getAttribute("aria-expanded")).toBe("false");
+	});
+
+	// роль option стоит на том, что принимает фокус, а li между списком и пунктом объявлен пустым
+	it("marks up the list as a listbox of options", () => {
+		const dd = new DropDown(
+			makeSelect([
+				["a", "Alpha"],
+				["b", "Beta"],
+			])
+		);
+
+		const list = dd.element!.querySelector("ul")!;
+		expect(list.getAttribute("role")).toBe("listbox");
+		expect(list.getAttribute("aria-label")).toBe("Select");
+
+		const items = [...list.querySelectorAll("li")];
+		expect(items.map((li) => li.getAttribute("role"))).toEqual(["presentation", "presentation"]);
+		expect(items.map((li) => li.firstElementChild?.getAttribute("role"))).toEqual(["option", "option"]);
+	});
+
+	// кнопка без type внутри формы — submit по умолчанию: Enter в поле формы «нажал» бы её
+	// и раскрыл список вместо отправки
+	it("renders every button with type=button", () => {
+		const dd = new DropDown(makeSelect([["a", "Alpha"]]));
+
+		const buttons = [...dd.element!.querySelectorAll("button")];
+		expect(buttons.length).toBeGreaterThan(0);
+		expect(buttons.every((button) => button.type === "button")).toBe(true);
+	});
+
+	// закрытие в шапке — кнопка одной иконкой: без имени скринридер прочитает её как «кнопка»
+	it("names the icon close button by the cancel text", () => {
+		const select = makeSelect([["a", "Alpha"]]);
+		select.dataset.cancel = "Закрыть список";
+		const dd = new DropDown(select);
+
+		const close = dd.element!.querySelector(".popup .header button")!;
+		expect(close.getAttribute("title")).toBe("Закрыть список");
+	});
+
+	// имена команд — часть разметки контрола: разъехавшись с обработчиками, кнопки перестают работать
+	it("declares kit-prefixed commands in the markup", () => {
+		const dd = new DropDown(makeSelect([["a", "Alpha"]]));
+		const root = dd.element!;
+
+		expect((root.querySelector(".view") as HTMLElement).dataset.command).toBe(DROPDOWN.COMMAND.TOGGLE);
+		expect((root.querySelector(".cancel") as HTMLElement).dataset.command).toBe(DROPDOWN.COMMAND.CLOSE);
+		expect((root.querySelector(".popup .header button") as HTMLElement).dataset.command).toBe(
+			DROPDOWN.COMMAND.CLOSE
+		);
+		expect((root.querySelector("li") as HTMLElement).dataset.command).toBe(DROPDOWN.COMMAND.SELECT);
+	});
+
+	it("keeps aria-selected on the chosen option only", () => {
+		const select = makeSelect([
+			["a", "Alpha"],
+			["b", "Beta"],
+		]);
+		const dd = new DropDown(select);
+
+		dd.setValue("b");
+
+		const selected = [...dd.element!.querySelectorAll("li > span")].map((span) =>
+			span.getAttribute("aria-selected")
+		);
+		expect(selected).toEqual(["false", "true"]);
+
+		dd.setValue("a");
+
+		expect(
+			[...dd.element!.querySelectorAll("li > span")].map((span) => span.getAttribute("aria-selected"))
+		).toEqual(["true", "false"]);
 	});
 });

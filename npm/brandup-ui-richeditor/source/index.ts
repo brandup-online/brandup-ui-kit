@@ -1,12 +1,9 @@
 export { default } from "./richeditor";
+export { RICHEDITOR } from "./names";
 export * from "./richeditor";
 export {
 	EMOJIS,
 	EMOJI_GROUPS,
-	EMOJI_PICKER_CLASS,
-	RECENT_EMOJIS_KEY,
-	RECENT_EMOJIS_LIMIT,
-	RECENT_GROUP_CLASS,
 	createEmojiPicker,
 	recentEmojis,
 	rememberEmoji,

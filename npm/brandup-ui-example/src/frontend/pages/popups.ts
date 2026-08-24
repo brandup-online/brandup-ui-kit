@@ -1,8 +1,7 @@
-﻿import { DOM } from "@brandup/ui";
-import { Page } from "./base";
+﻿import { Page } from "./base";
 import html from "./popups.html";
 import "./popups.less";
-import { PopupManager } from "@brandup/ui-kit/source/popup";
+import { PopupManager } from "@brandup/ui-kit";
 
 export default class PopupsPage extends Page {
 	get typeName(): string {
@@ -16,7 +15,7 @@ export default class PopupsPage extends Page {
 		container.insertAdjacentHTML("beforeend", html);
 
 		this.registerCommand("open", (context) => {
-			PopupManager.open(context.target.nextElementSibling as HTMLElement, { initiator: context.target });
+			PopupManager.toggle(context.target.nextElementSibling as HTMLElement, { initiator: context.target });
 		});
 	}
 }

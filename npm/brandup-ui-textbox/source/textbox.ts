@@ -1,11 +1,12 @@
 import "./textbox.less"; // стили компонента
 
 import { EditorInputControl, parseFocusCaret } from "@brandup/ui-input";
-import { POPUP_CLASS, SCROLLABLE_CLASS } from "@brandup/ui-kit";
+import { UIKIT } from "@brandup/ui-kit/names";
+import { TEXTBOX } from "./names";
 import { DOM } from "@brandup/ui";
 import { FuncHelper } from "@brandup/ui-helpers";
 import RichEditor, {
-	TOOLBAR_CLASS,
+	RICHEDITOR,
 	defaultFormatMarkers,
 	parseBlockTypes,
 	parseEditorActions,
@@ -18,11 +19,8 @@ import RichEditor, {
 import copyIcon from "../svg/copy.svg";
 import doneIcon from "../svg/tick.svg";
 
-export const ROOT_CLASS = "ui-textbox";
-export const INPUT_CLASS = "textbox-input";
-export const MINIATURE_CLASS = "textbox-miniature";
-export const CHANGE_EVENT = "textbox-change";
-export const MAX_EMAIL_LENGTH = 256; // https://www.rfc-editor.org/rfc/rfc5321#section-4.5.3
+/** Сокращения для самых частых имён — за пределы модуля не выходят. */
+const { ELEMENT: ELEM, STATE } = TEXTBOX.CLASS;
 
 export type TextBoxType = "text" | "email" | "url" | "tel" | "number";
 
@@ -32,7 +30,7 @@ export type TextBoxType = "text" | "email" | "url" | "tel" | "number";
 const ATTRS_TO_RESTORE = ["tabindex", "maxlength", "step"];
 
 type TextBoxEvents = {
-	[CHANGE_EVENT]: (data: ChangeEventData) => void;
+	[TEXTBOX.EVENT.CHANGE]: (data: ChangeEventData) => void;
 };
 
 export default class TextBox extends EditorInputControl<RichEditor, ChangeEventData, TextBoxEvents> {
@@ -70,8 +68,8 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 					type = "email";
 					// у поля без атрибута maxlength свойство равно -1, а не 0, поэтому проверять
 					// нужно именно «не задан положительный предел», иначе ограничение RFC не применялось бы
-					if (valueElem.maxLength <= 0 || valueElem.maxLength > MAX_EMAIL_LENGTH)
-						valueElem.maxLength = MAX_EMAIL_LENGTH;
+					if (valueElem.maxLength <= 0 || valueElem.maxLength > TEXTBOX.VALUE.MAX_EMAIL_LENGTH)
+						valueElem.maxLength = TEXTBOX.VALUE.MAX_EMAIL_LENGTH;
 					break;
 				case "url":
 					type = "url";
@@ -123,17 +121,17 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 		}
 
 		const inputElem = DOM.tag("div");
-		const actionsElem = DOM.tag("div", { class: "actions" });
-		const symbolsCountElem = DOM.tag("div", { class: "symbols" });
+		const actionsElem = DOM.tag("div", { class: ELEM.ACTIONS });
+		const symbolsCountElem = DOM.tag("div", { class: ELEM.SYMBOLS });
 
-		const container = DOM.tag("div", { class: ROOT_CLASS }, [
-			DOM.tag("div", { class: "decorator" }),
-			DOM.tag("div", { class: ["editor", SCROLLABLE_CLASS] }, [inputElem, symbolsCountElem]),
+		const container = DOM.tag("div", { class: TEXTBOX.CLASS.ROOT }, [
+			DOM.tag("div", { class: ELEM.DECORATOR }),
+			DOM.tag("div", { class: [ELEM.EDITOR, UIKIT.SCROLLABLE.CLASS] }, [inputElem, symbolsCountElem]),
 			actionsElem,
 		]);
 
-		if (multyline) container.classList.add("multyline");
-		if (symbolCounter) container.classList.add("counter");
+		if (multyline) container.classList.add(STATE.MULTYLINE);
+		if (symbolCounter) container.classList.add(STATE.COUNTER);
 		if (inputmode) inputElem.inputMode = inputmode;
 
 		if (copyButton) {
@@ -141,7 +139,7 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 			// type обязателен: кнопка без него внутри формы — submit, и клик отправлял бы форму
 			const buttonElem = DOM.tag(
 				"button",
-				{ type: "button", command: "copy-text", title: "Скопировать в буфер обмена" },
+				{ type: "button", command: TEXTBOX.COMMAND.COPY, title: TEXTBOX.TEXT.COPY },
 				copyIcon
 			);
 			if (disabled) buttonElem.disabled = true;
@@ -151,19 +149,19 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 		// убираем висящую миниатюру, если есть, — до обёртки поля: после неё соседом поля станет контейнер
 		if (valueElem.nextElementSibling) {
 			const nextElem = valueElem.nextElementSibling as HTMLElement;
-			if (nextElem.classList.contains(MINIATURE_CLASS)) nextElem.remove();
+			if (nextElem.classList.contains(TEXTBOX.CLASS.MINIATURE)) nextElem.remove();
 		}
 
 		// скрыть поле, подменить tabindex и обернуть контейнером — общая механика базового класса
-		TextBox.wrapValueElem(valueElem, container, INPUT_CLASS, inputElem, disabled);
+		TextBox.wrapValueElem(valueElem, container, TEXTBOX.CLASS.INPUT, inputElem, disabled);
 
 		// класс и подменённые атрибуты вернёт базовый класс при destroy
 		super(
 			"BrandUp.TextBox",
 			container,
 			valueElem,
-			{ class: INPUT_CLASS, attrs: originalAttrs },
-			{ changeEvent: CHANGE_EVENT, caret }
+			{ class: TEXTBOX.CLASS.INPUT, attrs: originalAttrs },
+			{ changeEvent: TEXTBOX.EVENT.CHANGE, caret }
 		);
 
 		this.type = type;
@@ -272,8 +270,8 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 			this.__refreshSymbolsCount();
 
 			let clearInvalidState = true;
-			if (this.element.classList.contains("invalid")) clearInvalidState = this.validate();
-			if (clearInvalidState) this.element.classList.remove("invalid");
+			if (this.element.classList.contains(STATE.INVALID)) clearInvalidState = this.validate();
+			if (clearInvalidState) this.element.classList.remove(STATE.INVALID);
 
 			this.__onChange();
 		});
@@ -303,10 +301,10 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 				{ signal }
 			);
 
-			this.registerCommand("copy-text", async (context) => {
+			this.registerCommand(TEXTBOX.COMMAND.COPY, async (context) => {
 				// повторный клик, пока показана галочка, запомнил бы её как исходную иконку —
 				// после возврата кнопка так и осталась бы с галочкой
-				if (!window.navigator.clipboard || this.disabled || context.target.classList.contains("success"))
+				if (!window.navigator.clipboard || this.disabled || context.target.classList.contains(STATE.SUCCESS))
 					return;
 
 				// копия значения в поле отстаёт на окно троттлинга — доводим её перед чтением
@@ -315,7 +313,7 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 
 				const prevHtml = context.target.innerHTML;
 				context.target.innerHTML = doneIcon;
-				context.target.classList.add("success");
+				context.target.classList.add(STATE.SUCCESS);
 
 				// возврат иконки отменяем вместе с компонентом: иначе таймер переживает destroy
 				// и дописывает в уже отсоединённую кнопку
@@ -326,7 +324,7 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 				}
 
 				context.target.innerHTML = prevHtml;
-				context.target.classList.remove("success");
+				context.target.classList.remove(STATE.SUCCESS);
 			});
 		}
 	}
@@ -348,7 +346,12 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 		if (!target || this.__inputElem.contains(target)) return; // в сам текст браузер попадёт и сам
 
 		// кнопка копирования, панель форматирования и её попапы живут внутри контрола и работают сами
-		if (target.closest(`button, a, input, textarea, select, .${TOOLBAR_CLASS}, .${POPUP_CLASS}`)) return;
+		if (
+			target.closest(
+				`button, a, input, textarea, select, .${RICHEDITOR.CLASS.TOOLBAR.ROOT}, .${UIKIT.POPUP.CLASS.ROOT}`
+			)
+		)
+			return;
 
 		e.preventDefault();
 		this.__editor.focus(true);
@@ -387,11 +390,14 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 	}
 
 	private __toIncorrect() {
-		this.element.classList.add("incorrect");
+		this.element.classList.add(STATE.INCORRECT);
 
 		// каждый отказ перезапускает таймер: иначе таймер предыдущего отказа гасил бы вспышку раньше
 		window.clearTimeout(this.__incorrectTimer);
-		this.__incorrectTimer = window.setTimeout(() => this.element.classList.remove("incorrect"), 200);
+		this.__incorrectTimer = window.setTimeout(
+			() => this.element.classList.remove(STATE.INCORRECT),
+			TEXTBOX.VALUE.INCORRECT_DURATION
+		);
 	}
 
 	private __refreshSymbolsCount() {
@@ -402,15 +408,15 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 
 		if (this.maxlength > 0) {
 			counterValue = `${textLength}/${this.maxlength}`;
-			if (this.maxlength < textLength) this.__symbolsCountElem.classList.add("invalid");
-			else this.__symbolsCountElem.classList.remove("invalid");
+			if (this.maxlength < textLength) this.__symbolsCountElem.classList.add(STATE.INVALID);
+			else this.__symbolsCountElem.classList.remove(STATE.INVALID);
 		} else counterValue = textLength.toString();
 
 		this.__symbolsCountElem.textContent = counterValue;
 	}
 
 	private __onChange() {
-		this.trigger(CHANGE_EVENT, <ChangeEventData>{
+		this.trigger(TEXTBOX.EVENT.CHANGE, <ChangeEventData>{
 			textbox: this,
 			value: this.getValue(),
 		});
@@ -438,8 +444,8 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 			if (this.maxlength > 0 && this.maxlength < this.__editor.getLength()) isValid = false;
 		}
 
-		if (!isValid) this.element.classList.add("invalid");
-		else this.element.classList.remove("invalid");
+		if (!isValid) this.element.classList.add(STATE.INVALID);
+		else this.element.classList.remove(STATE.INVALID);
 
 		return isValid;
 	}

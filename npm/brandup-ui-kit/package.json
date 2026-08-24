@@ -28,6 +28,17 @@
 	"version": "1.0.0",
 	"main": "source/index.ts",
 	"types": "source/index.ts",
+	"exports": {
+		".": "./source/index.ts",
+		"./names": "./source/names.ts",
+		"./env": "./source/env.ts",
+		"./text": "./source/utils/text.ts",
+		"./vars.less": "./vars.less",
+		"./source/*.less": "./source/*.less",
+		"./build/*": "./build/*",
+		"./svg/*": "./svg/*",
+		"./package.json": "./package.json"
+	},
 	"dependencies": {
 		"@brandup/ui-app": "^2.0.9"
 	},

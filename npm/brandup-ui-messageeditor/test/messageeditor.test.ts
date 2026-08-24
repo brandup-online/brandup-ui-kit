@@ -1,8 +1,10 @@
 /**
  * @jest-environment jsdom
  */
-import { POPUP_OPENED_BODY_CLASS, PopupManager } from "@brandup/ui-kit";
-import MessageEditor, { ROOT_CLASS, INPUT_CLASS, EMOJI_CLASS, EMOJI_HOLDER_CLASS } from "../source/messageeditor";
+import { PopupManager, UIKIT } from "@brandup/ui-kit";
+import { MESSAGEEDITOR } from "../source/names";
+import { MESSAGEEDITOR as PACKAGE_NAMES } from "../source/index";
+import MessageEditor from "../source/messageeditor";
 
 function setup(
 	opts: { value?: string; placeholder?: string; required?: boolean; readonly?: boolean; disabled?: boolean } = {}
@@ -61,11 +63,11 @@ describe("MessageEditor", () => {
 		new MessageEditor(input);
 
 		const container = input.parentElement!;
-		expect(container.classList.contains(ROOT_CLASS)).toBe(true);
+		expect(container.classList.contains(MESSAGEEDITOR.CLASS.ROOT)).toBe(true);
 		expect(container.querySelector(".bubble")).not.toBeNull();
 		// редактор поднят внутри плашки, носитель значения остался в форме
 		expect(container.querySelector(".ui-richeditor")).not.toBeNull();
-		expect(input.classList.contains(INPUT_CLASS)).toBe(true);
+		expect(input.classList.contains(MESSAGEEDITOR.CLASS.INPUT)).toBe(true);
 		expect(input.form).not.toBeNull();
 	});
 
@@ -173,12 +175,12 @@ describe("MessageEditor", () => {
 		const { input } = setup();
 		const editor = new MessageEditor(input);
 
-		const button = editor.element.querySelector(`.${EMOJI_CLASS}`)!;
+		const button = editor.element.querySelector(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)!;
 		expect(button).not.toBeNull();
 
 		// собственная коробка кнопки — от неё раскрывается панель смайликов
 		const holder = button.parentElement!;
-		expect(holder.classList.contains(EMOJI_HOLDER_CLASS)).toBe(true);
+		expect(holder.classList.contains(MESSAGEEDITOR.CLASS.ELEMENT.EMOJI_HOLDER)).toBe(true);
 		expect(holder.parentElement!.classList.contains("bubble")).toBe(true);
 		expect(holder.previousElementSibling!.classList.contains("ui-richeditor")).toBe(true);
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).toBeNull(); // фокуса ещё не было
@@ -186,16 +188,16 @@ describe("MessageEditor", () => {
 
 	// Оставленный открытым, попап держал бы PopupManager на удалённом элементе: на body висели бы
 	// класс открытого попапа и слушатель закрытия, а на узком экране страница осталась бы
-	// непрокручиваемой (см. .ui-popup-opened в ките).
+	// непрокручиваемой (см. .body-popup-opened в ките).
 	it("closes its emoji picker on destroy", () => {
 		const editor = new MessageEditor(setup().input);
-		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
-		expect(document.querySelector(".ui-richeditor-emoji.opened")).not.toBeNull();
+		editor.element.querySelector<HTMLButtonElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)!.click();
+		expect(document.querySelector(".ui-richeditor-emoji.ui-popup-opened")).not.toBeNull();
 
 		editor.destroy();
 
 		expect(PopupManager.isOpened()).toBe(false);
-		expect(document.body.classList.contains(POPUP_OPENED_BODY_CLASS)).toBe(false);
+		expect(document.body.classList.contains(UIKIT.POPUP.CLASS.BODY)).toBe(false);
 	});
 
 	// Попап у каждого поля свой: он раскрывается от кнопки в плашке и живёт в её коробке.
@@ -208,30 +210,30 @@ describe("MessageEditor", () => {
 		document.body.appendChild(form);
 		const other = new MessageEditor(second);
 
-		first.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
-		expect(first.element.querySelector(".ui-richeditor-emoji.opened")).not.toBeNull();
+		first.element.querySelector<HTMLButtonElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)!.click();
+		expect(first.element.querySelector(".ui-richeditor-emoji.ui-popup-opened")).not.toBeNull();
 
-		other.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		other.element.querySelector<HTMLButtonElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)!.click();
 
 		// у каждого свой, и переносить чужой между полями больше не приходится
 		expect(document.querySelectorAll(".ui-richeditor-emoji")).toHaveLength(2);
-		expect(other.element.querySelector(".ui-richeditor-emoji.opened")).not.toBeNull();
-		expect(first.element.querySelector(".ui-richeditor-emoji.opened")).toBeNull();
+		expect(other.element.querySelector(".ui-richeditor-emoji.ui-popup-opened")).not.toBeNull();
+		expect(first.element.querySelector(".ui-richeditor-emoji.ui-popup-opened")).toBeNull();
 
 		// попап раскрывается от кнопки: её коробка и есть позиционированный предок
 		const picker = other.element.querySelector(".ui-richeditor-emoji")!;
-		expect(picker.parentElement!.classList.contains(EMOJI_HOLDER_CLASS)).toBe(true);
+		expect(picker.parentElement!.classList.contains(MESSAGEEDITOR.CLASS.ELEMENT.EMOJI_HOLDER)).toBe(true);
 
 		// повторное нажатие по той же кнопке закрывает
-		other.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
-		expect(document.querySelector(".ui-richeditor-emoji.opened")).toBeNull();
+		other.element.querySelector<HTMLButtonElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)!.click();
+		expect(document.querySelector(".ui-richeditor-emoji.ui-popup-opened")).toBeNull();
 	});
 
 	it("has no emoji button when disabled", () => {
 		const { input } = setup({ disabled: true });
 		const editor = new MessageEditor(input);
 
-		expect(editor.element.querySelector(`.${EMOJI_CLASS}`)).toBeNull();
+		expect(editor.element.querySelector(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)).toBeNull();
 	});
 
 	// в disabled панели не должно быть даже в разметке: без инструментов и действий
@@ -261,18 +263,18 @@ describe("MessageEditor", () => {
 		selection.removeAllRanges();
 		selection.addRange(range);
 
-		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		editor.element.querySelector<HTMLButtonElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)!.click();
 
 		// панель переезжает к кнопке, а не остаётся в тулбаре
 		const picker = editor.element.querySelector<HTMLElement>(".ui-richeditor-emoji")!;
 		expect(picker).not.toBeNull();
-		expect(picker.classList.contains("opened")).toBe(true);
+		expect(picker.classList.contains("ui-popup-opened")).toBe(true);
 
 		picker.querySelector<HTMLButtonElement>(".emoji")!.click();
 
 		expect(editor.getValue().startsWith("привет")).toBe(true);
 		expect(editor.getValue().length).toBeGreaterThan("привет".length);
-		expect(picker.classList.contains("opened")).toBe(false);
+		expect(picker.classList.contains("ui-popup-opened")).toBe(false);
 	});
 
 	// Кнопка смайлика доступна без фокуса, и клик по ней должен поднимать один слой, а не два.
@@ -282,17 +284,17 @@ describe("MessageEditor", () => {
 		const { input } = setup({ value: "привет" });
 		const editor = new MessageEditor(input);
 
-		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		editor.element.querySelector<HTMLButtonElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)!.click();
 
 		const picker = editor.element.querySelector<HTMLElement>(".ui-richeditor-emoji")!;
-		expect(picker.classList.contains("opened")).toBe(true);
+		expect(picker.classList.contains("ui-popup-opened")).toBe(true);
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).toBeNull();
 		expect(document.activeElement).not.toBe(editor.editor.editable);
 
 		picker.querySelector<HTMLButtonElement>(".emoji")!.click();
 
 		// каретка была снята при отпускании фокуса — символ всё равно встал в текст
-		expect(picker.classList.contains("opened")).toBe(false);
+		expect(picker.classList.contains("ui-popup-opened")).toBe(false);
 		expect(editor.getValue().startsWith("привет")).toBe(true);
 	});
 
@@ -303,13 +305,13 @@ describe("MessageEditor", () => {
 		const { input } = setup({ value: "привет" });
 		const editor = new MessageEditor(input);
 
-		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		editor.element.querySelector<HTMLButtonElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)!.click();
 		const picker = editor.element.querySelector<HTMLElement>(".ui-richeditor-emoji")!;
 		const buttons = picker.querySelectorAll<HTMLButtonElement>(".emoji");
 		const picked = buttons[3].textContent;
 		buttons[3].click(); // выбор закрывает попап и попадает в недавние
 
-		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		editor.element.querySelector<HTMLButtonElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)!.click();
 
 		const recent = picker.querySelector<HTMLElement>(".emoji-recent");
 		expect(recent).not.toBeNull();
@@ -429,7 +431,7 @@ describe("MessageEditor", () => {
 		editor.editor.editable.focus();
 		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
 
-		const buttons = document.querySelectorAll(".messageeditor-variables .variables .variable");
+		const buttons = document.querySelectorAll(".ui-messageeditor-variables .variables .variable");
 		expect(Array.from(buttons).map((b) => b.querySelector(".preview")!.textContent)).toEqual(["{ИМЯ}", "{ГОРОД}"]);
 
 		document.querySelector<HTMLButtonElement>(".ui-modal .modal-close")!.click();
@@ -446,7 +448,7 @@ describe("MessageEditor", () => {
 		editor.editor.editable.focus();
 		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
 
-		expect(document.querySelector(".messageeditor-variables .variables .empty")!.textContent).toBe(
+		expect(document.querySelector(".ui-messageeditor-variables .variables .empty")!.textContent).toBe(
 			"Переменные появятся после выбора аудитории."
 		);
 
@@ -474,7 +476,7 @@ describe("MessageEditor", () => {
 		editor.editor.editable.focus();
 		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
 
-		const link = document.querySelector<HTMLAnchorElement>(".messageeditor-variables .setup .setup-link")!;
+		const link = document.querySelector<HTMLAnchorElement>(".ui-messageeditor-variables .setup .setup-link")!;
 		expect(link.tagName).toBe("A");
 		expect(link.getAttribute("href")).toBe("/settings/fields");
 		expect(link.textContent).toBe("Управление полями");
@@ -511,7 +513,7 @@ describe("MessageEditor", () => {
 		editor.editor.editable.focus();
 		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
 
-		const link = document.querySelector<HTMLButtonElement>(".messageeditor-variables .setup .setup-link")!;
+		const link = document.querySelector<HTMLButtonElement>(".ui-messageeditor-variables .setup .setup-link")!;
 		expect(link.tagName).toBe("BUTTON"); // без адреса действие делает хост — кнопка, не ссылка
 		link.click();
 
@@ -527,7 +529,7 @@ describe("MessageEditor", () => {
 		editor.editor.editable.focus();
 		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
 
-		document.querySelector<HTMLButtonElement>(".messageeditor-variables .setup .setup-link")!.click();
+		document.querySelector<HTMLButtonElement>(".ui-messageeditor-variables .setup .setup-link")!.click();
 
 		expect(document.querySelector(".ui-modal")).not.toBeNull();
 		document.querySelector<HTMLButtonElement>(".ui-modal .modal-close")!.click();
@@ -545,7 +547,7 @@ describe("MessageEditor", () => {
 		editor.editor.insertText(" ");
 
 		openVariables(editor);
-		document.querySelector<HTMLButtonElement>(".messageeditor-variables .variable")!.click();
+		document.querySelector<HTMLButtonElement>(".ui-messageeditor-variables .variable")!.click();
 
 		expect(editor.getValue()).toBe("Привет, {ИМЯ}");
 
@@ -565,7 +567,7 @@ describe("MessageEditor", () => {
 		editor.editor.insertText(" ");
 
 		openVariables(editor);
-		document.querySelector<HTMLButtonElement>(".messageeditor-variables .variable")!.click();
+		document.querySelector<HTMLButtonElement>(".ui-messageeditor-variables .variable")!.click();
 
 		expect(editor.getValue()).toBe("раз\n {ИМЯ}два");
 	});
@@ -585,11 +587,11 @@ describe("MessageEditor", () => {
 		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="randomize"]')!.click();
 		editor.editor.editable.blur();
 
-		const fields = () => document.querySelectorAll<HTMLElement>(".messageeditor-randomizer .editable");
+		const fields = () => document.querySelectorAll<HTMLElement>(".ui-messageeditor-randomizer .editable");
 		expect(fields()[0].textContent).toBe("скидку"); // слово под кареткой — первым вариантом
 
 		fields()[1].textContent = "подарок";
-		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .apply")!.click();
+		document.querySelector<HTMLButtonElement>(".ui-messageeditor-randomizer .apply")!.click();
 
 		expect(editor.getValue()).toBe("Дарим [скидку|подарок] сегодня");
 	});
@@ -606,7 +608,7 @@ describe("MessageEditor", () => {
 		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="randomize"]')!.click();
 		editor.editor.editable.blur();
 
-		const fields = () => document.querySelectorAll<HTMLElement>(".messageeditor-randomizer .editable");
+		const fields = () => document.querySelectorAll<HTMLElement>(".ui-messageeditor-randomizer .editable");
 		expect(fields()[0].textContent).toBe("");
 
 		// набираем оба варианта: событие ввода обязательно — по нему окно и заводит следующую
@@ -617,7 +619,7 @@ describe("MessageEditor", () => {
 		};
 		type(0, "дарим");
 		type(1, "вручаем");
-		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .apply")!.click();
+		document.querySelector<HTMLButtonElement>(".ui-messageeditor-randomizer .apply")!.click();
 
 		expect(editor.getValue()).toBe("Дарим скидку.[дарим|вручаем] Ещё");
 	});
@@ -637,8 +639,8 @@ describe("MessageEditor", () => {
 		editor.editor.editable.blur();
 
 		// второй вариант набирают в пустом, который окно предложило само
-		document.querySelectorAll<HTMLElement>(".messageeditor-randomizer .editable")[1].textContent = "подарок";
-		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .apply")!.click();
+		document.querySelectorAll<HTMLElement>(".ui-messageeditor-randomizer .editable")[1].textContent = "подарок";
+		document.querySelector<HTMLButtonElement>(".ui-messageeditor-randomizer .apply")!.click();
 
 		expect(editor.getValue()).toBe("Дарим **[скидку|подарок]** сегодня");
 		expect(editor.editor.editable.querySelector("b span.spintax")).not.toBeNull();
@@ -658,7 +660,7 @@ describe("MessageEditor", () => {
 		span.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		editor.editor.editable.blur();
 
-		expect(document.querySelector(".messageeditor-variables")).not.toBeNull();
+		expect(document.querySelector(".ui-messageeditor-variables")).not.toBeNull();
 		document.querySelector<HTMLButtonElement>(".ui-modal .modal-close")!.click();
 
 		expect(document.activeElement).toBe(editor.editor.editable);
@@ -697,11 +699,11 @@ describe("MessageEditor", () => {
 		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="randomize"]')!.click();
 		editor.editor.editable.blur();
 
-		const variants = document.querySelectorAll<HTMLElement>(".messageeditor-randomizer .editable");
+		const variants = document.querySelectorAll<HTMLElement>(".ui-messageeditor-randomizer .editable");
 		variants[0].focus(); // правка идёт в поле окна
 		variants[1].textContent = "подарок";
 
-		document.querySelector<HTMLButtonElement>(".messageeditor-randomizer .apply")!.click();
+		document.querySelector<HTMLButtonElement>(".ui-messageeditor-randomizer .apply")!.click();
 
 		expect(editor.getValue()).toBe("Дарим [скидку|подарок]");
 		expect(document.activeElement).toBe(editor.editor.editable);
@@ -734,7 +736,7 @@ describe("MessageEditor", () => {
 		const { input } = setup();
 		const editor = new MessageEditor(input);
 
-		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		editor.element.querySelector<HTMLButtonElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)!.click();
 		editor.element.querySelector<HTMLButtonElement>(".ui-richeditor-emoji .emoji")!.click();
 
 		const paragraphs = editor.editor.editable.querySelectorAll("p");
@@ -757,17 +759,17 @@ describe("MessageEditor", () => {
 		editor.editor.editable.focus();
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).not.toBeNull();
 
-		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		editor.element.querySelector<HTMLButtonElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)!.click();
 
 		const picker = editor.element.querySelector<HTMLElement>(".ui-richeditor-emoji")!;
-		expect(picker.classList.contains("opened")).toBe(true);
+		expect(picker.classList.contains("ui-popup-opened")).toBe(true);
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).toBeNull();
 
 		picker.querySelector<HTMLButtonElement>(".emoji")!.click();
 
 		// Панель закрылась, но фокус поле отдало ей (устройство под тестами сенсорное), поэтому
 		// тулбар не возвращается сам — он вернётся, когда в поле придут печатать.
-		expect(picker.classList.contains("opened")).toBe(false);
+		expect(picker.classList.contains("ui-popup-opened")).toBe(false);
 		expect(document.querySelector(".ui-richeditor-toolbar.visible")).toBeNull();
 
 		editor.editor.editable.dispatchEvent(new FocusEvent("focus"));
@@ -883,7 +885,7 @@ describe("MessageEditor", () => {
 			expect(editor.getValue()).toBe("привет всем");
 		});
 
-		it("delivers messageeditor-change after the throttle window", () => {
+		it("delivers ui:messageeditor:change after the throttle window", () => {
 			const { input } = setup();
 			const editor = new MessageEditor(input);
 			const handler = jest.fn();
@@ -900,11 +902,11 @@ describe("MessageEditor", () => {
 	it("puts the value element back on destroy", () => {
 		const { input, form } = setup({ value: "текст" });
 		const editor = new MessageEditor(input);
-		expect(form.querySelector(`.${ROOT_CLASS}`)).not.toBeNull();
+		expect(form.querySelector(`.${MESSAGEEDITOR.CLASS.ROOT}`)).not.toBeNull();
 
 		editor.destroy();
 
-		expect(form.querySelector(`.${ROOT_CLASS}`)).toBeNull();
+		expect(form.querySelector(`.${MESSAGEEDITOR.CLASS.ROOT}`)).toBeNull();
 		expect(input.parentElement).toBe(form);
 	});
 
@@ -914,7 +916,7 @@ describe("MessageEditor", () => {
 		const { input } = setup({ value: "текст" });
 		new MessageEditor(input).destroy();
 
-		expect(input.classList.contains(INPUT_CLASS)).toBe(false);
+		expect(input.classList.contains(MESSAGEEDITOR.CLASS.INPUT)).toBe(false);
 		expect(input.hasAttribute("tabindex")).toBe(false);
 	});
 
@@ -1071,7 +1073,7 @@ describe("focus from the bubble", () => {
 	});
 
 	// кнопки внутри плашки держат фокус сами — вмешиваться в их нажатие нельзя
-	it.each([[".messageeditor-emoji"], ['[data-toolbar-button="randomize"]']])(
+	it.each([[".emoji-button"], ['[data-toolbar-button="randomize"]']])(
 		"leaves the click on %s to the control itself",
 		(selector) => {
 			const { input } = setup({ value: "раз" });
@@ -1167,5 +1169,74 @@ describe("modal on destroy", () => {
 		editor.destroy();
 
 		expect(document.activeElement).not.toBe(editable);
+	});
+});
+
+describe("MESSAGEEDITOR names", () => {
+	// те же строки прописаны селекторами в messageeditor.less и в стилях окон
+	it("matches the CSS contract", () => {
+		expect(MESSAGEEDITOR.CLASS.ROOT).toBe("ui-messageeditor");
+		expect(MESSAGEEDITOR.CLASS.INPUT).toBe("ui-messageeditor-input");
+		expect(MESSAGEEDITOR.CLASS.ELEMENT).toEqual({
+			BUBBLE: "bubble",
+			EMOJI: "emoji-button",
+			EMOJI_HOLDER: "emoji-holder",
+			MODES: "modes",
+			MODE: "mode",
+			SOURCE: "source",
+			SOURCE_TEXT: "source-text",
+		});
+		expect(MESSAGEEDITOR.CLASS.STATE).toEqual({
+			SOURCE_MODE: "source-mode",
+			ACTIVE: "active",
+			INVALID: "invalid",
+		});
+		expect(MESSAGEEDITOR.CLASS.MODAL.ROOT).toEqual({
+			RANDOMIZER: "ui-messageeditor-randomizer",
+			VARIABLES: "ui-messageeditor-variables",
+			VARIABLE_KEY: "ui-messageeditor-variable-key",
+		});
+		expect(MESSAGEEDITOR.CLASS.MARKUP).toEqual({
+			SPINTAX: "spintax",
+			VARIABLE: "variable",
+			KEY: "key",
+			MARK: "mark",
+			LABEL: "label",
+			UNKNOWN: "unknown",
+			NEW: "new",
+		});
+		expect(MESSAGEEDITOR.EVENT.CHANGE).toBe("ui:messageeditor:change");
+	});
+
+	// Соглашение кита: полное имя (`ui-messageeditor…`) носит то, что видно вне корня контрола, —
+	// сам корень, поле-носитель (его пишет хост) и окна, живущие в body. Всё внутри корня зовётся
+	// коротко: эти имена всегда пишут вложенно, и повторять в них имя пакета незачем.
+	it("gives a full name to what is seen outside the control", () => {
+		const outside = [
+			MESSAGEEDITOR.CLASS.ROOT,
+			MESSAGEEDITOR.CLASS.INPUT,
+			...Object.values(MESSAGEEDITOR.CLASS.MODAL.ROOT),
+		];
+		const inside = [
+			...Object.values(MESSAGEEDITOR.CLASS.ELEMENT),
+			...Object.values(MESSAGEEDITOR.CLASS.STATE),
+			...Object.values(MESSAGEEDITOR.CLASS.MODAL.ELEMENT),
+		];
+
+		outside.forEach((name) => expect(name.startsWith("ui-messageeditor")).toBe(true));
+		inside.forEach((name) => expect(name.startsWith("ui-")).toBe(false));
+	});
+
+	// синтаксис уходит в текст сообщения: сменив символ, ломаем уже написанные шаблоны
+	it("keeps the message syntax stable", () => {
+		expect(MESSAGEEDITOR.SYNTAX.SPINTAX_OPEN).toBe("[");
+		expect(MESSAGEEDITOR.SYNTAX.SPINTAX_CLOSE).toBe("]");
+		expect(MESSAGEEDITOR.SYNTAX.SPINTAX_SEPARATOR).toBe("|");
+		expect(MESSAGEEDITOR.SYNTAX.VARIABLE_OPEN).toBe("{");
+		expect(MESSAGEEDITOR.SYNTAX.VARIABLE_CLOSE).toBe("}");
+	});
+
+	it("reaches the consumer through the package entry", () => {
+		expect(PACKAGE_NAMES).toBe(MESSAGEEDITOR);
 	});
 });

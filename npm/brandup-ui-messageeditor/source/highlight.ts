@@ -2,28 +2,9 @@
 // Обёртки — обычные <span>, редактор их не знает и при сериализации отбрасывает, оставляя
 // текст, поэтому в значение подсветка не попадает.
 
-import { textTag } from "@brandup/ui-kit";
-import { SPINTAX_OPEN, SPINTAX_SEPARATOR } from "./randomizer";
-import { buildVariable, isVariableKey, parseVariable, plainVariableKey, VARIABLE_OPEN } from "./variables";
-
-export const SPINTAX_CLASS = "spintax";
-export const VARIABLE_CLASS = "variable";
-/** Ключ переменной внутри обёртки: на экране его подменяет название, но в тексте он остаётся. */
-export const KEY_CLASS = "key";
-/** Символ самой конструкции — скобка или разделитель вариантов: оформляется отдельно от содержимого. */
-export const MARK_CLASS = "mark";
-/** Пустая обёртка подписи: название выводится её оформлением, а не текстом (см. buildMarkup). */
-export const LABEL_CLASS = "label";
-/** Переменная с ключом, которого нет в объявленном списке, — в строгом режиме это ошибка. */
-export const UNKNOWN_CLASS = "unknown";
-/** То же в режиме новых переменных: не ошибка, а ещё не заведённая переменная. */
-export const NEW_CLASS = "new";
-
-/** Подсказка на неизвестной переменной: почему она выделена не так, как остальные. */
-export const UNKNOWN_TITLE = "Переменная не объявлена — при отправке не подставится.";
-
-/** Подсказка на новой переменной: почему она выделена не так, как объявленные. */
-export const NEW_TITLE = "Новая переменная — её ещё нет в списке.";
+import { textTag } from "@brandup/ui-kit/text";
+import { MESSAGEEDITOR } from "./names";
+import { buildVariable, isVariableKey, parseVariable, plainVariableKey } from "./variables";
 
 /**
  * Объявленные переменные: ключ → название (`null` — названия нет, показывается ключ).
@@ -43,13 +24,13 @@ export interface HighlightOptions {
 	variables?: VariableNames;
 	/**
 	 * Режим новых переменных: необъявленный ключ — не ошибка, а заявка на переменную, которую
-	 * заведёт хост. Помечается своим классом ({@link NEW_CLASS}), а не как чужая.
+	 * заведёт хост. Помечается своим классом ({@link MESSAGEEDITOR.CLASS.MARKUP.NEW}), а не как чужая.
 	 */
 	newVariables?: boolean;
 }
 
 /** Обёртки подсвеченных конструкций — по нему их находят и подсветка, и правки редактора. */
-export const MARKUP_SELECTOR = `span.${SPINTAX_CLASS}, span.${VARIABLE_CLASS}`;
+export const MARKUP_SELECTOR = `span.${MESSAGEEDITOR.CLASS.MARKUP.SPINTAX}, span.${MESSAGEEDITOR.CLASS.MARKUP.VARIABLE}`;
 
 /**
  * Конструкция, внутри которой лежит узел (обычно — якорь выделения), или null.
@@ -66,7 +47,7 @@ export function markupAt(node: Node | null | undefined): HTMLElement | null {
  * с нужной стороны, либо та, внутри которой она стоит.
  *
  * Прижата — значит между кареткой и конструкцией нет набранного текста: опоры каретки
- * (см. {@link CARET_ANCHOR}) не в счёт, их никто не набирал, и отдельного нажатия они не стоят.
+ * (см. {@link MESSAGEEDITOR.SYNTAX.CARET_ANCHOR}) не в счёт, их никто не набирал, и отдельного нажатия они не стоят.
  * Иначе стереть конструкцию в конце строки было бы нечем: нажатие уходило бы на опору, а её тут
  * же возвращала бы подсветка — клавиша выглядела бы сломанной.
  *
@@ -109,7 +90,7 @@ export function markupBeside(root: HTMLElement, selection: Selection, back: bool
 
 /**
  * Опора каретки, стоящая сразу за конструкцией: вместе с конструкцией уходит и она — держать
- * место больше не за чем, а каретке она давала бы лишнюю позицию (см. {@link CARET_ANCHOR}).
+ * место больше не за чем, а каретке она давала бы лишнюю позицию (см. {@link MESSAGEEDITOR.SYNTAX.CARET_ANCHOR}).
  *
  * Только собственный узел опоры: дописанный за конструкцией текст попадает в тот же узел,
  * и опора в нём — лишь один символ, который сообщению не мешает и так (его снимает хост).
@@ -188,15 +169,9 @@ export function mayHaveMarkup(root: HTMLElement, options: HighlightOptions = {})
 	return found || !!root.querySelector(MARKUP_SELECTOR);
 }
 
-/**
- * Символ нулевой ширины, которым конструкция заканчивает строку. В значение не идёт — его
- * снимает хост, читая значение (см. `MessageEditor`).
- */
-export const CARET_ANCHOR = "​";
-
 // Текст из одних опор каретки (пустой — тоже): набранного тут нет, и для правки его как бы нет.
-const ANCHORS_ONLY = new RegExp(`^${CARET_ANCHOR}*$`);
-const ANCHORS = new RegExp(CARET_ANCHOR, "g");
+const ANCHORS_ONLY = new RegExp(`^${MESSAGEEDITOR.SYNTAX.CARET_ANCHOR}*$`);
+const ANCHORS = new RegExp(MESSAGEEDITOR.SYNTAX.CARET_ANCHOR, "g");
 
 function isAnchorText(text: string): boolean {
 	return ANCHORS_ONLY.test(text);
@@ -220,7 +195,7 @@ export function withoutAnchors(value: string): string {
  */
 function anchorMarkup(root: HTMLElement) {
 	for (const span of Array.from(root.querySelectorAll<HTMLElement>(MARKUP_SELECTOR)))
-		if (!span.nextSibling) span.after(document.createTextNode(CARET_ANCHOR));
+		if (!span.nextSibling) span.after(document.createTextNode(MESSAGEEDITOR.SYNTAX.CARET_ANCHOR));
 }
 
 // Элементы, разрывающие строку на экране: <br> и блоки. Конструкция строку не пересекает,
@@ -310,16 +285,13 @@ function collectRun(root: HTMLElement): { run: string; parts: RunPart[] } {
  */
 type RunPart = { node: Node; start: number; end: number; wrapped: boolean };
 
-/** Сколько символов отводится переменной при подсчёте длины, пока хост не задал своего. */
-export const DEFAULT_VARIABLE_LENGTH = 30;
-
 // Из настроек подсветки длине нужна одна: объявленные переменные на счёт не влияют — считается
 // подставляемое значение, а не название. Приняв их, счёт обещал бы поправку, которой не делает.
 export interface LengthOptions extends Pick<HighlightOptions, "enable"> {
 	/**
 	 * Сколько символов считать вместо переменной: подставленное значение длиннее ключа,
 	 * и точной длины у сообщения с переменными нет — только оценка.
-	 * По умолчанию — {@link DEFAULT_VARIABLE_LENGTH}.
+	 * По умолчанию — {@link MESSAGEEDITOR.VALUE.DEFAULT_VARIABLE_LENGTH}.
 	 */
 	variableLength?: number;
 }
@@ -339,7 +311,7 @@ export interface LengthOptions extends Pick<HighlightOptions, "enable"> {
  */
 export function messageLength(root: HTMLElement, options: LengthOptions = {}): number {
 	const pattern = options.enable === false ? SPINTAX_ONLY : WITH_VARIABLES;
-	const variableLength = options.variableLength ?? DEFAULT_VARIABLE_LENGTH;
+	const variableLength = options.variableLength ?? MESSAGEEDITOR.VALUE.DEFAULT_VARIABLE_LENGTH;
 
 	// опоры каретки — служебные символы поля: в сообщение они не уходят и в длину не входят
 	const text = withoutAnchors(collectRun(root).run).trim();
@@ -356,7 +328,7 @@ export function messageLength(root: HTMLElement, options: LengthOptions = {}): n
 				? Math.max(
 						...construct
 							.slice(1, -1)
-							.split(SPINTAX_SEPARATOR)
+							.split(MESSAGEEDITOR.SYNTAX.SPINTAX_SEPARATOR)
 							.map((variant) => variant.length)
 					)
 				: variableLength;
@@ -375,7 +347,7 @@ export function messageLength(root: HTMLElement, options: LengthOptions = {}): n
  * другое.
  */
 function variableKey(text: string): string | null {
-	return text.startsWith(SPINTAX_OPEN) ? null : parseVariable(text);
+	return text.startsWith(MESSAGEEDITOR.SYNTAX.SPINTAX_OPEN) ? null : parseVariable(text);
 }
 
 /**
@@ -452,7 +424,7 @@ function isNewVariable(key: string, names?: VariableNames, newVariables?: boolea
 export function unknownVariables(root: HTMLElement, names?: VariableNames, newVariables?: boolean): string[] {
 	// Проверка идёт на каждое чтение значения снаружи, а открывающей скобки в тексте обычно нет
 	// вовсе — тогда и обходить нечего. Так же дёшево выходит и сама highlight().
-	if (!(root.textContent ?? "").includes(VARIABLE_OPEN)) return [];
+	if (!(root.textContent ?? "").includes(MESSAGEEDITOR.SYNTAX.VARIABLE_OPEN)) return [];
 
 	// Один предикат на весь обход: в строгом режиме нужны все необъявленные, в режиме новых —
 	// только те, что помечены новыми, иначе список звал бы завести незаводимое.
@@ -512,7 +484,8 @@ export function mapVariableNames(root: HTMLElement, names?: VariableNames, newVa
 	// Ни объявленных названий, ни открывающей скобки в тексте — подменять нечего. Проверка идёт
 	// на каждый ввод, а скобки в обычном наборе не встречаются вовсе. В режиме новых переменных
 	// пустой список работе не мешает: регистр новой переменной правится и без объявленных.
-	if ((!names?.size && !newVariables) || !(root.textContent ?? "").includes(VARIABLE_OPEN)) return false;
+	if ((!names?.size && !newVariables) || !(root.textContent ?? "").includes(MESSAGEEDITOR.SYNTAX.VARIABLE_OPEN))
+		return false;
 
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	let mapped = false;
@@ -532,7 +505,7 @@ type Replacement = [start: number, end: number, length: number];
 
 function mapNode(node: Text, names?: VariableNames, newVariables?: boolean): boolean {
 	const text = node.data;
-	if (!text.includes(VARIABLE_OPEN)) return false;
+	if (!text.includes(MESSAGEEDITOR.SYNTAX.VARIABLE_OPEN)) return false;
 
 	const done: Replacement[] = [];
 	let mapped = "";
@@ -819,7 +792,7 @@ function buildMarkup(text: string, options: HighlightOptions = {}): HTMLElement 
 	const span = document.createElement("span");
 	const key = variableKey(text);
 
-	span.className = key === null ? SPINTAX_CLASS : VARIABLE_CLASS;
+	span.className = key === null ? MESSAGEEDITOR.CLASS.MARKUP.SPINTAX : MESSAGEEDITOR.CLASS.MARKUP.VARIABLE;
 	// Конструкция атомарна: править её текст в поле нельзя, только через своё окно — иначе
 	// разметку легко испортить, стерев одну скобку. Ставим атрибутом, а не свойством:
 	// свойство не отражается в разметку, и состояние было бы не видно ни в DOM, ни в тестах.
@@ -838,8 +811,8 @@ function buildMarkup(text: string, options: HighlightOptions = {}): HTMLElement 
 	if (isUnknown(key, names)) {
 		const isNew = isNewVariable(key, names, newVariables);
 
-		span.classList.add(isNew ? NEW_CLASS : UNKNOWN_CLASS);
-		span.setAttribute("title", isNew ? NEW_TITLE : UNKNOWN_TITLE);
+		span.classList.add(isNew ? MESSAGEEDITOR.CLASS.MARKUP.NEW : MESSAGEEDITOR.CLASS.MARKUP.UNKNOWN);
+		span.setAttribute("title", isNew ? MESSAGEEDITOR.TEXT.NEW_TITLE : MESSAGEEDITOR.TEXT.UNKNOWN_TITLE);
 		fillVariable(span, text, key);
 		return span;
 	}
@@ -858,7 +831,7 @@ function buildMarkup(text: string, options: HighlightOptions = {}): HTMLElement 
 /** Обёртка символа конструкции: скобки и разделитель оформляются отдельно от содержимого. */
 function mark(char: string): HTMLElement {
 	const span = document.createElement("span");
-	span.className = MARK_CLASS;
+	span.className = MESSAGEEDITOR.CLASS.MARKUP.MARK;
 	span.textContent = char;
 
 	return span;
@@ -875,10 +848,10 @@ function fillVariable(span: HTMLElement, text: string, key: string, name?: strin
 	span.appendChild(mark(text.slice(0, 1)));
 
 	if (name) {
-		span.appendChild(textTag("span", { class: KEY_CLASS }, key));
+		span.appendChild(textTag("span", { class: MESSAGEEDITOR.CLASS.MARKUP.KEY }, key));
 
 		const label = document.createElement("span");
-		label.className = LABEL_CLASS;
+		label.className = MESSAGEEDITOR.CLASS.MARKUP.LABEL;
 		label.dataset.label = name;
 		span.appendChild(label);
 	} else span.appendChild(document.createTextNode(key));
@@ -894,9 +867,9 @@ function fillSpintax(span: HTMLElement, text: string) {
 	// между скобками делится разделителем без остатка. Пустой вариант узла не получает —
 	// пустого текстового узла в разметке быть не должно.
 	text.slice(1, -1)
-		.split(SPINTAX_SEPARATOR)
+		.split(MESSAGEEDITOR.SYNTAX.SPINTAX_SEPARATOR)
 		.forEach((variant, index) => {
-			if (index) span.appendChild(mark(SPINTAX_SEPARATOR));
+			if (index) span.appendChild(mark(MESSAGEEDITOR.SYNTAX.SPINTAX_SEPARATOR));
 			if (variant) span.appendChild(document.createTextNode(variant));
 		});
 

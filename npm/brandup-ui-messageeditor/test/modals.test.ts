@@ -1,8 +1,9 @@
 /**
  * @jest-environment jsdom
  */
-import RandomizerModal, { MAX_VARIANTS } from "../source/randomizer";
-import VariablesModal, { parseVariables, VARIABLES_EMPTY_TEXT } from "../source/variables";
+import { MESSAGEEDITOR } from "../source/names";
+import RandomizerModal from "../source/randomizer";
+import VariablesModal, { parseVariables } from "../source/variables";
 
 const opened: Array<{ close(): void }> = [];
 const open = <T extends { close(): void }>(modal: T): T => {
@@ -91,7 +92,7 @@ describe("RandomizerModal", () => {
 		modal.element!.querySelector<HTMLButtonElement>(".apply")!.click();
 
 		expect(apply).toHaveBeenCalledWith("[раз|два]");
-		expect(document.querySelector(".messageeditor-randomizer")).toBeNull();
+		expect(document.querySelector(".ui-messageeditor-randomizer")).toBeNull();
 	});
 
 	// нажатие, которое ничего не делает, выглядит поломкой: пока варианта нет, сохранять нечего
@@ -113,7 +114,7 @@ describe("RandomizerModal", () => {
 		modal.element!.querySelector<HTMLButtonElement>(".cancel")!.click();
 
 		expect(apply).not.toHaveBeenCalled();
-		expect(document.querySelector(".messageeditor-randomizer")).toBeNull();
+		expect(document.querySelector(".ui-messageeditor-randomizer")).toBeNull();
 	});
 
 	// Очищенный вариант — не запись, а мусор в списке: убираем, как только из него ушли.
@@ -182,24 +183,24 @@ describe("RandomizerModal", () => {
 
 	// набор не должен разрастаться: спинтакс уходит в текст сообщения целиком
 	it("stops offering new variants at the limit and says why", () => {
-		const spintax = `[${Array.from({ length: MAX_VARIANTS }, (_, i) => `в${i}`).join("|")}]`;
+		const spintax = `[${Array.from({ length: MESSAGEEDITOR.VALUE.MAX_VARIANTS }, (_, i) => `в${i}`).join("|")}]`;
 		const modal = open(new RandomizerModal(spintax, () => {}));
 
 		// приглашения больше нет — список ровно в предел
-		expect(fields(modal)).toHaveLength(MAX_VARIANTS);
+		expect(fields(modal)).toHaveLength(MESSAGEEDITOR.VALUE.MAX_VARIANTS);
 		expect(modal.element!.classList.contains("max-variants")).toBe(true);
 
-		type(fields(modal)[MAX_VARIANTS - 1], "изменили");
+		type(fields(modal)[MESSAGEEDITOR.VALUE.MAX_VARIANTS - 1], "изменили");
 
-		expect(fields(modal)).toHaveLength(MAX_VARIANTS);
+		expect(fields(modal)).toHaveLength(MESSAGEEDITOR.VALUE.MAX_VARIANTS);
 	});
 
 	// лишнее из готового спинтакса отсекается сразу: набрать столько всё равно бы не дали
 	it("cuts an oversized spintax down to the limit", () => {
-		const spintax = `[${Array.from({ length: MAX_VARIANTS + 5 }, (_, i) => `в${i}`).join("|")}]`;
+		const spintax = `[${Array.from({ length: MESSAGEEDITOR.VALUE.MAX_VARIANTS + 5 }, (_, i) => `в${i}`).join("|")}]`;
 		const modal = open(new RandomizerModal(spintax, () => {}));
 
-		expect(fields(modal)).toHaveLength(MAX_VARIANTS);
+		expect(fields(modal)).toHaveLength(MESSAGEEDITOR.VALUE.MAX_VARIANTS);
 	});
 
 	it("does not apply when every variant is empty", () => {
@@ -236,7 +237,7 @@ describe("RandomizerModal", () => {
 
 		expect(apply).not.toHaveBeenCalled();
 		expect(document.querySelector(".ui-modal")).toBeNull();
-		expect(document.body.classList.contains("ui-modal-opened")).toBe(false);
+		expect(document.body.classList.contains("body-modal-opened")).toBe(false);
 	});
 });
 
@@ -271,7 +272,7 @@ describe("VariablesModal", () => {
 	it("says so when there are no variables", () => {
 		const modal = open(new VariablesModal([], () => {}));
 
-		expect(modal.element!.querySelector(".variables .empty")!.textContent).toBe(VARIABLES_EMPTY_TEXT);
+		expect(modal.element!.querySelector(".variables .empty")!.textContent).toBe(MESSAGEEDITOR.TEXT.VARIABLES_EMPTY);
 	});
 
 	// причину пустого списка знает приложение, а не компонент
@@ -286,7 +287,7 @@ describe("VariablesModal", () => {
 	it.each([[null], [undefined], [""], ["   "]])("falls back to the default text for %j", (text) => {
 		const modal = open(new VariablesModal([], () => {}, text));
 
-		expect(modal.element!.querySelector(".variables .empty")!.textContent).toBe(VARIABLES_EMPTY_TEXT);
+		expect(modal.element!.querySelector(".variables .empty")!.textContent).toBe(MESSAGEEDITOR.TEXT.VARIABLES_EMPTY);
 	});
 
 	// настройку хост может не объявлять вовсе — мёртвая строка хуже отсутствующей

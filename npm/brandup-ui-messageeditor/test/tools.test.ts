@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { ALL_FORMAT_TOOLS, TOOLBAR_CLASS } from "@brandup/ui-richeditor";
+import { ALL_FORMAT_TOOLS, RICHEDITOR } from "@brandup/ui-richeditor";
 import MessageEditor, { type MessageEditorOptions } from "../source/messageeditor";
 
 function setup(options: MessageEditorOptions = {}, attrs: Record<string, string> = {}, value = "") {
@@ -21,10 +21,11 @@ function setup(options: MessageEditorOptions = {}, attrs: Record<string, string>
 }
 
 const toolButton = (tool: string) =>
-	document.querySelector(`.${TOOLBAR_CLASS} .format-button[data-format-tool="${tool}"]`);
+	document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .format-button[data-format-tool="${tool}"]`);
 const actionButton = (action: string) =>
-	document.querySelector(`.${TOOLBAR_CLASS} .action-button[data-editor-action="${action}"]`);
-const hostButton = (name: string) => document.querySelector(`.${TOOLBAR_CLASS} [data-toolbar-button="${name}"]`);
+	document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .action-button[data-editor-action="${action}"]`);
+const hostButton = (name: string) =>
+	document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} [data-toolbar-button="${name}"]`);
 
 describe("format tools of the message", () => {
 	it("takes all of them by default", () => {
@@ -77,7 +78,7 @@ describe("format tools of the message", () => {
 	it("leaves the toolbar with the domain button alone", () => {
 		setup({ tools: [], blocks: [], personalization: false });
 
-		const toolbar = document.querySelector(`.${TOOLBAR_CLASS}.visible`)!;
+		const toolbar = document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}.visible`)!;
 		expect(toolbar).not.toBeNull();
 		expect(toolbar.querySelectorAll(".format-button, .block-button, .action-button")).toHaveLength(0);
 		expect(toolbar.querySelectorAll(".host-button")).toHaveLength(1);

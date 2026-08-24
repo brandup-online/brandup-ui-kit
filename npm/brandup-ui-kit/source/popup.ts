@@ -1,26 +1,26 @@
+import { LayerManager, type Layer } from "./layer";
+import { UIKIT } from "./names";
 import "./popup.less"; // стили всплывающей поверхности
 
-export const POPUP_CLASS = "ui-popup";
-/** Ставится на сам попап, пока он открыт. */
-export const POPUP_OPENED_CLASS = "opened";
-export const POPUP_EXPANDED_CLASS = "ui-popup-expanded";
-/** Ставится на body, пока открыт попап: страница может подстроиться под него (см. popup.less). */
-export const POPUP_OPENED_BODY_CLASS = "ui-popup-opened";
-export const POPUP_COMMAND = "ui-popup-toggle";
+/** Имена попапа — в общем модуле имён кита (см. names.ts). */
+const POPUP = UIKIT.POPUP;
 
 type CurrentPopup = {
 	initiator?: HTMLElement;
 	popup: HTMLElement;
 	closeCallback?: () => void;
+	layer: Layer;
 };
 
 let current: CurrentPopup | null = null;
+let closing = false; // закрытие уже идёт: обработчик onClose мог позвать close() ещё раз
+let popupIdSeq = 0;
 
 const closePopupEventHandler = (e: MouseEvent) => {
 	const target = e.target as HTMLElement;
-	if (target.closest(`.${POPUP_CLASS}`)) return; // если клик внутри popup, то делать ничего не нужно
+	if (target.closest(`.${POPUP.CLASS.ROOT}`)) return; // если клик внутри popup, то делать ничего не нужно
 
-	const clickedMenuItem = target.closest(`.${POPUP_EXPANDED_CLASS}`);
+	const clickedMenuItem = target.closest(`.${POPUP.CLASS.EXPANDED}`);
 	const isInitiator = target == current?.initiator;
 
 	close();
@@ -33,64 +33,113 @@ const closePopupEventHandler = (e: MouseEvent) => {
 	}
 };
 
-// Escape закрывает попап — это ожидание от любого всплывающего слоя, и держать свой обработчик
-// каждому компоненту незачем. Слушатель не перехватывающий: обработчики на самом попапе получают
-// клавишу первыми и успевают сделать своё (вернуть фокус, отменить ввод).
-const closePopupKeyHandler = (e: KeyboardEvent) => {
-	if (e.key !== "Escape") return;
+/**
+ * Кнопка-инициатор объявляет состояние попапа: `aria-expanded` читает скринридер, `aria-controls`
+ * связывает её с раскрытым слоем. Идентификатор попапу выдаём свой, если в разметке его не задали.
+ */
+const setInitiatorState = (initiator: HTMLElement | undefined, popup: HTMLElement, expanded: boolean) => {
+	if (!initiator) return;
 
-	close();
+	if (expanded) {
+		if (!popup.id) popup.id = `${POPUP.ID}${++popupIdSeq}`;
+
+		initiator.classList.add(POPUP.CLASS.EXPANDED);
+		initiator.setAttribute("aria-controls", popup.id);
+		initiator.setAttribute("aria-expanded", "true");
+	} else {
+		initiator.classList.remove(POPUP.CLASS.EXPANDED); // закрываем последнее открытое контекстное меню
+		initiator.setAttribute("aria-expanded", "false"); // кнопка остаётся переключателем и в закрытом виде
+	}
 };
 
 const close = () => {
-	if (current) {
-		if (current.closeCallback) current.closeCallback();
+	if (current && !closing) {
+		closing = true;
 
-		current.initiator?.classList.remove(POPUP_EXPANDED_CLASS); // закрываем последнее открытое контекстное меню
-		current.popup.classList.remove(POPUP_OPENED_CLASS);
+		try {
+			if (current.closeCallback) current.closeCallback();
 
-		current = null;
+			setInitiatorState(current.initiator, current.popup, false);
+			current.popup.classList.remove(POPUP.CLASS.OPENED);
+
+			const layer = current.layer;
+			current = null;
+
+			// последним: слой возвращает фокус на инициатора, и делать это нужно уже по закрытому попапу
+			layer.release();
+		} finally {
+			closing = false;
+		}
 	}
 
-	document.body.classList.remove(POPUP_OPENED_BODY_CLASS);
 	document.body.removeEventListener("click", closePopupEventHandler);
-	document.removeEventListener("keydown", closePopupKeyHandler);
 };
 
+/**
+ * Показать попап. Открытый этим же вызовом остаётся открытым — повторный `open` ничего не меняет;
+ * закрыть его нажатием по той же кнопке — работа {@link toggle}.
+ */
 const open = (popupElem: HTMLElement, options?: PopupOptions) => {
-	if (current && current.popup !== popupElem) close(); // если открыт другой popup, закрываем его, чтобы не оставлять «осиротевший» visible popup
+	if (current?.popup === popupElem) return; // уже показан — открывать нечего
 
-	const newPopup: CurrentPopup = {
+	if (current) close(); // если открыт другой popup, закрываем его, чтобы не оставлять «осиротевший» visible popup
+
+	popupElem.classList.add(POPUP.CLASS.OPENED);
+
+	setInitiatorState(options?.initiator, popupElem, true);
+
+	document.body.addEventListener("click", closePopupEventHandler);
+
+	current = {
 		popup: popupElem,
 		initiator: options?.initiator,
+		closeCallback: options?.onClose,
+		// Escape и класс на body — за менеджером слоёв: попап бывает открыт над модальным
+		// окном, и закрывать их одним нажатием нельзя (см. layer.ts).
+		layer: LayerManager.push({
+			close,
+			element: popupElem,
+			bodyClass: POPUP.CLASS.BODY,
+			// Фокус внутрь не уводим: попап открывают, не отпуская каретку в поле (панель
+			// смайликов), — но если пользователь сам ушёл в него с клавиатуры, по закрытию
+			// вернём его на кнопку.
+			returnFocus: options?.initiator ?? null,
+		}),
 	};
+};
 
-	newPopup.closeCallback = options?.onClose;
-
-	if (newPopup.popup.classList.toggle(POPUP_OPENED_CLASS)) {
-		// это новый popup, открываем его
-
-		newPopup.initiator?.classList.add(POPUP_EXPANDED_CLASS);
-		document.body.classList.add(POPUP_OPENED_BODY_CLASS);
-
-		document.body.addEventListener("click", closePopupEventHandler);
-		document.addEventListener("keydown", closePopupKeyHandler);
-
-		current = newPopup;
-	} else {
-		// данный popup уже открыт, закрываем его
+/**
+ * Переключить попап: показать, а открытый — закрыть. Это поведение кнопки-переключателя, поэтому
+ * им пользуется команда `ui-popup-toggle` и всякий, кто раскрывает попап по нажатию на кнопку.
+ *
+ * Возвращает, открыт ли попап после вызова: показывать его содержимое и придерживать что-то
+ * на время показа нужно только при `true`.
+ */
+const toggle = (popupElem: HTMLElement, options?: PopupOptions): boolean => {
+	if (current?.popup === popupElem) {
 		close();
+
+		return false;
 	}
+
+	open(popupElem, options);
+
+	return true;
 };
 
 export const PopupManager: IPopupManager = {
 	open,
+	toggle,
 	close,
 	isOpened: (popupElem?: HTMLElement) => (popupElem ? current?.popup === popupElem : !!current),
 };
 
 interface IPopupManager {
+	/** Показать попап; открытый этим же вызовом остаётся открытым, а другой — закрывается. */
 	open: (popupElem: HTMLElement, options?: PopupOptions) => void;
+	/** Показать попап, а открытый — закрыть. Возвращает, открыт ли он после вызова. */
+	toggle: (popupElem: HTMLElement, options?: PopupOptions) => boolean;
+	/** Закрыть открытый попап; закрывать нечего — вызов ничего не делает. */
 	close: () => void;
 	/** Без аргумента — открыт ли хоть один попап; с аргументом — открыт ли именно этот. */
 	isOpened: (popupElem?: HTMLElement) => boolean;

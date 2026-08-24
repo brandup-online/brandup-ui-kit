@@ -71,7 +71,7 @@
 	}
   
 	& .popup {
-		z-index: 1000;
+		z-index: var(--layer-dropdown);
 	  	display: none;
 	  	position: absolute;
 	  	top: 100%;
@@ -409,10 +409,10 @@
 }
 
 // Пока список раскрыт во весь экран, страница под ним не прокручивается. Правило верхнего уровня:
-// внутри блока .ui-dropdown оно давало селектор `.ui-dropdown body.ui-dropdown-opened`, который
+// внутри блока .ui-dropdown оно давало селектор `.ui-dropdown body.body-dropdown-opened`, который
 // не может совпасть — body не бывает потомком дропдауна, и придержать прокрутку было нечем.
 .adaptive-tablet({
-	body.ui-dropdown-opened {
+	body.body-dropdown-opened {
 		overflow: hidden;
 	}
 });

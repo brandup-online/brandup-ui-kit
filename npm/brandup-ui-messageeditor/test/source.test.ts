@@ -1,15 +1,9 @@
 /**
  * @jest-environment jsdom
  */
-import { POPUP_OPENED_BODY_CLASS, PopupManager } from "@brandup/ui-kit";
-import MessageEditor, {
-	EMOJI_CLASS,
-	MODES_CLASS,
-	MODE_CLASS,
-	SOURCE_CLASS,
-	SOURCE_MODE_CLASS,
-	SOURCE_TEXT_CLASS,
-} from "../source/messageeditor";
+import { PopupManager, UIKIT } from "@brandup/ui-kit";
+import MessageEditor from "../source/messageeditor";
+import { MESSAGEEDITOR } from "../source/names";
 
 function setup(
 	opts: { value?: string; attr?: boolean; placeholder?: string; disabled?: boolean; readonly?: boolean } = {}
@@ -27,11 +21,13 @@ function setup(
 	return { input, form };
 }
 
-const sourceElem = (editor: MessageEditor) => editor.element.querySelector<HTMLElement>(`.${SOURCE_CLASS}`);
+const sourceElem = (editor: MessageEditor) =>
+	editor.element.querySelector<HTMLElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.SOURCE}`);
 // текст панели — отдельный элемент внутри неё: рамку держит коробка, прокрутку текст
-const sourceTextElem = (editor: MessageEditor) => editor.element.querySelector<HTMLElement>(`.${SOURCE_TEXT_CLASS}`);
+const sourceTextElem = (editor: MessageEditor) =>
+	editor.element.querySelector<HTMLElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.SOURCE_TEXT}`);
 const modeButton = (editor: MessageEditor, mode: string) =>
-	editor.element.querySelector<HTMLButtonElement>(`.${MODE_CLASS}[data-mode="${mode}"]`);
+	editor.element.querySelector<HTMLButtonElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.MODE}[data-mode="${mode}"]`);
 
 describe("MessageEditor source", () => {
 	// Пишущему сообщение сырая разметка не нужна: показанная без спроса, она требует объяснений.
@@ -40,22 +36,22 @@ describe("MessageEditor source", () => {
 
 		expect(editor.source).toBe(false);
 		expect(editor.sourceMode).toBe(false);
-		expect(editor.element.querySelector(`.${MODES_CLASS}`)).toBeNull();
+		expect(editor.element.querySelector(`.${MESSAGEEDITOR.CLASS.ELEMENT.MODES}`)).toBeNull();
 		expect(sourceElem(editor)).toBeNull();
 
 		editor.toggleSource(true); // включать нечего — режима нет вовсе
 
 		expect(editor.sourceMode).toBe(false);
-		expect(editor.element.classList.contains(SOURCE_MODE_CLASS)).toBe(false);
+		expect(editor.element.classList.contains(MESSAGEEDITOR.CLASS.STATE.SOURCE_MODE)).toBe(false);
 	});
 
 	// Собственные классы поля-носителя переезжают на корневой элемент контрола (см. prepareValueElem
-	// в ui-input), поэтому режим по классу читать нельзя: `class="source"` в разметке поля включал
-	// бы режим, которого нет, — с панелью, которую никто не собирал, и первая же правка падала бы
-	// на рендере в неё.
+	// в ui-input), поэтому режим по классу читать нельзя: `class="source-mode"` в разметке поля
+	// включал бы режим, которого нет, — с панелью, которую никто не собирал, и первая же правка
+	// падала бы на рендере в неё.
 	it("does not take the mode from a class of the value element", () => {
 		const { input } = setup({ value: "раз" });
-		input.classList.add(SOURCE_MODE_CLASS);
+		input.classList.add(MESSAGEEDITOR.CLASS.STATE.SOURCE_MODE);
 		const editor = new MessageEditor(input);
 		const handler = jest.fn();
 		editor.onChange(handler);
@@ -79,10 +75,10 @@ describe("MessageEditor source", () => {
 		expect(editor.source).toBe(true);
 
 		// переключатель над плашкой, панель — рядом с ней
-		const modes = editor.element.querySelector(`.${MODES_CLASS}`)!;
+		const modes = editor.element.querySelector(`.${MESSAGEEDITOR.CLASS.ELEMENT.MODES}`)!;
 		expect(modes.nextElementSibling!.classList.contains("bubble")).toBe(true);
 		expect(sourceElem(editor)!.previousElementSibling!.classList.contains("bubble")).toBe(true);
-		expect(modes.querySelectorAll(`.${MODE_CLASS}`)).toHaveLength(2);
+		expect(modes.querySelectorAll(`.${MESSAGEEDITOR.CLASS.ELEMENT.MODE}`)).toHaveLength(2);
 		expect(modeButton(editor, "source")!.textContent).toBe("Markdown"); // формат хранения значения
 	});
 
@@ -105,7 +101,7 @@ describe("MessageEditor source", () => {
 		editor.toggleSource(true);
 
 		expect(editor.sourceMode).toBe(true);
-		expect(editor.element.classList.contains(SOURCE_MODE_CLASS)).toBe(true);
+		expect(editor.element.classList.contains(MESSAGEEDITOR.CLASS.STATE.SOURCE_MODE)).toBe(true);
 		expect(sourceElem(editor)!.textContent).toBe("Привет, **{ИМЯ}**!\n> цитата");
 	});
 
@@ -334,13 +330,13 @@ describe("MessageEditor source", () => {
 	// режим переключает хост из кода.
 	it("closes the emoji picker when the panel takes the bubble away", () => {
 		const editor = new MessageEditor(setup({ value: "текст", attr: true }).input);
-		editor.element.querySelector<HTMLButtonElement>(`.${EMOJI_CLASS}`)!.click();
+		editor.element.querySelector<HTMLButtonElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.EMOJI}`)!.click();
 		expect(PopupManager.isOpened()).toBe(true);
 
 		editor.toggleSource(true);
 
 		expect(PopupManager.isOpened()).toBe(false);
-		expect(document.body.classList.contains(POPUP_OPENED_BODY_CLASS)).toBe(false);
+		expect(document.body.classList.contains(UIKIT.POPUP.CLASS.BODY)).toBe(false);
 	});
 
 	// Клик по плашке мимо текста уводит фокус в текст, но плашки в этом режиме на экране нет:

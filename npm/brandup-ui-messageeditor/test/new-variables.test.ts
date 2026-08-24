@@ -1,8 +1,8 @@
 /**
  * @jest-environment jsdom
  */
+import { MESSAGEEDITOR } from "../source/names";
 import MessageEditor, { type MessageEditorOptions } from "../source/messageeditor";
-import { VARIABLE_NEW_TEXT } from "../source/variables";
 
 function setup(value: string, options: MessageEditorOptions = {}) {
 	document.body.innerHTML = "";
@@ -56,7 +56,7 @@ function type(editor: MessageEditor, text: string) {
 }
 
 function rows() {
-	return Array.from(document.querySelectorAll<HTMLElement>(".messageeditor-variables .variables .variable"));
+	return Array.from(document.querySelectorAll<HTMLElement>(".ui-messageeditor-variables .variables .variable"));
 }
 
 function closeModal() {
@@ -291,8 +291,8 @@ describe("new variables mode", () => {
 			return span;
 		};
 
-		const field = () => document.querySelector<HTMLInputElement>(".messageeditor-variable-key .key-field")!;
-		const applyButton = () => document.querySelector<HTMLButtonElement>(".messageeditor-variable-key .apply")!;
+		const field = () => document.querySelector<HTMLInputElement>(".ui-messageeditor-variable-key .key-field")!;
+		const applyButton = () => document.querySelector<HTMLButtonElement>(".ui-messageeditor-variable-key .apply")!;
 		const type = (value: string) => {
 			field().value = value;
 			field().dispatchEvent(new Event("input", { bubbles: true }));
@@ -304,8 +304,8 @@ describe("new variables mode", () => {
 			const editor = setup("{СКИДКА}", declared);
 			open(editor);
 
-			expect(document.querySelector(".messageeditor-variable-key")).not.toBeNull();
-			expect(document.querySelector(".messageeditor-variables")).toBeNull();
+			expect(document.querySelector(".ui-messageeditor-variable-key")).not.toBeNull();
+			expect(document.querySelector(".ui-messageeditor-variables")).toBeNull();
 			expect(field().value).toBe("СКИДКА"); // ключ без скобок: правят его, а не конструкцию
 		});
 
@@ -329,7 +329,7 @@ describe("new variables mode", () => {
 
 			expect(editor.getValue()).toBe("Привет, {ДАТА ЗАКАЗА}!");
 			expect(editor.unknownVariables).toEqual(["ДАТА ЗАКАЗА"]);
-			expect(document.querySelector(".messageeditor-variable-key")).toBeNull();
+			expect(document.querySelector(".ui-messageeditor-variable-key")).toBeNull();
 		});
 
 		// Правило ключа у окна и у списка одно: сохранить нельзя то, чего нельзя объявить.
@@ -395,10 +395,10 @@ describe("new variables mode", () => {
 			open(editor);
 
 			type("БОНУС");
-			document.querySelector<HTMLButtonElement>(".messageeditor-variable-key .cancel")!.click();
+			document.querySelector<HTMLButtonElement>(".ui-messageeditor-variable-key .cancel")!.click();
 
 			expect(editor.getValue()).toBe("{СКИДКА}");
-			expect(document.querySelector(".messageeditor-variable-key")).toBeNull();
+			expect(document.querySelector(".ui-messageeditor-variable-key")).toBeNull();
 		});
 
 		// Ключ, который нельзя завести, правят тем же окном: клик по нему — попытка исправить.
@@ -419,8 +419,8 @@ describe("new variables mode", () => {
 			const editor = setup("{ИМЯ}", declared);
 			open(editor);
 
-			expect(document.querySelector(".messageeditor-variables")).not.toBeNull();
-			expect(document.querySelector(".messageeditor-variable-key")).toBeNull();
+			expect(document.querySelector(".ui-messageeditor-variables")).not.toBeNull();
+			expect(document.querySelector(".ui-messageeditor-variable-key")).toBeNull();
 		});
 
 		// В строгом режиме необъявленная — ошибка, и исправить её можно только объявленной.
@@ -428,8 +428,8 @@ describe("new variables mode", () => {
 			const editor = setup("{ЧУЖАЯ}", { variables: declared.variables });
 			open(editor);
 
-			expect(document.querySelector(".messageeditor-variables")).not.toBeNull();
-			expect(document.querySelector(".messageeditor-variable-key")).toBeNull();
+			expect(document.querySelector(".ui-messageeditor-variables")).not.toBeNull();
+			expect(document.querySelector(".ui-messageeditor-variable-key")).toBeNull();
 		});
 	});
 
@@ -450,7 +450,7 @@ describe("new variables mode", () => {
 			const [name, , discount] = rows();
 			expect(name.classList.contains("new")).toBe(false);
 			expect(discount.classList.contains("new")).toBe(true);
-			expect(discount.querySelector(".note")!.textContent).toBe(VARIABLE_NEW_TEXT);
+			expect(discount.querySelector(".note")!.textContent).toBe(MESSAGEEDITOR.TEXT.VARIABLE_NEW);
 			expect(discount.querySelector(".key")).toBeNull(); // названия у новой нет, ключ и есть вид
 		});
 
@@ -490,7 +490,7 @@ describe("new variables mode", () => {
 			const editor = setup("{СКИДКА}", { newVariables: true });
 			openVariables(editor);
 
-			expect(document.querySelector(".messageeditor-variables .variables .empty")).toBeNull();
+			expect(document.querySelector(".ui-messageeditor-variables .variables .empty")).toBeNull();
 			expect(rows()).toHaveLength(1);
 		});
 

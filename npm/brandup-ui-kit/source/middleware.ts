@@ -1,5 +1,7 @@
 import { Middleware, MiddlewareNext, NavigateContext, StartContext } from "@brandup/ui-app";
-import { PopupManager, POPUP_COMMAND, POPUP_CLASS } from "./popup";
+import { LayerManager } from "./layer";
+import { UIKIT } from "./names";
+import { PopupManager } from "./popup";
 import { resetUserScroll } from "./utils/user-scroll";
 
 export class UiKitMiddleware implements Middleware {
@@ -8,18 +10,23 @@ export class UiKitMiddleware implements Middleware {
 	private __navigated = false;
 
 	start(context: StartContext, next: MiddlewareNext) {
-		context.app.registerCommand(POPUP_COMMAND, (context) => {
-			if (!context.target.nextElementSibling?.classList.contains(POPUP_CLASS))
+		context.app.registerCommand(UIKIT.POPUP.COMMAND.TOGGLE, (context) => {
+			if (!context.target.nextElementSibling?.classList.contains(UIKIT.POPUP.CLASS.ROOT))
 				throw new Error("Not found popup elem.");
 
-			PopupManager.open(context.target.nextElementSibling as HTMLElement, { initiator: context.target });
+			// команда-переключатель: повторное нажатие по кнопке попап закрывает
+			PopupManager.toggle(context.target.nextElementSibling as HTMLElement, { initiator: context.target });
 		});
 
 		return next();
 	}
 
 	navigate(_context: NavigateContext, next: MiddlewareNext) {
-		PopupManager.close(); // закрываем открытое контекстное меню при навигации
+		// Показана другая страница — всё, что висело над прежней, к ней и относилось: контекстное
+		// меню, окно, раскрытый список. Закрываем сверху вниз через менеджер слоёв, а не каждый
+		// вид по отдельности: слои друг о друге не знают, а забытый остался бы висеть над новой
+		// страницей вместе с придержанной прокруткой.
+		LayerManager.closeAll();
 
 		// Показана другая страница — прокрутка пользователя по прежней больше ни при чём
 		// (см. resetUserScroll). Первую навигацию пропускаем: она показывает ту же страницу,

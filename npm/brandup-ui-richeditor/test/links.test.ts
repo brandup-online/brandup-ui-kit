@@ -1,8 +1,9 @@
 /**
  * @jest-environment jsdom
  */
-import RichEditor, { TOOLBAR_CLASS } from "../source/richeditor";
-import { BODY_CLASS, formatToolbar, LINK_EDITING_CLASS, LINK_ROW_CLASS } from "../source/toolbar";
+import RichEditor from "../source/richeditor";
+import { RICHEDITOR } from "../source/names";
+import { formatToolbar } from "../source/toolbar";
 import { deserialize, serialize } from "../source/serialize";
 import { cleanupFormatting } from "../source/selection";
 import { ALL_FORMAT_TOOLS, defaultFormatMarkers, type FormatTool } from "../source/format-config";
@@ -345,12 +346,15 @@ describe("link address row", () => {
 		return editor;
 	}
 
-	const toolbar = () => document.querySelector<HTMLElement>(`.${TOOLBAR_CLASS}`)!;
+	const toolbar = () => document.querySelector<HTMLElement>(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}`)!;
 
 	const linkButton = () =>
-		document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} .format-button[data-format-tool="link"]`)!;
-	const row = () => document.querySelector<HTMLElement>(`.${TOOLBAR_CLASS} .${LINK_ROW_CLASS}`);
-	const editing = () => toolbar().classList.contains(LINK_EDITING_CLASS);
+		document.querySelector<HTMLButtonElement>(
+			`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .format-button[data-format-tool="link"]`
+		)!;
+	const row = () =>
+		document.querySelector<HTMLElement>(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .${RICHEDITOR.CLASS.TOOLBAR.LINK_ROW}`);
+	const editing = () => toolbar().classList.contains(RICHEDITOR.CLASS.TOOLBAR.LINK_EDITING);
 	const input = () => row()!.querySelector<HTMLInputElement>(".link-input")!;
 
 	it("has a button in the toolbar", () => {
@@ -386,7 +390,7 @@ describe("link address row", () => {
 		expect(editing()).toBe(true);
 		expect(toolbar().classList.contains("visible")).toBe(true);
 		// строка адреса лежит в коробке панели — она её часть, а не слой над ней
-		expect(row()!.parentElement).toBe(toolbar().querySelector(`.${BODY_CLASS}`));
+		expect(row()!.parentElement).toBe(toolbar().querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.BODY}`));
 	});
 
 	// повторное нажатие по кнопке возвращает кнопки

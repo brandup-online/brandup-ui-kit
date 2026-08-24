@@ -11,13 +11,12 @@
 	--modal-backdrop: var(--popup-backdrop);
 	--modal-width: 480px;
 	--modal-padding: 20px;
-	--modal-z-index: 2000; // выше popup (1000): окно перекрывает и его
 }
 
 .ui-modal {
 	position: fixed;
 	inset: 0;
-	z-index: var(--modal-z-index);
+	z-index: var(--layer-modal); // выше попапа: окно перекрывает и его (лестница — в common.less)
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -98,6 +97,6 @@
 }
 
 // страница под открытым окном не прокручивается
-body.ui-modal-opened {
+body.body-modal-opened {
 	overflow: hidden;
 }

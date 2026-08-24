@@ -2,8 +2,10 @@
  * @jest-environment jsdom
  */
 import { PopupManager } from "@brandup/ui-kit";
-import RichEditor, { ROOT_CLASS, TOOLBAR_CLASS, formatToolbar } from "../source/richeditor";
-import { EMOJI_PICKER_CLASS, RECENT_EMOJIS_KEY, RECENT_EMOJIS_LIMIT, RECENT_GROUP_CLASS } from "../source/emoji";
+import RichEditor, { formatToolbar } from "../source/richeditor";
+import { RICHEDITOR } from "../source/names";
+import { RICHEDITOR as PACKAGE_NAMES } from "../source/index";
+
 import { EMOJIS, EMOJI_GROUPS, recentEmojis, rememberEmoji } from "../source/emoji";
 import { ALL_FORMAT_TOOLS } from "../source/format-config";
 import { expandRangeToWords } from "../source/editing";
@@ -50,20 +52,22 @@ function selectAll(editor: RichEditor) {
 	return sel;
 }
 
-const toolbarButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .format-button`);
+const toolbarButtons = () => document.querySelectorAll(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .format-button`);
 // кнопка есть у каждого инструмента (скрытых сейчас нет — см. HIDDEN_TOOLS в ../source/toolbar)
 const VISIBLE_TOOLS = ALL_FORMAT_TOOLS.length;
 const toolbarButton = (tool: string) =>
-	document.querySelector(`.${TOOLBAR_CLASS} .format-button[data-format-tool="${tool}"]`);
-const actionButtons = () => document.querySelectorAll(`.${TOOLBAR_CLASS} .action-button`);
+	document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .format-button[data-format-tool="${tool}"]`);
+const actionButtons = () => document.querySelectorAll(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .action-button`);
 const actionButton = (action: string) =>
-	document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} .action-button[data-editor-action="${action}"]`);
+	document.querySelector<HTMLButtonElement>(
+		`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .action-button[data-editor-action="${action}"]`
+	);
 
 describe("RichEditor structure", () => {
 	it("makes the passed element itself the editable (no wrapper)", () => {
 		const editor = makeEditor();
 		expect(editor.editable).toBe(editor.element); // элемент и редактор объединены
-		expect(editor.element.classList.contains(ROOT_CLASS)).toBe(true);
+		expect(editor.element.classList.contains(RICHEDITOR.CLASS.ROOT)).toBe(true);
 		expect(editor.editable.contentEditable).toBe("true");
 	});
 
@@ -71,7 +75,7 @@ describe("RichEditor structure", () => {
 		const editor = makeEditor();
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
-		const toolbar = document.querySelector(`.${TOOLBAR_CLASS}`)!;
+		const toolbar = document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}`)!;
 		expect(toolbar.parentElement).toBe(document.body);
 		expect(editor.formatTools).toEqual(ALL_FORMAT_TOOLS);
 		expect(toolbarButtons()).toHaveLength(VISIBLE_TOOLS);
@@ -93,7 +97,7 @@ describe("RichEditor structure", () => {
 		const editor = new RichEditor(div, { format: true, tools: ["bold"], toolbarContainer: container });
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
-		const toolbar = container.querySelector(`.${TOOLBAR_CLASS}`)!;
+		const toolbar = container.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}`)!;
 		expect(toolbar.parentElement).toBe(container);
 		expect(toolbar.classList.contains("in-container")).toBe(true);
 	});
@@ -102,7 +106,7 @@ describe("RichEditor structure", () => {
 		const editor = makeEditor({ format: false });
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 		expect(editor.format).toBe(false);
-		expect(document.querySelector(`.${TOOLBAR_CLASS}.visible`)).toBeNull();
+		expect(document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}.visible`)).toBeNull();
 	});
 
 	it("destroy() keeps the host element in the DOM and strips editor styling", () => {
@@ -1069,7 +1073,7 @@ describe("RichEditor selection access", () => {
 
 describe("RichEditor host buttons", () => {
 	const hostButton = () =>
-		document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} [data-toolbar-button="ping"]`);
+		document.querySelector<HTMLButtonElement>(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} [data-toolbar-button="ping"]`);
 
 	// кнопки хоста не про форматирование — панель нужна и когда своих инструментов нет вовсе
 	it("shows the toolbar for host buttons alone, without formatting", () => {
@@ -1078,7 +1082,7 @@ describe("RichEditor host buttons", () => {
 
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
-		expect(document.querySelector(`.${TOOLBAR_CLASS}.visible`)).not.toBeNull();
+		expect(document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}.visible`)).not.toBeNull();
 		expect(editor.formatTools).toHaveLength(0);
 
 		hostButton()!.click();
@@ -1094,7 +1098,7 @@ describe("RichEditor host buttons", () => {
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
 		expect(editor.toolbarButtons).toHaveLength(0);
-		expect(document.querySelector(`.${TOOLBAR_CLASS}.visible`)).toBeNull();
+		expect(document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}.visible`)).toBeNull();
 	});
 });
 
@@ -1111,7 +1115,7 @@ describe("RichEditor toolbar placement", () => {
 		const editor = makeEditor({ tools: ["bold"] });
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
-		const bar = document.querySelector<HTMLElement>(`.${TOOLBAR_CLASS}`)!;
+		const bar = document.querySelector<HTMLElement>(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}`)!;
 		Object.defineProperty(bar, "offsetWidth", { value: 400, configurable: true });
 		Object.defineProperty(bar, "offsetHeight", { value: 40, configurable: true });
 		editor.editable.getBoundingClientRect = () => ({ left: 900, top: 300 }) as DOMRect;
@@ -1132,7 +1136,7 @@ describe("RichEditor toolbar placement", () => {
 		const editor = makeEditor({ tools: ["bold"] });
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
-		const bar = document.querySelector<HTMLElement>(`.${TOOLBAR_CLASS}`)!;
+		const bar = document.querySelector<HTMLElement>(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}`)!;
 		Object.defineProperty(bar, "offsetWidth", { value: 500, configurable: true });
 		Object.defineProperty(bar, "offsetHeight", { value: 40, configurable: true });
 		editor.editable.getBoundingClientRect = () => ({ left: 20, top: 300 }) as DOMRect;
@@ -1164,7 +1168,7 @@ describe("RichEditor toolbar actions", () => {
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
 		expect(actionButtons()).toHaveLength(3);
-		expect(document.querySelector(`.${TOOLBAR_CLASS} .split`)).toBeNull();
+		expect(document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .split`)).toBeNull();
 	});
 
 	// а кнопки хоста — про другое: их отбивает разделитель
@@ -1176,17 +1180,19 @@ describe("RichEditor toolbar actions", () => {
 		});
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
-		const split = document.querySelector(`.${TOOLBAR_CLASS} .split`);
+		const split = document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .split`);
 
 		expect(split).not.toBeNull();
-		expect(split!.nextElementSibling).toBe(document.querySelector(`.${TOOLBAR_CLASS} .host-button`));
+		expect(split!.nextElementSibling).toBe(
+			document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .host-button`)
+		);
 	});
 
 	it("shows the toolbar with actions only (no format tools)", () => {
 		const editor = makeEditor({ tools: [], actions: ["undo", "redo"] });
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
-		expect(document.querySelector(`.${TOOLBAR_CLASS}.visible`)).not.toBeNull();
+		expect(document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}.visible`)).not.toBeNull();
 		expect(actionButtons()).toHaveLength(2);
 	});
 
@@ -1232,7 +1238,7 @@ describe("RichEditor toolbar actions", () => {
 
 		expect(actionButton("undo")!.disabled).toBe(true);
 
-		const toolbar = document.querySelector<HTMLElement>(`.${TOOLBAR_CLASS}`)!;
+		const toolbar = document.querySelector<HTMLElement>(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}`)!;
 		const e = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
 		toolbar.dispatchEvent(e);
 
@@ -1305,8 +1311,8 @@ describe("RichEditor paragraph mode", () => {
 });
 
 describe("RichEditor emoji picker", () => {
-	const picker = () => document.querySelector<HTMLElement>(`.${EMOJI_PICKER_CLASS}`);
-	const emojiButtons = () => document.querySelectorAll<HTMLButtonElement>(`.${EMOJI_PICKER_CLASS} .emoji`);
+	const picker = () => document.querySelector<HTMLElement>(`.${RICHEDITOR.CLASS.EMOJI.PICKER}`);
+	const emojiButtons = () => document.querySelectorAll<HTMLButtonElement>(`.${RICHEDITOR.CLASS.EMOJI.PICKER} .emoji`);
 
 	// выбор смайлика пишет в недавние, а тесты здесь пересчитывают кнопки — считать нужно без них
 	beforeEach(() => localStorage.clear());
@@ -1328,7 +1334,7 @@ describe("RichEditor emoji picker", () => {
 		expect(picker()!.querySelector(".emoji-list")!.classList.contains("ui-scrollable")).toBe(true);
 
 		// смайлики разложены по группам: каждая отбивается линией и рисуется по мере прокрутки
-		const groups = document.querySelectorAll(`.${EMOJI_PICKER_CLASS} .emoji-group`);
+		const groups = document.querySelectorAll(`.${RICHEDITOR.CLASS.EMOJI.PICKER} .emoji-group`);
 		expect(groups).toHaveLength(EMOJI_GROUPS.length);
 		expect(Array.from(groups).map((g) => g.querySelectorAll(".emoji").length)).toEqual(
 			EMOJI_GROUPS.map((group) => group.emojis.length)
@@ -1352,7 +1358,7 @@ describe("RichEditor emoji picker", () => {
 
 		actionButton("emoji")!.click();
 
-		expect(picker()!.classList.contains("opened")).toBe(true);
+		expect(picker()!.classList.contains("ui-popup-opened")).toBe(true);
 	});
 
 	it("closes on a second click of the same button", () => {
@@ -1362,7 +1368,7 @@ describe("RichEditor emoji picker", () => {
 		actionButton("emoji")!.click();
 		actionButton("emoji")!.click();
 
-		expect(picker()!.classList.contains("opened")).toBe(false);
+		expect(picker()!.classList.contains("ui-popup-opened")).toBe(false);
 	});
 
 	it("inserts the picked emoji at the caret and closes", () => {
@@ -1374,7 +1380,7 @@ describe("RichEditor emoji picker", () => {
 		emojiButtons()[0].click();
 
 		expect(editor.editable.textContent).toBe(`a${EMOJIS[0]}bc`);
-		expect(picker()!.classList.contains("opened")).toBe(false);
+		expect(picker()!.classList.contains("ui-popup-opened")).toBe(false);
 	});
 
 	// вставка кнопкой — тот же ввод, что и с клавиатуры: хост ограничивает его через filterChar
@@ -1417,11 +1423,11 @@ describe("RichEditor emoji picker", () => {
 		const editor = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "abc" });
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 		actionButton("emoji")!.click();
-		expect(picker()!.classList.contains("opened")).toBe(true);
+		expect(picker()!.classList.contains("ui-popup-opened")).toBe(true);
 
 		editor.editable.dispatchEvent(new FocusEvent("blur"));
 
-		expect(picker()!.classList.contains("opened")).toBe(false);
+		expect(picker()!.classList.contains("ui-popup-opened")).toBe(false);
 		expect(PopupManager.isOpened()).toBe(false);
 	});
 
@@ -1437,7 +1443,7 @@ describe("RichEditor emoji picker", () => {
 
 		actionButton("emoji")!.click();
 
-		expect(picker()!.parentElement).toBe(document.querySelector(`.${TOOLBAR_CLASS}`));
+		expect(picker()!.parentElement).toBe(document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}`));
 		expect(emojiButtons().length).toBe(EMOJIS.length);
 	});
 
@@ -1457,9 +1463,12 @@ describe("RichEditor emoji picker", () => {
 });
 
 describe("RichEditor recent emojis", () => {
-	const picker = () => document.querySelector<HTMLElement>(`.${EMOJI_PICKER_CLASS}`)!;
-	const emojiButtons = () => document.querySelectorAll<HTMLButtonElement>(`.${EMOJI_PICKER_CLASS} .emoji`);
-	const recentGroup = () => document.querySelector<HTMLElement>(`.${EMOJI_PICKER_CLASS} .${RECENT_GROUP_CLASS}`);
+	const picker = () => document.querySelector<HTMLElement>(`.${RICHEDITOR.CLASS.EMOJI.PICKER}`)!;
+	const emojiButtons = () => document.querySelectorAll<HTMLButtonElement>(`.${RICHEDITOR.CLASS.EMOJI.PICKER} .emoji`);
+	const recentGroup = () =>
+		document.querySelector<HTMLElement>(
+			`.${RICHEDITOR.CLASS.EMOJI.PICKER} .${RICHEDITOR.CLASS.EMOJI.RECENT_GROUP}`
+		);
 
 	function openPicker() {
 		const editor = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "abc" });
@@ -1482,22 +1491,22 @@ describe("RichEditor recent emojis", () => {
 
 		expect(recentEmojis()).toEqual([EMOJIS[0], EMOJIS[1]]);
 
-		for (const emoji of EMOJIS.slice(0, RECENT_EMOJIS_LIMIT + 4)) rememberEmoji(emoji);
+		for (const emoji of EMOJIS.slice(0, RICHEDITOR.VALUE.RECENT_EMOJIS_LIMIT + 4)) rememberEmoji(emoji);
 
 		const recent = recentEmojis();
-		expect(recent).toHaveLength(RECENT_EMOJIS_LIMIT);
-		expect(recent[0]).toBe(EMOJIS[RECENT_EMOJIS_LIMIT + 3]); // последний выбранный — первый
+		expect(recent).toHaveLength(RICHEDITOR.VALUE.RECENT_EMOJIS_LIMIT);
+		expect(recent[0]).toBe(EMOJIS[RICHEDITOR.VALUE.RECENT_EMOJIS_LIMIT + 3]); // последний выбранный — первый
 	});
 
 	// хранилище общее и переживает версии — чужие и битые значения не должны попасть в панель
 	it("drops junk from the stored value", () => {
-		localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(["nope", 5, EMOJIS[2], EMOJIS[2], "🤖"]));
+		localStorage.setItem(RICHEDITOR.STORAGE.RECENT_EMOJIS, JSON.stringify(["nope", 5, EMOJIS[2], EMOJIS[2], "🤖"]));
 		expect(recentEmojis()).toEqual([EMOJIS[2]]);
 
-		localStorage.setItem(RECENT_EMOJIS_KEY, "not json");
+		localStorage.setItem(RICHEDITOR.STORAGE.RECENT_EMOJIS, "not json");
 		expect(recentEmojis()).toEqual([]);
 
-		localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify({}));
+		localStorage.setItem(RICHEDITOR.STORAGE.RECENT_EMOJIS, JSON.stringify({}));
 		expect(recentEmojis()).toEqual([]);
 	});
 
@@ -1580,7 +1589,7 @@ describe("RichEditor readonly", () => {
 
 		expect(editor.formatTools).toHaveLength(0);
 		expect(editor.formatTypes).toEqual(ALL_FORMAT_TOOLS);
-		expect(document.querySelector(`.${TOOLBAR_CLASS}.visible`)).toBeNull();
+		expect(document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}.visible`)).toBeNull();
 	});
 
 	// Иначе редактор для чтения показывал бы вместо жирного сырые звёздочки — то есть не то,
@@ -2363,7 +2372,9 @@ describe("RichEditor released focus", () => {
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
 		// через кнопку панели: попап приносит она, редактору остаётся своё — фокус и каретка
-		document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} [data-editor-action="emoji"]`)!.click();
+		document
+			.querySelector<HTMLButtonElement>(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} [data-editor-action="emoji"]`)!
+			.click();
 
 		expect(focused(editor)).toBe(expected);
 	});
@@ -2422,7 +2433,9 @@ describe("RichEditor emoji picker holds", () => {
 		const editor = makeEditor({ tools: ["bold"], actions: ["emoji"], value: "раз" });
 		editor.editable.dispatchEvent(new FocusEvent("focus"));
 
-		const button = document.querySelector<HTMLButtonElement>(`.${TOOLBAR_CLASS} [data-editor-action="emoji"]`)!;
+		const button = document.querySelector<HTMLButtonElement>(
+			`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} [data-editor-action="emoji"]`
+		)!;
 
 		button.click();
 		button.click(); // закрыли
@@ -2700,7 +2713,7 @@ describe("toolbar with a minimal host", () => {
 		formatToolbar.refresh();
 
 		const bold = document.querySelector<HTMLButtonElement>(
-			`.${TOOLBAR_CLASS} .format-button[data-format-tool="bold"]`
+			`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .format-button[data-format-tool="bold"]`
 		)!;
 		// хост в коде (isCodeActive), а currentBlock не реализован — кнопка формата гаснет
 		expect(bold.disabled).toBe(true);
@@ -2950,5 +2963,33 @@ describe("RichEditor caret scrolling", () => {
 		}
 
 		expect(wrap.scrollTop).toBe(40); // 60 − (30 − 10); по всей коробке прокрутка ушла бы вниз
+	});
+});
+
+describe("RICHEDITOR names", () => {
+	// те же строки прописаны селекторами в richeditor.less
+	it("matches the CSS contract", () => {
+		expect(RICHEDITOR.CLASS.ROOT).toBe("ui-richeditor");
+		expect(RICHEDITOR.CLASS.UNSELECTABLE).toBe("unselectable");
+		expect(RICHEDITOR.CLASS.BREAKS).toBe("breaks");
+		expect(RICHEDITOR.CLASS.TOOLBAR).toEqual({
+			ROOT: "ui-richeditor-toolbar",
+			BODY: "toolbar-body",
+			BUTTON: "toolbar-button",
+			LINK_ROW: "link-row",
+			LINK_EDITING: "link-editing",
+		});
+		expect(RICHEDITOR.CLASS.EMOJI.PICKER).toBe("ui-richeditor-emoji");
+		expect(RICHEDITOR.CLASS.EMOJI.RECENT_GROUP).toBe("emoji-recent");
+		expect(RICHEDITOR.EVENT.CHANGE).toBe("ui:richeditor:change");
+	});
+
+	// ключ хранилища переживает перезагрузку: сменив его, потребитель теряет накопленное
+	it("keeps the storage key stable", () => {
+		expect(RICHEDITOR.STORAGE.RECENT_EMOJIS).toBe("brandup-richeditor-recent-emojis");
+	});
+
+	it("reaches the consumer through the package entry", () => {
+		expect(PACKAGE_NAMES).toBe(RICHEDITOR);
 	});
 });

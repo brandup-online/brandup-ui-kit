@@ -2,13 +2,7 @@ import "./variables.less"; // стили окна
 
 import { DOM } from "@brandup/ui";
 import { Modal, textTag } from "@brandup/ui-kit";
-
-export const VARIABLE_OPEN = "{";
-export const VARIABLE_CLOSE = "}";
-
-const PICK_COMMAND = "variables-pick";
-const KEY_APPLY_COMMAND = "variable-key-apply";
-const KEY_CANCEL_COMMAND = "variable-key-cancel";
+import { MESSAGEEDITOR } from "./names";
 
 /** Переменная персонализации: подставляется приложением при отправке. */
 export interface MessageVariable {
@@ -17,27 +11,6 @@ export interface MessageVariable {
 	/** Название: показывается вместо ключа и в тексте, и в списке. Без него виден ключ. */
 	name?: string;
 }
-
-/**
- * Пометка на записи переменной, которой ещё нет в объявленном списке: набрана в сообщении,
- * а заведёт её приложение (см. режим новых переменных у `MessageEditor`).
- */
-export const VARIABLE_NEW_TEXT = "новая";
-
-/**
- * Заголовок окон персонализации — и списка, и правки ключа: для набирающего это одно окно
- * про одно и то же, а разные заголовки читались бы как разные части приложения.
- */
-export const VARIABLES_TITLE = "Персонализация";
-
-/**
- * Текст в окне, когда список переменных пуст. Заменяется на свой: причина пустого списка
- * известна приложению, а не компоненту («выберите аудиторию», «переменных нет у этого шаблона»).
- */
-export const VARIABLES_EMPTY_TEXT = "Переменные не заданы.";
-
-/** Подпись ссылки на настройку полей — когда хост её объявил, но подпись не задал. */
-export const VARIABLES_SETUP_TEXT = "Настроить поля";
 
 /**
  * Ссылка на настройку полей — последней строкой окна. Где настройка живёт, знает хост:
@@ -77,7 +50,7 @@ export default class VariablesModal extends Modal {
 		setup?: VariablesSetup | null,
 		newKeys?: string[] | null
 	) {
-		super({ title: VARIABLES_TITLE, className: "messageeditor-variables" });
+		super({ title: MESSAGEEDITOR.TEXT.VARIABLES_TITLE, className: MESSAGEEDITOR.CLASS.MODAL.ROOT.VARIABLES });
 
 		this.__variables = variables;
 		// Объявленный ключ, случайно попавший сюда, дал бы в списке две записи об одном поле.
@@ -85,10 +58,10 @@ export default class VariablesModal extends Modal {
 			(key) => !variables.some((v) => plainVariableKey(v.key) === plainVariableKey(key))
 		);
 		this.__apply = apply;
-		this.__emptyText = emptyText?.trim() || VARIABLES_EMPTY_TEXT;
+		this.__emptyText = emptyText?.trim() || MESSAGEEDITOR.TEXT.VARIABLES_EMPTY;
 		this.__setup = setup ?? null;
 
-		this.registerCommand(PICK_COMMAND, (context) => {
+		this.registerCommand(MESSAGEEDITOR.COMMAND.VARIABLES.PICK, (context) => {
 			const key = context.target.dataset.variable;
 			if (!key) return;
 
@@ -101,13 +74,13 @@ export default class VariablesModal extends Modal {
 	}
 
 	private __renderList() {
-		const list = DOM.tag("div", { class: "variables" });
+		const list = DOM.tag("div", { class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.VARIABLES });
 		this.body.appendChild(list);
 
 		// the hint, names and keys are host data (options or attributes of the value element) —
 		// they go in as text, never as markup (see textTag)
 		if (!this.__variables.length && !this.__newKeys.length) {
-			list.appendChild(textTag("div", { class: "empty" }, this.__emptyText));
+			list.appendChild(textTag("div", { class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.EMPTY }, this.__emptyText));
 			return;
 		}
 
@@ -133,14 +106,22 @@ export default class VariablesModal extends Modal {
 			{
 				type: "button",
 				class: isNew ? "variable new" : "variable",
-				command: PICK_COMMAND,
+				command: MESSAGEEDITOR.COMMAND.VARIABLES.PICK,
 				dataset: { variable: variable.key },
 			},
 			[
-				textTag("span", { class: "preview" }, buildVariable(variable.name ?? variable.key)),
+				textTag(
+					"span",
+					{ class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.PREVIEW },
+					buildVariable(variable.name ?? variable.key)
+				),
 				// ключ без скобок: он не образец для вставки, а пометка — что именно уйдёт в текст
 				isNew
-					? textTag("span", { class: "note" }, VARIABLE_NEW_TEXT)
+					? textTag(
+							"span",
+							{ class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.NOTE },
+							MESSAGEEDITOR.TEXT.VARIABLE_NEW
+						)
 					: variable.name
 						? textTag("span", { class: "key" }, variable.key)
 						: null,
@@ -161,17 +142,17 @@ export default class VariablesModal extends Modal {
 		// Подпись — данные хоста: в окно она идёт текстом, не разметкой (см. textTag).
 		// У ссылки переход остаётся штатным — обработчик его не гасит, он лишь закрывает окно.
 		const link = url
-			? textTag("a", { class: "setup-link", href: url }, text)
-			: textTag("button", { type: "button", class: "setup-link" }, text);
+			? textTag("a", { class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.SETUP_LINK, href: url }, text)
+			: textTag("button", { type: "button", class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.SETUP_LINK }, text);
 		link.addEventListener("click", () => onClick());
 
-		this.body.appendChild(DOM.tag("div", { class: "setup" }, link));
+		this.body.appendChild(DOM.tag("div", { class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.SETUP }, link));
 	}
 }
 
 /** Оборачивает ключ (или показываемое вместо него название) в разметку переменной. */
 export function buildVariable(key: string): string {
-	return `${VARIABLE_OPEN}${key}${VARIABLE_CLOSE}`;
+	return `${MESSAGEEDITOR.SYNTAX.VARIABLE_OPEN}${key}${MESSAGEEDITOR.SYNTAX.VARIABLE_CLOSE}`;
 }
 
 /**
@@ -181,19 +162,12 @@ export function buildVariable(key: string): string {
 export function parseVariable(text: string): string {
 	const value = text.trim();
 
-	return value.length > VARIABLE_OPEN.length + VARIABLE_CLOSE.length &&
-		value.startsWith(VARIABLE_OPEN) &&
-		value.endsWith(VARIABLE_CLOSE)
-		? value.slice(VARIABLE_OPEN.length, -VARIABLE_CLOSE.length)
+	return value.length > MESSAGEEDITOR.SYNTAX.VARIABLE_OPEN.length + MESSAGEEDITOR.SYNTAX.VARIABLE_CLOSE.length &&
+		value.startsWith(MESSAGEEDITOR.SYNTAX.VARIABLE_OPEN) &&
+		value.endsWith(MESSAGEEDITOR.SYNTAX.VARIABLE_CLOSE)
+		? value.slice(MESSAGEEDITOR.SYNTAX.VARIABLE_OPEN.length, -MESSAGEEDITOR.SYNTAX.VARIABLE_CLOSE.length)
 		: value;
 }
-
-/**
- * Подсказка под полем ключа: какой ключ примут. Стоит всегда, а не только при ошибке, — это
- * правило, а не жалоба: набирающий видит его до того, как кнопка погаснет.
- */
-export const VARIABLE_KEY_HINT =
-	"По краям ключа — буква, цифра или подчёркивание; внутри можно пробелы, точки и дефисы.";
 
 /**
  * Правка ключа новой переменной.
@@ -220,7 +194,7 @@ export class VariableKeyModal extends Modal {
 	 * @param apply Вызывается с готовой конструкцией; при отмене не вызывается.
 	 */
 	constructor(text: string, apply: (text: string) => void) {
-		super({ title: VARIABLES_TITLE, className: "messageeditor-variable-key" });
+		super({ title: MESSAGEEDITOR.TEXT.VARIABLES_TITLE, className: MESSAGEEDITOR.CLASS.MODAL.ROOT.VARIABLE_KEY });
 
 		this.__apply = apply;
 
@@ -228,7 +202,7 @@ export class VariableKeyModal extends Modal {
 		// переносить в нём нечего, а поле ввода само не даст набрать перенос.
 		this.__field = DOM.tag("input", {
 			type: "text",
-			class: "key-field",
+			class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.KEY_FIELD,
 			placeholder: "Ключ переменной",
 			autocomplete: "off",
 			spellcheck: false,
@@ -238,7 +212,11 @@ export class VariableKeyModal extends Modal {
 
 		this.__applyButton = DOM.tag(
 			"button",
-			{ type: "button", class: "apply", command: KEY_APPLY_COMMAND },
+			{
+				type: "button",
+				class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.APPLY,
+				command: MESSAGEEDITOR.COMMAND.VARIABLE_KEY.APPLY,
+			},
 			"Сохранить"
 		) as HTMLButtonElement;
 
@@ -252,17 +230,27 @@ export class VariableKeyModal extends Modal {
 		});
 
 		this.body.appendChild(DOM.tag("div", { class: "key" }, this.__field));
-		this.body.appendChild(textTag("div", { class: "hint" }, VARIABLE_KEY_HINT));
+		this.body.appendChild(
+			textTag("div", { class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.HINT }, MESSAGEEDITOR.TEXT.VARIABLE_KEY_HINT)
+		);
 		this.body.appendChild(
 			// сохранение первым: это главное действие окна, отмена рядом вторым
-			DOM.tag("div", { class: "actions" }, [
+			DOM.tag("div", { class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.ACTIONS }, [
 				this.__applyButton,
-				DOM.tag("button", { type: "button", class: "cancel", command: KEY_CANCEL_COMMAND }, "Отмена"),
+				DOM.tag(
+					"button",
+					{
+						type: "button",
+						class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.CANCEL,
+						command: MESSAGEEDITOR.COMMAND.VARIABLE_KEY.CANCEL,
+					},
+					"Отмена"
+				),
 			])
 		);
 
-		this.registerCommand(KEY_APPLY_COMMAND, () => this.__save());
-		this.registerCommand(KEY_CANCEL_COMMAND, () => this.close());
+		this.registerCommand(MESSAGEEDITOR.COMMAND.VARIABLE_KEY.APPLY, () => this.__save());
+		this.registerCommand(MESSAGEEDITOR.COMMAND.VARIABLE_KEY.CANCEL, () => this.close());
 
 		this.__refresh();
 

@@ -1,10 +1,12 @@
 import "./messageeditor.less"; // стили компонента
 
 import { EditorInputControl } from "@brandup/ui-input";
-import { POPUP_CLASS, PopupManager, SCROLLABLE_CLASS, type Modal } from "@brandup/ui-kit";
+import { PopupManager, type Modal } from "@brandup/ui-kit";
+import { UIKIT } from "@brandup/ui-kit/names";
+import { MESSAGEEDITOR } from "./names";
 import { DOM } from "@brandup/ui";
 import RichEditor, {
-	TOOLBAR_CLASS,
+	RICHEDITOR,
 	createEmojiPicker,
 	formatToolbar,
 	parseBlockTypes,
@@ -27,17 +29,12 @@ import {
 	messageLength as countLength,
 	unknownVariables as findUnknownVariables,
 	withoutAnchors,
-	DEFAULT_VARIABLE_LENGTH,
 	MARKUP_SELECTOR,
-	NEW_CLASS,
-	UNKNOWN_CLASS,
-	VARIABLE_CLASS,
 	type HighlightOptions,
 	type VariableNames,
 } from "./highlight";
 import RandomizerModal from "./randomizer";
 import VariablesModal, {
-	VARIABLES_SETUP_TEXT,
 	VariableKeyModal,
 	buildVariable,
 	cleanVariables,
@@ -48,19 +45,6 @@ import VariablesModal, {
 import emojiIcon from "../svg/emoji.svg";
 import randomIcon from "../svg/random.svg";
 import variableIcon from "../svg/variable.svg";
-
-export const ROOT_CLASS = "ui-messageeditor";
-export const INPUT_CLASS = "messageeditor-input";
-export const EMOJI_CLASS = "messageeditor-emoji";
-export const EMOJI_HOLDER_CLASS = "messageeditor-emoji-holder";
-export const MODES_CLASS = "messageeditor-modes";
-export const MODE_CLASS = "messageeditor-mode";
-export const SOURCE_CLASS = "messageeditor-source";
-export const SOURCE_TEXT_CLASS = "messageeditor-source-text"; // прокручиваемый текст внутри панели
-// На корневом элементе — как focused и invalid, но только для оформления: сам режим компонент
-// держит в себе и из класса не читает (см. sourceMode).
-export const SOURCE_MODE_CLASS = "source";
-export const CHANGE_EVENT = "messageeditor-change";
 
 /** Формат хранения значения: сообщение уходит разметкой мессенджеров, а не HTML. */
 const STORAGE: FormatStorage = "markdown";
@@ -85,12 +69,12 @@ function buildModes(): { elem: HTMLElement; buttons: HTMLButtonElement[] } {
 		({ mode, label, title }) =>
 			DOM.tag(
 				"button",
-				{ type: "button", class: MODE_CLASS, dataset: { mode }, title },
+				{ type: "button", class: MESSAGEEDITOR.CLASS.ELEMENT.MODE, dataset: { mode }, title },
 				label
 			) as HTMLButtonElement
 	);
 
-	return { elem: DOM.tag("div", { class: MODES_CLASS }, buttons), buttons };
+	return { elem: DOM.tag("div", { class: MESSAGEEDITOR.CLASS.ELEMENT.MODES }, buttons), buttons };
 }
 
 /**
@@ -208,7 +192,7 @@ export interface MessageEditorOptions {
 	source?: boolean;
 	/**
 	 * Сколько символов отводится переменной при подсчёте {@link MessageEditor.messageLength};
-	 * по умолчанию — 30 ({@link DEFAULT_VARIABLE_LENGTH}).
+	 * по умолчанию — 30 ({@link MESSAGEEDITOR.VALUE.DEFAULT_VARIABLE_LENGTH}).
 	 * Ключ в тексте — не длина значения: `{ИМЯ}` может развернуться и в «Александра Константиновна».
 	 * Сколько на самом деле — знает приложение, оно и задаёт.
 	 *
@@ -218,7 +202,7 @@ export interface MessageEditorOptions {
 }
 
 type MessageEditorEvents = {
-	[CHANGE_EVENT]: (data: ChangeEventData) => void;
+	[MESSAGEEDITOR.EVENT.CHANGE]: (data: ChangeEventData) => void;
 };
 
 /**
@@ -265,17 +249,23 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		const readonly = MessageEditor.isReadonly(valueElem);
 
 		// текст сообщения прокручивается сам — полоса оформляется общим классом кита
-		const inputElem = DOM.tag("div", { class: SCROLLABLE_CLASS });
+		const inputElem = DOM.tag("div", { class: UIKIT.SCROLLABLE.CLASS });
 		// кнопка смайлика — часть компонента, а не тулбара: она нужна рядом с плашкой и доступна
 		// сразу, не дожидаясь фокуса (тулбар появляется только по нему)
 		const emojiElem = disabled
 			? null
-			: DOM.tag("button", { type: "button", class: EMOJI_CLASS, title: "Вставить смайлик" }, emojiIcon);
+			: DOM.tag(
+					"button",
+					{ type: "button", class: MESSAGEEDITOR.CLASS.ELEMENT.EMOJI, title: "Вставить смайлик" },
+					emojiIcon
+				);
 
 		// Собственная коробка кнопки: панель смайликов раскрывается от неё, а для этого нужен
 		// позиционированный предок ровно по кнопке. От корня компонента панель вставала бы над
 		// всем редактором, а не над кнопкой.
-		const emojiHolder = emojiElem ? DOM.tag("div", { class: EMOJI_HOLDER_CLASS }, emojiElem) : null;
+		const emojiHolder = emojiElem
+			? DOM.tag("div", { class: MESSAGEEDITOR.CLASS.ELEMENT.EMOJI_HOLDER }, emojiElem)
+			: null;
 
 		// Показ выхода — по объявлению, а не всегда: сырая разметка нужна тому, кто её сверяет,
 		// а пишущему сообщение она только мешает. Панель выхода прокручивается так же, как текст
@@ -292,30 +282,32 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		// это не зависит.
 		const sourceTextElem = source
 			? DOM.tag("pre", {
-					class: [SCROLLABLE_CLASS, SOURCE_TEXT_CLASS],
+					class: [UIKIT.SCROLLABLE.CLASS, MESSAGEEDITOR.CLASS.ELEMENT.SOURCE_TEXT],
 					tabindex: 0,
 					dataset: { placeholder: placeholder ?? undefined },
 				})
 			: null;
-		const sourceElem = sourceTextElem ? DOM.tag("div", { class: SOURCE_CLASS }, sourceTextElem) : null;
+		const sourceElem = sourceTextElem
+			? DOM.tag("div", { class: MESSAGEEDITOR.CLASS.ELEMENT.SOURCE }, sourceTextElem)
+			: null;
 
-		const container = DOM.tag("div", { class: ROOT_CLASS }, [
+		const container = DOM.tag("div", { class: MESSAGEEDITOR.CLASS.ROOT }, [
 			modes ? modes.elem : null,
-			DOM.tag("div", { class: "bubble" }, [inputElem, emojiHolder]),
+			DOM.tag("div", { class: MESSAGEEDITOR.CLASS.ELEMENT.BUBBLE }, [inputElem, emojiHolder]),
 			sourceElem,
 		]);
 
 		// скрыть поле, подменить tabindex и обернуть контейнером — общая механика базового класса
-		MessageEditor.wrapValueElem(valueElem, container, INPUT_CLASS, inputElem, disabled);
+		MessageEditor.wrapValueElem(valueElem, container, MESSAGEEDITOR.CLASS.INPUT, inputElem, disabled);
 
 		// класс и подменённый tabindex вернёт базовый класс при destroy
 		super(
 			"BrandUp.MessageEditor",
 			container,
 			valueElem,
-			{ class: INPUT_CLASS, attrs: [["tabindex", tabIndexAttr]] },
+			{ class: MESSAGEEDITOR.CLASS.INPUT, attrs: [["tabindex", tabIndexAttr]] },
 			// каретку фокус из кода ставит в конец текста — режим по умолчанию
-			{ changeEvent: CHANGE_EVENT }
+			{ changeEvent: MESSAGEEDITOR.EVENT.CHANGE }
 		);
 
 		this.placeholder = placeholder;
@@ -334,7 +326,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		if (unsafeSetup) console.error("MessageEditor: настройка полей отброшена — негодный адрес.", declaredSetup);
 		this.variablesSetup = unsafeSetup ? null : declaredSetup;
 		this.variablesSetupText =
-			options.variablesSetupText ?? valueElem.dataset.variablesSetupText ?? VARIABLES_SETUP_TEXT;
+			options.variablesSetupText ?? valueElem.dataset.variablesSetupText ?? MESSAGEEDITOR.TEXT.VARIABLES_SETUP;
 		this.newVariables = options.newVariables ?? dataFlag(valueElem.dataset, "newVariables");
 		// Объявленный список — тоже согласие: иначе переданные переменные молча никуда не вели бы.
 		// Настройка полей — так же: объявленная, она обязана быть досягаемой, а живёт в окне.
@@ -367,7 +359,9 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		const variableLengthAttr = valueElem.dataset.variableLength?.trim();
 		const variableLength = options.variableLength ?? (variableLengthAttr ? Number(variableLengthAttr) : NaN);
 		this.variableLength =
-			Number.isInteger(variableLength) && variableLength >= 0 ? variableLength : DEFAULT_VARIABLE_LENGTH;
+			Number.isInteger(variableLength) && variableLength >= 0
+				? variableLength
+				: MESSAGEEDITOR.VALUE.DEFAULT_VARIABLE_LENGTH;
 
 		const editor = new RichEditor(inputElem, {
 			placeholder,
@@ -456,11 +450,11 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 			// Помеченное невалидным поле перепроверяем целиком: validate() освежает подпись сам
 			// (через __syncValue) и переключает класс в обе стороны. Пока класса нет, снимать
 			// нечего — хватает самой подписи.
-			if (this.element.classList.contains("invalid")) this.validate();
+			if (this.element.classList.contains(MESSAGEEDITOR.CLASS.STATE.INVALID)) this.validate();
 			else this.__refreshValidity();
 
 			// значение уже посчитано — читать его заново (ещё один __syncValue) незачем
-			this.trigger(CHANGE_EVENT, <ChangeEventData>{ editor: this, value: value.trim() });
+			this.trigger(MESSAGEEDITOR.EVENT.CHANGE, <ChangeEventData>{ editor: this, value: value.trim() });
 		});
 
 		// Подсветка — на каждый ввод, а не только по change: событие изменения при печати
@@ -500,7 +494,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 
 	/**
 	 * Значение редактора без опор каретки: подсветка ставит их за конструкциями, которыми
-	 * кончается строка (см. CARET_ANCHOR в ./highlight), а сообщению они не нужны — их там
+	 * кончается строка (см. MESSAGEEDITOR.SYNTAX.CARET_ANCHOR в ./highlight), а сообщению они не нужны — их там
 	 * никто не набирал.
 	 */
 	private __messageValue(): string {
@@ -593,7 +587,12 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		if (!target || this.__inputElem.contains(target)) return; // в сам текст браузер попадёт и сам
 
 		// своя кнопка, панель форматирования и её попапы живут внутри плашки и работают сами
-		if (target.closest(`button, a, input, textarea, select, .${TOOLBAR_CLASS}, .${POPUP_CLASS}`)) return;
+		if (
+			target.closest(
+				`button, a, input, textarea, select, .${RICHEDITOR.CLASS.TOOLBAR.ROOT}, .${UIKIT.POPUP.CLASS.ROOT}`
+			)
+		)
+			return;
 
 		e.preventDefault();
 		this.__editor.focus(true);
@@ -655,7 +654,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	 * Конструкция неделима — стереть в ней символ нельзя, — а нативное удаление рядом с
 	 * нередактируемым элементом браузеры делают по-разному: где-то он сперва выделяется, где-то
 	 * исчезает разом. Вдобавок за конструкцией в конце строки стоит невидимая опора каретки
-	 * (см. CARET_ANCHOR), и нажатие уходило бы на неё: опору тут же возвращает подсветка, и
+	 * (см. MESSAGEEDITOR.SYNTAX.CARET_ANCHOR), и нажатие уходило бы на неё: опору тут же возвращает подсветка, и
 	 * набранную с клавиатуры переменную не получалось бы стереть вовсе.
 	 *
 	 * Удаление словами и строками (Ctrl, Alt, Cmd) оставляем браузеру: это правка текста вокруг,
@@ -727,7 +726,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	/** Открывает окно правки конструкции; результат заменяет её целиком. */
 	private __editMarkup(span: HTMLElement) {
 		// без персонализации переменные и не подсвечиваются, но проверка дешевле, чем догадка
-		if (span.classList.contains(VARIABLE_CLASS) && !this.personalization) return;
+		if (span.classList.contains(MESSAGEEDITOR.CLASS.MARKUP.VARIABLE) && !this.personalization) return;
 
 		this.__openModal(this.__markupModal(span), span);
 	}
@@ -743,9 +742,12 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	private __markupModal(span: HTMLElement): (apply: (text: string) => void) => Modal {
 		const text = span.textContent ?? "";
 
-		if (!span.classList.contains(VARIABLE_CLASS)) return (apply) => new RandomizerModal(text, apply);
+		if (!span.classList.contains(MESSAGEEDITOR.CLASS.MARKUP.VARIABLE))
+			return (apply) => new RandomizerModal(text, apply);
 
-		const declared = !span.classList.contains(NEW_CLASS) && !span.classList.contains(UNKNOWN_CLASS);
+		const declared =
+			!span.classList.contains(MESSAGEEDITOR.CLASS.MARKUP.NEW) &&
+			!span.classList.contains(MESSAGEEDITOR.CLASS.MARKUP.UNKNOWN);
 		if (this.newVariables && !declared) return (apply) => new VariableKeyModal(text, apply);
 
 		return this.__variablesModal;
@@ -967,7 +969,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		modes.addEventListener(
 			"click",
 			(e) => {
-				const button = (e.target as HTMLElement).closest<HTMLElement>(`.${MODE_CLASS}`);
+				const button = (e.target as HTMLElement).closest<HTMLElement>(`.${MESSAGEEDITOR.CLASS.ELEMENT.MODE}`);
 				// нажали в самом поле — продолжают работать в нём: фокус возвращается в плашку
 				if (button) this.__toggleSource(button.dataset.mode === "source", true);
 			},
@@ -982,7 +984,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		for (const button of this.__modeButtons) {
 			const active = (button.dataset.mode === "source") === this.sourceMode;
 
-			button.classList.toggle("active", active);
+			button.classList.toggle(MESSAGEEDITOR.CLASS.STATE.ACTIVE, active);
 			button.setAttribute("aria-pressed", active ? "true" : "false");
 		}
 	}
@@ -1004,7 +1006,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	 *
 	 * Режим держит своё поле, а не класс на корневом элементе: собственные классы поля-носителя
 	 * переезжают на корневой элемент контрола (см. `prepareValueElem` в `@brandup/ui-input`),
-	 * и `class="source"` в разметке поля включал бы режим, которого нет, — с панелью, которую
+	 * и `class="source-mode"` в разметке поля включал бы режим, которого нет, — с панелью, которую
 	 * никто не собирал. Класс при этом остаётся и выставляется переключением, как focused
 	 * и invalid: он контракт оформления, но читают его стили, а не компонент.
 	 */
@@ -1079,11 +1081,11 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 
 			// Режим — своё поле, класс на элементе только оформляет его (см. sourceMode)
 			this.__sourceMode = true;
-			this.element.classList.add(SOURCE_MODE_CLASS);
+			this.element.classList.add(MESSAGEEDITOR.CLASS.STATE.SOURCE_MODE);
 			this.__renderSource();
 		} else {
 			this.__sourceMode = false;
-			this.element.classList.remove(SOURCE_MODE_CLASS);
+			this.element.classList.remove(MESSAGEEDITOR.CLASS.STATE.SOURCE_MODE);
 
 			// Вернулись к сообщению кнопкой — продолжают писать: фокус идёт следом, на прежнее
 			// место, а если каретки ещё не было — в конец текста. В readonly не фокусируем:
@@ -1112,7 +1114,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	override validate(): boolean {
 		const isValid = super.validate(); // super синхронизирует значение сам, через __syncValue
 
-		this.element.classList.toggle("invalid", !isValid);
+		this.element.classList.toggle(MESSAGEEDITOR.CLASS.STATE.INVALID, !isValid);
 
 		return isValid;
 	}

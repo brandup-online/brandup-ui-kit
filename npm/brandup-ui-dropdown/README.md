@@ -21,13 +21,12 @@ npm i @brandup/ui-dropdown
 ```
 
 ```typescript
-import DropDown from "@brandup/ui-dropdown";
-import { CHANGE_EVENT, ChangeEventData } from "@brandup/ui-dropdown";
+import DropDown, { DROPDOWN, ChangeEventData } from "@brandup/ui-dropdown";
 
 const selectElem = document.getElementById("city") as HTMLSelectElement;
 const dropdown = new DropDown(selectElem);
 
-dropdown.on(CHANGE_EVENT, (data: ChangeEventData) => {
+dropdown.on(DROPDOWN.EVENT.CHANGE, (data: ChangeEventData) => {
     console.log(data.value, data.title, data.index);
 });
 ```
@@ -54,7 +53,7 @@ dropdown.on(CHANGE_EVENT, (data: ChangeEventData) => {
 | `getValue(): string \| null` | Значение выбранного `<option>`; `null`, если не выбрано ничего |
 | `getSelectedIndex(): number` | Индекс выбранного `<option>`; `-1`, если не выбрано ничего |
 | `getSelectedTitle(): string \| null` | Текст выбранного пункта списка |
-| `setValue(value: string \| null): void` | Выбирает пункт с таким значением и показывает его. Значения без своего пункта в списке (в том числе пустое) сбрасывают выбор в плейсхолдер. `dropdown-change` поднимается только при действительной смене показанного пункта |
+| `setValue(value: string \| null): void` | Выбирает пункт с таким значением и показывает его. Значения без своего пункта в списке (в том числе пустое) сбрасывают выбор в плейсхолдер. `ui:dropdown:change` поднимается только при действительной смене показанного пункта |
 
 ### Методы (унаследованы от InputControl)
 
@@ -72,14 +71,14 @@ dropdown.on(CHANGE_EVENT, (data: ChangeEventData) => {
 | `emptyText` | `string` | Текст при пустом списке |
 | `searchOn` | `number \| boolean` | Настройка отображения строки поиска |
 
-### Событие dropdown-change
+### Событие ui:dropdown:change
 
 Генерируется при выборе значения из списка.
 
 ```typescript
-import { CHANGE_EVENT, ChangeEventData } from "@brandup/ui-dropdown";
+import { DROPDOWN, ChangeEventData } from "@brandup/ui-dropdown";
 
-dropdown.on(CHANGE_EVENT, (data: ChangeEventData) => {
+dropdown.on(DROPDOWN.EVENT.CHANGE, (data: ChangeEventData) => {
     console.log(data.value);  // значение выбранного <option>
     console.log(data.title);  // текст выбранного <option>
     console.log(data.index);  // индекс выбранного элемента в списке
@@ -99,6 +98,63 @@ import { detectLanguage, transcriptText } from "@brandup/ui-dropdown";
 const lang = detectLanguage("hello"); // "english"
 const variants = transcriptText("руку"); // { english: "reue" }
 ```
+
+## Клавиатура и доступность
+
+Список — слой поверх страницы: он встаёт в [стек слоёв](../brandup-ui-kit/README.md#слои) кита, поэтому
+`Escape` закрывает именно его (список внутри модального окна закроется один, окно останется), а
+придержанную им прокрутку страницы стек считает вместе с остальными слоями. Выход по `Escape` из
+списка возвращает фокус на кнопку показа — на узком экране список занимает весь экран, и уйти с него
+больше не на что. Раскрытый список на странице один: открытие следующего закрывает предыдущий.
+
+Разметка объявляет то же самое для озвучки:
+
+| Элемент | Что объявлено |
+| --- | --- |
+| Кнопка показа | `aria-haspopup="listbox"`, `aria-controls` с идентификатором самого списка, `aria-expanded` (`true`/`false` — и в закрытом виде тоже) |
+| `ul` списка | `role="listbox"` и `aria-label` с текстом-заглушкой (`data-placeholder`) |
+| `li` пункта | `role="presentation"` — носитель команды и значения, между списком и пунктом он пустой |
+| `span` пункта | `role="option"` и `aria-selected`; он же принимает фокус, по нему ходят стрелки |
+
+## Имена
+
+Классы, команды, события, подписи по умолчанию и числа, на которые опирается поведение, пакет
+отдаёт одним объектом `DROPDOWN` (модуль `names.ts`) — россыпи `ROOT_CLASS` / `CHANGE_EVENT` /
+`*_COMMAND` больше нет. Модуль имён ничего не импортирует: их можно взять, не притаскивая стили
+и код контрола. Так же устроены остальные пакеты кита.
+
+```typescript
+// коротким путём — без стилей и кода контрола
+import { DROPDOWN } from "@brandup/ui-dropdown/names";
+// или из общего входа, если пакет и так подключён
+import { DROPDOWN } from "@brandup/ui-dropdown";
+
+DROPDOWN.CLASS.ROOT;              // "ui-dropdown" — корень контрола
+DROPDOWN.CLASS.INPUT;             // "ui-dropdown-input" — поле-носитель
+DROPDOWN.CLASS.MINIATURE;         // "ui-dropdown-miniature"
+DROPDOWN.CLASS.BODY;              // "body-dropdown-opened" — на <body>, пока список раскрыт
+DROPDOWN.CLASS.ELEMENT.POPUP;     // части разметки: POPUP, CONTENT, HEADER, SEARCH, VIEW, CANCEL, EMPTY
+DROPDOWN.CLASS.STATE.EXPANDED;    // состояния: EXPANDED, HAS_VALUE, EMPTY, SEARCHABLE, INVALID,
+                                  // RESULT, NOT_FOUND, MATCH, TOP, RIGHT
+DROPDOWN.COMMAND.TOGGLE;          // команды разметки (см. ниже)
+DROPDOWN.EVENT.CHANGE;            // "ui:dropdown:change"
+DROPDOWN.TEXT.CANCEL;             // подписи: PLACEHOLDER, EMPTY, SEARCH, SEARCH_EMPTY, CANCEL
+DROPDOWN.VALUE.SEARCH_ON;         // 15 — порог показа строки поиска
+DROPDOWN.VALUE.SEARCH_MAX_LENGTH; // 50
+DROPDOWN.VALUE.TABLET_WIDTH;      // 1030 — ниже список раскрывается во весь экран
+DROPDOWN.LIST_ID;                 // префикс идентификатора списка для aria-controls
+```
+
+## Команды
+
+Разметку контрола собирает он сам, но команды в ней объявлены с префиксом кита — свою кнопку
+закрытия списка достаточно объявить тем же `data-command`:
+
+| Команда | Имя | Действие |
+| --- | --- | --- |
+| `ui-dropdown-toggle` | `DROPDOWN.COMMAND.TOGGLE` | Раскрыть или закрыть список |
+| `ui-dropdown-close` | `DROPDOWN.COMMAND.CLOSE` | Закрыть список (работает и на выключенном контроле) |
+| `ui-dropdown-select` | `DROPDOWN.COMMAND.SELECT` | Выбрать пункт (`data-value`, `data-index`) |
 
 ## Адаптивный режим
 

@@ -21,7 +21,7 @@
 .ui-popup {
 	position: absolute;
 	box-sizing: border-box;
-	z-index: 1000;
+	z-index: var(--layer-popup);
 	background: var(--popup-fill);
 	color: var(--popup-color);
 	border-style: var(--popup-border-style);
@@ -31,7 +31,7 @@
 	box-shadow: var(--popup-box-shadow);
 	visibility: collapse;
 
-	&.opened {
+	&.ui-popup-opened {
 		visibility: visible;
 	}
 }
@@ -48,9 +48,9 @@
 .adaptive-tablet-small({
 	// Селектор с body намеренно: потребитель позиционирует попап вложенным правилом вида
 	// `.ui-messageeditor .ui-richeditor-emoji` — это два класса, столько же, сколько у пары
-	// `.ui-popup.opened`, и при равной специфичности исход решал бы порядок стилей в сборке.
+	// `.ui-popup.ui-popup-opened`, и при равной специфичности исход решал бы порядок стилей в сборке.
 	// Элемент в селекторе даёт тот вес, которого паре классов не хватает.
-	body .ui-popup.opened,
+	body .ui-popup.ui-popup-opened,
 	body .ui-popup-expanded ~ .ui-popup {
 		position: fixed;
 		inset: 0;
@@ -75,7 +75,7 @@
 
 	// Класс ставит PopupManager: пока открыт попап-окно, страница под ним не прокручивается.
 	// По ширине она при этом не дёргается — место под полосой держит --scrollbar-gutter (common.less).
-	body.ui-popup-opened {
+	body.body-popup-opened {
 		overflow: hidden;
 	}
 });

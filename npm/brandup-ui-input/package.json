@@ -27,6 +27,12 @@
 	"version": "1.0.0",
 	"main": "source/index.ts",
 	"types": "source/index.ts",
+	"exports": {
+		".": "./source/index.ts",
+		"./names": "./source/names.ts",
+		"./source/*.less": "./source/*.less",
+		"./package.json": "./package.json"
+	},
 	"dependencies": {
 		"@brandup/ui": "^2.0.9",
 		"@brandup/ui-kit": "file:../brandup-ui-kit"

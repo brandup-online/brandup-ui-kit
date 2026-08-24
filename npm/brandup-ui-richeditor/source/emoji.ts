@@ -1,5 +1,7 @@
 import { DOM } from "@brandup/ui";
-import { POPUP_CLASS, PopupManager, SCROLLABLE_CLASS } from "@brandup/ui-kit";
+import { PopupManager } from "@brandup/ui-kit";
+import { UIKIT } from "@brandup/ui-kit/names";
+import { RICHEDITOR } from "./names";
 
 // Набор смайликов для панели вставки. Все символы — одиночные кодпойнты (без ZWJ-последовательностей
 // и модификаторов), поэтому переносятся в текст как единое целое. Внимание: в UTF-16 каждый занимает
@@ -133,21 +135,13 @@ export const EMOJIS: string[] = EMOJI_GROUPS.flatMap((group) => group.emojis);
 
 // --- панель вставки ---
 
-/** Попап вставки смайлика: у каждого владельца свой, собираются они здесь. */
-export const EMOJI_PICKER_CLASS = "ui-richeditor-emoji";
-
-// Сколько кнопок помещается в ряд при ширине панели (см. .ui-richeditor-emoji в richeditor.less).
-// Точность нужна только для оценки высоты нерисованной группы: ошибка сдвинет ползунок прокрутки,
-// но не саму раскладку — группа переносит кнопки сама.
-const EMOJI_COLUMNS = 8;
-
 /**
  * Группа смайликов: и смысловое деление в панели (отбивается линией), и кусок, к которому
  * применяется пропуск отрисовки. Поэлементно это было бы семьсот отслеживаемых поддеревьев,
  * и слежение за ними съедает выигрыш от пропуска.
  */
 function buildEmojiGroup(group: EmojiGroup): HTMLElement {
-	const rows = Math.ceil(group.emojis.length / EMOJI_COLUMNS);
+	const rows = Math.ceil(group.emojis.length / RICHEDITOR.VALUE.EMOJI_COLUMNS);
 	const elem = DOM.tag("div", {
 		class: "emoji-group",
 		role: "group",
@@ -166,15 +160,6 @@ function buildEmojiGroup(group: EmojiGroup): HTMLElement {
 
 // --- недавние ---
 
-/** Ключ localStorage со списком недавних смайликов — один на все попапы источника. */
-export const RECENT_EMOJIS_KEY = "brandup-richeditor-recent-emojis";
-
-/** Группа недавних в попапе: стоит первой и пересобирается из хранилища при каждом открытии. */
-export const RECENT_GROUP_CLASS = "emoji-recent";
-
-/** Сколько недавних хранится и показывается: два ряда панели. */
-export const RECENT_EMOJIS_LIMIT = EMOJI_COLUMNS * 2;
-
 // в панели название не показывается, уходит в подпись для скринридера — как у остальных групп
 const RECENT_TITLE = "Недавние";
 
@@ -190,7 +175,7 @@ const KNOWN_EMOJIS = new Set(EMOJIS);
 export function recentEmojis(): string[] {
 	let raw: string | null;
 	try {
-		raw = localStorage.getItem(RECENT_EMOJIS_KEY);
+		raw = localStorage.getItem(RICHEDITOR.STORAGE.RECENT_EMOJIS);
 	} catch {
 		return [];
 	}
@@ -208,7 +193,7 @@ export function recentEmojis(): string[] {
 	const recent = new Set<string>();
 	for (const item of parsed) {
 		if (typeof item === "string" && KNOWN_EMOJIS.has(item)) recent.add(item);
-		if (recent.size === RECENT_EMOJIS_LIMIT) break;
+		if (recent.size === RICHEDITOR.VALUE.RECENT_EMOJIS_LIMIT) break;
 	}
 
 	return Array.from(recent);
@@ -221,9 +206,9 @@ export function recentEmojis(): string[] {
 export function rememberEmoji(emoji: string): void {
 	if (!KNOWN_EMOJIS.has(emoji)) return;
 
-	const next = [emoji, ...recentEmojis().filter((other) => other !== emoji)].slice(0, RECENT_EMOJIS_LIMIT);
+	const next = [emoji, ...recentEmojis().filter((other) => other !== emoji)].slice(0, RICHEDITOR.VALUE.RECENT_EMOJIS_LIMIT);
 	try {
-		localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(next));
+		localStorage.setItem(RICHEDITOR.STORAGE.RECENT_EMOJIS, JSON.stringify(next));
 	} catch {
 		// приватный режим или переполненная квота — вставка работает, недавние не запоминаются
 	}
@@ -240,7 +225,7 @@ export function refreshRecentEmojis(picker: HTMLElement): void {
 	const list = picker.querySelector(".emoji-list");
 	if (!list) return;
 
-	const existing = list.querySelector(`.${RECENT_GROUP_CLASS}`);
+	const existing = list.querySelector(`.${RICHEDITOR.CLASS.EMOJI.RECENT_GROUP}`);
 	const recent = recentEmojis();
 
 	if (!recent.length) {
@@ -249,7 +234,7 @@ export function refreshRecentEmojis(picker: HTMLElement): void {
 	}
 
 	const group = buildEmojiGroup({ title: RECENT_TITLE, emojis: recent });
-	group.classList.add(RECENT_GROUP_CLASS);
+	group.classList.add(RICHEDITOR.CLASS.EMOJI.RECENT_GROUP);
 
 	if (existing) existing.replaceWith(group);
 	else list.prepend(group);
@@ -267,11 +252,11 @@ export function refreshRecentEmojis(picker: HTMLElement): void {
  * показ обязан освежать её сам, здесь она собирается по состоянию хранилища на сейчас.
  */
 export function createEmojiPicker(onPick: (emoji: string) => void): HTMLElement {
-	const picker = DOM.tag("div", { class: `${POPUP_CLASS} ${EMOJI_PICKER_CLASS}` });
+	const picker = DOM.tag("div", { class: `${UIKIT.POPUP.CLASS.ROOT} ${RICHEDITOR.CLASS.EMOJI.PICKER}` });
 
 	// Прокручивается список, а не сам попап: полоса прокрутки рисуется по краю коробки
 	// и перекрывала бы скругление рамки — угол выглядел бы срезанным.
-	const list = DOM.tag("div", { class: ["emoji-list", SCROLLABLE_CLASS] });
+	const list = DOM.tag("div", { class: ["emoji-list", UIKIT.SCROLLABLE.CLASS] });
 	picker.appendChild(list);
 
 	for (const group of EMOJI_GROUPS) list.appendChild(buildEmojiGroup(group));

@@ -20,12 +20,12 @@ npm i @brandup/ui-textbox
 
 ```typescript
 import TextBox from "@brandup/ui-textbox";
-import { CHANGE_EVENT, ChangeEventData } from "@brandup/ui-textbox";
+import { TEXTBOX, ChangeEventData } from "@brandup/ui-textbox";
 
 const inputElem = document.getElementById("name") as HTMLInputElement;
 const textbox = new TextBox(inputElem);
 
-textbox.on(CHANGE_EVENT, (data: ChangeEventData) => {
+textbox.on(TEXTBOX.EVENT.CHANGE, (data: ChangeEventData) => {
     console.log(data.value);
 });
 ```
@@ -170,14 +170,14 @@ textbox.on(CHANGE_EVENT, (data: ChangeEventData) => {
 | `formatMarkers` | `FormatMarkers` | Markdown-маркеры по инструментам (с учётом переопределений) |
 | `editor` | `RichEditor` | Встроенный редактор: выделение, вставка текста, блоки |
 
-### Событие textbox-change
+### Событие ui:textbox:change
 
 Генерируется при каждом изменении значения.
 
 ```typescript
-import { CHANGE_EVENT, ChangeEventData } from "@brandup/ui-textbox";
+import { TEXTBOX, ChangeEventData } from "@brandup/ui-textbox";
 
-textbox.on(CHANGE_EVENT, (data: ChangeEventData) => {
+textbox.on(TEXTBOX.EVENT.CHANGE, (data: ChangeEventData) => {
     console.log(data.value);   // текущее значение
     console.log(data.textbox); // ссылка на экземпляр TextBox
 });
@@ -193,7 +193,7 @@ textbox.onChange((data) => { ... });
 - повторяющиеся пробелы/табы схлопываются в один;
 - пробелы по краям каждой строки обрезаются.
 
-Форматирование и переносы строк (`<br>`/блоки) при этом сохраняются. Во время набора текста пробелы не трогаются — нормализация выполняется только по завершении. Если нормализация изменила значение, при потере фокуса генерируется событие [`textbox-change`](#событие-textbox-change).
+Форматирование и переносы строк (`<br>`/блоки) при этом сохраняются. Во время набора текста пробелы не трогаются — нормализация выполняется только по завершении. Если нормализация изменила значение, при потере фокуса генерируется событие [`ui:textbox:change`](#событие-uitextboxchange).
 
 ## CSS-классы состояний
 

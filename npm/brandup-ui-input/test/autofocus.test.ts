@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { resetUserScroll } from "@brandup/ui-kit/source/utils/user-scroll"; // как и сам контрол — мимо общего входа кита
+import { resetUserScroll } from "@brandup/ui-kit/env"; // как и сам контрол — мимо общего входа кита
 import { InputControl } from "../source/index";
 
 /** Минимальный контрол на базовом классе: фокус ведёт в само поле-носитель. */

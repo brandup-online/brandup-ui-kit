@@ -2,6 +2,7 @@ import "./richeditor.less"; // стили редактора и панели ф�
 
 import { DOM, UIElementBound } from "@brandup/ui";
 import { IS_TOUCH_DEVICE, PopupManager } from "@brandup/ui-kit";
+import { RICHEDITOR } from "./names";
 import {
 	ALL_FORMAT_TOOLS,
 	BLOCK_TYPES,
@@ -66,16 +67,9 @@ import {
 } from "./editing";
 import { EditorHistory } from "./history";
 import { refreshRecentEmojis } from "./emoji";
-import { formatToolbar, TOOLBAR_CLASS, type ToolbarButton } from "./toolbar";
+import { formatToolbar, type ToolbarButton } from "./toolbar";
 
-export { formatToolbar, TOOLBAR_CLASS, type ToolbarHost, type ToolbarButton } from "./toolbar";
-
-export const ROOT_CLASS = "ui-richeditor"; // редактируемый элемент, к нему привязан UIElement
-// Содержимое временно невыделяемо: по странице тянут выделение, начатое вне редактора (см. __holdSelectable).
-export const UNSELECTABLE_CLASS = "unselectable";
-// Режим мягких переносов: абзац — это строка, и отступов между абзацами в нём нет.
-export const BREAKS_CLASS = "breaks";
-export const CHANGE_EVENT = "richeditor-change";
+export { formatToolbar, type ToolbarHost, type ToolbarButton } from "./toolbar";
 
 const NAV_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Escape"];
 
@@ -122,12 +116,6 @@ const NATIVE_EDIT_TYPES = new Set([
 // Ввод текста, который не проходит через keydown (IME, автозамена, автодополнение, диктовка), —
 // к нему применяем фильтр символов хоста в beforeinput.
 const FILTERED_INPUT_TYPES = new Set(["insertText", "insertReplacementText", "insertCompositionText"]);
-
-// Максимальное отставание события change от печати. Сериализация значения — самая дорогая
-// операция редактора (обход всего содержимого), а печать даёт input на каждый символ.
-// Это троттлинг, а не debounce: при непрерывном наборе значение всё равно обновляется
-// каждые CHANGE_THROTTLE_MS, а не откладывается до паузы.
-const CHANGE_THROTTLE_MS = 150;
 
 // Буква физической клавиши (KeyA…KeyZ) — не зависит от раскладки. Для не-латинских раскладок
 // (например, кириллицы) e.key даёт другую букву, поэтому хоткеи сверяем и по e.code.
@@ -262,7 +250,7 @@ export interface RichEditorChangeData {
 }
 
 type RichEditorEvents = {
-	[CHANGE_EVENT]: (data: RichEditorChangeData) => void;
+	[RICHEDITOR.EVENT.CHANGE]: (data: RichEditorChangeData) => void;
 };
 
 export default class RichEditor extends UIElementBound<RichEditorEvents> {
@@ -325,7 +313,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 		// тулбар общий и живёт в body (см. ./toolbar), поэтому обёртка не нужна —
 		// привязываем UIElement прямо к переданному элементу, он же и редактируемый
-		editable.classList.add(ROOT_CLASS);
+		editable.classList.add(RICHEDITOR.CLASS.ROOT);
 
 		super("BrandUp.RichEditor", editable);
 
@@ -358,7 +346,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		if (options.placeholder != null) editable.dataset.placeholder = options.placeholder;
 		if (multiline) editable.classList.add("multiline");
 		// абзац-строка: отступы между абзацами показывали бы пустую строку, которой в значении нет
-		if (!this.__separateParagraphs && multiline) editable.classList.add(BREAKS_CLASS);
+		if (!this.__separateParagraphs && multiline) editable.classList.add(RICHEDITOR.CLASS.BREAKS);
 		if (readonly) editable.classList.add("readonly");
 
 		this.__initEvents();
@@ -512,13 +500,13 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// Попап у кнопки хоста — самостоятельный слой, и показывать его вместе с панелью нельзя:
 		// это два всплывающих окна над одним полем. Попап самой панели — её собственный слой,
 		// прятать его носителя незачем и нечем.
-		const inToolbar = !!picker.closest(`.${TOOLBAR_CLASS}`);
+		const inToolbar = !!picker.closest(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT}`);
 
 		// Недавние — по хранилищу на момент показа: попап живёт между открытиями, а хранилище
 		// тем временем пополняют и другие попапы страницы.
 		refreshRecentEmojis(picker);
 
-		PopupManager.open(picker, {
+		const opened = PopupManager.toggle(picker, {
 			initiator,
 			onClose: () => {
 				this.__emojiPicker = null;
@@ -528,7 +516,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			},
 		});
 		// повторное нажатие по кнопке попап закрывает — держать и придерживать больше нечего
-		if (!PopupManager.isOpened(picker)) return false;
+		if (!opened) return false;
 
 		this.__emojiPicker = picker;
 		if (!inToolbar) formatToolbar.suspend(this);
@@ -654,7 +642,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	}
 
 	onChange(handler: (e: RichEditorChangeData) => void) {
-		this.on(CHANGE_EVENT, handler);
+		this.on(RICHEDITOR.EVENT.CHANGE, handler);
 	}
 
 	/**
@@ -1135,9 +1123,9 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 		// элемент передан хостом — не удаляем его, только снимаем оформление редактора
 		this.editable.classList.remove(
-			ROOT_CLASS,
-			UNSELECTABLE_CLASS,
-			BREAKS_CLASS,
+			RICHEDITOR.CLASS.ROOT,
+			RICHEDITOR.CLASS.UNSELECTABLE,
+			RICHEDITOR.CLASS.BREAKS,
 			"multiline",
 			"readonly",
 			"focused"
@@ -1180,12 +1168,15 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	private __emitChange(defer = false) {
 		if (defer) {
 			// троттлинг: первый ввод заводит таймер, последующие в этом окне его не сдвигают
-			this.__changeTimer ||= this.__window.setTimeout(() => this.__emitChange(), CHANGE_THROTTLE_MS);
+			this.__changeTimer ||= this.__window.setTimeout(
+				() => this.__emitChange(),
+				RICHEDITOR.VALUE.CHANGE_THROTTLE_MS
+			);
 			return;
 		}
 
 		this.__cancelChange();
-		this.trigger(CHANGE_EVENT, <RichEditorChangeData>{ editor: this, value: this.getValue() });
+		this.trigger(RICHEDITOR.EVENT.CHANGE, <RichEditorChangeData>{ editor: this, value: this.getValue() });
 	}
 
 	private __cancelChange() {
@@ -1257,7 +1248,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			this.editable.contains(target as Node | null) ||
 			this.editable.ownerDocument.activeElement === this.editable;
 
-		this.editable.classList.toggle(UNSELECTABLE_CLASS, !own);
+		this.editable.classList.toggle(RICHEDITOR.CLASS.UNSELECTABLE, !own);
 	}
 
 	/**
@@ -1268,7 +1259,8 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	 * нажатию — оно приходит уже после жеста, а у долгого нажатия не приходит вовсе.
 	 */
 	private __releaseSelectableAt(target: EventTarget | null) {
-		if (this.editable.contains(target as Node | null)) this.editable.classList.remove(UNSELECTABLE_CLASS);
+		if (this.editable.contains(target as Node | null))
+			this.editable.classList.remove(RICHEDITOR.CLASS.UNSELECTABLE);
 	}
 
 	/**
@@ -1280,7 +1272,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	 * снимет запрет, снаружи — начнёт новую протяжку.
 	 */
 	private __releaseSelectable() {
-		if (!this.editable.classList.contains(UNSELECTABLE_CLASS)) return;
+		if (!this.editable.classList.contains(RICHEDITOR.CLASS.UNSELECTABLE)) return;
 
 		const selection = documentSelection(this.editable);
 		const across =
@@ -1289,7 +1281,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 			!selection.isCollapsed &&
 			selection.getRangeAt(0).intersectsNode(this.editable);
 
-		if (!across) this.editable.classList.remove(UNSELECTABLE_CLASS);
+		if (!across) this.editable.classList.remove(RICHEDITOR.CLASS.UNSELECTABLE);
 	}
 
 	private __initEvents() {
@@ -1338,7 +1330,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 
 				// Пришли править — держать запрет выделения не за чем, а с ним поле осталось бы
 				// нередактируемым. Мышью его снимает нажатие, но фокус берут и клавишей, и из кода.
-				this.element.classList.remove(UNSELECTABLE_CLASS);
+				this.element.classList.remove(RICHEDITOR.CLASS.UNSELECTABLE);
 
 				// нужна ли панель этому редактору, решает она сама — иначе условие пришлось бы
 				// держать в двух местах, и стоило добавить кнопки хоста, как они разошлись бы

@@ -1,6 +1,8 @@
 import { InputControl } from "@brandup/ui-input";
 import { DOM } from "@brandup/ui";
-import { SCROLLABLE_CLASS } from "@brandup/ui-kit";
+import { LayerManager, type Layer } from "@brandup/ui-kit";
+import { UIKIT } from "@brandup/ui-kit/names";
+import { DROPDOWN } from "./names";
 import { detectLanguage, transcriptText } from "./utils/utilities";
 
 import "./dropdown.less"; // стили компонента
@@ -10,24 +12,30 @@ import checkIcon from "./svg/tick.svg";
 import searchIcon from "./svg/search.svg";
 import closeIcon from "./svg/cancel.svg";
 
-export const ROOT_CLASS = "ui-dropdown";
-export const INPUT_CLASS = "ui-dropdown-input";
-export const MINIATURE_CLASS = "ui-dropdown-miniature";
-export const CHANGE_EVENT = "dropdown-change";
+/** Сокращения для самых частых имён — за пределы модуля не выходят. */
+const { ELEMENT: ELEM, STATE } = DROPDOWN.CLASS;
 
-const TABLET_WIDTH = 1030;
-const BODY_EXPANDED = "ui-dropdown-opened";
+/** Кнопка показа ссылается на список через aria-controls, поэтому идентификатор ему нужен свой. */
+let listIdSeq = 0;
 
 // Метаданные транслитерации, привязанные к <li>-элементам. WeakMap не мешает GC очищать удалённые li,
 // в отличие от прежнего `(elem as any)['wsdd_transcript'] = ...` (грязно и без типов).
 const itemTranscripts = new WeakMap<Element, ReturnType<typeof transcriptText>>();
 
 type DropDownEvents = {
-	[CHANGE_EVENT]: (data: ChangeEventData) => void;
+	[DROPDOWN.EVENT.CHANGE]: (data: ChangeEventData) => void;
 };
 
 class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
+	/**
+	 * Раскрытый список на странице один. Открытие следующего закрывает предыдущий: нажатие, которым
+	 * его открыли, до закрывающего слушателя прежнего уже не дойдёт, а оставленный список держал бы
+	 * и свой слой в стеке, и придержанную им прокрутку.
+	 */
+	private static __opened: DropDown | null = null;
+
 	private __container: HTMLElement;
+	private __viewElem: HTMLElement;
 	private __popupElem: HTMLElement;
 	private __listElem: HTMLElement;
 	private __textElem: HTMLElement;
@@ -37,6 +45,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	private __closePopupFunc: (e: MouseEvent) => void;
 	private __pressedInPopup = false;
 	private __reposAbort?: AbortController;
+	private __layer?: Layer;
 	private __hasEmptyValue: boolean = false;
 
 	readonly placeholder: string;
@@ -47,13 +56,13 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	readonly searchOn: number | boolean;
 
 	constructor(selectElem: HTMLSelectElement) {
-		const placeholder = selectElem.dataset.placeholder || "Select";
-		const emptyText = selectElem.dataset.emptytext || "Empty list";
-		const searchPlaceholder = selectElem.dataset.searchPlaceholder || "Search";
-		const searchEmpty = selectElem.dataset.searchEmpty || "Not found";
-		const cancelText = selectElem.dataset.cancel || "Cancel";
+		const placeholder = selectElem.dataset.placeholder || DROPDOWN.TEXT.PLACEHOLDER;
+		const emptyText = selectElem.dataset.emptytext || DROPDOWN.TEXT.EMPTY;
+		const searchPlaceholder = selectElem.dataset.searchPlaceholder || DROPDOWN.TEXT.SEARCH;
+		const searchEmpty = selectElem.dataset.searchEmpty || DROPDOWN.TEXT.SEARCH_EMPTY;
+		const cancelText = selectElem.dataset.cancel || DROPDOWN.TEXT.CANCEL;
 
-		let searchOn: number | boolean = 15;
+		let searchOn: number | boolean = DROPDOWN.VALUE.SEARCH_ON;
 		const se = selectElem.dataset.searchOn;
 		if (se) {
 			switch (se.toLowerCase()) {
@@ -76,45 +85,73 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		const headerLabel = DOM.tag("span", null);
 		headerLabel.textContent = placeholder;
 
-		const emptyElem = DOM.tag("div", { class: "empty" });
+		const emptyElem = DOM.tag("div", { class: ELEM.EMPTY });
 		emptyElem.textContent = emptyText;
 
-		const cancelButton = DOM.tag("button", { class: "cancel", command: "close-popup" });
+		const cancelButton = DOM.tag("button", { type: "button", class: ELEM.CANCEL, command: DROPDOWN.COMMAND.CLOSE });
 		cancelButton.textContent = cancelText;
 
-		const searchInput = DOM.tag("input", { type: "search", maxlength: 50, placeholder: searchPlaceholder });
-		const listElem = DOM.tag("ul", { class: SCROLLABLE_CLASS });
+		const searchInput = DOM.tag("input", {
+			type: "search",
+			maxlength: DROPDOWN.VALUE.SEARCH_MAX_LENGTH,
+			placeholder: searchPlaceholder,
+		});
+		// Список объявляется списком выбора: фокус в нём ходит по самим пунктам (см. keydown),
+		// поэтому роль option — на них, а не на кнопке показа. Имя списку даёт заголовок контрола.
+		const listElem = DOM.tag("ul", {
+			class: UIKIT.SCROLLABLE.CLASS,
+			role: "listbox",
+			"aria-label": placeholder,
+			id: `${DROPDOWN.LIST_ID}${++listIdSeq}`,
+		});
 
-		const popupElem = DOM.tag("div", { class: "popup", tabindex: 0 }, [
-			DOM.tag("div", { class: "content" }, [
-				DOM.tag("div", { class: "header" }, [
+		const popupElem = DOM.tag("div", { class: ELEM.POPUP, tabindex: 0 }, [
+			DOM.tag("div", { class: ELEM.CONTENT }, [
+				DOM.tag("div", { class: ELEM.HEADER }, [
 					headerLabel,
-					DOM.tag("button", { command: "close-popup" }, closeIcon),
+					DOM.tag(
+						"button",
+						{ type: "button", title: cancelText, command: DROPDOWN.COMMAND.CLOSE },
+						closeIcon
+					),
 				]),
-				DOM.tag("div", { class: "search" }, [searchIcon, searchInput]),
+				DOM.tag("div", { class: ELEM.SEARCH }, [searchIcon, searchInput]),
 				listElem,
 				emptyElem,
 				cancelButton,
 			]),
 		]);
 
-		const container = DOM.tag("div", { class: ROOT_CLASS }, [
-			DOM.tag("button", { class: "view", command: "open-popup" }, [textElem, arrowBottomIcon]),
-			popupElem,
-		]);
+		// Кнопка показа объявляет, чем она управляет и раскрыт ли список: класс `expanded`
+		// на контейнере видят стили, состояние кнопки — озвучка.
+		const viewElem = DOM.tag(
+			"button",
+			{
+				type: "button",
+				class: ELEM.VIEW,
+				command: DROPDOWN.COMMAND.TOGGLE,
+				"aria-haspopup": "listbox",
+				// ссылается на сам список, а не на коробку попапа: кнопка раскрывает именно его
+				"aria-controls": listElem.id,
+				"aria-expanded": "false",
+			},
+			[textElem, arrowBottomIcon]
+		);
 
-		DropDown.prepareValueElem(selectElem, container, INPUT_CLASS);
+		const container = DOM.tag("div", { class: DROPDOWN.CLASS.ROOT }, [viewElem, popupElem]);
+
+		DropDown.prepareValueElem(selectElem, container, DROPDOWN.CLASS.INPUT);
 
 		if (selectElem.nextElementSibling) {
 			const nextElem = selectElem.nextElementSibling as HTMLElement;
-			if (nextElem.classList.contains(MINIATURE_CLASS)) nextElem.remove();
+			if (nextElem.classList.contains(DROPDOWN.CLASS.MINIATURE)) nextElem.remove();
 		}
 
 		selectElem.insertAdjacentElement("beforebegin", container);
 		container.insertAdjacentElement("beforeend", selectElem);
 
 		// класс вернёт базовый класс при destroy — без этого поле осталось бы скрытым
-		super("BrandUp.DropDown", container, selectElem, { class: INPUT_CLASS });
+		super("BrandUp.DropDown", container, selectElem, { class: DROPDOWN.CLASS.INPUT });
 
 		this.placeholder = placeholder;
 		this.emptyText = emptyText;
@@ -124,6 +161,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		this.searchOn = searchOn;
 
 		this.__container = container;
+		this.__viewElem = viewElem;
 		this.__popupElem = popupElem;
 		this.__listElem = listElem;
 		this.__textElem = textElem;
@@ -169,7 +207,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		if (!optionsCount) this.__textElem.innerText = this.placeholder;
 
 		if (!optionsCount) {
-			this.element.classList.add("empty");
+			this.element.classList.add(STATE.EMPTY);
 			return;
 		}
 
@@ -177,7 +215,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		// явная проверка типа: для false `optionsCount >= false` коэрсится в `>= 0` и всегда true
 		const isSearchable =
 			this.searchOn === true || (typeof this.searchOn === "number" && optionsCount >= this.searchOn);
-		if (isSearchable) this.element.classList.add("searchable");
+		if (isSearchable) this.element.classList.add(STATE.SEARCHABLE);
 
 		// вставляем элементы меню в фрагмент, чтобы не нагружать процессор
 		const popupItemsFragment = document.createDocumentFragment();
@@ -204,13 +242,20 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			if (addedValues.has(itemValue)) continue;
 			addedValues.add(itemValue);
 
-			const itemSpan = DOM.tag("span", { tabindex: "0" });
+			const itemSpan = DOM.tag("span", { tabindex: "0", role: "option", "aria-selected": "false" });
 			itemSpan.textContent = itemText; // безопасно: textContent не парсит HTML
 
-			const itemElem = DOM.tag("li", { command: "select", dataset: { value: itemValue, index: i.toString() } }, [
-				itemSpan,
-				checkIcon,
-			]);
+			// li — только носитель команды и значения: роль option стоит на том, что принимает
+			// фокус, а промежуточный элемент между списком и пунктом объявляется пустым.
+			const itemElem = DOM.tag(
+				"li",
+				{
+					command: DROPDOWN.COMMAND.SELECT,
+					role: "presentation",
+					dataset: { value: itemValue, index: i.toString() },
+				},
+				[itemSpan, checkIcon]
+			);
 
 			itemTranscripts.set(itemElem, transcriptText(itemText));
 
@@ -219,7 +264,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			elemCount++;
 		}
 
-		if (this.__hasEmptyValue && !elemCount) this.element.classList.add("empty");
+		if (this.__hasEmptyValue && !elemCount) this.element.classList.add(STATE.EMPTY);
 
 		this.__listElem.append(popupItemsFragment);
 
@@ -227,10 +272,10 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	}
 
 	private __initLogic() {
-		this.registerCommand("open-popup", () => this.__togglePopup());
-		this.registerCommand("close-popup", () => this.__closePopup());
+		this.registerCommand(DROPDOWN.COMMAND.TOGGLE, () => this.__togglePopup());
+		this.registerCommand(DROPDOWN.COMMAND.CLOSE, () => this.__closePopup());
 
-		this.registerCommand("select", (context) => {
+		this.registerCommand(DROPDOWN.COMMAND.SELECT, (context) => {
 			this.__clearSearch();
 			this.__closePopup();
 			this.__focusView();
@@ -272,17 +317,11 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 					}
 					break;
 				}
-				case "Escape": {
-					e.preventDefault();
-					this.__closePopup();
-					this.__focusView();
-					break;
-				}
 				case "Tab": {
-					if (target == this.__popupElem && this.element.classList.contains("empty")) {
+					if (target == this.__popupElem && this.element.classList.contains(STATE.EMPTY)) {
 						// если список пустой, то фокус уйдёт от компанента на следующий и нужно закрыть popup
 						this.__closePopup();
-					} else if (target == this.__searchInput && this.__listElem.classList.contains("notfound")) {
+					} else if (target == this.__searchInput && this.__listElem.classList.contains(STATE.NOT_FOUND)) {
 						// если не найдено, то фокус уйдёт от компанента на следующий и нужно закрыть popup
 						this.__closePopup();
 					} else if (isSpan && !target.parentElement?.nextElementSibling) {
@@ -302,13 +341,13 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		});
 	}
 
-	/** Фокус в кнопку показа списка — она первым элементом контейнера, поле-носитель последним. */
+	/** Фокус в кнопку показа списка: с неё начинается работа с контролом с клавиатуры. */
 	private __focusView() {
-		(<HTMLElement>this.__container.firstElementChild).focus();
+		this.__viewElem.focus();
 	}
 
 	private __onChange() {
-		this.trigger(CHANGE_EVENT, {
+		this.trigger(DROPDOWN.EVENT.CHANGE, {
 			dropdown: this,
 			index: this.getSelectedIndex(),
 			value: this.getValue(),
@@ -327,26 +366,26 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	 * выхода с клавиатуры не осталось бы вовсе.
 	 */
 	protected override _onCanExecCommand(name: string): boolean {
-		if (name.toLowerCase() === "close-popup") return true;
+		if (name.toLowerCase() === DROPDOWN.COMMAND.CLOSE) return true;
 
 		return !this.disabled && !this.readonly;
 	}
 
 	private __togglePopup() {
-		if (this.element.classList.contains("expanded")) {
+		if (this.element.classList.contains(STATE.EXPANDED)) {
 			// уже открыт — закрываем чисто, чтобы и body-класс, и mouseup-листенер ушли
 			this.__closePopup();
 			return;
 		}
 
-		this.element.classList.add("expanded");
+		// Прежний список закрываем целиком, а не снятием класса: у него остаются свои слушатели
+		// закрытия и свой слой в стеке (см. __opened).
+		const opened = DropDown.__opened;
+		if (opened && opened !== this) opened.__closePopup();
 
-		// закрываем все открытые попапы, кроме текущего
-		document.querySelectorAll(".ui-dropdown.expanded").forEach((dropdown) => {
-			if (dropdown !== this.element) {
-				dropdown.classList.remove("expanded");
-			}
-		});
+		this.element.classList.add(STATE.EXPANDED);
+		this.__viewElem.setAttribute("aria-expanded", "true");
+		DropDown.__opened = this;
 
 		this.__popupElem.focus({ preventScroll: true });
 
@@ -362,7 +401,23 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			capture: true,
 		});
 
-		document.body.classList.add(BODY_EXPANDED);
+		// Escape и класс на body — за менеджером слоёв кита: список бывает раскрыт внутри
+		// модального окна, и одно нажатие Escape не должно уносить их оба.
+		this.__layer = LayerManager.push({
+			close: () => {
+				// с клавиатуры выход из списка обязан вернуть на кнопку показа: на узком экране
+				// список занимает весь экран, и уйти с него больше не на что
+				const fromInside = this.__popupElem.contains(document.activeElement);
+
+				this.__closePopup();
+				this.__clearSearch();
+
+				if (fromInside) this.__focusView();
+			},
+			element: this.__popupElem,
+			bodyClass: DROPDOWN.CLASS.BODY,
+			returnFocus: false, // фокус ведём сами: список открывают, уже стоя на кнопке показа
+		});
 
 		const selectedElem = this.__getSelectedElem();
 		const itemHeight = selectedElem?.own?.clientHeight || 0;
@@ -377,26 +432,29 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	}
 
 	private __positionPopup() {
-		this.__popupElem.classList.remove("top", "right");
+		this.__popupElem.classList.remove(STATE.TOP, STATE.RIGHT);
 
-		if (document.body.clientWidth <= TABLET_WIDTH) return;
+		if (document.body.clientWidth <= DROPDOWN.VALUE.TABLET_WIDTH) return;
 
 		const bodyHeight = document.body.clientHeight;
 		const popupRect = this.__popupElem.getBoundingClientRect();
 
 		if (popupRect.y + popupRect.height > bodyHeight) {
-			this.__popupElem.classList.add("top");
+			this.__popupElem.classList.add(STATE.TOP);
 		}
 
 		if (popupRect.x < 0) {
-			this.__popupElem.classList.add("right");
+			this.__popupElem.classList.add(STATE.RIGHT);
 		}
 	}
 
 	private __closePopup() {
 		this.__pressedInPopup = false; // от прошлого показа не наследуем
-		document.body.classList.remove(BODY_EXPANDED);
-		this.element.classList.remove("expanded");
+		this.__layer?.release(); // класс на body снимает менеджер — по последнему слою, который его просил
+		this.__layer = undefined;
+		this.element.classList.remove(STATE.EXPANDED);
+		this.__viewElem.setAttribute("aria-expanded", "false"); // кнопка остаётся переключателем и в закрытом виде
+		if (DropDown.__opened === this) DropDown.__opened = null;
 		document.body.removeEventListener("mousedown", this.__pressPopupFunc);
 		document.body.removeEventListener("mouseup", this.__closePopupFunc);
 		this.__reposAbort?.abort();
@@ -411,7 +469,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 		query = query.toLowerCase();
 
-		this.__listElem.classList.add("result");
+		this.__listElem.classList.add(STATE.RESULT);
 		const items = DOM.queryElements(this.__listElem, "li span");
 
 		let findedCount = 0;
@@ -421,9 +479,9 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 			// textContent надёжнее: innerText в браузерах может возвращать пусто/неожиданное для скрытых элементов
 			if ((it.textContent ?? "").toLowerCase().startsWith(query)) {
-				item.classList.add("ok");
+				item.classList.add(STATE.MATCH);
 				findedCount++;
-			} else item.classList.remove("ok");
+			} else item.classList.remove(STATE.MATCH);
 		});
 
 		if (!findedCount) {
@@ -437,28 +495,28 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 					if (!item) continue;
 					const transcript = itemTranscripts.get(item);
 					if (transcript && transcript[queryLang] && transcript[queryLang].startsWith(query)) {
-						item.classList.add("ok");
+						item.classList.add(STATE.MATCH);
 						findedCount++;
-					} else item.classList.remove("ok");
+					} else item.classList.remove(STATE.MATCH);
 				}
 			}
 		}
 
 		if (findedCount > 0) {
 			this.__emptyElem.innerText = this.emptyText;
-			this.__listElem.classList.remove("notfound");
+			this.__listElem.classList.remove(STATE.NOT_FOUND);
 		} else {
 			this.__emptyElem.innerText = this.searchEmpty;
-			this.__listElem.classList.add("notfound");
+			this.__listElem.classList.add(STATE.NOT_FOUND);
 		}
 	}
 
 	private __clearSearch() {
-		if (!this.__listElem.classList.contains("result")) return;
+		if (!this.__listElem.classList.contains(STATE.RESULT)) return;
 
 		this.__emptyElem.innerText = this.emptyText;
-		this.__listElem.classList.remove("result", "notfound");
-		DOM.removeClass(this.__listElem, "li.ok", "ok");
+		this.__listElem.classList.remove(STATE.RESULT, STATE.NOT_FOUND);
+		DOM.removeClass(this.__listElem, `li.${STATE.MATCH}`, STATE.MATCH);
 		this.__searchInput.value = "";
 	}
 
@@ -501,22 +559,28 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 		this.__valueElem.selectedIndex = index;
 
-		this.element.classList.remove("invalid");
+		this.element.classList.remove(STATE.INVALID);
 		this.__renderSelection();
 		this.__onChange();
 	}
 
 	/** Отражает текущее значение поля-носителя в контроле: отметка в списке и текст на кнопке. */
 	private __renderSelection() {
-		DOM.removeClass(this.element, ".hasvalue", "hasvalue"); // removeClass обходит потомков — класс контейнера снимаем отдельно
-		this.__container.classList.remove("hasvalue");
+		// removeClass обходит потомков — класс контейнера снимаем отдельно
+		DOM.removeClass(this.element, `.${STATE.HAS_VALUE}`, STATE.HAS_VALUE);
+		this.__container.classList.remove(STATE.HAS_VALUE);
 		this.__textElem.innerText = this.placeholder;
+
+		// отметка выбора: класс на пункте видят стили, aria-selected на нём же — озвучка
+		for (const option of DOM.queryElements(this.__listElem, "li > span"))
+			option.setAttribute("aria-selected", "false");
 
 		const selected = this.__getElemsByIndex(this.__valueElem.selectedIndex);
 		if (!selected) return; // пустое или неизвестное значение — контрол показывает placeholder
 
-		selected.own.classList.add("hasvalue");
-		this.__container.classList.add("hasvalue");
+		selected.own.classList.add(STATE.HAS_VALUE);
+		selected.own.firstElementChild?.setAttribute("aria-selected", "true");
+		this.__container.classList.add(STATE.HAS_VALUE);
 		this.__textElem.innerText = (selected.own.firstElementChild?.textContent ?? "").trim();
 	}
 
@@ -553,7 +617,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	override validate(): boolean {
 		const isValid = super.validate();
 
-		this.element.classList.toggle("invalid", !isValid);
+		this.element.classList.toggle(STATE.INVALID, !isValid);
 
 		return isValid;
 	}

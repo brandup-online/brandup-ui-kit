@@ -2,6 +2,8 @@
  * @jest-environment jsdom
  */
 import Modal from "../source/modal";
+import { UIKIT } from "../source/names";
+import { UIKIT as PACKAGE_NAMES } from "../source/index";
 
 class TestModal extends Modal {
 	override get typeName(): string {
@@ -68,6 +70,30 @@ describe("Modal", () => {
 		expect(modal.element!.querySelector(".modal-header")).toBeNull();
 	});
 
+	// хук наследника и подписка на закрытие — разные вещи: onClosing зовут по ещё живому окну,
+	// onClosed — когда его уже не стало
+	it("calls onClosing before the window is gone, and onClosed after", () => {
+		const order: string[] = [];
+
+		class HookedModal extends Modal {
+			override get typeName(): string {
+				return "Test.HookedModal";
+			}
+
+			protected override onClosing(): void {
+				order.push(inDocument() ? "closing: окно ещё здесь" : "closing: окна уже нет");
+			}
+		}
+
+		const inDocument = () => !!document.querySelector(".ui-modal");
+		const modal = open(new HookedModal({ title: "Окно" }));
+		modal.onClosed(() => order.push(inDocument() ? "closed: окно ещё здесь" : "closed: окна уже нет"));
+
+		modal.close();
+
+		expect(order).toEqual(["closing: окно ещё здесь", "closed: окна уже нет"]);
+	});
+
 	// Esc and the backdrop have their own settings — dropping the button leaves them alone
 	it("still closes by Esc without the close button", () => {
 		const modal = open(new TestModal({ closeButton: false }));
@@ -76,5 +102,29 @@ describe("Modal", () => {
 
 		expect(document.querySelector(".ui-modal")).toBeNull();
 		expect(modal.element).toBeUndefined();
+	});
+});
+
+describe("UIKIT names", () => {
+	// Те же строки прописаны селекторами в modal.less, popup.less и common.less: переименование
+	// значения молча разъехалось бы со стилями.
+	it("matches the CSS contract", () => {
+		expect(UIKIT.MODAL.CLASS.ROOT).toBe("ui-modal");
+		expect(UIKIT.MODAL.CLASS.BODY).toBe("body-modal-opened");
+		expect(UIKIT.MODAL.CLASS.ELEMENT).toEqual({
+			BACKDROP: "modal-backdrop",
+			WINDOW: "modal-window",
+			HEADER: "modal-header",
+			TITLE: "modal-title",
+			BODY: "modal-body",
+			CLOSE: "modal-close",
+		});
+		expect(UIKIT.MODAL.COMMAND.CLOSE).toBe("ui-modal-close");
+		expect(UIKIT.SCROLLABLE.CLASS).toBe("ui-scrollable");
+	});
+
+	// имена берут из пакета соседние контролы — вход обязан их отдавать
+	it("reaches the consumer through the package entry", () => {
+		expect(PACKAGE_NAMES).toBe(UIKIT);
 	});
 });

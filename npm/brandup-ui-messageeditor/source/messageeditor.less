@@ -143,14 +143,14 @@
 
 	// Переключатель режимов над плашкой: сообщение или его разметка. Кнопки идут строкой,
 	// выбранная залита — как вкладки, только меньше: это не навигация, а вид одного и того же поля.
-	& .messageeditor-modes {
+	& .modes {
 		display: flex;
 		flex-flow: row nowrap;
 		column-gap: 2px;
 		margin-bottom: var(--messageeditor-modes-gap);
 	}
 
-	& .messageeditor-mode {
+	& .mode {
 		padding: 2px 10px;
 		border: 0;
 		border-radius: var(--messageeditor-radius);
@@ -176,7 +176,7 @@
 	// не пишут, а читают то, что уйдёт в форму. Показывается вместо плашки, а не рядом:
 	// это два вида одного значения, и держать их на экране разом значит спрашивать, какой из них
 	// правится.
-	& .messageeditor-source {
+	& .source {
 		display: none;
 		margin: 0;
 		.messageeditor-box();
@@ -188,7 +188,7 @@
 	// Текст панели: он и прокручивается, а рамку держит коробка снаружи. Тогда отступы лежат
 	// внутри прокрутки — как у редактора в плашке, и текст на концах уходит под них, а не
 	// обрывается по ним.
-	& .messageeditor-source-text {
+	& .source-text {
 		// коробка та же, что у плашки: предельная высота ниже считается вместе с отступами,
 		// а <pre> по умолчанию мерит их сверх content-box — панель встала бы выше плашки
 		box-sizing: border-box;
@@ -214,14 +214,14 @@
 
 	// Класс режима меняем только мы, но прийти он может и со стороны: собственные классы
 	// поля-носителя переезжают на корневой элемент контрола (см. prepareValueElem в ui-input),
-	// и `class="source"` в разметке поля спрятал бы плашку, не показав взамен ничего. Поэтому
-	// прячем её лишь при собранной панели выхода — без включённого показа её нет вовсе.
-	&.source:has(> .messageeditor-source) {
+	// и `class="source-mode"` в разметке поля спрятало бы плашку, не показав взамен ничего.
+	// Поэтому прячем её лишь при собранной панели выхода — без включённого показа её нет вовсе.
+	&.source-mode:has(> .source) {
 		& .bubble {
 			display: none;
 		}
 
-		& .messageeditor-source {
+		& .source {
 			display: block;
 		}
 	}
@@ -229,7 +229,7 @@
 	// Коробка кнопки: от неё раскрывается панель смайликов, поэтому она позиционирована и сведена
 	// ровно к кнопке. Отступы держит она, а не кнопка: иначе коробка вышла бы меньше кнопки на их
 	// величину, и панель, выровненная по её краю, встала бы со сдвигом.
-	& .messageeditor-emoji-holder {
+	& .emoji-holder {
 		position: relative;
 		display: flex;
 		flex: 0 0 auto;
@@ -245,7 +245,7 @@
 	}
 
 	// кнопка вставки смайлика — внутри плашки справа, доступна не дожидаясь фокуса
-	& .messageeditor-emoji {
+	& .emoji-button {
 		flex: 0 0 auto;
 		width: var(--messageeditor-button-size);
 		height: var(--messageeditor-button-size);
@@ -294,7 +294,7 @@
 			--messageeditor-border: var(--invalid--input-border-color, #e66c6c);
 		}
 
-		& .messageeditor-source {
+		& .source {
 			--messageeditor-source-border: var(--invalid--input-border-color, #e66c6c);
 		}
 	}
@@ -313,7 +313,7 @@
 }
 
 // носитель значения участвует в форме, но не показывается — общий рецепт из @brandup/ui-input
-.messageeditor-input {
+.ui-messageeditor-input {
 	.ui-input-hidden-value();
 }
 

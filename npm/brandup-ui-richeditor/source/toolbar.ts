@@ -6,7 +6,9 @@
 // т.к. тулбар находится вне привязанных UIElement).
 
 import { DOM } from "@brandup/ui";
-import { PopupManager, SCROLLABLE_CLASS } from "@brandup/ui-kit";
+import { PopupManager } from "@brandup/ui-kit";
+import { UIKIT } from "@brandup/ui-kit/names";
+import { RICHEDITOR } from "./names";
 import {
 	BLOCK_TYPES,
 	DEFAULT_BLOCK,
@@ -64,22 +66,12 @@ const MERGED_CODE_TITLE = "Код";
 // Ссылка — единственный инструмент, у которого есть данные: кнопка не переключает её, а
 // показывает в панели поле адреса вместо кнопок.
 const LINK_TOOL: FormatTool = "link";
-export const LINK_ROW_CLASS = "link-row";
-// панель показывает поле адреса вместо кнопок
-export const LINK_EDITING_CLASS = "link-editing";
 
 // Временно скрытые кнопки — для возможностей, которые работают (значение разбирается,
 // показывается и сохраняется, правка зовётся из кода), но в панель ещё не выводятся.
 // Сейчас скрытых нет; механика остаётся на следующую такую возможность.
 const HIDDEN_TOOLS: FormatTool[] = [];
 const HIDDEN_BLOCKS: BlockType[] = [];
-
-export const TOOLBAR_CLASS = "ui-richeditor-toolbar";
-// Общий класс всех кнопок панели: им они и оформляются. Свой класс у каждой остаётся —
-// по нему кнопку находят, а один на всех оформлять удобнее, чем перечислять их в стилях.
-export const BUTTON_CLASS = "toolbar-button";
-// Коробка с кнопками внутри обёртки: обёртку позиционируют, коробка держит вид и содержимое.
-export const BODY_CLASS = "toolbar-body";
 
 /**
  * Кнопка хоста в общей панели — для действий, которых редактор не знает: рандомизация,
@@ -152,11 +144,6 @@ export interface ToolbarHost {
 	/** Собственные кнопки хоста; пусто/undefined — только штатные. */
 	readonly toolbarButtons?: ToolbarButton[];
 }
-
-const MARGIN = 6;
-// Зазор от краёв экрана у панели в document.body. То же значение вычитается из её предельной
-// ширины в richeditor.less (--richeditor-toolbar-edge-gap) — менять их нужно вместе.
-const EDGE_GAP = 4;
 
 class FormatToolbar {
 	private __elem: HTMLElement | null = null; // обёртка: её позиционируют
@@ -388,7 +375,7 @@ class FormatToolbar {
 		elem.style.left = "";
 		const width = elem.offsetWidth;
 
-		const top = rect.top - elem.offsetHeight - MARGIN;
+		const top = rect.top - elem.offsetHeight - RICHEDITOR.VALUE.TOOLBAR_MARGIN;
 
 		// Панель шире редактора (у узкого поля так бывает всегда), и по его левому краю она уехала
 		// бы за правый край экрана. Прижимаем к правому краю, но не левее отступа: панель шире
@@ -396,9 +383,12 @@ class FormatToolbar {
 		// clientWidth корня, а не innerWidth: тот считает и полосу прокрутки страницы,
 		// и крайняя кнопка панели оказывалась бы под ней.
 		const viewport = elem.ownerDocument.documentElement.clientWidth;
-		const maxLeft = Math.max(EDGE_GAP, viewport - width - EDGE_GAP);
-		elem.style.left = `${Math.min(Math.max(EDGE_GAP, rect.left), maxLeft)}px`;
-		elem.style.top = `${Math.max(EDGE_GAP, top)}px`;
+		const maxLeft = Math.max(
+			RICHEDITOR.VALUE.TOOLBAR_EDGE_GAP,
+			viewport - width - RICHEDITOR.VALUE.TOOLBAR_EDGE_GAP
+		);
+		elem.style.left = `${Math.min(Math.max(RICHEDITOR.VALUE.TOOLBAR_EDGE_GAP, rect.left), maxLeft)}px`;
+		elem.style.top = `${Math.max(RICHEDITOR.VALUE.TOOLBAR_EDGE_GAP, top)}px`;
 	}
 
 	private __removeViewportListeners() {
@@ -416,10 +406,10 @@ class FormatToolbar {
 			// меняется вместе с содержимым — на правку адреса, например, — а точка привязки от
 			// этого съезжать не должна. Выпадающие слои (панель смайликов) висят на обёртке:
 			// её коробка их и не растит, и не обрезает.
-			this.__elem = DOM.tag("div", { class: TOOLBAR_CLASS });
+			this.__elem = DOM.tag("div", { class: RICHEDITOR.CLASS.TOOLBAR.ROOT });
 			// Коробка прокручивается по горизонтали: полный набор кнопок на узком экране в строку
 			// не влезает. Полоса — общая, от .ui-scrollable кита, только тоньше (см. richeditor.less).
-			this.__body = DOM.tag("div", { class: [BODY_CLASS, SCROLLABLE_CLASS] });
+			this.__body = DOM.tag("div", { class: [RICHEDITOR.CLASS.TOOLBAR.BODY, UIKIT.SCROLLABLE.CLASS] });
 			this.__elem.appendChild(this.__body);
 
 			// Панель нигде не должна забирать фокус, иначе редактор теряет выделение, а blur
@@ -463,7 +453,7 @@ class FormatToolbar {
 				"button",
 				{
 					type: "button",
-					class: [BUTTON_CLASS, "format-button"],
+					class: [RICHEDITOR.CLASS.TOOLBAR.BUTTON, "format-button"],
 					dataset: { formatTool: tool },
 					title: merged ? MERGED_CODE_TITLE : def.title,
 				},
@@ -488,7 +478,7 @@ class FormatToolbar {
 				"button",
 				{
 					type: "button",
-					class: [BUTTON_CLASS, "block-button"],
+					class: [RICHEDITOR.CLASS.TOOLBAR.BUTTON, "block-button"],
 					dataset: { blockType: type },
 					title: def.title,
 				},
@@ -506,7 +496,7 @@ class FormatToolbar {
 				"button",
 				{
 					type: "button",
-					class: [BUTTON_CLASS, "action-button"],
+					class: [RICHEDITOR.CLASS.TOOLBAR.BUTTON, "action-button"],
 					dataset: { editorAction: action },
 					title: def.title,
 				},
@@ -531,7 +521,7 @@ class FormatToolbar {
 				"button",
 				{
 					type: "button",
-					class: [BUTTON_CLASS, "host-button"],
+					class: [RICHEDITOR.CLASS.TOOLBAR.BUTTON, "host-button"],
 					dataset: { toolbarButton: button.name },
 					title: button.title,
 				},
@@ -621,7 +611,7 @@ class FormatToolbar {
 		this.__linkRemove!.hidden = !current; // снимать нечего, пока ссылки под кареткой нет
 
 		this.__linkEditing = true;
-		this.__elem!.classList.add(LINK_EDITING_CLASS);
+		this.__elem!.classList.add(RICHEDITOR.CLASS.TOOLBAR.LINK_EDITING);
 		// ширина панели сменилась вместе с содержимым, а с ней и её высота — положение пересчитываем
 		this.reposition();
 
@@ -664,14 +654,18 @@ class FormatToolbar {
 
 		const remove = DOM.tag(
 			"button",
-			{ type: "button", class: [BUTTON_CLASS, "link-remove"], title: "Убрать ссылку" },
+			{ type: "button", class: [RICHEDITOR.CLASS.TOOLBAR.BUTTON, "link-remove"], title: "Убрать ссылку" },
 			unlinkIcon
 		);
 		remove.addEventListener("click", () => apply(""));
 
-		const row = DOM.tag("div", { class: LINK_ROW_CLASS }, [
+		const row = DOM.tag("div", { class: RICHEDITOR.CLASS.TOOLBAR.LINK_ROW }, [
 			input,
-			DOM.tag("button", { type: "button", class: [BUTTON_CLASS, "link-apply"], title: "Применить" }, applyIcon),
+			DOM.tag(
+				"button",
+				{ type: "button", class: [RICHEDITOR.CLASS.TOOLBAR.BUTTON, "link-apply"], title: "Применить" },
+				applyIcon
+			),
 			remove,
 		]);
 
@@ -715,7 +709,7 @@ class FormatToolbar {
 
 		this.__linkEditing = false;
 		this.__linkCaret = null;
-		this.__elem?.classList.remove(LINK_EDITING_CLASS);
+		this.__elem?.classList.remove(RICHEDITOR.CLASS.TOOLBAR.LINK_EDITING);
 		this.reposition();
 	}
 }

@@ -1,12 +1,16 @@
 import "./modal.less"; // стили окна
 
 import { DOM, UIElement } from "@brandup/ui";
+import { LayerManager, type Layer } from "./layer";
+import { UIKIT } from "./names";
 import { textTag } from "./utils/text";
 import closeIcon from "../svg/x.svg";
 
-export const MODAL_CLASS = "ui-modal";
-export const MODAL_OPENED_CLASS = "ui-modal-opened"; // на <body>, чтобы страница не прокручивалась
-export const MODAL_CLOSE_COMMAND = "ui-modal-close";
+/** Имена окна — в общем модуле имён кита (см. names.ts). */
+const MODAL = UIKIT.MODAL;
+const ELEM = MODAL.CLASS.ELEMENT;
+
+let modalIdSeq = 0;
 
 export interface ModalOptions {
 	/** Заголовок в шапке; пусто — шапка только с крестиком. */
@@ -31,7 +35,7 @@ export interface ModalOptions {
  */
 export default abstract class Modal extends UIElement {
 	private readonly __body: HTMLElement;
-	private readonly __onKeyDown: (e: KeyboardEvent) => void;
+	private readonly __layer: Layer;
 	private readonly __closeHandlers: Array<() => void> = [];
 	private __closed = false;
 	private __disposed = false;
@@ -43,10 +47,13 @@ export default abstract class Modal extends UIElement {
 	constructor(options: ModalOptions = {}) {
 		super();
 
-		const body = DOM.tag("div", { class: "modal-body" });
+		const body = DOM.tag("div", { class: ELEM.BODY });
 
 		// the title is host data — text, not markup (see textTag)
-		const title = options.title ? textTag("div", { class: "modal-title" }, options.title) : null;
+		// Заголовку — свой идентификатор: окно объявляет его своим именем через aria-labelledby,
+		// иначе скринридер читает диалог безымянным.
+		const titleId = options.title ? `${MODAL.TITLE_ID}${++modalIdSeq}` : undefined;
+		const title = titleId ? textTag("div", { class: ELEM.TITLE, id: titleId }, options.title!) : null;
 
 		// Закрытие — через систему команд, как у остальных контролов кита: крестик и подложка
 		// объявляют одну и ту же команду, обработчик находит её по ближайшему data-command.
@@ -57,48 +64,70 @@ export default abstract class Modal extends UIElement {
 				? null
 				: DOM.tag(
 						"button",
-						{ type: "button", class: "modal-close", title: "Закрыть", command: MODAL_CLOSE_COMMAND },
+						{ type: "button", class: ELEM.CLOSE, title: MODAL.TEXT.CLOSE, command: MODAL.COMMAND.CLOSE },
 						closeIcon
 					);
 
 		// шапки нет вовсе, когда показывать в ней нечего: пустая занимала бы отступ над телом
-		const header = title || closeButton ? DOM.tag("div", { class: "modal-header" }, [title, closeButton]) : null;
+		const header = title || closeButton ? DOM.tag("div", { class: ELEM.HEADER }, [title, closeButton]) : null;
 
-		const root = DOM.tag("div", { class: [MODAL_CLASS].concat(options.className ? [options.className] : []) }, [
+		const modalWindow = DOM.tag(
+			"div",
+			{
+				class: ELEM.WINDOW,
+				role: "dialog",
+				"aria-modal": "true",
+				"aria-labelledby": titleId,
+				// фокус приходит на само окно, когда фокусировать внутри нечего (окно с одним текстом)
+				tabindex: "-1",
+			},
+			[header, body]
+		);
+
+		const rootClasses: string[] = [MODAL.CLASS.ROOT];
+		if (options.className) rootClasses.push(options.className);
+
+		const root = DOM.tag("div", { class: rootClasses }, [
 			DOM.tag(
 				"div",
 				options.closeOnBackdrop === false
-					? { class: "modal-backdrop" }
-					: { class: "modal-backdrop", command: MODAL_CLOSE_COMMAND }
+					? { class: ELEM.BACKDROP }
+					: { class: ELEM.BACKDROP, command: MODAL.COMMAND.CLOSE }
 			),
-			DOM.tag("div", { class: "modal-window", role: "dialog", "aria-modal": "true" }, [header, body]),
+			modalWindow,
 		]);
 
 		this.__body = body;
 		this.setElement(root);
 
-		this.registerCommand(MODAL_CLOSE_COMMAND, () => this.close());
-
-		// Esc слушаем на документе: фокус может быть где угодно внутри окна
-		this.__onKeyDown = (e: KeyboardEvent) => {
-			if (e.key === "Escape") {
-				e.preventDefault();
-				this.close();
-			}
-		};
-		document.addEventListener("keydown", this.__onKeyDown);
+		this.registerCommand(MODAL.COMMAND.CLOSE, () => this.close());
 
 		document.body.appendChild(root);
-		document.body.classList.add(MODAL_OPENED_CLASS);
+
+		// Esc, придержанная прокрутка, ловушка и возврат фокуса — за менеджером слоёв: окон
+		// бывает несколько (одно поверх другого), и каждое из этого обязано считаться с соседями
+		// (см. layer.ts). Слой ставим уже по вставленному в документ окну — ловушке фокуса нужно
+		// живое дерево.
+		this.__layer = LayerManager.push({
+			close: () => this.close(),
+			// слоем считается само окно, а не корень с подложкой: фокусу в подложке делать нечего
+			element: modalWindow,
+			bodyClass: MODAL.CLASS.BODY,
+			trapFocus: true,
+		});
 	}
 
-	/** Вызывается перед закрытием — наследнику отдать результат или прибрать за собой. */
-	protected onClose(): void {
+	/**
+	 * Вызывается перед закрытием — наследнику отдать результат или прибрать за собой.
+	 * Не путать с {@link onClosed}: та подписка срабатывает после того, как окна не стало.
+	 */
+	protected onClosing(): void {
 		// по умолчанию ничего
 	}
 
 	/**
-	 * Подписка на закрытие окна: вызывается ровно один раз, чем бы оно ни кончилось — крестиком,
+	 * Подписка на закрытие окна — в отличие от {@link onClosing}, уже по закрытому: вызывается
+	 * ровно один раз, чем бы оно ни кончилось — крестиком,
 	 * Esc, подложкой, применением или удалением элемента из DOM. Нужна тому, кто придержал что-то
 	 * на время работы окна и обязан отпустить это в любом исходе.
 	 *
@@ -117,7 +146,7 @@ export default abstract class Modal extends UIElement {
 		if (this.__closed) return; // закрыть могут и крестиком, и Esc, и подложкой
 		this.__closed = true;
 
-		this.onClose();
+		this.onClosing();
 		this.destroy();
 	}
 
@@ -128,8 +157,9 @@ export default abstract class Modal extends UIElement {
 		if (this.__disposed) return;
 		this.__disposed = true;
 
-		document.removeEventListener("keydown", this.__onKeyDown);
-		document.body.classList.remove(MODAL_OPENED_CLASS);
+		// Снимаем слой до уборки: он вернёт фокус туда, откуда окно открыли, и подписчики
+		// закрытия (ниже) при надобности перебьют это своим — им виднее, куда возвращать каретку.
+		this.__layer.release();
 
 		this.element?.remove();
 

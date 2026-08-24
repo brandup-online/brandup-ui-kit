@@ -1,4 +1,5 @@
 export { default } from "./textbox";
+export { TEXTBOX } from "./names";
 export * from "./textbox";
 
 // реэкспорт типов/утилит форматирования из @brandup/ui-richeditor для обратной совместимости

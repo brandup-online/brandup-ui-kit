@@ -1,7 +1,9 @@
 /**
  * @jest-environment jsdom
  */
-import TextBox, { ROOT_CLASS, INPUT_CLASS, MAX_EMAIL_LENGTH } from "../source/textbox";
+import TextBox from "../source/textbox";
+import { TEXTBOX } from "../source/names";
+import { TEXTBOX as PACKAGE_NAMES } from "../source/index";
 
 function setup(
 	opts: { value?: string; required?: boolean; type?: string; maxlength?: number; copyButton?: boolean } = {}
@@ -25,7 +27,7 @@ describe("TextBox", () => {
 		new TextBox(input);
 
 		const container = input.parentElement!;
-		expect(container.classList.contains(ROOT_CLASS)).toBe(true);
+		expect(container.classList.contains(TEXTBOX.CLASS.ROOT)).toBe(true);
 		// the contenteditable .input div exists inside the container
 		expect(container.querySelector(".ui-richeditor")).not.toBeNull();
 	});
@@ -40,9 +42,9 @@ describe("TextBox", () => {
 
 		expect(tb.element!.classList.contains("wide")).toBe(true);
 		expect(tb.element!.classList.contains("accent")).toBe(true);
-		expect(tb.element!.classList.contains(ROOT_CLASS)).toBe(true);
-		expect(tb.element!.classList.contains(INPUT_CLASS)).toBe(false);
-		expect(input.classList.contains(INPUT_CLASS)).toBe(true);
+		expect(tb.element!.classList.contains(TEXTBOX.CLASS.ROOT)).toBe(true);
+		expect(tb.element!.classList.contains(TEXTBOX.CLASS.INPUT)).toBe(false);
+		expect(input.classList.contains(TEXTBOX.CLASS.INPUT)).toBe(true);
 	});
 
 	it("getValue() returns the trimmed underlying value", () => {
@@ -75,7 +77,7 @@ describe("TextBox", () => {
 
 		const button = input.parentElement!.querySelector("button")!;
 		// обработчик @brandup/ui читает dataset.command — атрибут command его не активирует
-		expect(button.dataset.command).toBe("copy-text");
+		expect(button.dataset.command).toBe(TEXTBOX.COMMAND.COPY);
 	});
 
 	// кнопка без type внутри формы — submit: клик по ней отправлял бы форму вместо копирования
@@ -91,10 +93,10 @@ describe("TextBox", () => {
 	// из чужой разметки внутри контрола
 	it("registers the copy command only when the copy button is enabled", () => {
 		const { input: plain } = setup({ value: "text" });
-		expect(new TextBox(plain).hasCommand("copy-text")).toBe(false);
+		expect(new TextBox(plain).hasCommand(TEXTBOX.COMMAND.COPY)).toBe(false);
 
 		const { input: withButton } = setup({ value: "text", copyButton: true });
-		expect(new TextBox(withButton).hasCommand("copy-text")).toBe(true);
+		expect(new TextBox(withButton).hasCommand(TEXTBOX.COMMAND.COPY)).toBe(true);
 	});
 
 	// поле-носитель уведено с экрана (visibility: collapse) и в браузере фокус не принимает —
@@ -353,7 +355,7 @@ describe("TextBox", () => {
 		const { input } = setup({ value: "текст" });
 		new TextBox(input).destroy();
 
-		expect(input.classList.contains(INPUT_CLASS)).toBe(false);
+		expect(input.classList.contains(TEXTBOX.CLASS.INPUT)).toBe(false);
 		expect(input.hasAttribute("tabindex")).toBe(false);
 	});
 
@@ -383,8 +385,8 @@ describe("TextBox", () => {
 		const { input } = setup({ type: "email" });
 		const tb = new TextBox(input);
 
-		expect(input.maxLength).toBe(MAX_EMAIL_LENGTH);
-		expect(tb.maxlength).toBe(MAX_EMAIL_LENGTH);
+		expect(input.maxLength).toBe(TEXTBOX.VALUE.MAX_EMAIL_LENGTH);
+		expect(tb.maxlength).toBe(TEXTBOX.VALUE.MAX_EMAIL_LENGTH);
 	});
 
 	it("keeps a stricter maxlength for email and lowers a larger one", () => {
@@ -392,7 +394,7 @@ describe("TextBox", () => {
 		expect(new TextBox(strict).maxlength).toBe(64);
 
 		const { input: loose } = setup({ type: "email", maxlength: 1000 });
-		expect(new TextBox(loose).maxlength).toBe(MAX_EMAIL_LENGTH);
+		expect(new TextBox(loose).maxlength).toBe(TEXTBOX.VALUE.MAX_EMAIL_LENGTH);
 	});
 
 	// подадреса вида user+tag@example.com иначе нельзя было бы набрать
@@ -655,12 +657,12 @@ describe("TextBox", () => {
 			expect(input.value).toBe("a"); // ещё не синхронизировано
 
 			const button = tb.element!.querySelector("button")!;
-			tb.__execCommand("copy-text", button);
+			tb.__execCommand(TEXTBOX.COMMAND.COPY, button);
 
 			expect(writeText).toHaveBeenCalledWith("abc");
 		});
 
-		it("delivers textbox-change after the throttle window", () => {
+		it("delivers ui:textbox:change after the throttle window", () => {
 			const { input } = setup({ value: "" });
 			const tb = new TextBox(input);
 			const handler = jest.fn();
@@ -945,5 +947,32 @@ describe("TextBox focus caret", () => {
 
 		expect(document.activeElement).toBe(tb.editor.editable);
 		expect(window.getSelection()?.toString()).toBe(TEXT);
+	});
+});
+
+describe("TEXTBOX names", () => {
+	// те же строки прописаны селекторами в textbox.less
+	it("matches the CSS contract", () => {
+		expect(TEXTBOX.CLASS.ROOT).toBe("ui-textbox");
+		expect(TEXTBOX.CLASS.INPUT).toBe("ui-textbox-input");
+		expect(TEXTBOX.CLASS.MINIATURE).toBe("ui-textbox-miniature");
+		expect(TEXTBOX.CLASS.ELEMENT).toEqual({
+			DECORATOR: "decorator",
+			EDITOR: "editor",
+			ACTIONS: "actions",
+			SYMBOLS: "symbols",
+		});
+		expect(TEXTBOX.CLASS.STATE).toEqual({
+			MULTYLINE: "multyline",
+			COUNTER: "counter",
+			INVALID: "invalid",
+			INCORRECT: "incorrect",
+			SUCCESS: "success",
+		});
+		expect(TEXTBOX.EVENT.CHANGE).toBe("ui:textbox:change");
+	});
+
+	it("reaches the consumer through the package entry", () => {
+		expect(PACKAGE_NAMES).toBe(TEXTBOX);
 	});
 });

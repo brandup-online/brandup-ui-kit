@@ -1,5 +1,9 @@
 import { DOM, type ElementOptions } from "@brandup/ui";
 
+// Отдельный вход пакета — `@brandup/ui-kit/text`: помощник нужен всем, кто показывает чужой текст
+// (подсветка сообщения, заголовки окон), а общий вход кита приносит попап, окно, стили
+// и `@brandup/ui-app`. Ради одной функции это лишнее.
+
 /**
  * Creates an element holding `text` as text, never as markup.
  *

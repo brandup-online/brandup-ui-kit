@@ -3,7 +3,8 @@
  */
 import MessageEditor from "../source/messageeditor";
 import type { MessageVariable } from "../source/variables";
-import { messageLength, DEFAULT_VARIABLE_LENGTH } from "../source/highlight";
+import { messageLength } from "../source/highlight";
+import { MESSAGEEDITOR } from "../source/names";
 
 function setup(
 	opts: {
@@ -58,7 +59,7 @@ describe("MessageEditor length", () => {
 	it("counts a variable as the default placeholder length", () => {
 		const { editor } = setup({ value: "{ИМЯ}!" });
 
-		expect(editor.messageLength).toBe(DEFAULT_VARIABLE_LENGTH + 1);
+		expect(editor.messageLength).toBe(MESSAGEEDITOR.VALUE.DEFAULT_VARIABLE_LENGTH + 1);
 	});
 
 	it("takes the variable length from the data attribute", () => {
@@ -80,7 +81,7 @@ describe("MessageEditor length", () => {
 	it.each(["", " ", "abc", "-5", "10.5"])("falls back to the default on a bad attribute %j", (attr) => {
 		const { editor } = setup({ value: "{ИМЯ}", variableLengthAttr: attr as string });
 
-		expect(editor.variableLength).toBe(DEFAULT_VARIABLE_LENGTH);
+		expect(editor.variableLength).toBe(MESSAGEEDITOR.VALUE.DEFAULT_VARIABLE_LENGTH);
 	});
 
 	// без персонализации {ИМЯ} — обычный текст: считается по буквам, ровно как показывается
@@ -108,7 +109,7 @@ describe("MessageEditor length", () => {
 	it("does not count caret anchors", () => {
 		const { editor } = setup({ value: "{ИМЯ}" });
 
-		expect(editor.messageLength).toBe(DEFAULT_VARIABLE_LENGTH);
+		expect(editor.messageLength).toBe(MESSAGEEDITOR.VALUE.DEFAULT_VARIABLE_LENGTH);
 	});
 
 	// длина считается на месте: хост читает её на onChange, когда правит свой лимит

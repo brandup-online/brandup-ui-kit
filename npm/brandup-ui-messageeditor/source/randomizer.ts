@@ -2,18 +2,15 @@ import "./randomizer.less"; // стили окна
 
 import { DOM } from "@brandup/ui";
 import { Modal, textTag } from "@brandup/ui-kit";
+import { MESSAGEEDITOR } from "./names";
 import trashIcon from "../svg/trash.svg";
 
-export const SPINTAX_OPEN = "[";
-export const SPINTAX_CLOSE = "]";
-export const SPINTAX_SEPARATOR = "|";
-
-const REMOVE_COMMAND = "randomizer-remove";
-const APPLY_COMMAND = "randomizer-apply";
-const CANCEL_COMMAND = "randomizer-cancel";
-
 // Символы самой конструкции: внутри варианта они развалили бы её, поэтому не вводятся и не вставляются
-const FORBIDDEN_KEYS = [SPINTAX_OPEN, SPINTAX_CLOSE, SPINTAX_SEPARATOR];
+const FORBIDDEN_KEYS: string[] = [
+	MESSAGEEDITOR.SYNTAX.SPINTAX_OPEN,
+	MESSAGEEDITOR.SYNTAX.SPINTAX_CLOSE,
+	MESSAGEEDITOR.SYNTAX.SPINTAX_SEPARATOR,
+];
 const FORBIDDEN_CHARS = /[[\]|]/g;
 
 /**
@@ -29,12 +26,6 @@ function cleanVariant(text: string): string {
 		.join(" ")
 		.replace(FORBIDDEN_CHARS, "");
 }
-
-/**
- * Предел на число вариантов. Спинтакс уходит в текст сообщения целиком, и разрастаться ему
- * некуда: длинный набор нечитаем в поле и незачем — вариант всё равно выбирается один.
- */
-export const MAX_VARIANTS = 30;
 
 /**
  * Конструктор рандомизации: список вариантов, из которых собирается спинтакс `[раз|два]`.
@@ -61,13 +52,17 @@ export default class RandomizerModal extends Modal {
 	 * @param apply Вызывается с готовым спинтаксом; при отмене не вызывается.
 	 */
 	constructor(text: string, apply: (spintax: string) => void) {
-		super({ title: "Рандомизация текста", className: "messageeditor-randomizer" });
+		super({ title: "Рандомизация текста", className: MESSAGEEDITOR.CLASS.MODAL.ROOT.RANDOMIZER });
 
 		this.__apply = apply;
-		this.__list = DOM.tag("div", { class: "variants" });
+		this.__list = DOM.tag("div", { class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.VARIANTS });
 		this.__applyButton = DOM.tag(
 			"button",
-			{ type: "button", class: "apply", command: APPLY_COMMAND },
+			{
+				type: "button",
+				class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.APPLY,
+				command: MESSAGEEDITOR.COMMAND.RANDOMIZER.APPLY,
+			},
 			"Сохранить"
 		) as HTMLButtonElement;
 
@@ -87,19 +82,31 @@ export default class RandomizerModal extends Modal {
 		this.body.appendChild(this.__list);
 		this.body.appendChild(
 			// сохранение первым: это главное действие окна, отмена рядом вторым
-			DOM.tag("div", { class: "actions" }, [
+			DOM.tag("div", { class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.ACTIONS }, [
 				this.__applyButton,
-				DOM.tag("button", { type: "button", class: "cancel", command: CANCEL_COMMAND }, "Отмена"),
-				DOM.tag("div", { class: "limit" }, `Не больше ${MAX_VARIANTS} вариантов.`),
+				DOM.tag(
+					"button",
+					{
+						type: "button",
+						class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.CANCEL,
+						command: MESSAGEEDITOR.COMMAND.RANDOMIZER.CANCEL,
+					},
+					"Отмена"
+				),
+				DOM.tag(
+					"div",
+					{ class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.LIMIT },
+					`Не больше ${MESSAGEEDITOR.VALUE.MAX_VARIANTS} вариантов.`
+				),
 			])
 		);
 
-		this.registerCommand(REMOVE_COMMAND, (context) => {
+		this.registerCommand(MESSAGEEDITOR.COMMAND.RANDOMIZER.REMOVE, (context) => {
 			context.target.closest(".variant")?.remove();
 			this.__refresh();
 		});
 
-		this.registerCommand(APPLY_COMMAND, () => {
+		this.registerCommand(MESSAGEEDITOR.COMMAND.RANDOMIZER.APPLY, () => {
 			// пустые варианты не несут смысла: `[раз||два]` даёт пустую подстановку
 			const variants = this.__variants();
 			if (!variants.length) return;
@@ -108,14 +115,14 @@ export default class RandomizerModal extends Modal {
 			this.close();
 		});
 
-		this.registerCommand(CANCEL_COMMAND, () => this.close());
+		this.registerCommand(MESSAGEEDITOR.COMMAND.RANDOMIZER.CANCEL, () => this.close());
 
 		// Лишнее из готового спинтакса отсекаем сразу: набрать столько всё равно бы не дали.
 		// Каждый вариант проходит ту же чистку, что и вставка: исходный текст приходит выделением
 		// из сообщения, и скобки с переносами в нём — не редкость (см. cleanVariant).
 		parseSpintax(text)
 			.map(cleanVariant)
-			.slice(0, MAX_VARIANTS)
+			.slice(0, MESSAGEEDITOR.VALUE.MAX_VARIANTS)
 			.forEach((variant) => this.__addRow(variant));
 
 		this.__refresh();
@@ -133,7 +140,7 @@ export default class RandomizerModal extends Modal {
 	}
 
 	private __addRow(text: string): HTMLElement {
-		const row = DOM.tag("div", { class: "variant" }, [
+		const row = DOM.tag("div", { class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.VARIANT }, [
 			// Не поле ввода, а редактируемая область: вариант бывает длинным, а поле ввода
 			// не переносит строку — конец текста уезжал бы за край.
 			//
@@ -146,7 +153,12 @@ export default class RandomizerModal extends Modal {
 			),
 			DOM.tag(
 				"button",
-				{ type: "button", class: "remove", title: "Убрать вариант", command: REMOVE_COMMAND },
+				{
+					type: "button",
+					class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.REMOVE,
+					title: "Убрать вариант",
+					command: MESSAGEEDITOR.COMMAND.RANDOMIZER.REMOVE,
+				},
 				trashIcon
 			),
 		]);
@@ -168,7 +180,7 @@ export default class RandomizerModal extends Modal {
 		const rows = this.__rows();
 		const texts = rows.map((row) => textOf(row).trim());
 
-		if (rows.length < MAX_VARIANTS && (!rows.length || texts[texts.length - 1])) {
+		if (rows.length < MESSAGEEDITOR.VALUE.MAX_VARIANTS && (!rows.length || texts[texts.length - 1])) {
 			rows.push(this.__addRow(""));
 			texts.push("");
 		}
@@ -176,7 +188,7 @@ export default class RandomizerModal extends Modal {
 		const last = rows.length - 1;
 		rows.forEach((row, index) => row.classList.toggle("blank", index === last && !texts[index]));
 
-		this.element?.classList.toggle("max-variants", rows.length >= MAX_VARIANTS);
+		this.element?.classList.toggle("max-variants", rows.length >= MESSAGEEDITOR.VALUE.MAX_VARIANTS);
 
 		// сохранять нечего, пока не набран ни один вариант: иначе нажатие просто ничего не делало бы
 		this.__applyButton.disabled = !texts.some(Boolean);
@@ -261,15 +273,21 @@ function textOf(row: HTMLElement): string {
 
 /** Собирает спинтакс из вариантов; один вариант рандомизировать нечего. */
 export function buildSpintax(variants: string[]): string {
-	return variants.length > 1 ? `${SPINTAX_OPEN}${variants.join(SPINTAX_SEPARATOR)}${SPINTAX_CLOSE}` : variants[0];
+	return variants.length > 1
+		? `${MESSAGEEDITOR.SYNTAX.SPINTAX_OPEN}${variants.join(MESSAGEEDITOR.SYNTAX.SPINTAX_SEPARATOR)}${MESSAGEEDITOR.SYNTAX.SPINTAX_CLOSE}`
+		: variants[0];
 }
 
 /** Разбирает выделение: готовый спинтакс — на варианты, обычный текст — в единственный вариант. */
 export function parseSpintax(text: string): string[] {
 	const trimmed = text.trim();
-	if (trimmed.startsWith(SPINTAX_OPEN) && trimmed.endsWith(SPINTAX_CLOSE)) {
-		const inner = trimmed.slice(SPINTAX_OPEN.length, -SPINTAX_CLOSE.length);
-		if (inner.includes(SPINTAX_SEPARATOR)) return inner.split(SPINTAX_SEPARATOR);
+	if (trimmed.startsWith(MESSAGEEDITOR.SYNTAX.SPINTAX_OPEN) && trimmed.endsWith(MESSAGEEDITOR.SYNTAX.SPINTAX_CLOSE)) {
+		const inner = trimmed.slice(
+			MESSAGEEDITOR.SYNTAX.SPINTAX_OPEN.length,
+			-MESSAGEEDITOR.SYNTAX.SPINTAX_CLOSE.length
+		);
+		if (inner.includes(MESSAGEEDITOR.SYNTAX.SPINTAX_SEPARATOR))
+			return inner.split(MESSAGEEDITOR.SYNTAX.SPINTAX_SEPARATOR);
 	}
 
 	return trimmed ? [trimmed] : [];

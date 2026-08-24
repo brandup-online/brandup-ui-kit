@@ -29,6 +29,47 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Added
 
+- **A layer stack behind every overlay (`LayerManager` in `@brandup/ui-kit`).**
+  A popup, a modal window and an expanded `DropDown` list are layers over the
+  page, and they do turn up on top of each other — a popup inside a window, a
+  list inside a popup. Each of them used to keep Esc, the held page scroll and
+  the focus for itself, which is exactly what broke once two of them were open
+  (see Fixed). The stack owns the three things a single layer cannot decide on
+  its own: one `keydown` listener for the whole stack (Esc closes the topmost
+  layer only, and a layer that handled the key itself via `preventDefault` is
+  left alone), a body class counted by the number of layers that asked for it,
+  and focus — trapped inside the layer and returned where it was taken from.
+  Kit components are already its clients; a host builds its own layer (a
+  tooltip, a side panel, a gallery) with `LayerManager.push({ close, element,
+  bodyClass, trapFocus, returnFocus, closeOnEscape })` and drops it with
+  `layer.release()`. `closeTop()`, `closeAll()` and `count` complete the API.
+
+- **The modal window is now keyboard- and screen-reader-complete.** Focus is
+  led into the window once the heir has filled its body (the first tabbable
+  element, or the window itself when there is nothing to focus), a window that
+  focused something for itself is not overridden, `Tab` and `Shift+Tab` circle
+  inside the topmost window instead of walking the page under it, and closing
+  returns focus where the window was opened from — before `onClosed`
+  subscribers run, so a host that returns its own caret still has the last
+  word. The title is bound to the dialog with `aria-labelledby`.
+
+- **`DropDown` announces itself to a screen reader.** The view button carries
+  `aria-haspopup="listbox"`, `aria-controls` with the (now generated) id of the
+  list itself — not of the box around it — and `aria-expanded` — kept at `false` once closed, since the button stays a
+  toggle. The list is a `role="listbox"` named by the placeholder, each item's
+  focusable `span` is a `role="option"` with `aria-selected` following the
+  selection, and the `li` between them is `role="presentation"` so the option
+  sits where ARIA expects it.
+
+- **The popup initiator announces its state.** Besides the
+  `ui-popup-expanded` class it now carries `aria-expanded` (`true`/`false`,
+  kept after closing — the button stays a toggle) and `aria-controls` with the
+  popup id; a popup without an id in the markup is given one.
+
+- **The layer ladder is set by CSS variables**, not by numbers spread over
+  package files: `--layer-popup` (1000, also the richeditor toolbar),
+  `--layer-dropdown` (aliases the popup tier) and `--layer-modal` (2000).
+
 - **The format toolbar fits a phone screen.** The panel is never wider than
   the screen (or its container in the `toolbarContainer` mode), and its right
   edge stays inside the viewport — a field near the right side of a desktop
@@ -173,6 +214,153 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Changed
 
+- **Event names share one format: `ui:<control>:change`.** `dropdown-change`,
+  `textbox-change`, `richeditor-change` and `messageeditor-change` are
+  `ui:dropdown:change`, `ui:textbox:change`, `ui:richeditor:change` and
+  `ui:messageeditor:change` — the `ui:` prefix marks them as the kit's, and the
+  colon separates the control from what happened, so neither half can be
+  misread as part of the other. Code that subscribed through the constant
+  (now `DROPDOWN.EVENT.CHANGE` and its like) needs no edit; a host that spelled
+  the old name out does.
+
+- **Class names follow one rule: a full name for what is seen outside the
+  control, a short one for what lives inside it.** `textbox-input`,
+  `textbox-miniature` and `messageeditor-input` are now `ui-textbox-input`,
+  `ui-textbox-miniature` and `ui-messageeditor-input`, next to the
+  `ui-dropdown-input` that already had the prefix. These are the names a host
+  writes in its own markup — the class on the value field hides it until the
+  control is built — and the styles reach them from the top level, so each has
+  to be unique on the page. The three windows of `@brandup/ui-messageeditor`
+  live in `body` for the same reason and became `ui-messageeditor-randomizer`,
+  `ui-messageeditor-variables` and `ui-messageeditor-variable-key`.
+
+  The other way round: the parts that never leave the control's root dropped
+  the package name they were repeating. `messageeditor-modes`, `-mode`,
+  `-source`, `-source-text` and `-emoji-holder` are `modes`, `mode`, `source`,
+  `source-text` and `emoji-holder` — the short shape the other controls' parts
+  already had (`decorator`, `modal-window`, `emoji-group`). Two of them keep a
+  qualifier because one word would collide: the emoji button is `emoji-button`,
+  since the picker of `@brandup/ui-richeditor` opens inside the same root and
+  its items are `.emoji`; the source-mode state on the root is `source-mode`,
+  since `.source` is now the panel itself.
+
+  `MESSAGEEDITOR.CLASS.MODAL` gained the `ROOT` / `ELEMENT` split the other
+  branches have (`MODAL.ACTIONS` reads as `MODAL.ELEMENT.ACTIONS`), and the
+  control's own invalid state left it for `CLASS.STATE.INVALID`, where it
+  belongs — it is set on the control's root, never on a window. The convention
+  is written down in the kit's README and in `@brandup/ui-kit/names`.
+
+- **Every package declares its entries with an `exports` map.** Until now a
+  package exposed its whole directory, and that is what the deep paths in the
+  monorepo leaned on. Declared now: the package itself (`.`), its names
+  (`./names`), the kit's environment flags (`./env`), the Less that other
+  packages and hosts import (`./source/*.less`, plus the kit's `./vars.less`
+  and `./build/*`), the icons (`./svg/*`) and `./package.json`. Reaching into
+  `source/*.ts` from outside no longer resolves — that is the point: the paths
+  a package promises are now written down, and TypeScript (`moduleResolution:
+  bundler`) checks them.
+
+- **`@brandup/ui-kit/text` — `textTag()` without the kit's entry.** The helper
+  that puts a string into an element as text, never as markup, is needed by
+  everything that shows text coming from outside; the message highlighter used
+  to reach it through the kit's entry, bringing the popup, the modal window and
+  the styles along for one function.
+
+- **`@brandup/ui-kit/env` — the environment flags without the kit's entry.**
+  `IS_TOUCH_DEVICE`, `isCoarsePointer()`, `hasUserScrolled()` and
+  `resetUserScroll()`. `@brandup/ui-input` needed exactly these two checks and
+  used to import them straight out of the kit's files
+  (`@brandup/ui-kit/source/utils/...`) — the kit's own entry would have brought
+  the popup, the modal window, the styles and `@brandup/ui-app` along for the
+  ride. The path is a declared one now. Unlike `./names`, this module does have
+  a side effect: it starts listening for scroll gestures on load.
+
+- **The names of a package are reachable by their own subpath:
+  `@brandup/ui-dropdown/names`.** The module holds names only and imports
+  nothing, so taking a class string no longer drags the package's styles and
+  code along — which is how the kit's packages now take names from each other
+  (`@brandup/ui-kit/names`). The names stay available from the package entry as
+  well, for code that has the package loaded anyway.
+
+- **Every package exports its names as one object, from its own `names.ts`.**
+  `UIKIT`, `DROPDOWN`, `TEXTBOX`, `RICHEDITOR`, `MESSAGEEDITOR` — one object per
+  package, same shape everywhere: `CLASS` (root, value field, the `<body>` one,
+  `ELEMENT` for the parts of the markup, `STATE` for what the styles watch),
+  `COMMAND`, `EVENT`, `TEXT` for the captions, `VALUE` for the numbers behind
+  the behaviour, plus `SYNTAX` / `STORAGE` where a package has them. The old
+  `*_CLASS`, `*_COMMAND`, `CHANGE_EVENT`, `TOOLBAR_CLASS`, `MAX_EMAIL_LENGTH`,
+  `SPINTAX_OPEN`, `RECENT_EMOJIS_KEY` and their like are gone — read them as
+  `UIKIT.SCROLLABLE.CLASS`, `TEXTBOX.EVENT.CHANGE`,
+  `MESSAGEEDITOR.SYNTAX.SPINTAX_OPEN`.
+
+  The module holds names only and imports nothing, so a name costs a name: the
+  kit's `.ui-popup` and `.ui-scrollable` used to arrive through the kit's entry,
+  dragging the popup, the modal window, the styles and `@brandup/ui-app` behind
+  them. Inside the controls those names are the single source as well — a class
+  string can no longer drift apart from the markup or the styles.
+
+- **`@brandup/ui-dropdown` exports its names as one object.** `ROOT_CLASS`,
+  `INPUT_CLASS`, `MINIATURE_CLASS`, `CHANGE_EVENT` and the command constants
+  are gone; everything the control is known by — classes (root, value field,
+  miniature, the `<body>` one, the parts of its markup and its state classes),
+  commands, the event, the default captions and the numbers behind its
+  behaviour (search threshold, query limit, the width below which the list goes
+  full-screen) — lives in `DROPDOWN`, read as `DROPDOWN.COMMAND.CLOSE` or
+  `DROPDOWN.CLASS.STATE.EXPANDED`. Inside the control those names are now the
+  single source too: a class string can no longer drift apart from the markup
+  or the styles.
+
+- **The package entry did not re-export the control's names at all.** The
+  README taught `import { CHANGE_EVENT } from "@brandup/ui-dropdown"`, but
+  `index.ts` only re-exported the default class and the transliteration
+  helpers, so the import failed. The entry now re-exports the module.
+
+- **`PopupManager.open()` no longer closes what it was asked to open.** It
+  used to toggle: calling it on the popup already open closed it, so a caller
+  that just wanted the popup shown — on an external event, or to re-render its
+  content — had to ask `isOpened(elem)` afterwards to learn what happened. That
+  behaviour is now `toggle(popupElem, options): boolean`, which returns whether
+  the popup is open after the call and is what a toggle button (and the
+  `ui-popup-toggle` command) wants; `open()` shows the popup and leaves an
+  already-open one alone.
+
+- **`Modal`'s closing hook is `onClosing()`.** `onClose()` and
+  `onClosed(handler)` differed by one letter and by nature — one a subclass
+  hook running while the window is still on screen, the other a subscription
+  running once the window is gone. The hook now says when it runs.
+
+- **Layer variables dropped the `ui-` prefix, and the modal z-index alias is
+  gone.** `--ui-layer-popup` / `--ui-layer-dropdown` / `--ui-layer-modal` are
+  `--layer-popup` / `--layer-dropdown` / `--layer-modal`, matching every other
+  variable of the kit (`--popup-fill`, `--modal-width`, `--scrollbar-size`).
+  `--modal-z-index`, which only forwarded the modal tier, is removed — the
+  window reads the ladder directly.
+
+- **Control commands carry the kit prefix.** `open-popup` / `close-popup` /
+  `select` of `@brandup/ui-dropdown` are `ui-dropdown-toggle` /
+  `ui-dropdown-close` / `ui-dropdown-select` (exported as `TOGGLE_COMMAND`,
+  `CLOSE_COMMAND`, `SELECT_COMMAND`), and `copy-text` of `@brandup/ui-textbox`
+  is `ui-textbox-copy` (`COPY_COMMAND`) — the same shape as the kit's own
+  `ui-popup-toggle` and `ui-modal-close`. `select` in particular was generic
+  enough to collide with a host's own command. The markup is built by the
+  controls themselves, so only a host that declared these commands in its own
+  markup is affected.
+
+- **State classes on `<body>` are prefixed `body-`, and the popup's own class
+  is spelled out.** `ui-popup-opened` &rarr; `body-popup-opened`,
+  `ui-modal-opened` &rarr; `body-modal-opened`, `ui-dropdown-opened` &rarr;
+  `body-dropdown-opened`; the class marking an open popup, until now the bare
+  `opened`, is `ui-popup-opened`. The `ui-` prefix belongs to the components'
+  own classes, and a class describing what the page is doing now says so in its
+  name — a selector's target is obvious without looking the class up, and
+  `opened` no longer risks colliding with a host's own class of that name.
+  `POPUP_OPENED_CLASS` and `POPUP_OPENED_BODY_CLASS` keep their names — only
+  their values changed — while `MODAL_OPENED_CLASS` is renamed
+  `MODAL_OPENED_BODY_CLASS`, matching the popup constant: the name now says the
+  class lives on `<body>`, not on the window. A host that referenced the
+  constant, or spelled the old class names out in its own CSS or scripts,
+  updates those.
+
 - **An empty variable list in `@brandup/ui-messageeditor` is now checked like
   any other.** It used to mean "the set is not known yet" and marked nothing,
   so with personalization on every `{KEY}` looked like a working variable and
@@ -268,8 +456,8 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   majors.
 - **`@brandup/*` 1.0.x → 2.0.1.** `UIElement` in v2 takes a typed event-map
   generic; `InputControl` was parameterized over `TEvents` and `DropDown`
-  / `TextBox` declare their own event maps (`"dropdown-change"` /
-  `"textbox-change"`).
+  / `TextBox` declare their own event maps (`"ui:dropdown:change"` /
+  `"ui:textbox:change"`).
 - Dropped the direct `@brandup/ui-dom` dependency — in v2 it is just a
   re-export of `@brandup/ui`. All `DOM` imports now come from `@brandup/ui`.
 - All `DOM.tag` call sites that used the v1 string-class shortcut
@@ -315,6 +503,39 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   personalization window executed it on click. The address now goes through the
   same `safeUrl`; a rejected one is dropped with a console message, so the row
   is not rendered at all and the setup no longer implies personalization.
+
+- **`DropDown` buttons had no `type`, so a form treated them as submit.** The
+  view, cancel and header-close buttons defaulted to `type="submit"`: a click
+  was harmless (the command system prevents it), but pressing Enter in a text
+  field of the surrounding form activated the default button — opening the list
+  instead of submitting. Every button of the kit now declares `type="button"`.
+
+- **The icon-only close button of the list had no accessible name.** A screen
+  reader read it as just "button". It takes the cancel text (`data-cancel`) as
+  its `title` — the same action, the same wording.
+
+- **Esc closed everything that was open, not the topmost layer.** Every layer
+  hung its own `keydown` listener on the document and none of them stopped the
+  key, so one press reached all of them: a popup opened over a modal window
+  took the window down with it, and two nested windows both closed. Esc now
+  goes through the layer stack and closes one layer — the topmost.
+
+- **A closed layer released a page another layer was still holding.** The body
+  class (`body-modal-opened`, `body-popup-opened`, `body-dropdown-opened`) was added
+  and removed by each layer for itself: closing the inner of two windows — or a
+  popup raised over a window — gave the page its scroll back while the window
+  under it was still open. The class is now counted and removed by the last
+  layer that asked for it.
+
+- **A `DropDown` list left open by another dropdown kept its listeners.**
+  Opening a list stripped the `expanded` class off any other expanded dropdown
+  in the document but left its close listeners on `body` and (now) its layer in
+  the stack. The previous list is closed properly instead. Esc in a list also
+  clears its search now, the way closing by a press outside always did.
+
+- **Navigation left layers hanging over the new page.** The middleware closed
+  the popup only; a modal window survived the navigation together with the page
+  scroll it held. It now closes the whole stack top-down.
 
 - **A message editor never validated its initial value.** The unknown-variable
   constraint was applied on change only, and native constraint validation runs

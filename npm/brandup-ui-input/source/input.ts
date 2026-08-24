@@ -1,14 +1,12 @@
 import { UIElementBound } from "@brandup/ui";
-// Из кита берём ровно два признака и берём их напрямую: его общий вход тянет за собой попап,
-// модальное окно, стили и @brandup/ui-app — базе ввода это не нужно, а сборке пакета мешает.
-import { isCoarsePointer } from "@brandup/ui-kit/source/utils/compatibility";
-import { hasUserScrolled } from "@brandup/ui-kit/source/utils/user-scroll";
+import { INPUT } from "./names";
+// Из кита берём ровно два признака и берём их отдельным входом: его общий вход тянет за собой
+// попап, модальное окно, стили и @brandup/ui-app — базе ввода это не нужно, а сборке пакета мешает.
+import { hasUserScrolled, isCoarsePointer } from "@brandup/ui-kit/env";
 import "./input.less";
 
 type InputType = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
 type FormInput<T> = T extends InputType ? T : never;
-
-export const INPUT_CSS_CLASS = "ui-input";
 
 /** Контрол, ждущий появления в документе: `__onConnected` возвращает `true`, когда дождался. */
 interface ConnectedWaiter {
@@ -95,10 +93,10 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 		this.autoFocus = InputControl.isAutoFocus(valueElem);
 
 		// то, что раньше делал _onRenderElement-override; теперь применяем после super, чтобы видеть valueElem
-		elem.classList.add(INPUT_CSS_CLASS);
-		if (this.required) elem.classList.add("required");
-		if (this.readonly) elem.classList.add("readonly");
-		if (this.disabled) elem.classList.add("disabled");
+		elem.classList.add(INPUT.CLASS.ROOT);
+		if (this.required) elem.classList.add(INPUT.CLASS.STATE.REQUIRED);
+		if (this.readonly) elem.classList.add(INPUT.CLASS.STATE.READONLY);
+		if (this.disabled) elem.classList.add(INPUT.CLASS.STATE.DISABLED);
 
 		this.__initForm();
 	}
@@ -183,7 +181,7 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 		this.__invalidEvent = (e: Event) => {
 			e.preventDefault();
 
-			this.element.classList.add("invalid");
+			this.element.classList.add(INPUT.CLASS.STATE.INVALID);
 		};
 		this.__valueElem.addEventListener("invalid", this.__invalidEvent);
 
@@ -325,7 +323,7 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 		// ссылка, которой пришли на страницу, автофокусу не помеха: фокус на ней остался от клика,
 		// а не ради ввода. Фокус внутри самого контрола — тем более.
 		const active = this.__valueElem.ownerDocument.activeElement;
-		if (active && !this.element.contains(active) && (isTextEntry(active) || active.closest(`.${INPUT_CSS_CLASS}`)))
+		if (active && !this.element.contains(active) && (isTextEntry(active) || active.closest(`.${INPUT.CLASS.ROOT}`)))
 			return false;
 
 		this.focus("nearest");
