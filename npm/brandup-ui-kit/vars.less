@@ -111,3 +111,28 @@
 @toggler-height: 30px;
 @toggler-padding: 3px;
 @toggler-round-fill: @focus--input-border-color;
+
+// buttons
+
+@button-height: @input-height; // кнопка встаёт в строку с полями ввода, поэтому высота у них общая
+@button-height-mini: 32px;
+@button-padding-lr: @input-padding-lr;
+@button-padding-lr-mini: 10px;
+@button-gap: 8px; // между значком и подписью
+@button-radius: @input-border-radius;
+@button-border-width: @input-border-width;
+@button-border-color: @input-border-color;
+@button-fill: @input-fill;
+@button-color: @text-color;
+@button-font-size: @input-font-size;
+@button-font-weight: 500; // чуть плотнее текста страницы: подпись кнопки читают, а не вчитываются
+@button-accent: @focus--input-border-color; // заливка главной кнопки
+@button-accent-color: #fff; // подпись на залитой кнопке
+@button-spinner-size: 16px;
+
+@hover--button-tint: 12%; // насколько темнее заливка под курсором
+@active--button-tint: 20%; // и в момент нажатия
+@danger--button-accent: #d64545; // тон разрушающего действия
+@disabled--button-opacity: 0.5;
+@focus--button-ring-width: 2px;
+@focus--button-ring-color: @focus--input-border-color;

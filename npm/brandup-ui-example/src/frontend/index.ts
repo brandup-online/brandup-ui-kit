@@ -18,6 +18,7 @@ builder
 			"/": { page: () => import("./pages/index") },
 			"/styles": { page: () => import("./pages/styles") },
 			"/inputs": { page: () => import("./pages/inputs") },
+			"/buttons": { page: () => import("./pages/buttons") },
 			"/popups": { page: () => import("./pages/popups") },
 			"/textbox": { page: () => import("./pages/textbox") },
 			"/richeditor": { page: () => import("./pages/richeditor") },

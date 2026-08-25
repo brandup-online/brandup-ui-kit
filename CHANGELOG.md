@@ -29,6 +29,30 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Added
 
+- **`.ui-button` — the kit finally styles a button.** It is the most common
+  element on a page and the kit dressed every control around it while leaving
+  the button itself bare: `inputs.less` gave a `button` its font and reset its
+  padding, and each consuming project drew the rest again. A class, not a tag:
+  a button is often an `<a>` (a link shaped like an action), and a `<button>`
+  inside someone else's widget is not ours to restyle.
+
+  Look, tone, size and state are separate classes that add up on one element —
+  `ui-button primary danger mini`. `primary` fills with the accent, `ghost`
+  drops the border and the fill, `danger` swaps the accent only (so it works
+  with every look), `mini` and `wide` size it, `disabled` and `loading` are the
+  states. `disabled` exists as a class because a link has no such attribute,
+  and both it and `loading` block clicks. `loading` keeps the caption in place
+  and turns it transparent under a spinning ring — dropping it would change the
+  button's width and shove its neighbours; the caller marks the state for a
+  screen reader with `aria-busy`. Keyboard focus draws a ring
+  (`:focus-visible`): the kit hides `outline` on fields because their own look
+  shows focus, and a button has no such look.
+
+  Everything is set by `--button-*` variables, overridable on a subtree, and
+  the ring's rotation gives way to a steady pulse under
+  `prefers-reduced-motion`. The example app has a `/buttons` page with every
+  combination, including one themed through variables alone.
+
 - **A layer stack behind every overlay (`LayerManager` in `@brandup/ui-kit`).**
   A popup, a modal window and an expanded `DropDown` list are layers over the
   page, and they do turn up on top of each other — a popup inside a window, a

@@ -1,0 +1,204 @@
+@import (reference) "../vars.less";
+
+// Кнопка — самый частый элемент страницы, и до сих пор кит не оформлял её вовсе: голый `button`
+// получал от inputs.less только шрифт и сброс отступов, а вид ему рисовал каждый проект заново.
+//
+// Класс, а не тег: кнопкой бывает и `<a>` (переход, оформленный действием), и `<button>` внутри
+// чужого виджета, которому наш вид не нужен. Оформляем то, что попросили, — `.ui-button`.
+//
+// Вид, тон, размер и состояние — отдельные классы на самой кнопке: они складываются
+// (`.ui-button.primary.danger.mini`), и добавить набору ещё один тон не значит переписать
+// остальные. Имена короткие: сами по себе они ничего не значат, в селекторе всегда стоят
+// при `.ui-button` (см. соглашение в names.ts).
+
+:root {
+	// button
+	--button-height: @button-height;
+	--button-height-mini: @button-height-mini;
+	--button-padding-lr: @button-padding-lr;
+	--button-padding-lr-mini: @button-padding-lr-mini;
+	--button-gap: @button-gap;
+	--button-radius: @button-radius;
+	--button-border-width: @button-border-width;
+	--button-border-color: @button-border-color;
+	--button-fill: @button-fill;
+	--button-color: @button-color;
+	--button-font-size: @button-font-size;
+	--button-font-weight: @button-font-weight;
+	--button-accent: @button-accent;
+	--button-accent-color: @button-accent-color;
+	--button-spinner-size: @button-spinner-size;
+
+	--hover--button-tint: @hover--button-tint;
+	--active--button-tint: @active--button-tint;
+	--danger--button-accent: @danger--button-accent;
+	--disabled--button-opacity: @disabled--button-opacity;
+	--focus--button-ring-width: @focus--button-ring-width;
+	--focus--button-ring-color: @focus--button-ring-color;
+}
+
+.ui-button {
+	// inline-flex, а не block из общего правила для `button` в inputs.less: кнопки стоят строкой
+	// рядом друг с другом и меряются по своей подписи, а не по ширине родителя.
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--button-gap);
+	box-sizing: border-box;
+	// min-height, а не height: подпись в две строки на узком экране растит кнопку, а не вылезает
+	min-height: var(--button-height);
+	padding: 0 var(--button-padding-lr);
+	border: var(--button-border-width) solid var(--button-border-color);
+	border-radius: var(--button-radius);
+	background: var(--button-fill);
+	color: var(--button-color);
+	font-family: inherit;
+	font-size: var(--button-font-size);
+	font-weight: var(--button-font-weight);
+	line-height: 1.2;
+	text-align: center;
+	text-decoration: none; // <a class="ui-button"> выглядит кнопкой, а не ссылкой
+	cursor: pointer;
+	position: relative; // под кольцо ожидания, которое встаёт поверх подписи
+	// Значок следует за цветом подписи: общее правило для svg красит его в --svg-fill, и на
+	// залитой кнопке он остался бы тёмным. Кольцо ожидания берёт свой цвет отдельно — при
+	// `.loading` подпись становится прозрачной, а вместе с ней стал бы прозрачным currentColor.
+	--svg-fill: currentColor;
+	--button-spinner-color: var(--button-color);
+
+	// Цвет и подчёркивание повторяются в каждом состоянии — из-за `<a class="ui-button">`:
+	// оформленная ссылка хоста меняет их по наведению (`a:hover`), а одного класса против
+	// селектора с тегом и псевдоклассом не хватает. Правило хоста, стоящее после наших стилей,
+	// кит всё равно не перебьёт — если ссылки у вас оформлены, исключите из них кнопки:
+	// `a:not(.ui-button)`.
+	&:hover {
+		background: color-mix(in srgb, var(--button-fill), #000 var(--hover--button-tint));
+		color: var(--button-color);
+		text-decoration: none;
+	}
+
+	&:active {
+		background: color-mix(in srgb, var(--button-fill), #000 var(--active--button-tint));
+		color: var(--button-color);
+		text-decoration: none;
+	}
+
+	// Видимая рамка фокуса — только для тех, кто пришёл с клавиатуры: кит гасит `outline` у полей
+	// ввода, показывая фокус их собственным видом, а у кнопки такого вида нет, и без рамки путь
+	// по Tab становится невидимым.
+	&:focus-visible {
+		outline: var(--focus--button-ring-width) solid var(--focus--button-ring-color);
+		outline-offset: var(--focus--button-ring-width);
+	}
+
+	// Главное действие набора: залито акцентом. Рамка не убрана, а перекрашена в тот же цвет —
+	// иначе кнопка была бы на две её ширины ниже и уже соседних и не встала бы с ними в строку.
+	&.primary {
+		border-color: var(--button-accent);
+		background: var(--button-accent);
+		color: var(--button-accent-color);
+		--button-spinner-color: var(--button-accent-color);
+
+		&:hover {
+			background: color-mix(in srgb, var(--button-accent), #000 var(--hover--button-tint));
+			border-color: color-mix(in srgb, var(--button-accent), #000 var(--hover--button-tint));
+			color: var(--button-accent-color);
+		}
+
+		&:active {
+			background: color-mix(in srgb, var(--button-accent), #000 var(--active--button-tint));
+			border-color: color-mix(in srgb, var(--button-accent), #000 var(--active--button-tint));
+			color: var(--button-accent-color);
+		}
+	}
+
+	// Третьестепенное действие: ни рамки, ни заливки — вес как у ссылки, но раскладка и размер
+	// кнопки, поэтому в ряду с остальными оно стоит ровно.
+	&.ghost {
+		border-color: transparent;
+		background: transparent;
+
+		&:hover {
+			background: color-mix(in srgb, var(--button-color) var(--hover--button-tint), transparent);
+		}
+
+		&:active {
+			background: color-mix(in srgb, var(--button-color) var(--active--button-tint), transparent);
+		}
+	}
+
+	// Тон, а не вид: меняет только акцент и цвет подписи, поэтому складывается со всеми видами —
+	// `.primary.danger` залита красным, `.danger` красная по рамке и подписи, `.ghost.danger`
+	// только по подписи.
+	&.danger {
+		--button-accent: var(--danger--button-accent);
+		--button-border-color: var(--danger--button-accent);
+		--button-color: var(--danger--button-accent);
+	}
+
+	&.mini {
+		min-height: var(--button-height-mini);
+		padding: 0 var(--button-padding-lr-mini);
+		--svg-size: 16px;
+	}
+
+	// Кнопка во всю ширину — в узкой колонке и на телефоне, где ряд кнопок встаёт столбиком.
+	&.wide {
+		display: flex;
+		width: 100%;
+	}
+
+	// И атрибут, и класс: у `<a class="ui-button">` атрибута `disabled` нет, а выглядеть и вести
+	// себя выключенным он должен так же. Вид кнопка сохраняет свой — приглушённый, а не общий
+	// серый: в ряду из нескольких выключенных по-прежнему видно, какая из них главная.
+	&:disabled,
+	&.disabled {
+		cursor: default;
+		opacity: var(--disabled--button-opacity);
+		// Заодно снимает наведение и нажатие: у выключенного `<button>` их гасит движок, у ссылки
+		// не гасит никто. Плата — не показывается `title`; о причине лучше говорить рядом с кнопкой.
+		pointer-events: none;
+	}
+
+	// Ожидание ответа. Подпись остаётся на месте, но становится прозрачной: убери её — и кнопка
+	// поменяла бы ширину под кольцом, утащив за собой соседей. Нажатия не проходят: то же действие
+	// не должно уйти вторым.
+	&.loading {
+		cursor: default;
+		pointer-events: none;
+		color: transparent;
+
+		&::after {
+			content: "";
+			position: absolute;
+			width: var(--button-spinner-size);
+			height: var(--button-spinner-size);
+			box-sizing: border-box;
+			border: 2px solid color-mix(in srgb, var(--button-spinner-color) 30%, transparent);
+			border-top-color: var(--button-spinner-color);
+			border-radius: 50%;
+			animation: ui-button-spin 0.6s linear infinite;
+		}
+	}
+}
+
+@keyframes ui-button-spin {
+	to {
+		transform: rotate(1turn);
+	}
+}
+
+// Вращение — движение по экрану, и тому, кто его отключил, оно не нужно. Взамен кольцо ровно
+// дышит: ожидание всё равно видно, а само кольцо остаётся на месте.
+@media (prefers-reduced-motion: reduce) {
+	.ui-button.loading::after {
+		border-color: var(--button-spinner-color);
+		animation: ui-button-pulse 1.2s ease-in-out infinite;
+	}
+}
+
+@keyframes ui-button-pulse {
+	50% {
+		opacity: 0.25;
+	}
+}

@@ -121,6 +121,23 @@ describe("UIKIT names", () => {
 		});
 		expect(UIKIT.MODAL.COMMAND.CLOSE).toBe("ui-modal-close");
 		expect(UIKIT.SCROLLABLE.CLASS).toBe("ui-scrollable");
+		expect(UIKIT.BUTTON.CLASS.ROOT).toBe("ui-button");
+		expect(UIKIT.BUTTON.CLASS.MODIFIER).toEqual({
+			PRIMARY: "primary",
+			GHOST: "ghost",
+			DANGER: "danger",
+			MINI: "mini",
+			WIDE: "wide",
+		});
+		expect(UIKIT.BUTTON.CLASS.STATE).toEqual({ DISABLED: "disabled", LOADING: "loading" });
+	});
+
+	// Вид, тон и размер кнопки складываются на одном элементе, и в стилях каждый пишется при
+	// `.ui-button` — короткое имя само по себе не значит ничего и чужое не заденет.
+	it("keeps the button modifiers short", () => {
+		const modifiers = [...Object.values(UIKIT.BUTTON.CLASS.MODIFIER), ...Object.values(UIKIT.BUTTON.CLASS.STATE)];
+
+		modifiers.forEach((name) => expect(name.startsWith("ui-")).toBe(false));
 	});
 
 	// имена берут из пакета соседние контролы — вход обязан их отдавать

@@ -45,7 +45,9 @@
 	});
 }
 
-a {
+// Кнопки исключены: `<a class="ui-button">` — действие, а не ссылка, и правило ниже перебивало бы
+// её цвет и подчёркивание по наведению (у него вес больше одного класса).
+a:not(.ui-button) {
 	color: var(--link-color);
 	text-decoration: var(--link-decoration);
 	font-weight: var(--link-weight);

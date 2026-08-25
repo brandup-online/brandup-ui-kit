@@ -1,0 +1,38 @@
+.page-block.buttons {
+	display: flex;
+	flex-flow: column nowrap;
+	row-gap: 30px;
+
+	& .part {
+		display: flex;
+		flex-flow: column nowrap;
+		row-gap: 15px;
+
+		& p {
+			margin: 0;
+		}
+	}
+
+	& .row {
+		display: flex;
+		flex-flow: row wrap;
+		align-items: center;
+		gap: 15px;
+	}
+
+	& .column {
+		display: flex;
+		flex-flow: column nowrap;
+		row-gap: 10px;
+		max-width: 320px;
+	}
+
+	// Своя тема: переопределены только переменные — правила кнопки те же, что у остальных на этой
+	// странице. Так тему и меняют у себя потребители кита.
+	& .themed {
+		--button-accent: #2f6feb;
+		--button-radius: 22px;
+		--button-border-color: #c9d6f5;
+		--button-height: 40px;
+	}
+}
