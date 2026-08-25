@@ -18,7 +18,8 @@
 		"skipLibCheck": true,
 		// TypeScript 6 no longer auto-discovers @types from parent node_modules,
 		// so the jest globals used in test/ have to be requested explicitly.
-		"types": ["jest"]
+		// "node" is for test/parse-less-vars.test.ts: it writes theme fixtures to a temp dir.
+		"types": ["jest", "node"]
 	},
 	"include": ["source", "test"],
 	"exclude": ["node_modules", "dist", ".vs", ".vscode"],

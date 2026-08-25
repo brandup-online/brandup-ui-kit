@@ -510,6 +510,36 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Fixed
 
+- **Comments in `uikit.vars.less` were read as declarations.** The theme file —
+  the one place a project retunes the kit — was parsed line by line by a single
+  regular expression matching `@name: value;` anywhere in a line, comments
+  included. A declaration behind `//` or inside `/* */` was collected like a
+  real one, and since a later assignment overwrote an earlier one, commenting a
+  variable out to fall back on the kit default did the opposite: it switched the
+  commented value on, as soon as it stood below the working line. The same
+  expression took the value up to the *last* `;` in the line, so a trailing
+  comment containing one landed inside the value —
+  `@input-height: 46px; // was @input-height: 80px;` parsed as
+  `46px; // was @input-height: 80px`. Comments are now stripped before anything
+  is read, and `//` inside an address (`url(https://…)`, `url(//cdn…)`) is left
+  alone.
+
+- **A value spanning several lines was dropped without a word.** Reading line by
+  line only ever saw a declaration that opened and closed on one line, so a
+  wrapped shadow or font stack matched nothing at all — no error, no warning,
+  the variable simply never reached `modifyVars` and the theme fell back to the
+  kit default. Declarations are now cut on `;` at the top level with braces,
+  parentheses and quotes tracked, so a wrapped value survives; `@import` rules
+  and detached rulesets are skipped, since neither can be handed to
+  `modifyVars`.
+
+- **The "file not found" error always named `uikit.vars.less`.** The path
+  actually looked for was missing from the message, though a project may pass
+  its own (`parseLessVars('../wsender-ui/uikit.vars.less')`). It names the path
+  now. All of the above is covered by regression tests, and the three theme
+  files in use (example, wsender, ledtrees) parse to exactly the same values as
+  before.
+
 - **A `javascript:` address typed into the link panel reached the DOM.** The
   address went into `href` unchecked, so the editable held a live
   `<a href="javascript:…">` and `currentLink` reported it — a middle click or
