@@ -32,6 +32,7 @@
 	"types": "source/index.ts",
 	"exports": {
 		".": "./source/index.ts",
+		"./vars.less": "./vars.less",
 		"./names": "./source/names.ts",
 		"./source/*.less": "./source/*.less",
 		"./svg/*": "./svg/*",
@@ -47,6 +48,7 @@
 	},
 	"files": [
 		"source",
+		"vars.less",
 		"svg",
 		"README.md"
 	],

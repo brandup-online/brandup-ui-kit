@@ -1,0 +1,58 @@
+// Входы темы для пакета «@brandup/ui-messageeditor».
+//
+// Значения лежат здесь, а не по месту в правилах, чтобы их можно было переопределить из файла
+// темы проекта: less-loader применяет `modifyVars` ко всей сборке, включая этот файл. До того
+// как они стали переменными, эти значения были литералами внутри :root — теме недостижимыми,
+// и проекту приходилось переобъявлять токены пакета у себя.
+//
+// Умолчания подобраны так, чтобы пакет выглядел цельно и без темы кита. Там, где значение
+// осмысленно брать от кита, оно и берётся — через `var(--токен-кита, запас)`.
+
+// messageeditor.less
+
+@messageeditor-fill: #e7f3ff;
+@messageeditor-border: var(--messageeditor-fill);
+@messageeditor-border-width: 1px;
+@messageeditor-border-focus: color-mix(in srgb, var(--messageeditor-fill) 88%, #000);
+@messageeditor-color: var(--input-color, #222);
+@messageeditor-radius: 18px;
+@messageeditor-maxheight: 220px;
+@messageeditor-padding-tb: calc( (var(--input-height, 46px) - var(--messageeditor-minheight) - var(--messageeditor-border-width) * 2) / 2 );
+@messageeditor-gap: 2px;
+@messageeditor-minheight: var(--input-line-height, 1.2rem);
+@messageeditor-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+@messageeditor-accent: var(--focus--input-border-color, #4a9eff);
+@messageeditor-button-size: 32px;
+@messageeditor-button-icon: 20px;
+@messageeditor-button-color: var(--placeholder-color, #999);
+@messageeditor-source-fill: var(--input-fill, #fff);
+@messageeditor-source-border: var(--input-border-color, #dcdfe4);
+@messageeditor-source-color: var(--messageeditor-color);
+@messageeditor-source-font: var(--richeditor-code-font, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+@messageeditor-modes-gap: 6px;
+@messageeditor-quote-fill: color-mix(in srgb, var(--messageeditor-fill) 94%, #000);
+@messageeditor-spintax-fill: rgba(255, 193, 7, 0.28);
+@messageeditor-variable-fill: rgba(76, 175, 80, 0.24);
+@messageeditor-variable-unknown-fill: rgba(244, 67, 54, 0.24);
+@messageeditor-variable-unknown-mark: rgba(244, 67, 54, 0.8);
+@messageeditor-variable-new-fill: rgba(156, 39, 176, 0.2);
+@messageeditor-variable-new-mark: rgba(156, 39, 176, 0.7);
+@hover--messageeditor-spintax-fill: color-mix(in srgb, var(--messageeditor-spintax-fill) 95%, #000);
+@hover--messageeditor-variable-fill: color-mix(in srgb, var(--messageeditor-variable-fill) 95%, #000);
+@hover--messageeditor-variable-unknown-fill: color-mix( in srgb, var(--messageeditor-variable-unknown-fill) 95%, #000 );
+@hover--messageeditor-variable-new-fill: color-mix(in srgb, var(--messageeditor-variable-new-fill) 95%, #000);
+
+// randomizer.less
+
+@messageeditor-randomizer-gap: 12px;
+@messageeditor-randomizer-accent: var(--messageeditor-accent, var(--focus--input-border-color, #4a9eff));
+@messageeditor-randomizer-button-size: 24px;
+@messageeditor-randomizer-icon-size: 18px;
+@messageeditor-randomizer-field-padding: 10px;
+
+// variables.less
+
+@messageeditor-variables-gap: 2px;
+@messageeditor-variables-preview-fill: var(--messageeditor-variable-fill, rgba(76, 175, 80, 0.24));
+@messageeditor-variables-new-fill: var(--messageeditor-variable-new-fill, rgba(156, 39, 176, 0.2));
+@messageeditor-variables-new-color: var(--messageeditor-variable-new-mark, rgba(156, 39, 176, 0.7));

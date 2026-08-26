@@ -1,3 +1,4 @@
+@import (reference) "../vars.less";
 // Стили RichEditor: редактируемая область, отображение тегов форматирования
 // и общий тулбар форматирования (живёт в document.body, см. ./toolbar).
 
@@ -16,49 +17,49 @@
 	// Цитата: линия слева и подложка, как её рисуют мессенджеры. Вертикальный отступ — тот же,
 	// что у абзаца: строка не должна прыгать при смене типа блока. Горизонтальный задаётся
 	// отдельно — от него зависит, насколько текст цитаты отходит от линии.
-	--richeditor-quote-line: #1872bc;
-	--richeditor-quote-line-width: 3px;
-	--richeditor-quote-fill: rgba(0, 0, 0, 0.04);
-	--richeditor-quote-padding-tb: 5px;
-	--richeditor-quote-padding-lr: 10px;
+	--richeditor-quote-line: @richeditor-quote-line;
+	--richeditor-quote-line-width: @richeditor-quote-line-width;
+	--richeditor-quote-fill: @richeditor-quote-fill;
+	--richeditor-quote-padding-tb: @richeditor-quote-padding-tb;
+	--richeditor-quote-padding-lr: @richeditor-quote-padding-lr;
 
 	// код — и моноширинный, и блок
-	--richeditor-code-fill: rgba(0, 0, 0, 0.06);
-	--richeditor-code-font: ui-monospace, "Cascadia Mono", Consolas, monospace;
+	--richeditor-code-fill: @richeditor-code-fill;
+	--richeditor-code-font: @richeditor-code-font;
 
 	// спойлер: у получателя текст закрыт, в поле показан плашкой
-	--richeditor-spoiler-fill: rgba(0, 0, 0, 0.14);
+	--richeditor-spoiler-fill: @richeditor-spoiler-fill;
 
 	// Правка адреса. В контейнере хоста панель на это время растягивается по нему, и ширину поля
 	// задавать не нужно — оно занимает всё, что осталось от кнопок. В document.body растягиваться
 	// не по чему, там ширину задаёт первая переменная; вторая ограничивает растянутую панель.
-	--richeditor-link-width: 320px;
-	--richeditor-link-max-width: 500px;
+	--richeditor-link-width: @richeditor-link-width;
+	--richeditor-link-max-width: @richeditor-link-max-width;
 
 	// ссылка
-	--richeditor-link-color: #2481cc;
+	--richeditor-link-color: @richeditor-link-color;
 	// отступ подчёркивания от базовой линии; auto — на усмотрение шрифта
-	--richeditor-link-underline-offset: auto;
+	--richeditor-link-underline-offset: @richeditor-link-underline-offset;
 
 	// Место под подчёркивание последней строки. Подчёркивание рисуется, но в раскладке места
 	// не занимает, а краевые отступы абзаца обнулены — на единственной строке абзац разом
 	// первый и последний, и снизу не остаётся ничего. Прокручиваемая коробка режет линию
 	// по своему краю, и отступом от базовой линии это не лечится: он только придвигает её
 	// к этому краю. Место берётся здесь.
-	--richeditor-underline-room: 2px;
+	--richeditor-underline-room: @richeditor-underline-room;
 
 	// Панель. Кнопка — и её же размера кнопки поповера адреса; по ней же высота поля адреса.
 	// Значение своё, а не считанное от высоты поля ввода: панель живёт над полем, но размером
 	// с ним не связана, а вычитание отступов задавало бы размер дважды и могло не сойтись.
-	--richeditor-toolbar-padding: 3px;
-	--richeditor-toolbar-button-size: 34px;
+	--richeditor-toolbar-padding: @richeditor-toolbar-padding;
+	--richeditor-toolbar-button-size: @richeditor-toolbar-button-size;
 	// зазор панели от краёв экрана; то же значение — в EDGE_GAP (toolbar.ts)
-	--richeditor-toolbar-edge-gap: 4px;
+	--richeditor-toolbar-edge-gap: @richeditor-toolbar-edge-gap;
 
 	// панель смайликов
-	--richeditor-emoji-size: 32px;
+	--richeditor-emoji-size: @richeditor-emoji-size;
 	// строк в группе — панель ставит своё значение на каждую группу, здесь оно запасное
-	--richeditor-emoji-rows: 8;
+	--richeditor-emoji-rows: @richeditor-emoji-rows;
 }
 
 // .ui-richeditor — это сам редактируемый элемент (обёртки нет, тулбар общий в body)

@@ -1,16 +1,17 @@
+@import (reference) "../vars.less";
 @import (reference) "./modal.less"; // общее оформление действий окна
 
 // Окно персонализации: список переменных для вставки. Оформление рамки и подложки берётся
 // от базового окна кита, здесь — только содержимое тела.
 
 :root {
-	--messageeditor-variables-gap: 2px;
+	--messageeditor-variables-gap: @messageeditor-variables-gap;
 	// Запись выглядит так же, как вставленная переменная в тексте: связь видна без пояснений
-	--messageeditor-variables-preview-fill: var(--messageeditor-variable-fill, rgba(76, 175, 80, 0.24));
+	--messageeditor-variables-preview-fill: @messageeditor-variables-preview-fill;
 	// Новая переменная — тем же цветом, каким она помечена в тексте: запись в списке и
 	// конструкция в сообщении обязаны узнаваться друг в друге
-	--messageeditor-variables-new-fill: var(--messageeditor-variable-new-fill, rgba(156, 39, 176, 0.2));
-	--messageeditor-variables-new-color: var(--messageeditor-variable-new-mark, rgba(156, 39, 176, 0.7));
+	--messageeditor-variables-new-fill: @messageeditor-variables-new-fill;
+	--messageeditor-variables-new-color: @messageeditor-variables-new-color;
 }
 
 // Правка ключа новой переменной: поле, подсказка и два действия. Кнопки — как в окне

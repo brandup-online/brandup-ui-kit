@@ -1,3 +1,4 @@
+@import (reference) "../vars.less";
 // Плашка сообщения в чате: скруглённый пузырь,
 // растущий по содержимому. Переменные наследуются от полей ввода кита, но имеют
 // собственные умолчания — компонент должен выглядеть цельно и без темы кита.
@@ -7,63 +8,57 @@
 :root {
 	// Исходящее сообщение — заливка своя, а не как у полей ввода: на белой странице белая
 	// плашка держится только на тени и почти не читается.
-	--messageeditor-fill: #e7f3ff;
+	--messageeditor-fill: @messageeditor-fill;
 	// рамка в цвет заливки — не видна в покое и темнеет в фокусе.
 	// color-mix подмешивает чёрный, поэтому оттенок следует за заливкой, какой бы её ни задали
-	--messageeditor-border: var(--messageeditor-fill);
-	--messageeditor-border-width: 1px;
-	--messageeditor-border-focus: color-mix(in srgb, var(--messageeditor-fill) 88%, #000);
-	--messageeditor-color: var(--input-color, #222);
-	--messageeditor-radius: 18px;
-	--messageeditor-maxheight: 220px;
+	--messageeditor-border: @messageeditor-border;
+	--messageeditor-border-width: @messageeditor-border-width;
+	--messageeditor-border-focus: @messageeditor-border-focus;
+	--messageeditor-color: @messageeditor-color;
+	--messageeditor-radius: @messageeditor-radius;
+	--messageeditor-maxheight: @messageeditor-maxheight;
 	// Вертикальные отступы считаются от высоты полей ввода кита, как в textbox: пустая плашка
 	// ровно --input-height, а единственная строка стоит в ней по центру. Рамка входит в высоту
 	// (box-sizing: border-box), поэтому вычитается.
-	--messageeditor-padding-tb: calc(
-			(var(--input-height, 46px) - var(--messageeditor-minheight) - var(--messageeditor-border-width) * 2) / 2
-		);
-	--messageeditor-gap: 2px;
-	--messageeditor-minheight: var(--input-line-height, 1.2rem);
-	--messageeditor-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
-	--messageeditor-accent: var(--focus--input-border-color, #4a9eff);
-	--messageeditor-button-size: 32px;
-	--messageeditor-button-icon: 20px;
-	--messageeditor-button-color: var(--placeholder-color, #999);
+	--messageeditor-padding-tb: @messageeditor-padding-tb;
+	--messageeditor-gap: @messageeditor-gap;
+	--messageeditor-minheight: @messageeditor-minheight;
+	--messageeditor-shadow: @messageeditor-shadow;
+	--messageeditor-accent: @messageeditor-accent;
+	--messageeditor-button-size: @messageeditor-button-size;
+	--messageeditor-button-icon: @messageeditor-button-icon;
+	--messageeditor-button-color: @messageeditor-button-color;
 	// Панель выхода — не сообщение, а его разметка: заливка нейтральная, как у полей ввода,
 	// и рамка видимая. Похожей на плашку она сбивала бы с толку — в ней ничего не пишут.
-	--messageeditor-source-fill: var(--input-fill, #fff);
-	--messageeditor-source-border: var(--input-border-color, #dcdfe4);
-	--messageeditor-source-color: var(--messageeditor-color);
+	--messageeditor-source-fill: @messageeditor-source-fill;
+	--messageeditor-source-border: @messageeditor-source-border;
+	--messageeditor-source-color: @messageeditor-source-color;
 	// моноширинный — тот же, что у кода в редакторе: у темы хоста один моно-шрифт на всё,
 	// свой стек — только запас на случай работы без темы
-	--messageeditor-source-font: var(--richeditor-code-font, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
-	--messageeditor-modes-gap: 6px;
+	--messageeditor-source-font: @messageeditor-source-font;
+	--messageeditor-modes-gap: @messageeditor-modes-gap;
 	// Подложка цитаты — в тон плашки, а не серым по умолчанию редактора: чёрная полупрозрачная
 	// на голубой заливке давала бы грязный оттенок. color-mix подмешивает чёрный к самой заливке,
 	// поэтому тон следует за ней, какой бы её ни задали.
-	--messageeditor-quote-fill: color-mix(in srgb, var(--messageeditor-fill) 94%, #000);
+	--messageeditor-quote-fill: @messageeditor-quote-fill;
 	// Подсветка доменной разметки в тексте: спинтакс и переменные персонализации. Значения жили
 	// запасными прямо в правилах, но заливку теперь нужно знать дважды — из неё выводится вторая,
 	// для наведения, и держать одно значение в двух местах значило бы однажды их разойтись.
-	--messageeditor-spintax-fill: rgba(255, 193, 7, 0.28);
-	--messageeditor-variable-fill: rgba(76, 175, 80, 0.24);
-	--messageeditor-variable-unknown-fill: rgba(244, 67, 54, 0.24);
-	--messageeditor-variable-unknown-mark: rgba(244, 67, 54, 0.8);
+	--messageeditor-spintax-fill: @messageeditor-spintax-fill;
+	--messageeditor-variable-fill: @messageeditor-variable-fill;
+	--messageeditor-variable-unknown-fill: @messageeditor-variable-unknown-fill;
+	--messageeditor-variable-unknown-mark: @messageeditor-variable-unknown-mark;
 	// Новая переменная — не ошибка, а ещё не заведённое поле: свой цвет, не красный и не зелёный
 	// объявленной, и подчёркивание пунктиром вместо волны — волна читается как опечатка.
-	--messageeditor-variable-new-fill: rgba(156, 39, 176, 0.2);
-	--messageeditor-variable-new-mark: rgba(156, 39, 176, 0.7);
+	--messageeditor-variable-new-fill: @messageeditor-variable-new-fill;
+	--messageeditor-variable-new-mark: @messageeditor-variable-new-mark;
 	// Наведение: та же заливка, притемнённая — конструкция правится кликом, и отклик показывает,
 	// что по ней можно попасть. color-mix подмешивает чёрный, поэтому оттенок следует за заливкой,
 	// какой бы её ни задали.
-	--hover--messageeditor-spintax-fill: color-mix(in srgb, var(--messageeditor-spintax-fill) 95%, #000);
-	--hover--messageeditor-variable-fill: color-mix(in srgb, var(--messageeditor-variable-fill) 95%, #000);
-	--hover--messageeditor-variable-unknown-fill: color-mix(
-		in srgb,
-		var(--messageeditor-variable-unknown-fill) 95%,
-		#000
-	);
-	--hover--messageeditor-variable-new-fill: color-mix(in srgb, var(--messageeditor-variable-new-fill) 95%, #000);
+	--hover--messageeditor-spintax-fill: @hover--messageeditor-spintax-fill;
+	--hover--messageeditor-variable-fill: @hover--messageeditor-variable-fill;
+	--hover--messageeditor-variable-unknown-fill: @hover--messageeditor-variable-unknown-fill;
+	--hover--messageeditor-variable-new-fill: @hover--messageeditor-variable-new-fill;
 }
 
 // Коробка поля: у плашки и панели выхода она общая — это два вида одного значения, и подменять

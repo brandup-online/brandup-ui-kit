@@ -1,4 +1,5 @@
 const fs = require("fs");
+const path = require("path");
 
 // Файл темы разбирается текстом, а не less-ом: значения нужны синхронно, в момент сборки конфига
 // webpack (`modifyVars: parseLessVars()`), а компиляция less асинхронная. Поэтому разбор идёт
@@ -12,6 +13,13 @@ const COMMENT_LEAD = /[\s;{},]/;
 // Объявление переменной ищем от начала инструкции, а не где попало в строке: иначе `@x: 1px`
 // внутри комментария или чужого текста тоже считается объявлением.
 const DECLARATION = /^\s*@([\w-]+)\s*:\s*([\s\S]+)$/;
+
+// `@import`, у которого могут быть скобочные опции (`(reference)`, `(once)`) и обёртка `url()`.
+//
+// За словом обязан идти пробел, скобка или кавычка, а не просто граница слова: иначе правилом
+// импорта считается и переменная с таким началом в имени (`@import-prefix: 5px`) — она молча
+// пропадала бы из темы, да ещё и с жалобой на непрочитанный импорт.
+const IMPORT = /^\s*@import(?=[\s("'])\s*(?:\([^)]*\))?\s*([\s\S]+)$/;
 
 /**
  * Вырезает комментарии обоих видов. Без этого закомментированное объявление разбирается наравне
@@ -96,19 +104,85 @@ function topLevelStatements(source) {
 }
 
 /**
- * Читает файл темы и отдаёт переменные в виде, который ждёт `modifyVars` less-loader'а.
- *
- * Повторное объявление перекрывает предыдущее — так же, как это делает сам less.
+ * Достаёт адрес из инструкции `@import`. Возвращает `null`, если инструкция импортом не является.
  */
-function parseLessVars(filePath) {
-	filePath = filePath ?? "uikit.vars.less";
-	if (!fs.existsSync(filePath)) throw new Error(`Not found UI kit configuration file "${filePath}".`);
+function importTarget(statement) {
+	const match = statement.match(IMPORT);
+	if (!match) return null;
 
-	const source = stripComments(fs.readFileSync(filePath, "utf-8"));
+	let target = match[1].trim();
 
-	const variables = {};
+	const url = target.match(/^url\(\s*([\s\S]*?)\s*\)$/);
+	if (url) target = url[1].trim();
+
+	const quoted = target.match(/^(['"])([\s\S]*)\1/);
+	// Без кавычек за адресом может стоять медиавыражение (`@import "a.less" screen`) — берём
+	// только первое слово.
+	target = quoted ? quoted[2] : target.split(/\s+/)[0];
+
+	return target;
+}
+
+/**
+ * Ищет импортируемый файл: сначала рядом с импортирующим, затем среди пакетов. Второе нужно для
+ * адресов вида `@brandup/ui-kit/source/adaptive.less` — их отдаёт `exports` пакета.
+ */
+function resolveImport(target, fromFile) {
+	if (/^(https?:)?\/\//.test(target)) return null; // сетевой адрес не читаем
+	if (target.endsWith(".css")) return null; // css less оставляет ссылкой, а не встраивает
+
+	const directory = path.dirname(fromFile);
+	const candidates = target.endsWith(".less") ? [target] : [target, `${target}.less`];
+
+	for (const candidate of candidates) {
+		const resolved = path.resolve(directory, candidate);
+		if (fs.existsSync(resolved)) return resolved;
+	}
+
+	if (!target.startsWith(".")) {
+		for (const candidate of candidates) {
+			try {
+				return require.resolve(candidate, { paths: [directory] });
+			} catch {
+				// пробуем следующий вариант
+			}
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Читает файл и складывает его переменные в `variables`, разворачивая `@import` на месте.
+ *
+ * Повторно один и тот же файл не читается: у less импорт по умолчанию `once`, и без этого
+ * ромбовидный импорт (двое ссылаются на одну палитру) уводил бы разбор в круг.
+ */
+function collectVariables(filePath, variables, visited) {
+	const resolved = path.resolve(filePath);
+	if (visited.has(resolved)) return;
+	visited.add(resolved);
+
+	const source = stripComments(fs.readFileSync(resolved, "utf-8"));
 
 	for (const statement of topLevelStatements(source)) {
+		const target = importTarget(statement);
+
+		if (target !== null) {
+			const imported = target && resolveImport(target, resolved);
+
+			// Не найденный импорт не роняем: адрес может вести в пакет, чьи `exports` его наружу
+			// не отдают, а такие файлы приносят миксины, а не значения темы. Но и молчать нельзя —
+			// ровно так теряется вынесенная в отдельный файл палитра.
+			if (imported) collectVariables(imported, variables, visited);
+			else
+				console.warn(
+					`[ui-kit] Не удалось прочитать @import "${target}" из "${resolved}" — его переменные в тему не попадут.`
+				);
+
+			continue;
+		}
+
 		const match = statement.match(DECLARATION);
 		if (!match) continue;
 
@@ -119,6 +193,100 @@ function parseLessVars(filePath) {
 
 		variables[`@${match[1]}`] = value;
 	}
+}
+
+// Список входов кита — то, что объявлено в его собственном vars.less. Больше `modifyVars`
+// ни на что не влияет: имя мимо этого списка less молча объявит неиспользуемой переменной,
+// сборка пройдёт, а значение останется умолчанием кита.
+const KIT_VARS = path.join(__dirname, "..", "vars.less");
+
+let kitInputs = null;
+
+// Сравниваем имена без регистра и дефисов: почти все опечатки здесь — это `@fontSize` вместо
+// `@font-size`, то есть чужая конвенция именования, а не промах по клавише.
+const normalizeName = (name) => name.toLowerCase().replace(/-/g, "");
+
+function knownInputs() {
+	if (kitInputs) return kitInputs;
+
+	kitInputs = new Map();
+
+	try {
+		const source = stripComments(fs.readFileSync(KIT_VARS, "utf-8"));
+
+		for (const statement of topLevelStatements(source)) {
+			const match = statement.match(DECLARATION);
+			if (match) kitInputs.set(normalizeName(match[1]), `@${match[1]}`);
+		}
+	} catch {
+		// Кит распакован без vars.less — сверять не с чем, проверку пропускаем.
+	}
+
+	return kitInputs;
+}
+
+/** Расстояние Левенштейна, ограниченное сверху: дальше единицы ответ нас уже не интересует. */
+function editDistance(a, b) {
+	if (Math.abs(a.length - b.length) > 1) return 2;
+
+	let row = Array.from({ length: b.length + 1 }, (_, i) => i);
+
+	for (let i = 1; i <= a.length; i++) {
+		const next = [i];
+
+		for (let j = 1; j <= b.length; j++) {
+			next[j] = Math.min(row[j] + 1, next[j - 1] + 1, row[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+		}
+
+		row = next;
+	}
+
+	return row[b.length];
+}
+
+/**
+ * Предупреждает о переменной темы, похожей на вход кита, но им не являющейся.
+ *
+ * Молчим обо всём остальном: тема законно объявляет и собственные переменные — палитру, из которой
+ * потом выводит значения, — и ругаться на них было бы шумом.
+ */
+function reportUnknownNames(variables) {
+	const known = knownInputs();
+	if (!known.size) return;
+
+	for (const name of Object.keys(variables)) {
+		const normalized = normalizeName(name.slice(1));
+
+		let suggestion = known.get(normalized);
+
+		if (!suggestion) {
+			for (const [candidate, original] of known) {
+				if (editDistance(normalized, candidate) <= 1) {
+					suggestion = original;
+					break;
+				}
+			}
+		}
+
+		if (suggestion && suggestion !== name)
+			console.warn(
+				`[ui-kit] Переменная темы "${name}" киту неизвестна и ни на что не влияет. Возможно, имелась в виду "${suggestion}".`
+			);
+	}
+}
+
+/**
+ * Читает файл темы и отдаёт переменные в виде, который ждёт `modifyVars` less-loader'а.
+ *
+ * Повторное объявление перекрывает предыдущее — так же, как это делает сам less.
+ */
+function parseLessVars(filePath) {
+	filePath = filePath ?? "uikit.vars.less";
+	if (!fs.existsSync(filePath)) throw new Error(`Not found UI kit configuration file "${filePath}".`);
+
+	const variables = {};
+	collectVariables(filePath, variables, new Set());
+	reportUnknownNames(variables);
 
 	return variables;
 }

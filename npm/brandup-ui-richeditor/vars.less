@@ -1,0 +1,30 @@
+// Входы темы для пакета «@brandup/ui-richeditor».
+//
+// Значения лежат здесь, а не по месту в правилах, чтобы их можно было переопределить из файла
+// темы проекта: less-loader применяет `modifyVars` ко всей сборке, включая этот файл. До того
+// как они стали переменными, эти значения были литералами внутри :root — теме недостижимыми,
+// и проекту приходилось переобъявлять токены пакета у себя.
+//
+// Умолчания подобраны так, чтобы пакет выглядел цельно и без темы кита. Там, где значение
+// осмысленно брать от кита, оно и берётся — через `var(--токен-кита, запас)`.
+
+// richeditor.less
+
+@richeditor-quote-line: #1872bc;
+@richeditor-quote-line-width: 3px;
+@richeditor-quote-fill: rgba(0, 0, 0, 0.04);
+@richeditor-quote-padding-tb: 5px;
+@richeditor-quote-padding-lr: 10px;
+@richeditor-code-fill: rgba(0, 0, 0, 0.06);
+@richeditor-code-font: ui-monospace, "Cascadia Mono", Consolas, monospace;
+@richeditor-spoiler-fill: rgba(0, 0, 0, 0.14);
+@richeditor-link-width: 320px;
+@richeditor-link-max-width: 500px;
+@richeditor-link-color: #2481cc;
+@richeditor-link-underline-offset: auto;
+@richeditor-underline-room: 2px;
+@richeditor-toolbar-padding: 3px;
+@richeditor-toolbar-button-size: 34px;
+@richeditor-toolbar-edge-gap: 4px;
+@richeditor-emoji-size: 32px;
+@richeditor-emoji-rows: 8;

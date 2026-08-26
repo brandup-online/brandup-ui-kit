@@ -1,15 +1,16 @@
+@import (reference) "../vars.less";
 @import (reference) "./modal.less"; // общее оформление действий окна
 
 // Окно рандомизации: список вариантов и кнопки под ним. Рамка и подложка — от базового окна
 // кита, поля ввода оформляются его же общими правилами, здесь только раскладка и кнопки.
 
 :root {
-	--messageeditor-randomizer-gap: 12px;
-	--messageeditor-randomizer-accent: var(--messageeditor-accent, var(--focus--input-border-color, #4a9eff));
-	--messageeditor-randomizer-button-size: 24px; // по высоте строки текста: кнопка стоит у первой строки
-	--messageeditor-randomizer-icon-size: 18px;
+	--messageeditor-randomizer-gap: @messageeditor-randomizer-gap;
+	--messageeditor-randomizer-accent: @messageeditor-randomizer-accent;
+	--messageeditor-randomizer-button-size: @messageeditor-randomizer-button-size; // по высоте строки текста: кнопка стоит у первой строки
+	--messageeditor-randomizer-icon-size: @messageeditor-randomizer-icon-size;
 	// зазор от текста варианта до подчёркивания
-	--messageeditor-randomizer-field-padding: 10px;
+	--messageeditor-randomizer-field-padding: @messageeditor-randomizer-field-padding;
 }
 
 .ui-messageeditor-randomizer {

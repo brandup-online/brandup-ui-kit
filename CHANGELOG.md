@@ -29,6 +29,69 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Added
 
+- **A palette under the theme inputs.** `vars.less` was a flat list of ~106
+  inputs mixing raw material (`@input-border-color: #aaa`) with everything
+  derived from it, and no palette at all — so every project built its own and
+  mapped it onto the kit by hand: `@Accent-*` in one, `@Highlight-*` in another,
+  `@Primary-Color` in two more. The top of the file is now the raw material —
+  seven colours, six proportions, the type scale and the breakpoints — and the
+  component inputs are derived from it. Repainting a site is a dozen values
+  instead of a hunt through a hundred. Every component input stays an input and
+  still wins over the palette when named explicitly, which also means a theme
+  written in `@input-*` / `@button-*` terms does not answer to the palette:
+  `@main-background: #fff` in a theme file beats any `@surface`. The palette is
+  emitted as CSS tokens too (`--surface`, `--ink`, `--accent`, `--space`,
+  `--radius`, …) so a project rule needing the brand colour does not invent a
+  third copy of it. Verified by compiling the kit against all three theme files
+  in use: byte-identical output apart from the added tokens.
+
+- **`build/build-theme.cjs` — the theme as a separate stylesheet.** A normal
+  build bakes the theme into the bundle through `modifyVars`, so changing it
+  means rebuilding everything; there was no dark theme, no per-client look, no
+  preview. The new helper compiles the same kit sources and keeps only the
+  `:root` blocks, writing a standalone `theme.css` that loads after the bundle
+  and overrides its defaults. A project without one is unaffected. Variants
+  (`{ selector: ':root[data-theme="dark"]', theme: 'dark.vars.less' }`) build on
+  top of the base theme rather than replacing it, and only what actually differs
+  is emitted — six lines of dark palette produced 27 tokens. What it does not
+  give: the values are computed ahead of time, so overriding one `--accent` in a
+  browser will not move anything derived from it — less computes those when this
+  file is built.
+
+- **The editor packages' tokens became theme inputs.** 58 values in
+  `@brandup/ui-messageeditor` and `@brandup/ui-richeditor` were literals inside
+  `:root` — unreachable from a theme file, which is why a project wanting its own
+  message colours had to redeclare the packages' tokens in its own `:root` and
+  hope the packages' defaults never moved. Each package now has a `vars.less`
+  (shipped and exported), and `modifyVars` reaches them like any kit input.
+  Defaults are unchanged — compiled output is byte-identical — so pointing them
+  at the kit's roles stays a deliberate per-project decision.
+
+- **A theme variable the kit does not know is now reported.** `modifyVars`
+  reaches exactly the names declared in the kit's own `vars.less`; anything else
+  less quietly declares as an unused variable — the build passes, the value
+  stays at the kit default, and the difference shows up only in a browser, if at
+  all. Names are checked against the real input list, ignoring case and dashes,
+  which is where these mistakes actually come from: three of the four consuming
+  projects name their own variables `@Primary-Color`, and the hand writes the
+  kit input the same way. A near miss is named along with what was probably
+  meant. The theme's own variables — a palette it derives values from — stay
+  unremarked, since warning about those would be noise. This immediately turned
+  up two dead lines in the example's own theme (`@fontSize`, `@h-LineHeight`),
+  fixed here; both happened to repeat the kit default, so nothing looked wrong.
+
+- **The theme file can be split across several files.** `@import` in
+  `uikit.vars.less` was not resolved: the parser read one file flat, so a
+  palette pulled out into its own file simply contributed nothing. Imports are
+  now expanded in place, resolved next to the importing file and then through
+  package `exports` (so `@import "@brandup/ui-kit/source/adaptive.less"` works),
+  read once each the way less does, and safe against a cycle. Order follows
+  less: the declaration standing later in the expanded text wins. An import that
+  cannot be read does not fail the build — the address may point at a file a
+  package does not export, and those carry mixins rather than values — but it is
+  reported, because a palette going missing in silence is exactly what this
+  changes.
+
 - **`.ui-button` — the kit finally styles a button.** It is the most common
   element on a page and the kit dressed every control around it while leaving
   the button itself bare: `inputs.less` gave a `button` its font and reset its
@@ -237,6 +300,19 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   listeners on the restored `<input>`.
 
 ### Changed
+
+- **Disabled text is now mixed toward the field fill instead of lightened.**
+  `@disabled--input-color` was the last less-only colour function left in the
+  kit (`lighten(@input-color, 50%)`), and it raises HSL lightness by a fixed 50
+  points regardless of what is behind it. On a dark theme that made disabled
+  text pure white — brighter than ordinary text. It is now
+  `color-mix(in srgb, var(--input-color) 38%, var(--disabled--input-fill))`,
+  which moves toward the actual fill and therefore works in both directions.
+  The share was picked to keep light themes where they were: the example and
+  ledtrees land within a step of the old value (`#a2a2a2` → `#a0a0a0`; ledtrees
+  sets the token explicitly and is untouched), while wsender's disabled text
+  goes from `#afafaf` to `#a5a5a5` — slightly more contrast. With this gone,
+  the kit computes no colour at build time at all.
 
 - **Event names share one format: `ui:<control>:change`.** `dropdown-change`,
   `textbox-change`, `richeditor-change` and `messageeditor-change` are

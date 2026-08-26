@@ -1,4 +1,63 @@
-// adaptive
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// ПАЛИТРА И ПРОПОРЦИИ — сырьё темы.
+//
+// Этим набором сайт перенастраивается целиком: всё, что ниже первой части файла, выведено
+// отсюда. Проекту, которому нужны свои цвета, кегль и базовые пропорции, дальше заглядывать
+// не нужно — хватит переопределить эти несколько десятков значений в своём uikit.vars.less.
+//
+// Ниже первой части лежат входы компонентов. Они остаются входами: любой из них по-прежнему
+// можно переопределить поимённо, когда общего правила не хватает.
+// ════════════════════════════════════════════════════════════════════════════════════════════
+
+// ── Цвет ──
+
+@surface: #fff; // фон страницы, полей и всплывающих поверхностей
+@ink: #222; // основной текст
+@line: #aaa; // граница элемента в покое
+@line-hover: #666666; // она же под курсором
+@accent: #222222; // фирменный цвет: рамка в фокусе, заливка главной кнопки, переключатель
+@accent-contrast: #fff; // подпись поверх заливки акцентом
+@danger: #d64545; // тон разрушающего действия
+
+// Цвета состояний. Умолчания — ключевые слова CSS: они заведомо различимы между собой, но для
+// сайта их стоит заменить. `yellow` на белом фоне нечитаем, `red` и `green` спорят с любой
+// фирменной палитрой — это умолчания «чтобы было видно», а не часть оформления.
+@color-success: green;
+@color-warning: yellow;
+@color-error: red;
+@color-info: blue;
+
+// ── Текст ──
+
+@font-family: system-ui, 'Segoe UI', Helvetica, 'Gill Sans', 'Verdana', 'Arial', sans-serif;
+@font-size: 14px;
+@font-weight: 400;
+@line-height: 130%;
+
+@h-line-height: 130%;
+@h-font-weight: 600; // общий вес заголовков: поимённые веса ниже берутся отсюда
+@h1-font-size: 56px;
+@h2-font-size: 50px;
+@h3-font-size: 28px;
+@h4-font-size: 22px;
+@h5-font-size: 18px;
+
+// ── Пропорции ──
+
+@space: 8px; // базовый шаг: промежутки внутри элементов управления
+@radius: 0; // скругление элементов управления — поля, кнопки
+@radius-overlay: 5px; // скругление всплывающих поверхностей — попап, модальное окно
+@border-width: 1px; // толщина границы
+@control-height: 46px; // высота поля и кнопки: они стоят в одну строку, поэтому высота общая
+@control-padding-lr: 15px; // поля элемента управления слева и справа
+
+@content-max-width: 1280px; // максимальная ширина контентной области
+@content-min-width: 320px; // минимальная ширина контентной области
+@content-padding-lr: 40px; // отступы контентной области до краёв браузера
+
+@svg-size: 20px;
+
+// ── Границы адаптива ──
 
 @adaptive-desktop-small: 1650px;
 @adaptive-notebook: 1550px;
@@ -8,43 +67,46 @@
 @adaptive-mobile: 500px;
 @adaptive-mobile-small: 370px;
 
-// common 
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// ВХОДЫ КОМПОНЕНТОВ — выведены из палитры выше.
+// ════════════════════════════════════════════════════════════════════════════════════════════
 
-@main-background: #fff;
+// common
 
-@font-size: 14px;
-@font-family: system-ui, 'Segoe UI', Helvetica, 'Gill Sans', 'Verdana', 'Arial', sans-serif;
-@font-weight: 400;
-@line-height: 130%;
-@text-color: #222;
+@main-background: @surface;
+@text-color: @ink;
 
-@h-line-height: 130%;
-@h1-font-size: 56px;
-@h1-font-weight: 600;
-@h2-font-size: 50px;
-@h2-font-weight: 600;
-@h3-font-size: 28px;
-@h3-font-weight: 600;
-@h4-font-size: 22px;
-@h4-font-weight: 600;
-@h5-font-size: 18px;
-@h5-font-weight: 600;
+@h1-font-weight: @h-font-weight;
+@h2-font-weight: @h-font-weight;
+@h3-font-weight: @h-font-weight;
+@h4-font-weight: @h-font-weight;
+@h5-font-weight: @h-font-weight;
 
-@content-max-width: 1280px;
-@content-min-width: 320px;
-@content-padding-lr: 40px;
-
-@svg-size: 20px;
 @svg-fill: @text-color;
 @svg-stroke: none;
+
+// popup
 
 @popup-fill: @main-background;
 @popup-color: @text-color;
 @popup-border-style: solid;
-@popup-border-width: 1px;
-@popup-border-color: #aaa;
-@popup-border-radius: 5px;
+@popup-border-width: @border-width;
+@popup-border-color: @line;
+@popup-border-radius: @radius-overlay;
 @popup-box-shadow: 0px 4px 8px 2px rgba(0, 0, 0, 0.12);
+
+// Попап, оторванный от инициатора на узком экране: затемнение, отступ от краёв экрана
+// и предел ширины.
+@popup-backdrop: rgba(0, 0, 0, 0.45);
+@popup-window-inset: 20px;
+@popup-window-max-width: 540px;
+
+// modal
+
+// Оформление модального окна берётся от попапа — это та же всплывающая поверхность, только
+// перекрывающая страницу целиком. Своих у него лишь размеры.
+@modal-width: 480px;
+@modal-padding: 20px;
 
 // scrollable
 
@@ -62,50 +124,56 @@
 @placeholder-font-style: inherit;
 @placeholder-color: inherit;
 
-@input-border-width: 1px;
-@input-border-color: #aaa;
+@input-border-width: @border-width;
+@input-border-color: @line;
 @input-border-type: solid;
-@input-border-radius: 0;
-@input-fill: #fff;
+@input-border-radius: @radius;
+@input-fill: @surface;
 
 @input-width: auto;
-@input-height: 46px;
-@input-padding-lr: 15px;
+@input-height: @control-height;
+@input-padding-lr: @control-padding-lr;
 @textarea-size: 100px;
 
 @input-color: @text-color;
-@input-font-size: 14px;
+@input-font-size: @font-size;
 @input-line-height: 1.4rem;
 @input-font-weight: inherit;
 @input-font-style: inherit;
 
-@hover--input-border-color: #666666;
-@hover--input-fill: #fff;
+@hover--input-border-color: @line-hover;
+@hover--input-fill: @surface;
 @hover--input-color: inherit;
 @hover--input-toolbar-button-darken: 8%; // на сколько кнопка тулбара темнее --input-fill при наведении
 
-@focus--input-border-color: #222222;
+@focus--input-border-color: @accent;
 @focus--input-fill: @input-fill;
 @focus--input-color: inherit;
 
 @readonly--input-fill: #f7f7f7;
 @readonly--input-color: @input-color;
 
-@disabled--input-border-color: #aaa;
+@disabled--input-border-color: @line;
 @disabled--input-fill: #eee;
-@disabled--input-color: lighten(@input-color, 50%);
 
-@invalid--input-border-color: red;
+// Выключенное значение — обычный цвет текста, приглушённый до заливки выключенного поля.
+// Считается в CSS, а не less-функцией: `lighten()` поднимает светлоту на 50 пунктов независимо
+// от фона, и на тёмной теме выключенный текст выходил чисто белым — ярче обычного. Смешение
+// же идёт к самой заливке, поэтому работает в обе стороны. Доля подобрана так, чтобы на светлой
+// теме результат остался прежним.
+@disabled--input-color: color-mix(in srgb, var(--input-color) 38%, var(--disabled--input-fill));
+
+@invalid--input-border-color: @color-error;
 @invalid--input-fill: rgb(255, 220, 220);
 @invalid--input-color: inherit;
 
 @incorrect--input-fill: rgb(255, 220, 220);
 @incorrect--input-color: inherit;
 
-@expanded--input-fill: #fff; // переменные для выпадашки
+@expanded--input-fill: @surface; // переменные для выпадашки
 @expanded--input-color: inherit;
 
-@hasvalue--input-fill: #fff; // переменные для выбранного значения
+@hasvalue--input-fill: @surface; // переменные для выбранного значения
 @hasvalue--input-color: @input-color;
 
 @toggler-height: 30px;
@@ -118,7 +186,7 @@
 @button-height-mini: 32px;
 @button-padding-lr: @input-padding-lr;
 @button-padding-lr-mini: 10px;
-@button-gap: 8px; // между значком и подписью
+@button-gap: @space; // между значком и подписью
 @button-radius: @input-border-radius;
 @button-border-width: @input-border-width;
 @button-border-color: @input-border-color;
@@ -127,12 +195,12 @@
 @button-font-size: @input-font-size;
 @button-font-weight: 500; // чуть плотнее текста страницы: подпись кнопки читают, а не вчитываются
 @button-accent: @focus--input-border-color; // заливка главной кнопки
-@button-accent-color: #fff; // подпись на залитой кнопке
+@button-accent-color: @accent-contrast; // подпись на залитой кнопке
 @button-spinner-size: 16px;
 
 @hover--button-tint: 12%; // насколько темнее заливка под курсором
 @active--button-tint: 20%; // и в момент нажатия
-@danger--button-accent: #d64545; // тон разрушающего действия
+@danger--button-accent: @danger; // тон разрушающего действия
 @disabled--button-opacity: 0.5;
 @focus--button-ring-width: 2px;
 @focus--button-ring-color: @focus--input-border-color;

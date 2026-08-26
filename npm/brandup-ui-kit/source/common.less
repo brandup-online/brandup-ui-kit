@@ -1,6 +1,25 @@
 @import (reference) "../vars.less";
 
 :root {
+	// Палитра и пропорции — то же сырьё, из которого собран весь набор ниже (см. vars.less).
+	// Отдаём его и в CSS: правило проекта, которому нужен фирменный цвет или базовый шаг, берёт
+	// их отсюда, а не заводит своё третье значение рядом. Токены компонентов на них не завязаны —
+	// их считает less, — так что переопределение в браузере меняет только то, что читает эти имена.
+	--surface: @surface;
+	--ink: @ink;
+	--line: @line;
+	--line-hover: @line-hover;
+	--accent: @accent;
+	--accent-contrast: @accent-contrast;
+	--danger: @danger;
+
+	--space: @space;
+	--radius: @radius;
+	--radius-overlay: @radius-overlay;
+	--border-width: @border-width;
+	--control-height: @control-height;
+	--control-padding-lr: @control-padding-lr;
+
 	// body
 	--main-background: @main-background;
 	--font-size: @font-size;
@@ -36,10 +55,10 @@
 	--layer-modal: 2000;
 
 	// colors
-	--color-success: green;
-	--color-warning: yellow;
-	--color-error: red;
-	--color-info: blue;
+	--color-success: @color-success;
+	--color-warning: @color-warning;
+	--color-error: @color-error;
+	--color-info: @color-info;
 
 	// svg
 	--svg-size: @svg-size;
