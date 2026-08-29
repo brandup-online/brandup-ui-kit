@@ -68,6 +68,13 @@
 	--hasvalue--input-color: @hasvalue--input-color;
 	--hasvalue--input-fill: @hasvalue--input-fill;
 
+	// checkbox и radio
+	--checkbox-size: @checkbox-size;
+	--checkbox-fill-checked: @checkbox-fill-checked;
+	--checkbox-mark: @checkbox-mark;
+	--checkbox-mark-width: @checkbox-mark-width;
+	--radio-dot: @radio-dot;
+
 	// toggler
 	--toggler-height: @toggler-height;
 	--toggler-padding: @toggler-padding;
@@ -191,24 +198,166 @@ textarea {
 	min-height: var(--textarea-size);
 }
 
-input[type=checkbox] {
+// ── Элементы выбора: чекбокс, тумблер, радио ─────────────────────────────────────────────
+//
+// До этой правки `input[type=checkbox]` кит безусловно превращал в тумблер, и обычного
+// чекбокса получить было нельзя, а `input[type=radio]` не оформлял вовсе — радиокнопка
+// стояла в форме нативной рядом с оформленными полями.
+//
+// Теперь вид следует за смыслом. Чекбокс — это «отмечено или нет» в наборе, который
+// отправляют вместе с формой; тумблер — «включено или выключено» прямо сейчас, и в ARIA
+// у него своя роль. Роль и задаёт вид: `role="switch"` — тумблер, без неё — чекбокс.
+// Скринридер при этом читает то же, что видит зрячий, а раньше он читал «флажок» там,
+// где нарисован переключатель.
+//
+//   <input type="checkbox" />                  — чекбокс
+//   <input type="checkbox" role="switch" />    — тумблер
+//   <input type="radio" name="…" />            — радио
+//
+// Общее у всех трёх — рамка, заливка и состояния поля ввода; своё — форма и отметка.
+
+// Рамка, заливка и состояния поля: у элемента выбора они те же, что у строки ввода,
+// и повторять их для каждой из трёх форм незачем.
+.ui-choice-control() {
 	appearance: none;
 	position: relative;
+	flex: 0 0 auto;
+	// рядом с подписью, а не на своей строке: `display: block` из общего правила выше
+	// поставил бы элемент выбора отдельным блоком, оторвав его от текста, к которому он
+	// относится
+	display: inline-block;
+	vertical-align: middle;
 	cursor: pointer;
 
 	background-color: var(--input-fill);
 	border-style: var(--input-border-type);
 	border-width: var(--input-border-width);
 	border-color: var(--input-border-color);
-	border-radius: calc(var(--toggler-height) / 2);
+
+	&:hover {
+		border-color: var(--hover--input-border-color);
+		background-color: var(--hover--input-fill);
+	}
+
+	// `readonly` для элемента выбора браузер не соблюдает — гасим нажатия сами
+	&[readonly] {
+		pointer-events: none;
+		touch-action: none;
+		background-color: var(--readonly--input-fill);
+	}
+
+	&:user-invalid {
+		border-color: var(--invalid--input-border-color);
+		background-color: var(--invalid--input-fill);
+	}
+}
+
+// Выключенное состояние — отдельным миксином, и вызывать его положено последним, уже после
+// правил `:checked`: у отмеченного элемента заливка своя, и объяви мы выключенность раньше,
+// отмеченный выключенный остался бы залит акцентом, ничем не отличаясь от рабочего.
+// Отметка при этом гасится, но не пропадает — иначе выключенный отмеченный не отличить
+// от выключенного пустого.
+.ui-choice-disabled() {
+	&:disabled {
+		cursor: default;
+		border-color: var(--disabled--input-border-color);
+		background-color: var(--disabled--input-fill);
+
+		&::after {
+			// Отметка на приглушённой заливке рисуется акцентом, а не цветом подписи поверх
+			// акцента: у рабочего элемента она белая на залитой коробке, а у выключенного
+			// коробка светлая — белым по светлому отметка пропадала бы совсем, и выключенный
+			// отмеченный стал бы неотличим от выключенного пустого.
+			// Оба свойства сразу: галочку рисует рамка, а точку и чёрточку — заливка.
+			border-color: var(--checkbox-fill-checked);
+			background-color: var(--checkbox-fill-checked);
+			opacity: 0.4;
+		}
+	}
+}
+
+// `:not([role=switch])` — чтобы правила чекбокса не доставались тумблеру: он объявлен тем же
+// тегом и типом, а перекрывает своим блоком не каждое из них. Без исключения круглешок получал
+// от галочки рамку с двух сторон и поворот на 45°.
+input[type=checkbox]:not([role=switch]),
+input[type=radio] {
+	.ui-choice-control();
+
+	width: var(--checkbox-size);
+	height: var(--checkbox-size);
+
+	// Отметка — псевдоэлементом по центру коробки. Форму ей задаёт каждый вид сам
+	// (галочка, точка, чёрточка), общее здесь только положение.
+	&::after {
+		content: "";
+		position: absolute;
+		left: 50%;
+		top: 50%;
+	}
+
+	&:checked {
+		background-color: var(--checkbox-fill-checked);
+		border-color: var(--checkbox-fill-checked);
+	}
+}
+
+input[type=checkbox]:not([role=switch]) {
+	border-radius: var(--input-border-radius);
+
+	// Галочка — угол рамки без двух сторон, повёрнутый на 45°. Рисовать её так, а не
+	// значком, значит не тянуть в стили ни файла, ни data-адреса и красить одним свойством.
+	&:checked::after {
+		width: calc(var(--checkbox-size) / 5);
+		height: calc(var(--checkbox-size) / 2.4);
+		border: solid var(--checkbox-mark);
+		border-width: 0 var(--checkbox-mark-width) var(--checkbox-mark-width) 0;
+		// по вертикали чуть выше середины: у повёрнутой галочки визуальный центр ниже
+		// геометрического
+		transform: translate(-50%, -60%) rotate(45deg);
+	}
+
+	// Состояние «часть набора отмечена» — чёрточка вместо галочки. Ставится только из
+	// сценария (`elem.indeterminate = true`), атрибута для него в разметке нет.
+	&:indeterminate {
+		background-color: var(--checkbox-fill-checked);
+		border-color: var(--checkbox-fill-checked);
+
+		&::after {
+			width: calc(var(--checkbox-size) / 2);
+			height: var(--checkbox-mark-width);
+			background-color: var(--checkbox-mark);
+			transform: translate(-50%, -50%);
+		}
+	}
+
+}
+
+input[type=radio] {
+	border-radius: 50%;
+
+	// Точка — круг вдвое меньше коробки. Радио не квадратное ни при каком `--input-border-radius`:
+	// круглая форма и есть то, чем оно отличается от чекбокса в наборе.
+	&:checked::after {
+		width: calc(var(--checkbox-size) / 2.5);
+		height: calc(var(--checkbox-size) / 2.5);
+		border-radius: 50%;
+		background-color: var(--radio-dot);
+		transform: translate(-50%, -50%);
+	}
+}
+
+// Тумблер: то же поле, но вытянутое, с круглешком, который переезжает при включении.
+input[type=checkbox][role=switch] {
+	.ui-choice-control();
 
 	height: var(--toggler-height);
 	width: calc(var(--toggler-height) * 2);
+	border-radius: calc(var(--toggler-height) / 2);
 
 	--round-size: calc(var(--toggler-height) - var(--toggler-padding) * 2 - var(--input-border-width) * 2);
 
-	&:after {
-		content: '';
+	&::after {
+		content: "";
 		position: absolute;
 		background-color: var(--toggler-round-fill);
 		width: var(--round-size);
@@ -219,52 +368,46 @@ input[type=checkbox] {
 		margin-bottom: auto;
 		top: 0;
 		bottom: 0;
-	}
-
-	&:hover {
-		border-color: var(--hover--input-border-color);
-		background-color: var(--hover--input-fill);
-		color: var(--hover--input-color);
-	}
-
-	&:focus {
-		border-color: var(--focus--input-border-color);
-		background-color: var(--focus--input-fill);
-		color: var(--focus--input-color);
-	}
-
-	&[readonly] {
-		pointer-events: none;
-		touch-action: none;
-		background-color: var(--readonly--input-fill);
+		// переезд круглешка виден как движение, а не как подмена картинки
+		transition: left ease 120ms, right ease 120ms;
 	}
 
 	&:checked {
 		background-color: var(--toggler-round-fill);
+		border-color: var(--toggler-round-fill);
 
-		&:after {
+		&::after {
 			background-color: var(--input-fill);
 			right: var(--toggler-padding);
 			left: auto;
 		}
 	}
 
-	&:disabled {
-		border-color: var(--disabled--input-border-color);
-		background-color: var(--disabled--input-fill);
-		color: var(--disabled--input-color);
-		cursor: default;
+}
 
-		&:after {
-			background-color: var(--toggler-round-fill);
-			opacity: 0.4;
-		}
-	}
+// Выключенное состояние — последним, уже после всех трёх видов. Отметку каждый из них красит
+// по-своему: галочку рисует рамка, точку и чёрточку — заливка, — и гашение, объявленное раньше,
+// эти правила перекрыли бы обратно. Тогда выключенный отмеченный оставался бы с белой отметкой
+// на светлой коробке, то есть выглядел бы пустым.
+// Селекторы повторяют те, которыми объявлены сами виды, — вплоть до `:not([role=switch])`:
+// вес правила считается вместе с ним, и написанное здесь короче проиграло бы `:checked`
+// выше, оставив выключенный отмеченный залитым акцентом.
+input[type=checkbox]:not([role=switch]),
+input[type=checkbox][role=switch],
+input[type=radio] {
+	.ui-choice-disabled();
+}
 
-	&:user-invalid {
-		border-color: var(--invalid--input-border-color);
-		background-color: var(--invalid--input-fill);
-		color: var(--invalid--input-color);
+// Круглешок выключенного тумблера — своим цветом, а не отметки чекбокса: по умолчанию это
+// один и тот же акцент, но переопределяют их порознь.
+input[type=checkbox][role=switch]:disabled::after {
+	background-color: var(--toggler-round-fill);
+}
+
+// Тому, кто отключил движение, переезд круглешка не нужен: включённость видна и без него.
+@media (prefers-reduced-motion: reduce) {
+	input[type=checkbox][role=switch]::after {
+		transition: none;
 	}
 }
 

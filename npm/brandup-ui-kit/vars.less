@@ -184,6 +184,14 @@
 @hasvalue--input-fill: @surface; // переменные для выбранного значения
 @hasvalue--input-color: @input-color;
 
+// Чекбокс и радио — коробка размером с текстовую строку, чтобы вставать рядом с подписью,
+// а не нависать над ней.
+@checkbox-size: 20px;
+@checkbox-fill-checked: @accent; // заливка отмеченного
+@checkbox-mark: @accent-contrast; // галочка и чёрточка поверх заливки
+@checkbox-mark-width: 2px; // толщина галочки
+@radio-dot: @accent-contrast; // точка внутри отмеченного радио
+
 @toggler-height: 30px;
 @toggler-padding: 3px;
 @toggler-round-fill: @focus--input-border-color;

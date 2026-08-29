@@ -29,6 +29,21 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Added
 
+- **A checkbox that is a checkbox, a switch that says so, and a radio at
+  all.** `input[type=checkbox]` was unconditionally drawn as a toggle
+  switch, so a plain checkbox could not be had from the kit, and
+  `input[type=radio]` was not styled at all — a radio stood in a form
+  looking native next to styled fields. A screen reader read "checkbox"
+  where a switch was drawn. Appearance now follows meaning, and the
+  markup declares the meaning: `role="switch"` is a switch, its absence
+  is a checkbox. Third checkbox state (`elem.indeterminate = true`) draws
+  a dash. States are shared with the text field — hover, `readonly`,
+  `disabled`, `:user-invalid`; on a disabled control the mark is dimmed
+  but stays visible, otherwise a disabled checked control is
+  indistinguishable from a disabled empty one. **Migration:** a
+  `<input type="checkbox">` kept for the switch look needs
+  `role="switch"` added, or a square checkbox appears in its place.
+
 - **A palette under the theme inputs.** `vars.less` was a flat list of ~106
   inputs mixing raw material (`@input-border-color: #aaa`) with everything
   derived from it, and no palette at all — so every project built its own and
