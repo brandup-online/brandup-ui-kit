@@ -115,6 +115,11 @@ const closeEntry = (entry: OpenPopup) => {
 		const index = stack.indexOf(entry);
 		if (index >= 0) stack.splice(index, 1);
 
+		// Слушатель снимается здесь, а не в закрытии сверху вниз: попап закрывают и мимо него —
+		// Escape зовёт этот метод прямо из слоя, — и снятый только там слушатель пережил бы
+		// последний попап и отрабатывал на каждом нажатии по странице.
+		if (!stack.length) document.body.removeEventListener("click", closePopupEventHandler);
+
 		// последним: слой возвращает фокус на инициатора, и делать это нужно уже по закрытому попапу
 		entry.layer.release();
 	} finally {
@@ -128,8 +133,6 @@ const closeEntry = (entry: OpenPopup) => {
  */
 function closeFrom(index: number) {
 	for (let i = stack.length - 1; i >= index && i >= 0; i--) closeEntry(stack[i]);
-
-	if (!stack.length) document.body.removeEventListener("click", closePopupEventHandler);
 }
 
 /**

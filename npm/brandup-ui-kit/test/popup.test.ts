@@ -414,6 +414,25 @@ describe("PopupManager: вложенные попапы", () => {
 		expect(PopupManager.isOpened(parent)).toBe(true);
 	});
 
+	// Закрыть попап можно и мимо закрытия сверху вниз: Escape зовёт снятие прямо из слоя.
+	// Слушатель клика на body снимался только в закрытии сверху вниз и после Escape оставался
+	// висеть — отрабатывал на каждом нажатии по странице, пока не снимал себя сам.
+	it("после Escape слушатель на body не остаётся", () => {
+		const popup = makePopup();
+		PopupManager.open(popup);
+
+		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+		expect(PopupManager.count).toBe(0);
+
+		// Оставшийся слушатель выдал бы себя работой: при пустом стеке он снимает сам себя.
+		const remove = jest.spyOn(document.body, "removeEventListener");
+		document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		const leftover = remove.mock.calls.length > 0;
+		remove.mockRestore();
+
+		expect(leftover).toBe(false);
+	});
+
 	it("нажатие мимо всех закрывает и подменю, и родителя", () => {
 		const parent = makePopup();
 		PopupManager.open(parent);

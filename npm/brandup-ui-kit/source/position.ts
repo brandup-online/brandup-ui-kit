@@ -226,17 +226,35 @@ export function trackPosition(elem: HTMLElement, anchor: HTMLElement, options: T
 
 		positionElement(elem, anchor, options);
 	};
+
+	// Первый раз — сразу: элемент уже показан, и ждать кадра значило бы дать ему мигнуть
+	// на прежнем месте.
 	update();
 
 	const view = elem.ownerDocument.defaultView;
 	if (!view) return () => clearPosition(elem);
 
-	view.addEventListener("scroll", update, { passive: true, capture: true });
-	view.addEventListener("resize", update, { passive: true });
+	// Дальше — не чаще кадра. Пересчёт пишет элементу стили и тут же читает его размеры,
+	// то есть заставляет браузер считать раскладку прямо в обработчике; делать это на каждое
+	// событие прокрутки незачем — до отрисовки всё равно доживёт только последнее значение.
+	let frame = 0;
+	const schedule = () => {
+		if (frame) return;
+
+		frame = view.requestAnimationFrame(() => {
+			frame = 0;
+			update();
+		});
+	};
+
+	view.addEventListener("scroll", schedule, { passive: true, capture: true });
+	view.addEventListener("resize", schedule, { passive: true });
 
 	return () => {
-		view.removeEventListener("scroll", update, { capture: true });
-		view.removeEventListener("resize", update);
+		if (frame) view.cancelAnimationFrame(frame);
+
+		view.removeEventListener("scroll", schedule, { capture: true });
+		view.removeEventListener("resize", schedule);
 		clearPosition(elem);
 	};
 }
