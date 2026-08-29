@@ -77,6 +77,7 @@
 	--checkbox-mark: @checkbox-mark;
 	--checkbox-mark-width: @checkbox-mark-width;
 	--radio-dot: @radio-dot;
+	--hover--checkbox-tint: @hover--checkbox-tint;
 
 	// toggler
 	--toggler-height: @toggler-height;
@@ -243,12 +244,9 @@ textarea {
 	}
 
 	// `readonly` для элемента выбора браузер не соблюдает вовсе, поэтому вид ему рисуем сами
-	// и заодно гасим указатель.
-	//
-	// Клавиатуру это не останавливает: пробел на таком элементе по-прежнему переключает его.
-	// Средствами стилей дальше не уйти — если состояние обязано держаться, хосту нужен
-	// `disabled` (он гасит и клавиатуру, но не отправляется с формой) или собственный
-	// обработчик с `aria-readonly`.
+	// и заодно гасим указатель. Клавиатуру стили не остановят — само переключение отменяет
+	// `enforceReadonlyChoice` (см. source/utils/readonly-choice.ts), его включает middleware
+	// кита. Скринридеру про закрытое поле по-прежнему говорит хост — атрибутом `aria-readonly`.
 	&[readonly] {
 		pointer-events: none;
 		touch-action: none;
@@ -402,6 +400,32 @@ input[type=checkbox][role=switch] {
 		}
 	}
 
+}
+
+// Наведение на отмеченный элемент.
+//
+// Объявляем отдельно, потому что общий `:hover` до него не доходит: он красит рамку и фон
+// цветами поля ввода, а отмеченный залит акцентом — те же цвета стёрли бы с него отметку.
+// К тому же `:checked` весит больше общего `:hover` и перекрывал бы его в любом порядке,
+// поэтому селекторы здесь длиннее ровно на него.
+//
+// `:not(:disabled)` обязателен: у выключенного элемента браузер по-прежнему шлёт `:hover`,
+// а правило ниже, гасящее его, весит меньше — без исключения выключенный отмеченный
+// подсвечивался бы под курсором как рабочий. У `readonly` этого не нужно: ему наведение
+// не доходит вовсе, `pointer-events` снят раньше.
+.ui-choice-checked-hover(@fill) {
+	background-color: color-mix(in srgb, @fill, #000 var(--hover--checkbox-tint));
+	border-color: color-mix(in srgb, @fill, #000 var(--hover--checkbox-tint));
+}
+
+input[type=checkbox]:not([role=switch]):checked:hover:not(:disabled),
+input[type=checkbox]:not([role=switch]):indeterminate:hover:not(:disabled),
+input[type=radio]:checked:hover:not(:disabled) {
+	.ui-choice-checked-hover(var(--checkbox-fill-checked));
+}
+
+input[type=checkbox][role=switch]:checked:hover:not(:disabled) {
+	.ui-choice-checked-hover(var(--toggler-round-fill));
 }
 
 // Выключенное состояние — последним, уже после всех трёх видов. Отметку каждый из них красит
