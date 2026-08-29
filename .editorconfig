@@ -3,7 +3,14 @@ root = true
 [*]
 indent_style = tab
 indent_size = 4
-end_of_line = crlf
 charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Окончание строки здесь намеренно не задано: его определяет git по .gitattributes
+# (`* text=auto`) — в репозитории LF, в рабочем дереве то, что принято в системе.
+# Жёсткое `end_of_line = crlf` спорило бы с этим на Linux и в CI.
+
+# В markdown два пробела в конце строки — это перенос, обрезать их нельзя.
+[*.md]
 trim_trailing_whitespace = false
-insert_final_newline = false
