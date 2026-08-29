@@ -57,6 +57,14 @@
 
 @svg-size: 20px;
 
+// ── Фокус ──
+
+// Кольцо, которым кит показывает фокус тому, у кого своего вида фокуса нет: кнопке, крестику
+// окна. Одно на весь набор — иначе путь по Tab выглядел бы на каждом элементе по-своему.
+@focus-ring-width: 2px;
+@focus-ring-offset: 2px;
+@focus-ring-color: @accent;
+
 // ── Границы адаптива ──
 
 @adaptive-desktop-small: 1650px;
@@ -202,5 +210,5 @@
 @active--button-tint: 20%; // и в момент нажатия
 @danger--button-accent: @danger; // тон разрушающего действия
 @disabled--button-opacity: 0.5;
-@focus--button-ring-width: 2px;
-@focus--button-ring-color: @focus--input-border-color;
+@focus--button-ring-width: @focus-ring-width;
+@focus--button-ring-color: @focus-ring-color;

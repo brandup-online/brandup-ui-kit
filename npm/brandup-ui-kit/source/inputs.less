@@ -85,10 +85,10 @@ select {
 	font-style: var(--input-font-style);
 	color: var(--input-color);
 	line-height: var(--input-line-height);
+	// повторяет общее правило из reset.less: этот файл бывает подключён и сам по себе
 	box-sizing: border-box;
 	padding: 0;
 	margin: 0;
-	outline: none;
 }
 
 input:not([type]),
@@ -107,6 +107,11 @@ input[type=file],
 textarea, 
 select {
 	appearance: none;
+	// Гасим кольцо только здесь — там, где кит даёт замену: фокус поле показывает
+	// собственным видом, цветом рамки (`:focus` ниже). У кнопки такого вида нет, поэтому
+	// общее правило выше кольца больше не снимает: снятое там, оно оставляло бы невидимым
+	// фокус на крестике модального окна (ловушка ставит каретку туда первым делом) и на
+	// любой кнопке страницы, к киту отношения не имеющей.
 	outline: none;
 	border-style: var(--input-border-type);
 	border-width: var(--input-border-width);
