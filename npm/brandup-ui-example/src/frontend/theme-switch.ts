@@ -17,7 +17,11 @@ const STORAGE_KEY = "uikit-theme";
 const DARK = "dark";
 const LIGHT = "light";
 
-const systemDark = () => window.matchMedia("(prefers-color-scheme: dark)");
+// Ссылку на запрос держим в модуле, а не создаём её на месте подписки: слушатель живёт ровно
+// столько, сколько живёт сам `MediaQueryList`, и брошенный сразу после `addEventListener`
+// объект сборщик мусора вправе унести вместе с подпиской — тема молча перестанет следовать
+// за системой.
+const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
 
 const isDark = (): boolean => document.documentElement.getAttribute("data-theme") === DARK;
 
@@ -69,7 +73,7 @@ export function initThemeSwitch(): void {
 
 	// Системную настройку слушаем, только пока выбор не сделан: сделанный руками он сильнее,
 	// и переключать тему под пользователем, потому что у него стемнело в системе, нельзя.
-	systemDark().addEventListener("change", (e) => {
+	systemDark.addEventListener("change", (e) => {
 		if (readChoice()) return;
 
 		apply(e.matches);

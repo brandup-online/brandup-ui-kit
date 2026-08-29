@@ -67,6 +67,30 @@ describe("enforceReadonlyChoice", () => {
 		expect(elem.checked).toBe(true);
 	});
 
+	// Отменяется нажатие, а не присваивание: значение закрытого поля хост меняет из кода
+	// сколько угодно — `readonly` про пользователя, а не про программу.
+	it("does not stand in the way of the host setting the value", () => {
+		const elem = input({ type: "checkbox", readonly: "" });
+
+		elem.checked = true;
+
+		expect(elem.checked).toBe(true);
+	});
+
+	// Атрибут читается в момент нажатия, поэтому снятый `readonly` возвращает элемент в строй
+	// сразу — без переподписки и без пересоздания элемента.
+	it("lets the control work again once the attribute is removed", () => {
+		const elem = input({ type: "checkbox", readonly: "" });
+
+		elem.click();
+		expect(elem.checked).toBe(false);
+
+		elem.removeAttribute("readonly");
+		elem.click();
+
+		expect(elem.checked).toBe(true);
+	});
+
 	// Отменяем действие, а не событие: нажатие по закрытому полю остаётся обычным нажатием,
 	// и обработчик хоста — подсказка, почему поле не меняется, — обязан его увидеть.
 	it("still lets the host see the click", () => {
