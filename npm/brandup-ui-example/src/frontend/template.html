@@ -5,6 +5,22 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<title>brandup_ui_example</title>
+	<!-- Тема отдельным файлом: светлая в `:root`, тёмная под `:root[data-theme="dark"]`.
+	     Собирает его `UiKitThemePlugin` (см. webpack.config.js) из `uikit.vars.less`
+	     и `uikit.dark.vars.less`. Подключается после бандла — перекрывает его умолчания. -->
+	<link rel="stylesheet" href="theme.css" />
+	<script>
+		// До первой отрисовки, иначе страница успеет мигнуть светлым у того, кто выбрал тёмную.
+		// Поэтому же скрипт встроен в шапку, а не приходит бандлом.
+		(function () {
+			try {
+				var saved = localStorage.getItem("uikit-theme");
+				if (saved) document.documentElement.setAttribute("data-theme", saved);
+			} catch (e) {
+				// приватный режим — просто останемся на светлой
+			}
+		})();
+	</script>
 </head>
 
 <body class="bp-state-loading">
@@ -23,6 +39,9 @@
 				<ul>
 					<li><a href="/" class="applink">Home</a></li>
 				</ul>
+				<button type="button" class="ui-button mini theme-switch" data-theme-switch>
+					<span data-theme-switch-label>Тёмная тема</span>
+				</button>
 			</div>
 		</nav>
 		<main id="app-content" role="main" class="app-content content-width"></main>

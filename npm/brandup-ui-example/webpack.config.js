@@ -6,6 +6,48 @@ const CleanCSSPlugin = require("less-plugin-clean-css");
 const TerserPlugin = require("terser-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const parseLessVars = require("@brandup/ui-kit/build/parse-less-vars.cjs");
+const buildTheme = require("@brandup/ui-kit/build/build-theme.cjs");
+const { sources } = require("webpack");
+
+const themeFile = path.resolve(__dirname, "uikit.vars.less");
+const darkThemeFile = path.resolve(__dirname, "uikit.dark.vars.less");
+
+/**
+ * Кладёт рядом с бандлом отдельный `theme.css`.
+ *
+ * Сама светлая тема в бандл уже запечена — её подставляет `modifyVars` ниже. Этот файл нужен
+ * ради второй: он объявляет тёмный вариант под `:root[data-theme="dark"]`, и переключатель
+ * в шапке примера меняет только атрибут на `<html>`.
+ *
+ * Вариант — дельта поверх основной темы, а не её копия, и после того как входы компонентов
+ * стали ссылаться на палитру, в дельту попадает почти одна палитра: перекрасить пример
+ * целиком стоит десятка значений в `uikit.dark.vars.less`.
+ *
+ * Отдаём файл webpack-у как свой ассет, а не пишем на диск мимо него: с `output.clean` всё
+ * постороннее в каталоге сборки удаляется, и записанная своими руками тема пропадала бы
+ * при следующей пересборке.
+ */
+class UiKitThemePlugin {
+	apply(compiler) {
+		compiler.hooks.thisCompilation.tap("UiKitThemePlugin", (compilation) => {
+			compilation.hooks.processAssets.tapPromise(
+				{ name: "UiKitThemePlugin", stage: compilation.PROCESS_ASSETS_STAGE_ADDITIONAL },
+				async () => {
+					const css = await buildTheme({
+						theme: themeFile,
+						variants: [{ selector: ':root[data-theme="dark"]', theme: darkThemeFile }],
+					});
+
+					compilation.emitAsset("theme.css", new sources.RawSource(css));
+				}
+			);
+
+			// пересобирать тему, когда правят её файлы, а не только исходники страниц
+			compilation.fileDependencies.add(themeFile);
+			compilation.fileDependencies.add(darkThemeFile);
+		});
+	}
+}
 
 const bundleOutputDir = "./wwwroot/dist";
 const frontDir = path.resolve(__dirname, "src", "frontend");
@@ -16,7 +58,7 @@ const lessLoaderOptions = {
 	lessOptions: {
 		math: "always",
 		plugins: [new CleanCSSPlugin({ advanced: false })],
-		modifyVars: parseLessVars(),
+		modifyVars: parseLessVars(themeFile),
 	},
 };
 
@@ -168,6 +210,7 @@ module.exports = (_env) => {
 					template: path.join(frontDir, "template.html"),
 					publicPath: publicPath,
 				}),
+				new UiKitThemePlugin(),
 			],
 		},
 	];

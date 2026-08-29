@@ -3,6 +3,7 @@ import { uiKitMiddlewareFactory } from "@brandup/ui-kit";
 import type { ExampleApplicationModel } from "./typings/app";
 import { ExampleApplication } from "./app";
 import "./pages/base";
+import { initThemeSwitch } from "./theme-switch";
 import "./styles/styles.less";
 
 import pages from "./middlewares/pages";
@@ -31,5 +32,7 @@ builder
 	.useMiddleware(errors);
 
 const app = builder.build({ basePath: "/" });
+
+initThemeSwitch();
 
 app.run();

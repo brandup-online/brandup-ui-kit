@@ -29,6 +29,21 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Added
 
+- **A dark theme in the example app, and the palette actually used
+  there.** The example's `uikit.vars.less` still spoke the pre-palette
+  vocabulary (`@main-background`, `@popup-*`), and nothing in the repo
+  called `buildTheme` — the two headline features of the previous
+  revisions had no running demo. The theme file is now written as a
+  palette, `uikit.dark.vars.less` holds the dark variant, and a small
+  webpack plugin emits `theme.css` beside the bundle (as a webpack asset,
+  not a hand-written file — `output.clean` would delete the latter on the
+  next rebuild). A switch in the header flips `data-theme` on `<html>`;
+  the choice is remembered, and an inline head script applies it before
+  first paint so a dark-theme user never sees a light flash. The dark
+  variant is eleven values — seven of palette plus four state fills that
+  are deliberately not derived from it — because everything else follows
+  the palette on its own now.
+
 - **Component inputs now follow the palette in the browser, not at build
   time.** The palette added earlier gave the theme raw material, but the
   derivation still happened in less: `@input-border-color: @line` was

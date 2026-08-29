@@ -7,7 +7,9 @@
 	--input-width: 100%;
 
 	--placeholder-font-weidth: 300;
-	--placeholder-color: #444;
+	// не литералом: на тёмной теме серый по тёмному пропадал бы — приглушаем цвет текста
+	// до фона поля, тем же приёмом, что и выключенное значение в ките
+	--placeholder-color: color-mix(in srgb, var(--input-color) 55%, var(--input-fill));
 
 	& .part {
 		display: flex;
@@ -24,9 +26,14 @@
 				flex-flow: column nowrap;
 				row-gap: 10px;
 
+				// Разметка примера под каждым контролом. Цвета выведены из палитры, а не заданы
+				// литералом: на тёмной теме жёлтая плашка со светлым текстом становилась
+				// нечитаемой, а страница — единственное место, где тему и разглядывают.
 				& .html {
 					font-size: 10px;
-					background: rgb(233, 233, 129);
+					background: color-mix(in srgb, var(--surface) 92%, var(--ink));
+					color: color-mix(in srgb, var(--ink) 80%, var(--surface));
+					border-radius: var(--input-border-radius);
 					padding: 5px 10px;
 					white-space: wrap;
 				}

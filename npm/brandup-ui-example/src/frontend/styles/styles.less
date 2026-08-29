@@ -122,6 +122,18 @@ button {
 		column-gap: calc(var(--content-padding-lr) * 2);
 	}
 
+	// Кнопка в шапке: фон у неё тёмный, а `--button-fill` кита выведен из `--surface` — то есть
+	// светлый. Перекрашиваем её теми же токенами, которыми настраивается любая кнопка, и только
+	// на этом поддереве.
+	& .theme-switch {
+		flex: 0 0 auto;
+		margin-left: auto;
+		--button-fill: transparent;
+		--button-border-color: rgba(255, 255, 255, 0.45);
+		--button-color: #fff;
+		--focus-ring-color: #fff;
+	}
+
 	& a.logo {
 		flex: 0 0 auto;
 		font-size: 28px;
