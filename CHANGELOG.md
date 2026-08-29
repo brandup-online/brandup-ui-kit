@@ -648,9 +648,14 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   in the capture phase so a host handler cannot swallow it first. The
   event itself is not stopped — a click on a closed field stays an
   ordinary click, so the host's "why is this fixed" hint still sees it.
-  Enabled by the kit middleware; `aria-readonly` remains the host's to
-  write, and this is not a substitute for `disabled` (a disabled value is
-  not submitted, a read-only one is — which is usually the point).
+  The cancel is armed on import of the package — not by registering the
+  middleware and not by a call from application code: the closed look is
+  drawn by the stylesheet, unconditionally, for everyone who includes it,
+  so had the behaviour arrived separately, a project with the styles and
+  no middleware would still show a control that looks closed and changes
+  anyway. `aria-readonly` remains the host's to write, and this is not a
+  substitute for `disabled` (a disabled value is not submitted, a
+  read-only one is — which is usually the point).
 
 - **A checked choice control responds to hover again.** The shared
   `:hover` paints border and fill in the text field's colours, but

@@ -8,9 +8,9 @@ import { enforceReadonlyChoice } from "../source/utils/readonly-choice";
 // поэтому отменённый `click` — это и отменённая клавиша (jsdom клавиатурное поведение
 // не воспроизводит, а вот `elem.click()` идёт тем же путём, что и оно).
 
-beforeAll(() => {
-	enforceReadonlyChoice();
-});
+// Явно ничего не включаем: модуль подписывается сам, как только его загрузили. Набор потому
+// и не зовёт `enforceReadonlyChoice()` до проверок — если однажды подписку снова повесят на
+// вызов извне, эти проверки упадут первыми.
 
 beforeEach(() => {
 	document.body.innerHTML = "";
@@ -92,7 +92,8 @@ describe("enforceReadonlyChoice", () => {
 		expect(defaultPrevented).toHaveBeenCalledWith(false);
 	});
 
-	// Слушатель на документе нужен один, сколько бы раз ни запускали приложение.
+	// Слушатель на документе нужен один: подписка уже стоит с загрузки модуля, и повторные
+	// вызовы — из приложения, что грузит кит отложенно, — не должны добавлять второй.
 	it("subscribes once however many times it is called", () => {
 		const spy = jest.spyOn(document, "addEventListener");
 
@@ -102,5 +103,24 @@ describe("enforceReadonlyChoice", () => {
 		expect(spy).not.toHaveBeenCalled();
 
 		spy.mockRestore();
+	});
+});
+
+// Отмена обязана приходить вместе с пакетом, а не с регистрацией middleware: закрытый вид
+// рисуют стили — безусловно всем, кто их подключил. Здесь проверяется вся цепочка целиком:
+// импортирован сам кит, ничего не настроено, приложение не запущено.
+describe("importing the kit is enough", () => {
+	it("cancels the toggle without any setup", async () => {
+		await import("../source/index");
+
+		document.body.innerHTML = "";
+		const elem = document.createElement("input");
+		elem.type = "checkbox";
+		elem.setAttribute("readonly", "");
+		document.body.appendChild(elem);
+
+		elem.click();
+
+		expect(elem.checked).toBe(false);
 	});
 });

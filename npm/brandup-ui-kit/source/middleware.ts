@@ -2,7 +2,6 @@ import { Middleware, MiddlewareNext, NavigateContext, StartContext } from "@bran
 import { LayerManager } from "./layer";
 import { UIKIT } from "./names";
 import { PopupManager } from "./popup";
-import { enforceReadonlyChoice } from "./utils/readonly-choice";
 import { resetUserScroll } from "./utils/user-scroll";
 
 export class UiKitMiddleware implements Middleware {
@@ -11,11 +10,6 @@ export class UiKitMiddleware implements Middleware {
 	private __navigated = false;
 
 	start(context: StartContext, next: MiddlewareNext) {
-		// `readonly` на чекбоксе и радио браузер не читает вовсе: стили кита рисуют такому
-		// элементу закрытый вид и снимают указатель, но пробелом его всё равно переключали.
-		// Отменяем само действие (см. readonly-choice).
-		enforceReadonlyChoice();
-
 		context.app.registerCommand(UIKIT.POPUP.COMMAND.TOGGLE, (context) => {
 			if (!context.target.nextElementSibling?.classList.contains(UIKIT.POPUP.CLASS.ROOT))
 				throw new Error("Not found popup elem.");
