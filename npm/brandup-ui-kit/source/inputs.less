@@ -60,7 +60,10 @@
 	--invalid--input-color: @invalid--input-color;
 
 	--incorrect--input-fill: @incorrect--input-fill;
-	--incorrect--input-color: @input-color;
+	// Свой вход, а не `@input-color`: тот стоял здесь опечаткой, из-за которой
+	// `@incorrect--input-color` не читал никто — переопределить его в теме было нельзя,
+	// значение молча бралось от обычного текста поля.
+	--incorrect--input-color: @incorrect--input-color;
 
 	--expanded--input-color: @expanded--input-color;
 	--expanded--input-fill: @expanded--input-fill;
@@ -239,7 +242,13 @@ textarea {
 		background-color: var(--hover--input-fill);
 	}
 
-	// `readonly` для элемента выбора браузер не соблюдает — гасим нажатия сами
+	// `readonly` для элемента выбора браузер не соблюдает вовсе, поэтому вид ему рисуем сами
+	// и заодно гасим указатель.
+	//
+	// Клавиатуру это не останавливает: пробел на таком элементе по-прежнему переключает его.
+	// Средствами стилей дальше не уйти — если состояние обязано держаться, хосту нужен
+	// `disabled` (он гасит и клавиатуру, но не отправляется с формой) или собственный
+	// обработчик с `aria-readonly`.
 	&[readonly] {
 		pointer-events: none;
 		touch-action: none;
@@ -279,10 +288,16 @@ textarea {
 // `:not([role=switch])` — чтобы правила чекбокса не доставались тумблеру: он объявлен тем же
 // тегом и типом, а перекрывает своим блоком не каждое из них. Без исключения круглешок получал
 // от галочки рамку с двух сторон и поворот на 45°.
+// Селекторы здесь той же длины, что у видов ниже, — вплоть до `:not([role=switch])`: вес
+// правила считается вместе с ним, и объявленное короче проиграло бы `:checked` по весу.
 input[type=checkbox]:not([role=switch]),
+input[type=checkbox][role=switch],
 input[type=radio] {
 	.ui-choice-control();
+}
 
+input[type=checkbox]:not([role=switch]),
+input[type=radio] {
 	width: var(--checkbox-size);
 	height: var(--checkbox-size);
 
@@ -348,8 +363,6 @@ input[type=radio] {
 
 // Тумблер: то же поле, но вытянутое, с круглешком, который переезжает при включении.
 input[type=checkbox][role=switch] {
-	.ui-choice-control();
-
 	height: var(--toggler-height);
 	width: calc(var(--toggler-height) * 2);
 	border-radius: calc(var(--toggler-height) / 2);
@@ -368,8 +381,13 @@ input[type=checkbox][role=switch] {
 		margin-bottom: auto;
 		top: 0;
 		bottom: 0;
-		// переезд круглешка виден как движение, а не как подмена картинки
-		transition: left ease 120ms, right ease 120ms;
+		// Переезд круглешка виден как движение, а не как подмена картинки.
+		//
+		// Двигаем `transform`, а не `left`: включённое положение раньше задавалось парой
+		// `right: <отступ>; left: auto`, а `auto` с длиной не интерполируется — переход был
+		// объявлен, но не случался ни разу, круглешок просто перескакивал. Заодно `transform`
+		// не заставляет пересчитывать раскладку на каждом кадре.
+		transition: transform ease 120ms;
 	}
 
 	&:checked {
@@ -378,8 +396,9 @@ input[type=checkbox][role=switch] {
 
 		&::after {
 			background-color: var(--input-fill);
-			right: var(--toggler-padding);
-			left: auto;
+			// Ровно на высоту тумблера: его ширина вдвое больше высоты, а отступы и рамка
+			// с обеих сторон одинаковы — остаток пути круглешка сходится к ней.
+			transform: translateX(var(--toggler-height));
 		}
 	}
 
