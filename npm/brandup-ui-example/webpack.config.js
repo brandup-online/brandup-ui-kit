@@ -9,6 +9,7 @@ const parseLessVars = require("@brandup/ui-kit/build/parse-less-vars.cjs");
 const buildTheme = require("@brandup/ui-kit/build/build-theme.cjs");
 const { sources } = require("webpack");
 
+const THEME_FILE_NAME = "theme.css";
 const themeFile = path.resolve(__dirname, "uikit.vars.less");
 const darkThemeFile = path.resolve(__dirname, "uikit.dark.vars.less");
 
@@ -38,9 +39,32 @@ class UiKitThemePlugin {
 						variants: [{ selector: ':root[data-theme="dark"]', theme: darkThemeFile }],
 					});
 
-					compilation.emitAsset("theme.css", new sources.RawSource(css));
+					compilation.emitAsset(THEME_FILE_NAME, new sources.RawSource(css));
 				}
 			);
+
+			// Тег подключения ставим сами, и обязательно последним среди стилей: тема перекрывает
+			// умолчания бандла, а перекрыть их при равном весе может только то, что идёт ниже.
+			// Написанная в шаблоне ссылка встала бы выше — HtmlWebpackPlugin дописывает свои теги
+			// в конец `<head>`, — и тема проигрывала бы бандлу везде, кроме тёмного варианта:
+			// тот выигрывает не порядком, а весом селектора. То есть ровно там, ради чего
+			// отдельный файл и заведён, — правку темы без пересборки бандла никто бы не увидел.
+			//
+			// Отсюда же берётся `publicPath`: путь к теме обязан считаться так же, как к остальным
+			// ассетам, иначе она потеряется при развёртывании не в корне сайта.
+			HtmlWebpackPlugin.getHooks(compilation).alterAssetTagGroups.tap("UiKitThemePlugin", (data) => {
+				const publicPath = compilation.outputOptions.publicPath;
+				const prefix = !publicPath || publicPath === "auto" ? "" : publicPath;
+
+				data.headTags.push({
+					tagName: "link",
+					voidTag: true,
+					meta: { plugin: "UiKitThemePlugin" },
+					attributes: { rel: "stylesheet", href: `${prefix}${THEME_FILE_NAME}` },
+				});
+
+				return data;
+			});
 
 			// пересобирать тему, когда правят её файлы, а не только исходники страниц
 			compilation.fileDependencies.add(themeFile);

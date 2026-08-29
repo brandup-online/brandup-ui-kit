@@ -9,24 +9,30 @@ import { DOM } from "@brandup/ui";
  * заливка полей, главная кнопка, переключатель, кольцо фокуса, попап и окно выведены из неё
  * и едут следом сами.
  *
- * Выбор запоминается, а применяет его к первой отрисовке скрипт в шапке документа — иначе
- * страница мигала бы светлым у того, кто выбрал тёмную.
+ * Пока выбор не сделан, страница идёт за системной настройкой; нажатие делает выбор явным
+ * и запоминает его. К первой отрисовке всё это применяет встроенный в `<head>` скрипт —
+ * иначе страница мигала бы светлым у того, кому нужна тёмная.
  */
 const STORAGE_KEY = "uikit-theme";
 const DARK = "dark";
+const LIGHT = "light";
+
+const systemDark = () => window.matchMedia("(prefers-color-scheme: dark)");
 
 const isDark = (): boolean => document.documentElement.getAttribute("data-theme") === DARK;
+
+const readChoice = (): string | null => {
+	try {
+		return localStorage.getItem(STORAGE_KEY);
+	} catch {
+		// приватный режим: выбора не помним — значит его и нет
+		return null;
+	}
+};
 
 const apply = (dark: boolean) => {
 	if (dark) document.documentElement.setAttribute("data-theme", DARK);
 	else document.documentElement.removeAttribute("data-theme");
-
-	try {
-		if (dark) localStorage.setItem(STORAGE_KEY, DARK);
-		else localStorage.removeItem(STORAGE_KEY);
-	} catch {
-		// приватный режим: тема останется выбранной до перезагрузки, и это лучше, чем падение
-	}
 };
 
 /** Подписывает переключатель в шапке. Зовётся один раз при старте приложения. */
@@ -46,7 +52,27 @@ export function initThemeSwitch(): void {
 	};
 
 	button.addEventListener("click", () => {
-		apply(!isDark());
+		const dark = !isDark();
+		apply(dark);
+
+		try {
+			// Пишем выбор целиком, а не «тёмную или ничего»: пустое значение означало бы
+			// «идти за системой», и выбранная светлая на тёмной системе не пережила бы
+			// перезагрузку.
+			localStorage.setItem(STORAGE_KEY, dark ? DARK : LIGHT);
+		} catch {
+			// приватный режим: тема останется выбранной до перезагрузки — это лучше падения
+		}
+
+		refresh();
+	});
+
+	// Системную настройку слушаем, только пока выбор не сделан: сделанный руками он сильнее,
+	// и переключать тему под пользователем, потому что у него стемнело в системе, нельзя.
+	systemDark().addEventListener("change", (e) => {
+		if (readChoice()) return;
+
+		apply(e.matches);
 		refresh();
 	});
 

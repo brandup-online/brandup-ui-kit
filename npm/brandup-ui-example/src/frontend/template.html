@@ -5,20 +5,24 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<title>brandup_ui_example</title>
-	<!-- Тема отдельным файлом: светлая в `:root`, тёмная под `:root[data-theme="dark"]`.
-	     Собирает его `UiKitThemePlugin` (см. webpack.config.js) из `uikit.vars.less`
-	     и `uikit.dark.vars.less`. Подключается после бандла — перекрывает его умолчания. -->
-	<link rel="stylesheet" href="theme.css" />
+	<!-- Ссылку на theme.css здесь не пишем: её дописывает `UiKitThemePlugin`
+	     (см. webpack.config.js) последней среди стилей, иначе тема шла бы выше бандла
+	     и его умолчания не перекрывала. -->
 	<script>
 		// До первой отрисовки, иначе страница успеет мигнуть светлым у того, кто выбрал тёмную.
 		// Поэтому же скрипт встроен в шапку, а не приходит бандлом.
 		(function () {
+			var saved = null;
 			try {
-				var saved = localStorage.getItem("uikit-theme");
-				if (saved) document.documentElement.setAttribute("data-theme", saved);
+				saved = localStorage.getItem("uikit-theme");
 			} catch (e) {
-				// приватный режим — просто останемся на светлой
+				// приватный режим: выбора не помним, идём за системной настройкой
 			}
+
+			// Явный выбор сильнее системной настройки, но пока его не сделали — идём за ней:
+			// у того, кто держит систему в тёмной теме, светлая страница режет глаза.
+			var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+			if (dark) document.documentElement.setAttribute("data-theme", "dark");
 		})();
 	</script>
 </head>
