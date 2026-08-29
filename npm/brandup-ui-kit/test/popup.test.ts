@@ -483,3 +483,75 @@ describe("PopupManager: вложенные попапы", () => {
 		expect(PopupManager.current).toBe(child.popup);
 	});
 });
+
+// Позиционирование включается опцией и по умолчанию выключено: попапу оставлены координаты,
+// написанные в разметке проекта, — правило вида `left: calc(100% + 10px)` работало до появления
+// опции и обязано работать после. Сам расчёт проверяется в position.test.ts, здесь — что
+// менеджер его включает, выключает и прибирает за собой.
+describe("PopupManager: позиционирование у якоря", () => {
+	// jsdom раскладку не считает, и вьюпорт у него нулевой — при таком любой попап прижимается
+	// к отступу от края, и проверять было бы нечего. Задаём размеры экрана сами.
+	beforeAll(() => {
+		Object.defineProperty(document.documentElement, "clientWidth", { value: 1000, configurable: true });
+		Object.defineProperty(document.documentElement, "clientHeight", { value: 800, configurable: true });
+	});
+
+	beforeEach(() => {
+		PopupManager.close();
+		document.body.innerHTML = "";
+	});
+
+	it("без опции координаты попапа не трогает", () => {
+		const popup = makePopup();
+		popup.style.left = "42px";
+
+		PopupManager.open(popup, { initiator: makeInitiator() });
+
+		expect(popup.style.position).toBe("");
+		expect(popup.style.left).toBe("42px");
+	});
+
+	it("с опцией ставит попап у инициатора", () => {
+		const popup = makePopup();
+
+		PopupManager.open(popup, { initiator: makeInitiator(), position: true });
+
+		expect(popup.style.position).toBe("fixed");
+		expect(popup.style.left).not.toBe("");
+	});
+
+	it("закрытие возвращает попапу его собственные координаты", () => {
+		const popup = makePopup();
+		PopupManager.open(popup, { initiator: makeInitiator(), position: true });
+
+		PopupManager.close(popup);
+
+		expect(popup.style.position).toBe("");
+		expect(popup.style.left).toBe("");
+		expect(popup.style.top).toBe("");
+	});
+
+	// Попап у поля ввода раскрывают кнопкой внутри поля, а вставать он должен по всему полю.
+	it("якорь можно задать отдельно от кнопки", () => {
+		const popup = makePopup();
+		const field = document.createElement("div");
+		document.body.appendChild(field);
+		field.getBoundingClientRect = () => ({ left: 120, top: 40, width: 300, height: 46 }) as DOMRect;
+
+		PopupManager.open(popup, { initiator: makeInitiator(), position: { anchor: field } });
+
+		expect(popup.style.left).toBe("120px");
+		expect(popup.style.top).toBe("90px"); // 40 + 46 + зазор 4
+	});
+
+	// Опция без якоря — ни инициатора, ни `anchor` — не должна ронять открытие: попап
+	// просто останется на своих координатах.
+	it("без якоря просто не позиционирует", () => {
+		const popup = makePopup();
+
+		PopupManager.open(popup, { position: true });
+
+		expect(PopupManager.isOpened(popup)).toBe(true);
+		expect(popup.style.position).toBe("");
+	});
+});

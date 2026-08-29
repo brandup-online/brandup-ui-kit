@@ -29,6 +29,35 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Added
 
+- **The kit positions a popup at its anchor.** `.ui-popup` was
+  `position: absolute` and nothing else: every consumer wrote `top` / `left`
+  by hand, and such a popup simply drove off the right edge of the screen.
+  Inside the set the same problem had been solved twice and differently —
+  the editor toolbar clamps itself to the edges but never flips, the
+  dropdown list flips but never clamps. `position.ts` does both, in one
+  place: `PopupManager.open(elem, { initiator, position: true })` puts the
+  popup under the button, flips it to the opposite side when its own does
+  not fit, shifts it along that side to stay inside the viewport, and keeps
+  it on the anchor while it is open (scrolling any ancestor moves it along).
+  Side, alignment, gap, viewport padding and the anchor itself are options;
+  the calculation (`computePosition`) is exported separately for tooltips
+  and menus of one's own. Off by default — a project's own `top` / `left`
+  keeps working untouched. In the narrow-screen mode, where the popup is
+  shown as a centred window, coordinates are not written at all; the
+  stylesheet itself declares that mode through `--popup-window-mode`, so
+  the breakpoint does not also live as a number in script.
+
+- **A popup can now open inside a popup.** The manager held exactly one:
+  opening a second closed the first, so a submenu, or an emoji panel inside
+  an open panel, was impossible — even though the layer stack had been ready
+  for it all along. Open popups are a stack now. Neighbours still evict each
+  other (two menus in a header must not be open at once); kinship is decided
+  by the button — one standing inside an open popup opens a child, one on
+  the page opens a popup of its own. Escape takes the top layer only, the
+  body class is released by the last of them, and closing goes top-down so
+  focus returns along the chain. `close()` takes a popup (closing it and
+  whatever it opened); `count` and `current` were added.
+
 - **A dark theme in the example app, and the palette actually used
   there.** The example's `uikit.vars.less` still spoke the pre-palette
   vocabulary (`@main-background`, `@popup-*`), and nothing in the repo

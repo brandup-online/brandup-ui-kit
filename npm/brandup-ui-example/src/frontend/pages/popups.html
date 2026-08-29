@@ -23,4 +23,48 @@
 			</div>
 		</div>
 	</div>
+	<div class="example">
+		<p>
+			Позиционирование у якоря: попап ставит сам кит — с переворотом на другую сторону,
+			когда на своей не помещается, и со сдвигом от края экрана. Кнопки нарочно стоят
+			у краёв.
+		</p>
+		<div class="anchored">
+			<button data-command="anchored" class="ui-button mini">Слева вверху</button>
+			<div class="ui-popup"><menu>
+				<li><a href="">Первый пункт меню</a></li>
+				<li><a href="">Второй пункт меню</a></li>
+				<li><a href="">Третий пункт меню</a></li>
+			</menu></div>
+
+			<button data-command="anchored" class="ui-button mini at-right">Справа</button>
+			<div class="ui-popup"><menu>
+				<li><a href="">Здесь попап прижмётся к правому краю</a></li>
+				<li><a href="">Второй пункт меню</a></li>
+			</menu></div>
+
+			<button data-command="anchored" class="ui-button mini at-bottom">Внизу страницы</button>
+			<div class="ui-popup"><menu>
+				<li><a href="">Здесь попап перевернётся вверх</a></li>
+				<li><a href="">Второй пункт меню</a></li>
+				<li><a href="">Третий пункт меню</a></li>
+			</menu></div>
+		</div>
+	</div>
+	<div class="example">
+		<p>Вложенный попап: кнопка внутри раскрытого меню раскрывает подменю, родитель остаётся.</p>
+		<div class="menu">
+			<button data-command="anchored" class="ui-button mini">Меню с подменю</button>
+			<div class="ui-popup"><menu>
+				<li><a href="">Обычный пункт</a></li>
+				<li>
+					<button data-command="anchored-right" class="ui-button mini wide">Подменю →</button>
+					<div class="ui-popup"><menu>
+						<li><a href="">Пункт подменю 1</a></li>
+						<li><a href="">Пункт подменю 2</a></li>
+					</menu></div>
+				</li>
+			</menu></div>
+		</div>
+	</div>
 </section>

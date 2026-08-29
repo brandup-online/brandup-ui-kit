@@ -1,4 +1,47 @@
 .page-block.popups {
+	// Попапу, который позиционирует кит, координат здесь не задано вовсе — только ширина
+	// и оформление содержимого. Кнопки нарочно расставлены по краям: у правого попап
+	// прижимается, у нижнего переворачивается вверх.
+	& .anchored {
+		position: relative;
+		align-self: stretch;
+		min-height: 220px;
+
+		& .ui-button {
+			position: absolute;
+
+			&.at-right {
+				right: 0;
+			}
+
+			&.at-bottom {
+				bottom: 0;
+			}
+		}
+
+		& .ui-popup {
+			width: 220px;
+		}
+	}
+
+	& .ui-popup menu {
+		padding: 10px 20px;
+
+		& a {
+			display: block;
+			padding: 5px 0;
+			text-decoration: none;
+
+			&:hover {
+				text-decoration: underline;
+			}
+		}
+
+		& .ui-button {
+			margin: 5px 0;
+		}
+	}
+
 	& .example {
 		display: flex;
 		flex-flow: column nowrap;

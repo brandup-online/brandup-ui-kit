@@ -17,5 +17,23 @@ export default class PopupsPage extends Page {
 		this.registerCommand("open", (context) => {
 			PopupManager.toggle(context.target.nextElementSibling as HTMLElement, { initiator: context.target });
 		});
+
+		// Координат в стилях нет вовсе — их считает кит: `position: true` ставит попап под
+		// кнопкой, переворачивает вверх у нижнего края экрана и прижимает к правому.
+		this.registerCommand("anchored", (context) => {
+			PopupManager.toggle(context.target.nextElementSibling as HTMLElement, {
+				initiator: context.target,
+				position: true,
+			});
+		});
+
+		// Подменю раскрывается вбок: кнопка стоит внутри уже открытого попапа, поэтому родитель
+		// остаётся, а не закрывается.
+		this.registerCommand("anchored-right", (context) => {
+			PopupManager.toggle(context.target.nextElementSibling as HTMLElement, {
+				initiator: context.target,
+				position: { placement: "right-start", gap: 8 },
+			});
+		});
 	}
 }

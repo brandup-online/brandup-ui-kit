@@ -1,6 +1,18 @@
 import { UiKitMiddleware } from "./middleware";
 export * from "./popup";
 export { UIKIT } from "./names";
+export {
+	computePosition,
+	positionElement,
+	clearPosition,
+	trackPosition,
+	type Placement,
+	type Side,
+	type Align,
+	type Rect,
+	type PositionOptions,
+	type PositionResult,
+} from "./position";
 export { LayerManager, type Layer, type LayerOptions, type ILayerManager } from "./layer";
 
 export { default as Modal, type ModalOptions } from "./modal";

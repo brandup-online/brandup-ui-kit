@@ -1,4 +1,5 @@
 import { LayerManager, type Layer } from "./layer";
+import { trackPosition, type PositionOptions } from "./position";
 import { UIKIT } from "./names";
 import "./popup.less"; // стили всплывающей поверхности
 
@@ -12,6 +13,8 @@ type OpenPopup = {
 	layer: Layer;
 	/** Закрытие уже идёт: обработчик onClose мог позвать close() ещё раз. */
 	closing: boolean;
+	/** Снять слежение за якорем и вернуть попапу его собственные координаты. */
+	unposition?: () => void;
 };
 
 /**
@@ -102,6 +105,10 @@ const closeEntry = (entry: OpenPopup) => {
 	try {
 		if (entry.closeCallback) entry.closeCallback();
 
+		// До снятия класса открытого: слежение писало попапу инлайновые координаты, и оставить
+		// их значило бы сдвинуть его на следующем показе ещё до того, как он посчитается заново.
+		entry.unposition?.();
+
 		setInitiatorState(entry.initiator, entry.popup, false);
 		entry.popup.classList.remove(POPUP.CLASS.OPENED);
 
@@ -139,6 +146,28 @@ const close = (popupElem?: HTMLElement) => {
 	const index = indexOfPopup(popupElem);
 	if (index >= 0) closeFrom(index);
 };
+
+/**
+ * Показан ли попап окном по центру, а не у кнопки. Признак объявляет сам стиль — токеном
+ * `--popup-window-mode` внутри адаптивного правила (см. popup.less).
+ */
+function isWindowMode(popupElem: HTMLElement): boolean {
+	return getComputedStyle(popupElem).getPropertyValue("--popup-window-mode").trim() === "1";
+}
+
+/** Якорь, у которого держать попап, или `undefined` — если позиционировать не просили. */
+function positionAnchor(options?: PopupOptions): HTMLElement | undefined {
+	if (!options?.position) return undefined;
+
+	const anchor = typeof options.position === "object" ? options.position.anchor : undefined;
+
+	return anchor ?? options.initiator;
+}
+
+/** Настройки расчёта: у `position: true` их нет вовсе, у объекта — всё, кроме якоря. */
+function positionOptions(options?: PopupOptions): PositionOptions {
+	return typeof options?.position === "object" ? options.position : {};
+}
 
 /**
  * Показать попап. Открытый этим же вызовом остаётся открытым — повторный `open` ничего не меняет;
@@ -181,6 +210,18 @@ const open = (popupElem: HTMLElement, options?: PopupOptions) => {
 		// вернём его на кнопку.
 		returnFocus: options?.initiator ?? null,
 	});
+
+	// Позиционируем по вставленному в документ и уже открытому попапу: у скрытого размеры
+	// не те, а по ним считается и переворот, и сдвиг.
+	const anchor = positionAnchor(options);
+	if (anchor)
+		entry.unposition = trackPosition(popupElem, anchor, {
+			...positionOptions(options),
+			// Ниже `@adaptive-tablet-small` попап показывается окном по центру, и координаты
+			// у кнопки ему не нужны — признак объявляет сам стиль (см. `--popup-window-mode`
+			// в popup.less), чтобы граница не жила ещё и числом в сценарии.
+			enabled: () => !isWindowMode(popupElem),
+		});
 
 	stack.push(entry);
 };
@@ -244,4 +285,17 @@ interface PopupOptions {
 	 */
 	initiator?: HTMLElement;
 	onClose?: () => void;
+	/**
+	 * Ставить попап у якоря и держать его там, пока он открыт: с переворотом на другую сторону,
+	 * когда на своей не помещается, и со сдвигом от края экрана (см. position.ts).
+	 *
+	 * `true` — у инициатора с умолчаниями; объект — свои сторона, зазор и отступ, а `anchor`
+	 * задаёт якорь, отличный от кнопки: попап у поля ввода раскрывают кнопкой внутри него,
+	 * а вставать он должен по всему полю.
+	 *
+	 * Без этого попапу оставлены его собственные координаты — те, что написаны в разметке
+	 * проекта. Кит их не трогает: правило вида `left: calc(100% + 10px)` работало до появления
+	 * этой опции и продолжает работать.
+	 */
+	position?: boolean | (PositionOptions & { anchor?: HTMLElement });
 }
