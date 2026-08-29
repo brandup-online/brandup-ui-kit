@@ -54,6 +54,21 @@ stages:
                       command: "custom"
                       customCommand: "run i"
 
+                # Проверки исходников идут до сборки: они дешевле её и падают понятнее,
+                # а разбирать ошибку типов в собранном пакете, когда рядом лежит невычищенный
+                # lint, дольше, чем починить lint.
+                - task: "Npm@1"
+                  displayName: "lint"
+                  inputs:
+                      command: "custom"
+                      customCommand: "run lint"
+
+                - task: "Npm@1"
+                  displayName: "format check"
+                  inputs:
+                      command: "custom"
+                      customCommand: "run format:check"
+
                 - task: "Npm@1"
                   displayName: "packages npm build"
                   inputs:

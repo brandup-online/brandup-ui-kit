@@ -31,7 +31,6 @@
 		".": "./source/index.ts",
 		"./names": "./source/names.ts",
 		"./source/*.less": "./source/*.less",
-		"./svg/*": "./svg/*",
 		"./package.json": "./package.json"
 	},
 	"dependencies": {
