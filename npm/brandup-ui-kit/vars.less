@@ -57,14 +57,6 @@
 
 @svg-size: 20px;
 
-// ── Фокус ──
-
-// Кольцо, которым кит показывает фокус тому, у кого своего вида фокуса нет: кнопке, крестику
-// окна. Одно на весь набор — иначе путь по Tab выглядел бы на каждом элементе по-своему.
-@focus-ring-width: 2px;
-@focus-ring-offset: 2px;
-@focus-ring-color: @accent;
-
 // ── Границы адаптива ──
 
 @adaptive-desktop-small: 1650px;
@@ -77,30 +69,50 @@
 
 // ════════════════════════════════════════════════════════════════════════════════════════════
 // ВХОДЫ КОМПОНЕНТОВ — выведены из палитры выше.
+//
+// Выведены ссылкой на её CSS-токен (`var(--surface)`), а не вычисленным значением. Разница
+// видна не в собранном файле, а в браузере: раньше less подставлял сюда цвет в момент сборки,
+// и в `:root` уезжал литерал — `--input-border-color: #aaa`. Связь с палитрой на этом
+// кончалась, поэтому переопределить `--accent` на странице и ждать, что за ним поедут рамка
+// фокуса, главная кнопка и переключатель, было нельзя: производные посчитаны и запечены.
+// Ради этого и появилась сборка темы отдельным файлом.
+//
+// Теперь производные считает браузер. Тёмная тема — это семь значений палитры под
+// медиазапросом, оформление под клиента — один блок `:root`, предпросмотр — правка на живой
+// странице; пересобирать при этом нечего.
+//
+// Переопределение поимённо работает как работало: `@input-border-color: #333` в файле темы
+// подставится сюда вместо ссылки и победит любой `@line` — less разрешает переменную до того,
+// как её увидит браузер. Оборотная сторона та же, что и была: вход, заданный в теме поимённо,
+// перестаёт следовать за палитрой.
+//
+// Чего сюда писать нельзя: значение, которое потом попадает в медиазапрос (`@adaptive-*`)
+// или в less-арифметику, — CSS-переменную ни то, ни другое не читает. Границы адаптива
+// поэтому остались числами в палитре.
 // ════════════════════════════════════════════════════════════════════════════════════════════
 
 // common
 
-@main-background: @surface;
-@text-color: @ink;
+@main-background: var(--surface);
+@text-color: var(--ink);
 
-@h1-font-weight: @h-font-weight;
-@h2-font-weight: @h-font-weight;
-@h3-font-weight: @h-font-weight;
-@h4-font-weight: @h-font-weight;
-@h5-font-weight: @h-font-weight;
+@h1-font-weight: var(--h-font-weight);
+@h2-font-weight: var(--h-font-weight);
+@h3-font-weight: var(--h-font-weight);
+@h4-font-weight: var(--h-font-weight);
+@h5-font-weight: var(--h-font-weight);
 
-@svg-fill: @text-color;
+@svg-fill: var(--text-color);
 @svg-stroke: none;
 
 // popup
 
-@popup-fill: @main-background;
-@popup-color: @text-color;
+@popup-fill: var(--main-background);
+@popup-color: var(--text-color);
 @popup-border-style: solid;
-@popup-border-width: @border-width;
-@popup-border-color: @line;
-@popup-border-radius: @radius-overlay;
+@popup-border-width: var(--border-width);
+@popup-border-color: var(--line);
+@popup-border-radius: var(--radius-overlay);
 @popup-box-shadow: 0px 4px 8px 2px rgba(0, 0, 0, 0.12);
 
 // Попап, оторванный от инициатора на узком экране: затемнение, отступ от краёв экрана
@@ -132,36 +144,36 @@
 @placeholder-font-style: inherit;
 @placeholder-color: inherit;
 
-@input-border-width: @border-width;
-@input-border-color: @line;
+@input-border-width: var(--border-width);
+@input-border-color: var(--line);
 @input-border-type: solid;
-@input-border-radius: @radius;
-@input-fill: @surface;
+@input-border-radius: var(--radius);
+@input-fill: var(--surface);
 
 @input-width: auto;
-@input-height: @control-height;
-@input-padding-lr: @control-padding-lr;
+@input-height: var(--control-height);
+@input-padding-lr: var(--control-padding-lr);
 @textarea-size: 100px;
 
-@input-color: @text-color;
-@input-font-size: @font-size;
+@input-color: var(--text-color);
+@input-font-size: var(--font-size);
 @input-line-height: 1.4rem;
 @input-font-weight: inherit;
 @input-font-style: inherit;
 
-@hover--input-border-color: @line-hover;
-@hover--input-fill: @surface;
+@hover--input-border-color: var(--line-hover);
+@hover--input-fill: var(--surface);
 @hover--input-color: inherit;
 @hover--input-toolbar-button-darken: 8%; // на сколько кнопка тулбара темнее --input-fill при наведении
 
-@focus--input-border-color: @accent;
-@focus--input-fill: @input-fill;
+@focus--input-border-color: var(--accent);
+@focus--input-fill: var(--input-fill);
 @focus--input-color: inherit;
 
 @readonly--input-fill: #f7f7f7;
-@readonly--input-color: @input-color;
+@readonly--input-color: var(--input-color);
 
-@disabled--input-border-color: @line;
+@disabled--input-border-color: var(--line);
 @disabled--input-fill: #eee;
 
 // Выключенное значение — обычный цвет текста, приглушённый до заливки выключенного поля.
@@ -171,52 +183,60 @@
 // теме результат остался прежним.
 @disabled--input-color: color-mix(in srgb, var(--input-color) 38%, var(--disabled--input-fill));
 
-@invalid--input-border-color: @color-error;
+@invalid--input-border-color: var(--color-error);
 @invalid--input-fill: rgb(255, 220, 220);
 @invalid--input-color: inherit;
 
 @incorrect--input-fill: rgb(255, 220, 220);
 @incorrect--input-color: inherit;
 
-@expanded--input-fill: @surface; // переменные для выпадашки
+@expanded--input-fill: var(--surface); // переменные для выпадашки
 @expanded--input-color: inherit;
 
-@hasvalue--input-fill: @surface; // переменные для выбранного значения
-@hasvalue--input-color: @input-color;
+@hasvalue--input-fill: var(--surface); // переменные для выбранного значения
+@hasvalue--input-color: var(--input-color);
 
 // Чекбокс и радио — коробка размером с текстовую строку, чтобы вставать рядом с подписью,
 // а не нависать над ней.
 @checkbox-size: 20px;
-@checkbox-fill-checked: @accent; // заливка отмеченного
-@checkbox-mark: @accent-contrast; // галочка и чёрточка поверх заливки
+@checkbox-fill-checked: var(--accent); // заливка отмеченного
+@checkbox-mark: var(--accent-contrast); // галочка и чёрточка поверх заливки
 @checkbox-mark-width: 2px; // толщина галочки
-@radio-dot: @accent-contrast; // точка внутри отмеченного радио
+@radio-dot: var(--accent-contrast); // точка внутри отмеченного радио
 
 @toggler-height: 30px;
 @toggler-padding: 3px;
-@toggler-round-fill: @focus--input-border-color;
+@toggler-round-fill: var(--focus--input-border-color);
 
 // buttons
 
-@button-height: @input-height; // кнопка встаёт в строку с полями ввода, поэтому высота у них общая
+@button-height: var(--input-height); // кнопка встаёт в строку с полями ввода, поэтому высота у них общая
 @button-height-mini: 32px;
-@button-padding-lr: @input-padding-lr;
+@button-padding-lr: var(--input-padding-lr);
 @button-padding-lr-mini: 10px;
-@button-gap: @space; // между значком и подписью
-@button-radius: @input-border-radius;
-@button-border-width: @input-border-width;
-@button-border-color: @input-border-color;
-@button-fill: @input-fill;
-@button-color: @text-color;
-@button-font-size: @input-font-size;
+@button-gap: var(--space); // между значком и подписью
+@button-radius: var(--input-border-radius);
+@button-border-width: var(--input-border-width);
+@button-border-color: var(--input-border-color);
+@button-fill: var(--input-fill);
+@button-color: var(--text-color);
+@button-font-size: var(--input-font-size);
 @button-font-weight: 500; // чуть плотнее текста страницы: подпись кнопки читают, а не вчитываются
-@button-accent: @focus--input-border-color; // заливка главной кнопки
-@button-accent-color: @accent-contrast; // подпись на залитой кнопке
+@button-accent: var(--focus--input-border-color); // заливка главной кнопки
+@button-accent-color: var(--accent-contrast); // подпись на залитой кнопке
 @button-spinner-size: 16px;
 
 @hover--button-tint: 12%; // насколько темнее заливка под курсором
 @active--button-tint: 20%; // и в момент нажатия
-@danger--button-accent: @danger; // тон разрушающего действия
+@danger--button-accent: var(--danger); // тон разрушающего действия
 @disabled--button-opacity: 0.5;
-@focus--button-ring-width: @focus-ring-width;
-@focus--button-ring-color: @focus-ring-color;
+@focus--button-ring-width: var(--focus-ring-width);
+@focus--button-ring-color: var(--focus-ring-color);
+
+// focus ring
+
+// Кольцо, которым кит показывает фокус тому, у кого своего вида фокуса нет: кнопке, крестику
+// окна. Одно на весь набор — иначе путь по Tab выглядел бы на каждом элементе по-своему.
+@focus-ring-width: 2px;
+@focus-ring-offset: 2px;
+@focus-ring-color: var(--accent);

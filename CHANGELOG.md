@@ -29,6 +29,28 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Added
 
+- **Component inputs now follow the palette in the browser, not at build
+  time.** The palette added earlier gave the theme raw material, but the
+  derivation still happened in less: `@input-border-color: @line` was
+  computed during compilation and reached `:root` as a literal
+  (`--input-border-color: #aaa`). The link to the palette ended there, so
+  overriding `--accent` on a page moved nothing — every derived value was
+  already baked. Inputs are now derived by reference to the palette's CSS
+  token (`var(--line)`), which the browser resolves. A dark theme is seven
+  palette values under a selector or a media query; a per-client look is
+  one `:root` block; a preview is an edit on a live page — with nothing to
+  rebuild. Subtree theming (`.admin-panel { --accent: … }`) starts working
+  for everything derived, not only for the tokens a component reads
+  directly. Naming an input explicitly still wins, exactly as before, and
+  still opts that input out of the palette. What cannot move this way:
+  values that end up in a media query (`@adaptive-*`) or in less
+  arithmetic — neither reads a CSS variable — so the breakpoints stayed
+  numbers. Verified by comparing computed values of all 140 tokens in a
+  browser across three theme files before and after: identical, apart from
+  the newly added `--h-font-weight`. This is what `build/build-theme.cjs`
+  was written to work around; it still builds a standalone `theme.css`,
+  but a project that only wants a second theme no longer needs one.
+
 - **A checkbox that is a checkbox, a switch that says so, and a radio at
   all.** `input[type=checkbox]` was unconditionally drawn as a toggle
   switch, so a plain checkbox could not be had from the kit, and
