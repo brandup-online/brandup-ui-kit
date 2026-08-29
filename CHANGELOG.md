@@ -638,6 +638,27 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Fixed
 
+- **`readonly` on a choice control now holds.** HTML has no `readonly` for
+  a checkbox or a radio — the browser ignores the attribute. The kit drew
+  the closed look for it and dropped `pointer-events`, but that only
+  covered the pointer: Space still toggled the control, and a value the
+  host considered fixed changed quietly. The action is now cancelled on
+  `click` (the browser turns Space on a choice control into one, so a
+  single handler covers pointer, keyboard and a scripted `elem.click()`),
+  in the capture phase so a host handler cannot swallow it first. The
+  event itself is not stopped — a click on a closed field stays an
+  ordinary click, so the host's "why is this fixed" hint still sees it.
+  Enabled by the kit middleware; `aria-readonly` remains the host's to
+  write, and this is not a substitute for `disabled` (a disabled value is
+  not submitted, a read-only one is — which is usually the point).
+
+- **A checked choice control responds to hover again.** The shared
+  `:hover` paints border and fill in the text field's colours, but
+  `:checked` outweighs it in any order — and those colours would have
+  wiped the mark off a checked control anyway. A checked checkbox, radio
+  or switch now darkens under the cursor by `--hover--checkbox-tint`,
+  the share shared with the button.
+
 - **Comments in `uikit.vars.less` were read as declarations.** The theme file —
   the one place a project retunes the kit — was parsed line by line by a single
   regular expression matching `@name: value;` anywhere in a line, comments
