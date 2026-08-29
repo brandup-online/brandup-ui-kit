@@ -313,3 +313,173 @@ describe("PopupManager", () => {
 		expect(PopupManager.isOpened()).toBe(false);
 	});
 });
+
+// Вложенные попапы: подменю, раскрытое из меню, панель смайликов внутри раскрытой панели.
+// Родство определяется по кнопке — стоящая внутри открытого попапа раскрывает подменю, а не
+// заменяет собой родителя. Соседи по-прежнему вытесняют друг друга: два меню в шапке
+// одновременно раскрытыми быть не должны (см. проверки выше).
+describe("PopupManager: вложенные попапы", () => {
+	beforeEach(() => {
+		PopupManager.close();
+		document.body.innerHTML = "";
+	});
+
+	/** Попап и кнопка, раскрывающая его изнутри `parent`. */
+	function makeChildOf(parent: HTMLElement): { popup: HTMLElement; initiator: HTMLElement } {
+		const initiator = document.createElement("button");
+		parent.appendChild(initiator);
+
+		return { popup: makePopup(), initiator };
+	}
+
+	it("подменю ложится поверх родителя, а не вместо него", () => {
+		const parent = makePopup();
+		PopupManager.open(parent);
+		const child = makeChildOf(parent);
+
+		PopupManager.open(child.popup, { initiator: child.initiator });
+
+		expect(PopupManager.isOpened(parent)).toBe(true);
+		expect(PopupManager.isOpened(child.popup)).toBe(true);
+		expect(PopupManager.count).toBe(2);
+		expect(PopupManager.current).toBe(child.popup);
+	});
+
+	it("закрытие родителя уносит и подменю", () => {
+		const parent = makePopup();
+		PopupManager.open(parent);
+		const child = makeChildOf(parent);
+		PopupManager.open(child.popup, { initiator: child.initiator });
+
+		PopupManager.close(parent);
+
+		expect(PopupManager.isOpened(child.popup)).toBe(false);
+		expect(PopupManager.isOpened(parent)).toBe(false);
+		expect(PopupManager.count).toBe(0);
+	});
+
+	it("закрытие подменю родителя не трогает", () => {
+		const parent = makePopup();
+		PopupManager.open(parent);
+		const child = makeChildOf(parent);
+		PopupManager.open(child.popup, { initiator: child.initiator });
+
+		PopupManager.close(child.popup);
+
+		expect(PopupManager.isOpened(child.popup)).toBe(false);
+		expect(PopupManager.isOpened(parent)).toBe(true);
+	});
+
+	// Слушатель Escape один на весь стек слоёв, и снимает он верхний: иначе одно нажатие
+	// закрыло бы вместе с подменю и меню под ним.
+	it("Escape снимает только верхний попап", () => {
+		const parent = makePopup();
+		PopupManager.open(parent);
+		const child = makeChildOf(parent);
+		PopupManager.open(child.popup, { initiator: child.initiator });
+
+		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+		expect(PopupManager.isOpened(child.popup)).toBe(false);
+		expect(PopupManager.isOpened(parent)).toBe(true);
+	});
+
+	it("нажатие внутри родителя закрывает подменю, а родителя оставляет", () => {
+		const parent = makePopup();
+		const inside = document.createElement("span");
+		parent.appendChild(inside);
+		PopupManager.open(parent);
+		const child = makeChildOf(parent);
+		PopupManager.open(child.popup, { initiator: child.initiator });
+
+		inside.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(PopupManager.isOpened(child.popup)).toBe(false);
+		expect(PopupManager.isOpened(parent)).toBe(true);
+	});
+
+	// Повторное нажатие по кнопке подменю — его закрытие, и событие гасится: иначе команда
+	// `ui-popup-toggle`, всплывающая следом, увидела бы попап закрытым и открыла заново.
+	it("повторное нажатие по кнопке подменю закрывает только его", () => {
+		const parent = makePopup();
+		PopupManager.open(parent);
+		const child = makeChildOf(parent);
+		PopupManager.open(child.popup, { initiator: child.initiator });
+
+		const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+		child.initiator.dispatchEvent(event);
+
+		expect(event.defaultPrevented).toBe(true);
+		expect(PopupManager.isOpened(child.popup)).toBe(false);
+		expect(PopupManager.isOpened(parent)).toBe(true);
+	});
+
+	it("нажатие мимо всех закрывает и подменю, и родителя", () => {
+		const parent = makePopup();
+		PopupManager.open(parent);
+		const child = makeChildOf(parent);
+		PopupManager.open(child.popup, { initiator: child.initiator });
+
+		document.body.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(PopupManager.count).toBe(0);
+	});
+
+	// Кнопка на странице, а не внутри попапа: такой попап открытым не родня, и они закрываются.
+	it("самостоятельный попап вытесняет весь стек", () => {
+		const parent = makePopup();
+		PopupManager.open(parent);
+		const child = makeChildOf(parent);
+		PopupManager.open(child.popup, { initiator: child.initiator });
+
+		const neighbour = makePopup();
+		PopupManager.open(neighbour, { initiator: makeInitiator() });
+
+		expect(PopupManager.count).toBe(1);
+		expect(PopupManager.isOpened(neighbour)).toBe(true);
+		expect(PopupManager.isOpened(parent)).toBe(false);
+	});
+
+	// Класс на body считает менеджер слоёв: снимается он по последнему закрытому, иначе
+	// закрытие подменю вернуло бы странице прокрутку, придержанную ещё родителем.
+	it("класс на body держится, пока открыт хоть один", () => {
+		const parent = makePopup();
+		PopupManager.open(parent);
+		const child = makeChildOf(parent);
+		PopupManager.open(child.popup, { initiator: child.initiator });
+
+		PopupManager.close(child.popup);
+		expect(document.body.classList.contains(UIKIT.POPUP.CLASS.BODY)).toBe(true);
+
+		PopupManager.close(parent);
+		expect(document.body.classList.contains(UIKIT.POPUP.CLASS.BODY)).toBe(false);
+	});
+
+	// Закрываем сверху вниз, поэтому фокус идёт по цепочке: из подменю на его кнопку в родителе,
+	// а не сразу на страницу.
+	it("фокус возвращается по цепочке", () => {
+		const parent = makePopup();
+		const parentInitiator = makeInitiator();
+		PopupManager.open(parent, { initiator: parentInitiator });
+		const child = makeChildOf(parent);
+		child.initiator.focus();
+		PopupManager.open(child.popup, { initiator: child.initiator });
+		child.popup.focus();
+
+		PopupManager.close(child.popup);
+
+		expect(document.activeElement).toBe(child.initiator);
+	});
+
+	it("открытый повторно тем же вызовом остаётся на своём месте в стеке", () => {
+		const parent = makePopup();
+		PopupManager.open(parent);
+		const child = makeChildOf(parent);
+		PopupManager.open(child.popup, { initiator: child.initiator });
+
+		PopupManager.open(child.popup, { initiator: child.initiator });
+
+		expect(PopupManager.count).toBe(2);
+		expect(PopupManager.current).toBe(child.popup);
+	});
+});

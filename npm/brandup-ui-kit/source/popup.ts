@@ -5,32 +5,74 @@ import "./popup.less"; // стили всплывающей поверхност
 /** Имена попапа — в общем модуле имён кита (см. names.ts). */
 const POPUP = UIKIT.POPUP;
 
-type CurrentPopup = {
+type OpenPopup = {
 	initiator?: HTMLElement;
 	popup: HTMLElement;
 	closeCallback?: () => void;
 	layer: Layer;
+	/** Закрытие уже идёт: обработчик onClose мог позвать close() ещё раз. */
+	closing: boolean;
 };
 
-let current: CurrentPopup | null = null;
-let closing = false; // закрытие уже идёт: обработчик onClose мог позвать close() ещё раз
+/**
+ * Открытые попапы снизу вверх.
+ *
+ * Соседние друг друга вытесняют — два меню в шапке одновременно раскрытыми быть не должны, —
+ * а вложенный ложится поверх родителя: подменю, выбор смайлика из панели, второй список внутри
+ * раскрытого. Вложенность определяется по инициатору: кнопка, стоящая внутри открытого попапа,
+ * раскрывает дочерний, а не заменяет собой родителя (см. {@link parentIndexFor}).
+ *
+ * Стек нужен и потому, что открытых попапов бывает несколько, и потому, что закрывать их нужно
+ * порознь: Escape снимает верхний, клик внутри родителя — всё, что над ним.
+ */
+const stack: OpenPopup[] = [];
+
 let popupIdSeq = 0;
+
+const top = (): OpenPopup | undefined => stack[stack.length - 1];
+
+const indexOfPopup = (popupElem: HTMLElement): number => stack.findIndex((entry) => entry.popup === popupElem);
+
+/**
+ * Самый верхний открытый попап, внутри которого лежит элемент, — то есть тот, к которому
+ * относится нажатие. `-1`, если нажали мимо всех.
+ */
+function deepestContaining(target: Node): number {
+	for (let i = stack.length - 1; i >= 0; i--) if (stack[i].popup.contains(target)) return i;
+
+	return -1;
+}
+
+/**
+ * Попап, внутри которого стоит кнопка-инициатор раскрываемого. Он и станет родителем: закрывать
+ * его — значит закрыть попап нажатием на его же содержимое.
+ *
+ * `-1` — инициатора нет вовсе или он лежит на странице: попап самостоятельный, и все открытые
+ * ему не родня, а соседи.
+ */
+function parentIndexFor(initiator?: HTMLElement): number {
+	return initiator ? deepestContaining(initiator) : -1;
+}
 
 const closePopupEventHandler = (e: MouseEvent) => {
 	const target = e.target as HTMLElement;
-	if (target.closest(`.${POPUP.CLASS.ROOT}`)) return; // если клик внутри popup, то делать ничего не нужно
 
-	const clickedMenuItem = target.closest(`.${POPUP.CLASS.EXPANDED}`);
-	const isInitiator = target == current?.initiator;
-
-	close();
-
-	if (clickedMenuItem || isInitiator) {
-		// если клик по тому же элементу, который открыл контекстное меню, то останавливаем обработку клика, чтобы оно не отрылось заново
+	// Нажали по кнопке уже раскрытого попапа — это его закрытие. Гасим событие: иначе команда
+	// `ui-popup-toggle`, которая всплывает следом, увидит попап закрытым и откроет его заново.
+	const initiated = stack.findIndex((entry) => entry.initiator && entry.initiator.contains(target));
+	if (initiated >= 0) {
+		closeFrom(initiated);
 
 		e.preventDefault();
 		e.stopImmediatePropagation();
+
+		return;
 	}
+
+	// Нажали внутри попапа: сам он остаётся, а всё, что над ним, к этому нажатию отношения
+	// не имеет — подменю, раскрытое из него, закрывается.
+	const inside = deepestContaining(target);
+	closeFrom(inside + 1);
 };
 
 /**
@@ -52,60 +94,95 @@ const setInitiatorState = (initiator: HTMLElement | undefined, popup: HTMLElemen
 	}
 };
 
-const close = () => {
-	if (current && !closing) {
-		closing = true;
+/** Снимает один попап — сам по себе, без оглядки на стоящие над ним. */
+const closeEntry = (entry: OpenPopup) => {
+	if (entry.closing) return;
+	entry.closing = true;
 
-		try {
-			if (current.closeCallback) current.closeCallback();
+	try {
+		if (entry.closeCallback) entry.closeCallback();
 
-			setInitiatorState(current.initiator, current.popup, false);
-			current.popup.classList.remove(POPUP.CLASS.OPENED);
+		setInitiatorState(entry.initiator, entry.popup, false);
+		entry.popup.classList.remove(POPUP.CLASS.OPENED);
 
-			const layer = current.layer;
-			current = null;
+		const index = stack.indexOf(entry);
+		if (index >= 0) stack.splice(index, 1);
 
-			// последним: слой возвращает фокус на инициатора, и делать это нужно уже по закрытому попапу
-			layer.release();
-		} finally {
-			closing = false;
-		}
+		// последним: слой возвращает фокус на инициатора, и делать это нужно уже по закрытому попапу
+		entry.layer.release();
+	} finally {
+		entry.closing = false;
+	}
+};
+
+/**
+ * Закрывает попапы с указанного места и выше — сверху вниз, чтобы фокус возвращался по цепочке:
+ * из подменю на его кнопку в родителе, а не сразу на страницу.
+ */
+function closeFrom(index: number) {
+	for (let i = stack.length - 1; i >= index && i >= 0; i--) closeEntry(stack[i]);
+
+	if (!stack.length) document.body.removeEventListener("click", closePopupEventHandler);
+}
+
+/**
+ * Закрыть попап и всё, что над ним. Без аргумента — закрыть все: у того, кто зовёт `close()`
+ * не про конкретный попап, открытых быть не должно вовсе.
+ */
+const close = (popupElem?: HTMLElement) => {
+	if (!popupElem) {
+		closeFrom(0);
+
+		return;
 	}
 
-	document.body.removeEventListener("click", closePopupEventHandler);
+	const index = indexOfPopup(popupElem);
+	if (index >= 0) closeFrom(index);
 };
 
 /**
  * Показать попап. Открытый этим же вызовом остаётся открытым — повторный `open` ничего не меняет;
  * закрыть его нажатием по той же кнопке — работа {@link toggle}.
+ *
+ * Попап, кнопка которого стоит внутри уже открытого, ложится поверх него — это подменю. Всякий
+ * другой попап открытым соседям не родня: они закрываются, иначе на странице осталось бы висеть
+ * два раскрытых меню.
  */
 const open = (popupElem: HTMLElement, options?: PopupOptions) => {
-	if (current?.popup === popupElem) return; // уже показан — открывать нечего
+	if (indexOfPopup(popupElem) >= 0) return; // уже показан — открывать нечего
 
-	if (current) close(); // если открыт другой popup, закрываем его, чтобы не оставлять «осиротевший» visible popup
+	// Всё, что не является родителем нового попапа, закрываем: от соседей избавляемся целиком,
+	// у родителя снимаем ранее раскрытое подменю.
+	closeFrom(parentIndexFor(options?.initiator) + 1);
 
 	popupElem.classList.add(POPUP.CLASS.OPENED);
 
 	setInitiatorState(options?.initiator, popupElem, true);
 
-	document.body.addEventListener("click", closePopupEventHandler);
+	if (!stack.length) document.body.addEventListener("click", closePopupEventHandler);
 
-	current = {
+	const entry: OpenPopup = {
 		popup: popupElem,
 		initiator: options?.initiator,
 		closeCallback: options?.onClose,
-		// Escape и класс на body — за менеджером слоёв: попап бывает открыт над модальным
-		// окном, и закрывать их одним нажатием нельзя (см. layer.ts).
-		layer: LayerManager.push({
-			close,
-			element: popupElem,
-			bodyClass: POPUP.CLASS.BODY,
-			// Фокус внутрь не уводим: попап открывают, не отпуская каретку в поле (панель
-			// смайликов), — но если пользователь сам ушёл в него с клавиатуры, по закрытию
-			// вернём его на кнопку.
-			returnFocus: options?.initiator ?? null,
-		}),
+		closing: false,
+		layer: null as unknown as Layer,
 	};
+
+	// Escape и класс на body — за менеджером слоёв: попап бывает открыт над модальным
+	// окном, и закрывать их одним нажатием нельзя (см. layer.ts). Слой снимает только свой
+	// попап — вложенные закрываются по одному, сверху вниз.
+	entry.layer = LayerManager.push({
+		close: () => closeEntry(entry),
+		element: popupElem,
+		bodyClass: POPUP.CLASS.BODY,
+		// Фокус внутрь не уводим: попап открывают, не отпуская каретку в поле (панель
+		// смайликов), — но если пользователь сам ушёл в него с клавиатуры, по закрытию
+		// вернём его на кнопку.
+		returnFocus: options?.initiator ?? null,
+	});
+
+	stack.push(entry);
 };
 
 /**
@@ -116,8 +193,9 @@ const open = (popupElem: HTMLElement, options?: PopupOptions) => {
  * на время показа нужно только при `true`.
  */
 const toggle = (popupElem: HTMLElement, options?: PopupOptions): boolean => {
-	if (current?.popup === popupElem) {
-		close();
+	const index = indexOfPopup(popupElem);
+	if (index >= 0) {
+		closeFrom(index);
 
 		return false;
 	}
@@ -131,21 +209,39 @@ export const PopupManager: IPopupManager = {
 	open,
 	toggle,
 	close,
-	isOpened: (popupElem?: HTMLElement) => (popupElem ? current?.popup === popupElem : !!current),
+	isOpened: (popupElem?: HTMLElement) => (popupElem ? indexOfPopup(popupElem) >= 0 : stack.length > 0),
+	get count() {
+		return stack.length;
+	},
+	get current() {
+		return top()?.popup ?? null;
+	},
 };
 
 interface IPopupManager {
-	/** Показать попап; открытый этим же вызовом остаётся открытым, а другой — закрывается. */
+	/**
+	 * Показать попап. Открытый этим же вызовом остаётся открытым; попап, чья кнопка стоит внутри
+	 * уже открытого, ложится поверх него, а всякий другой открытые вытесняет.
+	 */
 	open: (popupElem: HTMLElement, options?: PopupOptions) => void;
-	/** Показать попап, а открытый — закрыть. Возвращает, открыт ли он после вызова. */
+	/** Показать попап, а открытый — закрыть вместе с раскрытым из него. Возвращает, открыт ли он после вызова. */
 	toggle: (popupElem: HTMLElement, options?: PopupOptions) => boolean;
-	/** Закрыть открытый попап; закрывать нечего — вызов ничего не делает. */
-	close: () => void;
+	/** Закрыть попап и всё, что над ним; без аргумента — закрыть все. */
+	close: (popupElem?: HTMLElement) => void;
 	/** Без аргумента — открыт ли хоть один попап; с аргументом — открыт ли именно этот. */
 	isOpened: (popupElem?: HTMLElement) => boolean;
+	/** Сколько попапов открыто: самостоятельный и раскрытые из него подменю. */
+	readonly count: number;
+	/** Самый верхний открытый попап — тот, которому достанется Escape. `null`, если открытых нет. */
+	readonly current: HTMLElement | null;
 }
 
 interface PopupOptions {
+	/**
+	 * Кнопка, от которой раскрылся попап. Кроме состояния для скринридера она решает, чей это
+	 * попап: стоящая внутри другого открытого попапа кнопка раскрывает подменю, и родитель
+	 * при этом остаётся.
+	 */
 	initiator?: HTMLElement;
 	onClose?: () => void;
 }
