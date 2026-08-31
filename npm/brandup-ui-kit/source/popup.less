@@ -29,53 +29,81 @@
 	border-width: var(--popup-border-width);
 	border-radius: var(--popup-border-radius);
 	box-shadow: var(--popup-box-shadow);
-	visibility: collapse;
+
+	// A closed popup leaves the layout entirely, rather than merely turning invisible.
+	//
+	// It used to be `visibility: collapse`, which hides the box but keeps it in the flow — and a
+	// popup is placed by the project, usually beside its button (`left: calc(100% + 10px)`). Kept in
+	// the flow, that invisible box goes on sticking out where it was put, and anything that measures
+	// around it counts it: below the breakpoint an open popup becomes a window with `overflow: auto`,
+	// so a closed submenu inside it pushed its scrollable area out past its own edge and the window
+	// grew both a horizontal and a vertical scrollbar over nothing.
+	//
+	// `display` also keeps a closed popup out of the tab order for good, and spares the browser
+	// laying out content nobody is looking at. Measuring still works: the manager adds the class
+	// below before it measures anything.
+	display: none;
 
 	&.ui-popup-opened {
-		visibility: visible;
+		display: block;
 	}
 }
 
-.ui-popup-expanded {
-	& ~ .ui-popup {
-		visibility: visible;
-	}
-}
+// Showing a popup is the business of its own `.ui-popup-opened` class, which the manager always
+// sets. There used to be a second way here — a general sibling rule from the expanded initiator,
+// `.ui-popup-expanded ~ .ui-popup` — and it could not be aimed at one popup: `~` matches every
+// following sibling, so on a page where button/popup pairs lie in a row (a toolbar of menus,
+// the example's anchored demo) pressing the first button showed every popup after it at once,
+// each of them without coordinates because the manager positions only the one it opened.
+//
+// The class stays on the initiator: it is what a component styles its own button by while the
+// popup is open (see `.ui-popup-expanded svg` in messageeditor.less).
 
 // На узком экране попап отрывается от инициатора и показывается окном по центру с затемнением:
 // места рядом с кнопкой уже нет, а попап у края экрана уезжает за него. Так же ведёт себя popup
 // dropdown, только у него подложка — отдельный элемент разметки.
 .adaptive-tablet-small({
-	// Селектор с body намеренно: потребитель позиционирует попап вложенным правилом вида
-	// `.ui-messageeditor .ui-richeditor-emoji` — это два класса, столько же, сколько у пары
-	// `.ui-popup.ui-popup-opened`, и при равной специфичности исход решал бы порядок стилей в сборке.
-	// Элемент в селекторе даёт тот вес, которого паре классов не хватает.
-	body .ui-popup.ui-popup-opened,
-	body .ui-popup-expanded ~ .ui-popup {
-		// Признак для менеджера: попап показан окном, а не у кнопки. Токеном, а не числом
-		// в сценарии, — иначе граница жила бы в двух местах и разъехалась бы при первой же
-		// правке. Менеджер читает его и в этом режиме координаты не пишет вовсе: инлайновый
-		// стиль сильнее любого правила и растащил бы окно из центра обратно к кнопке.
+	// The geometry below is marked `!important`, and the whole rule is what that mark is for.
+	//
+	// This is not styling but a change of mode: below the breakpoint the popup stops being a surface
+	// by a button and becomes a window in the middle of the screen. Everything a project writes to
+	// place it by its button — `left: calc(100% + 10px)`, `top: 0`, a width — is exactly what has to
+	// stop applying here, and a project writes those rules nested as deep as its markup happens to
+	// be. Weight alone cannot win that: `body .ui-popup.ui-popup-opened` is (0,2,1), and any rule
+	// nested three classes deep beats it — as `.page-block.popups .example .menu .ui-popup` in the
+	// example app did, leaving the popup pushed off the screen by a `left` meant for an absolutely
+	// positioned box, with only the full-screen dimming to show for it.
+	//
+	// Raising the weight instead would only move the line: whatever selector is written here, a
+	// consumer can nest one level deeper without ever intending to fight the adaptive mode. The
+	// window is sized by `--popup-window-inset` and `--popup-window-max-width`, so nothing legitimate
+	// is being taken away — those stay overridable.
+	body .ui-popup.ui-popup-opened {
+		// A flag for the manager: the popup is shown as a window rather than by a button. As a token
+		// rather than a number in script — otherwise the breakpoint would live in two places and
+		// drift apart at the first edit. The manager reads it and in this mode writes no coordinates
+		// at all: an inline style outweighs any rule and would drag the window back from the centre
+		// to the button.
 		--popup-window-mode: 1;
 
-		position: fixed;
-		inset: 0;
-		margin: auto;
-		width: calc(100% - var(--popup-window-inset) * 2);
-		max-width: var(--popup-window-max-width);
+		position: fixed !important;
+		inset: 0 !important;
+		margin: auto !important;
+		width: calc(100% - var(--popup-window-inset) * 2) !important;
+		max-width: var(--popup-window-max-width) !important;
 		// Браузер без fit-content отбросит свойство, и при inset: 0 окно растянется на всю
 		// высоту экрана — режим сохраняется, теряется только подгонка под содержимое.
-		height: fit-content;
-		max-height: calc(100% - var(--popup-window-inset) * 2);
+		height: fit-content !important;
+		max-height: calc(100% - var(--popup-window-inset) * 2) !important;
 		overflow: auto;
 
-		// Затемнение — тенью с растяжкой на весь экран: отдельной подложки в разметке нет,
-		// а псевдоэлемент пришлось бы уводить под фон самого попапа (z-index: -1), где он
-		// перекрыл бы фон, но не текст. Собственную тень попапа не подмешиваем: поверх
-		// затемнения её всё равно не видно, а список с `none` (--popup-box-shadow может быть
-		// и таким) невалиден — декларация отвалилась бы целиком вместе с затемнением.
-		// Клик по тени не ловится и уходит на страницу — то есть закрывает попап, как и любой
-		// клик снаружи.
+		// The dimming is a shadow stretched over the whole screen: there is no separate backdrop
+		// in the markup, and a pseudo-element would have to be taken under the popup's own
+		// background (z-index: -1), where it would cover the background but not the text. The
+		// popup's own shadow is not mixed in: over the dimming it is invisible anyway, and a list
+		// containing `none` (which --popup-box-shadow may well be) is invalid — the declaration
+		// would fall away entirely, taking the dimming with it. A click on the shadow is not caught
+		// and goes to the page — that is, it closes the popup, like any click outside.
 		box-shadow: 0 0 0 100vmax var(--popup-backdrop);
 	}
 
