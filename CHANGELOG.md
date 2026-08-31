@@ -58,6 +58,14 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   focus returns along the chain. `close()` takes a popup (closing it and
   whatever it opened); `count` and `current` were added.
 
+- **The anchored-popup demo shows what it claims.** All three buttons opened their popup with the
+  default `bottom-start`, which aligns the popup's left edge with the button's left edge — so under
+  the right-hand button a 220px popup hung 130px out past the block it belongs to. The right-hand
+  button now asks for `bottom-end`. The page copy was wrong too: it promised a flip and a shift
+  "at the edges", but those are measured against the screen, and the block sits in the middle of a
+  1280px content column, so neither ever fired on a normal window. The buttons now demonstrate
+  placement, and the copy says where to look for the flip and the shift.
+
 - **A dark theme in the example app, and the palette actually used
   there.** The example's `uikit.vars.less` still spoke the pre-palette
   vocabulary (`@main-background`, `@popup-*`), and nothing in the repo
@@ -382,6 +390,105 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Changed
 
+- **The page-wide `box-sizing` reset is opt-in again.** `reset.less` ships
+  unconditionally with the package, and a universal
+  `*, *::before, *::after { box-sizing: border-box }` in it re-sized every
+  element of every consuming page — including markup written years ago against
+  the browser default, far from anything the kit draws. A block sized
+  `width: X; padding: P` silently lost `2P` of rendered width on a minor
+  upgrade (the example's own loading spinner shrank from 24px to 20px). The
+  kit declares `box-sizing` on its own selectors, as it did before, and a
+  project that wants the single convention for its whole page imports
+  `@brandup/ui-kit/source/border-box.less` knowingly.
+
+- **A read-only choice control keeps its pointer events.** Switching them off
+  removed the control from hit testing altogether, which contradicted the
+  contract stated one section down: a click on a closed field was supposed to
+  stay an ordinary click so the host's "why is this fixed" hint could see it,
+  and for markup without a wrapping `<label>` no click ever reached the
+  element at all. The toggle is cancelled by script, which is what actually
+  holds the value; the cursor says the control is not for pressing, and the
+  hover rules skip it so it does not answer the pointer like a working one.
+
+- **`PopupManager.close()` takes an argument now.** It used to ignore
+  everything passed to it, so `someApi.on("navigate", PopupManager.close)`
+  worked by accident. The first argument is now the popup to close, and a
+  stray event object silently closes nothing. Pass `() =>
+  PopupManager.close()` where the function is used as a callback.
+
+- **The editor toolbar is positioned by the kit's shared calculation.** It
+  kept its own arithmetic — the same one the module in the kit was written to
+  replace — so fixes to edge handling never reached it. It calls
+  `positionElement` now, with `flip: false` (the toolbar belongs above the
+  field) and the new `clampCross`. The dropdown list is the remaining
+  hand-rolled positioner; it flips by toggling classes that its stylesheet
+  acts on, so moving it to written coordinates is a redesign of its CSS
+  rather than a substitution, and it is left for its own change.
+
+- **The popup can pick its alignment and its fallback side by itself.** Choosing the *side* by the
+  room available was already automatic (`flip`, on by default, recomputed on every scroll frame, so
+  an open popup turns over as its button scrolls toward the bottom of the screen). Two gaps around
+  it are now closed, both opt-in so nothing existing moves:
+
+  `flipAlign` is the same idea one axis over — it swaps `start` for `end` along the side when the
+  element runs off the screen with the requested alignment, and back again. `center` has no
+  opposite, so both ends are tried after it. If neither end fits, the requested one stays and the
+  shift presses the element in, exactly as the side does in the same situation.
+
+  `fallback: "bestFit"` decides what happens when the element fits on neither side. The default
+  (`keep`) leaves it on the side it was asked for; `bestFit` takes the side with more room, which
+  is what a long menu on a short screen wants — it will be cut off either way, and the roomier side
+  shows more of it. It only ever chooses between two failures: a side that fits still wins outright.
+
+  Both measure against the edge of the screen, like everything else in this module. An element
+  hanging out of its own container while still on screen is not overflow as far as they are
+  concerned — that case is a deliberate `placement`, which is why the example's right-hand button
+  keeps its explicit `bottom-end`.
+
+- **`computePosition` can press an element into the screen across its side.**
+  Off by default, as before — across the side the element is held to the
+  anchor by the gap, and moving it there tears it away from what it belongs
+  to. Wanted by a surface that belongs to a whole field rather than a point
+  on it: the toolbar above the topmost line of text has nowhere to go, and
+  overlapping the text beats leaving the screen.
+
+- **Tracking an anchor no longer lays out the page twice a frame.** The
+  measurement writes six inline styles and reads the layout straight back, and
+  it ran on every scroll frame. It now runs on the first placement and on
+  resize — while scrolling only the anchor moves, so only the coordinates are
+  rewritten. The narrow-screen probe (`--popup-window-mode`, a
+  `getComputedStyle` call) is likewise answered once per window width instead
+  of once per frame, the disabled state clears the element once on transition
+  rather than every frame, and scrolling is watched on the anchor's own
+  scrollable ancestors instead of every scroll on the page in the capture
+  phase.
+
+- **Positioning survives a transformed ancestor, and gives back the styles it
+  borrowed.** Coordinates are viewport ones written as `position: fixed`, but
+  a `transform`, `filter` or `contain` on any ancestor makes that ancestor the
+  containing block — a popup inside a page-transition wrapper landed offset by
+  the wrapper's own position, sometimes off-screen. The container is detected
+  and the coordinates translated into its system. And whatever inline
+  `position` / `left` / `top` / `right` / `bottom` / `margin` the element
+  carried before is now restored on release instead of being removed.
+
+- **The example rebuilds its theme only when the theme changes.** The webpack
+  plugin ran a full less compilation, twice over, inside every compilation —
+  including every `--watch` rebuild triggered by an unrelated `.ts` edit. The
+  result is cached against the theme files' own timestamps. The plugin also
+  takes the public path from the hook's own data rather than recomputing it
+  from `output.publicPath`, which the `HtmlWebpackPlugin` option can differ
+  from — the case where the theme would point somewhere the bundle does not.
+
+- **The kit's hover/press darkening is written once.** `color-mix(in srgb, <fill>, #000 <share>)`
+  was spelled out at eight call sites across `button.less` and `inputs.less`. The shares were
+  already tied together on purpose — `@hover--checkbox-tint` is defined as `@hover--button-tint` so
+  that a button and a ticked checkbox answer the pointer alike — but the formula itself was not, so
+  that agreement held only by luck. It now lives in `mixins.less` as `.ui-tint-fill` /
+  `.ui-tint-background`. The emitted CSS is unchanged except that the primary button's hover and
+  press now set `background-color` rather than the `background` shorthand, which renders the same
+  and no longer resets a host's background image on hover alone.
+
 - **Disabled text is now mixed toward the field fill instead of lightened.**
   `@disabled--input-color` was the last less-only colour function left in the
   kit (`lighten(@input-color, 50%)`), and it raises HSL lightness by a fixed 50
@@ -667,11 +774,85 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Fixed
 
+- **A closed popup leaves the layout instead of only turning invisible.** It was hidden with
+  `visibility: collapse`, which keeps the box in the flow. A popup is placed by the project, usually
+  beside its button — `left: calc(100% + 10px)` in the example — so an invisible closed popup went
+  on sticking out where it had been put, and anything measuring around it counted it. Below the
+  breakpoint an open popup becomes a window with `overflow: auto`, and a closed submenu inside it
+  pushed that window's scrollable area past its own edge: the window grew a horizontal and a
+  vertical scrollbar over nothing. It is `display: none` now, which also keeps a closed popup out of
+  the tab order for good. Measuring is unaffected — the manager adds the opened class before it
+  measures. Consumers who showed a popup by overriding `visibility` themselves have to override
+  `display` instead; the kit's own packages never did.
+
+- **On a narrow screen a popup no longer leaves only its dimming behind.** Below
+  `@adaptive-tablet-small` the popup becomes a window in the middle of the screen, and that rule had
+  to beat whatever a project wrote to place the popup by its button. It tried to win on weight —
+  `body .ui-popup.ui-popup-opened`, chosen to outrank the two-class rules the kit's own packages
+  use — but that is only (0,2,1), and any rule nested three classes deep beats it. The example app
+  had one: `.page-block.popups .example .menu .ui-popup` at (0,5,0), setting
+  `left: calc(100% + 10px)` for the anchored mode. Harmless on an absolutely positioned box, that
+  `left` pushed the now-`fixed` popup clean off the screen, so opening the menu below the breakpoint
+  showed nothing but the full-screen dimming. The geometry that defines the mode is now marked
+  `!important` — a change of mode, not styling, and raising the weight instead would only move the
+  line one nesting level further out. The window's own measurements stay tunable through
+  `--popup-window-inset` and `--popup-window-max-width`.
+
+- **Opening one popup no longer shows every popup after it.** Besides the popup's own
+  `ui-popup-opened` class, the stylesheet had a second way to show one: a general sibling rule
+  from the expanded initiator, `.ui-popup-expanded ~ .ui-popup`. `~` cannot be aimed at a single
+  element — it matches every following sibling — so wherever button/popup pairs lie in a row
+  (a row of menus; the example's own anchored demo, which this revision added) pressing the first
+  button made every popup after it visible at once, and all but the opened one appeared wherever
+  their static position happened to be, since the manager writes coordinates only for the popup it
+  opened. The rule is gone; the class stays on the initiator, which is what a component styles its
+  own button by while the popup is open. Guarded by a test that compiles `popup.less` and checks
+  the built CSS, since no DOM test can see a selector that is never applied.
+
+- **Closing a popup from an `onClose` callback no longer throws.** Closing
+  walked the popup stack by a counter while each closed entry spliced itself
+  out of it. A callback that closed further popups — `onClose: () =>
+  PopupManager.close()`, the defensive pattern the editors already use —
+  emptied the stack from under the loop, which then reached for an entry that
+  no longer existed and threw `TypeError` out of the click or Escape handler,
+  skipping the rest of the teardown: the body listener stayed armed and the
+  layer was never released. Closing now walks the current top of the stack,
+  and an entry is taken off it before its callback runs, so a re-entrant close
+  finds nothing to do instead of racing. The separate `closing` flag and its
+  `try/finally` are gone with it — being in the stack already says whether a
+  popup is open.
+
+- **A click inside a popup whose initiator wraps it no longer closes it.**
+  The click handler asked "is the target inside some initiator?" before "is it
+  inside some popup?". For the perfectly legal markup where the element passed
+  as `initiator` contains the popup itself, every click on a menu item matched
+  the first question: the popup closed and the click was cancelled, so the
+  item's own command never ran. The handler now establishes which popup the
+  click landed in first, and an initiator that contains that popup is not
+  treated as a press on the button. The search also runs top-down, so when a
+  wrapping initiator contains a submenu's button too, the submenu closes
+  rather than the whole chain.
+
+- **The editors close their own emoji panel, not every open popup.** With one
+  popup at a time, `PopupManager.close()` was exact. Now that it means "close
+  everything", the four call sites in the rich and message editors were tearing
+  down a host popup the editor was shown in — the very nesting this revision
+  added: picking an emoji inside a form popup dismissed the form. They pass
+  their picker now.
+
+- **An invalid checked choice control shows the error again.** Moving the
+  shared field states into `.ui-choice-control()` put `:user-invalid` ahead of
+  the equal-weight `:checked` / `:indeterminate` rules, and those repainted
+  border and fill with the accent — a checked checkbox with a validation error
+  looked exactly like a correct one. The invalid state is now declared after
+  all three views, next to the disabled one and for the same reason, and the
+  checked-hover rules exclude it so the cursor cannot paint over it either.
+
 - **`readonly` on a choice control now holds.** HTML has no `readonly` for
   a checkbox or a radio — the browser ignores the attribute. The kit drew
-  the closed look for it and dropped `pointer-events`, but that only
-  covered the pointer: Space still toggled the control, and a value the
-  host considered fixed changed quietly. The action is now cancelled on
+  the closed look for it, but that only covered appearances: Space still
+  toggled the control, and a value the host considered fixed changed
+  quietly. The action is now cancelled on
   `click` (the browser turns Space on a choice control into one, so a
   single handler covers pointer, keyboard and a scripted `elem.click()`),
   in the capture phase so a host handler cannot swallow it first. The
