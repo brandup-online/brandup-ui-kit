@@ -1,38 +1,38 @@
 /**
- * Позиционирование всплывающей поверхности у якоря: попап у кнопки, подсказка у слова, список
- * у поля.
+ * Anchored positioning for a floating surface: a popup by its button, a tooltip by a word,
+ * a list by its field.
  *
- * До этого модуля координаты писал каждый сам. Потребитель кита — правилом вида
- * `left: calc(100% + 10px)`, и такой попап у правого края экрана просто уезжал за него;
- * а внутри самого набора расчёт написан дважды и по-разному: панель форматирования редактора
- * зажимает себя по краям, но не переворачивается, список дропдауна переворачивается, но себя
- * не зажимает. Здесь то и другое разом и в одном месте.
+ * Before this module every caller wrote the coordinates itself. A kit consumer did it with a rule
+ * like `left: calc(100% + 10px)`, and such a popup simply ran off the right edge of the screen;
+ * inside the set itself the calculation was written twice and differently — the editor toolbar
+ * clamped itself to the edges but never flipped, the dropdown list flipped but never clamped.
+ * Here both live together in one place.
  *
- * Расчёт отделён от DOM намеренно: {@link computePosition} получает прямоугольники числами
- * и числа возвращает. Так его видно целиком и можно проверить все углы — а углов тут больше,
- * чем кажется: не влезает вниз, не влезает ни вниз ни вверх, шире экрана, якорь за краем.
- * DOM-часть ({@link positionElement}, {@link trackPosition}) остаётся тонкой: измерить,
- * позвать расчёт, записать.
+ * The calculation is deliberately separated from the DOM: {@link computePosition} takes rectangles
+ * as numbers and returns numbers. That way it is visible as a whole and every corner case can be
+ * tested — and there are more of them than it seems: does not fit below, fits neither below nor
+ * above, wider than the screen, anchor off-screen. The DOM part ({@link positionElement},
+ * {@link trackPosition}) stays thin: measure, call the calculation, write.
  *
- * Координаты считаются относительно вьюпорта, и элемент ставится `position: fixed`. Иначе
- * пришлось бы искать ближайшего позиционированного родителя и вычитать его смещение, а всякий
- * `overflow: hidden` по дороге обрезал бы попап. Плата — при прокрутке страницы якорь уезжает,
- * а попап остаётся; за это и отвечает {@link trackPosition}.
+ * Coordinates are viewport-relative and the element is placed `position: fixed`. Otherwise we would
+ * have to find the nearest positioned ancestor and subtract its offset, and any `overflow: hidden`
+ * along the way would clip the popup. The price is that scrolling the page moves the anchor out
+ * from under the element — that is what {@link trackPosition} is for.
  */
 
-/** Сторона якоря, к которой прижимается элемент. */
+/** The side of the anchor the element is pressed against. */
 export type Side = "top" | "bottom" | "left" | "right";
 
 /**
- * Выравнивание вдоль стороны: `start` — по левому (верхнему) краю якоря, `end` — по правому
- * (нижнему), `center` — по середине.
+ * Alignment along the side: `start` — by the left (top) edge of the anchor, `end` — by the right
+ * (bottom) one, `center` — by the middle.
  */
 export type Align = "start" | "center" | "end";
 
-/** Куда ставить: сторона и, через дефис, выравнивание вдоль неё. */
+/** Where to put it: the side and, after a hyphen, the alignment along it. */
 export type Placement = Side | `${Side}-${Align}`;
 
-/** Прямоугольник во вьюпортных координатах — то же, что отдаёт `getBoundingClientRect`. */
+/** A rectangle in viewport coordinates — the same thing `getBoundingClientRect` returns. */
 export interface Rect {
 	left: number;
 	top: number;
@@ -41,23 +41,60 @@ export interface Rect {
 }
 
 export interface PositionOptions {
-	/** Куда ставить, если места хватает. По умолчанию `bottom-start`. */
+	/** Where to put it when there is room. `bottom-start` by default. */
 	placement?: Placement;
-	/** Зазор между якорем и элементом. По умолчанию 4. */
+	/** The gap between the anchor and the element. 4 by default. */
 	gap?: number;
-	/** Насколько близко к краю экрана позволено подойти. По умолчанию 8. */
+	/** How close to the edge of the screen the element is allowed to come. 8 by default. */
 	viewportPadding?: number;
-	/** Переворачивать на противоположную сторону, когда на своей не помещается. По умолчанию да. */
+	/** Flip to the opposite side when there is no room on the requested one. Yes by default. */
 	flip?: boolean;
-	/** Сдвигать вдоль стороны, чтобы не вылезти за край экрана. По умолчанию да. */
+	/**
+	 * What to do when the element fits on neither side. Only consulted when {@link flip} is on.
+	 *
+	 * `keep` (default) — stay on the requested side: there the element is at least where it was
+	 * asked for, and the shift will press it to the edge anyway. `bestFit` — take the side with more
+	 * room, which is what a long menu on a short screen wants: it will be cut off either way, and
+	 * the side with more room shows more of it.
+	 */
+	fallback?: "keep" | "bestFit";
+	/**
+	 * Swap the alignment along the side (`start` <-> `end`) when the element runs off the screen with
+	 * the requested one. Off by default — the alignment is usually a deliberate choice, and swapping
+	 * it moves the element to the other end of the anchor, which is a bigger jump than a shift.
+	 *
+	 * This is the second axis of {@link flip}: that one changes the side, this one the end of it.
+	 * Note that it answers to the edge of the SCREEN, like everything else here — an element hanging
+	 * out of its own container, but still on screen, is not overflow as far as this is concerned.
+	 *
+	 * `center` has no opposite, so it is tried first and then both ends, in that order.
+	 */
+	flipAlign?: boolean;
+	/** Shift along the side so as not to run off the edge of the screen. Yes by default. */
 	shift?: boolean;
+	/**
+	 * Also press the element across the side, into the screen. Off by default: across the side the
+	 * element is held to the anchor by the gap, and moving it there tears it away from what it
+	 * belongs to — a menu would stop touching its button.
+	 *
+	 * Wanted by a surface that belongs to the whole field rather than to a point on it: the editor
+	 * toolbar stands above the text, and above the topmost line there is no room — better to keep
+	 * it on screen, overlapping the text, than to let it leave.
+	 */
+	clampCross?: boolean;
 }
 
 export interface PositionResult {
 	left: number;
 	top: number;
-	/** Сторона, на которой элемент оказался: после переворота она не та, что просили. */
+	/** The side the element ended up on: after a flip it is not the one that was asked for. */
 	placement: Placement;
+}
+
+/** Element size in pixels — what the measurement gives to the calculation. */
+export interface Size {
+	width: number;
+	height: number;
 }
 
 const OPPOSITE: Record<Side, Side> = { top: "bottom", bottom: "top", left: "right", right: "left" };
@@ -68,21 +105,21 @@ const parse = (placement: Placement): [Side, Align] => {
 	return [side, align ?? "center"];
 };
 
-/** Ставит элемент у стороны якоря, пока не заботясь о краях экрана. */
-function place(anchor: Rect, size: { width: number; height: number }, side: Side, align: Align, gap: number) {
-	const alongX = () => {
-		if (align === "start") return anchor.left;
-		if (align === "end") return anchor.left + anchor.width - size.width;
+/**
+ * The coordinate along the side: the same arithmetic for both axes, so it is written once and
+ * called with the fields of whichever axis the side runs along.
+ */
+const along = (start: number, extent: number, size: number, align: Align) => {
+	if (align === "start") return start;
+	if (align === "end") return start + extent - size;
 
-		return anchor.left + (anchor.width - size.width) / 2;
-	};
+	return start + (extent - size) / 2;
+};
 
-	const alongY = () => {
-		if (align === "start") return anchor.top;
-		if (align === "end") return anchor.top + anchor.height - size.height;
-
-		return anchor.top + (anchor.height - size.height) / 2;
-	};
+/** Puts the element by the side of the anchor, not yet caring about the edges of the screen. */
+function place(anchor: Rect, size: Size, side: Side, align: Align, gap: number) {
+	const alongX = () => along(anchor.left, anchor.width, size.width, align);
+	const alongY = () => along(anchor.top, anchor.height, size.height, align);
 
 	switch (side) {
 		case "top":
@@ -96,84 +133,238 @@ function place(anchor: Rect, size: { width: number; height: number }, side: Side
 	}
 }
 
-/** Помещается ли коробка целиком между краями с отступом. */
+/** Whether the box fits whole between the edges with the padding. */
 const fits = (start: number, length: number, limit: number, padding: number) =>
 	start >= padding && start + length <= limit - padding;
 
-/** Прижимает координату к краям; коробку шире доступного места ставит по ближнему краю. */
+/**
+ * How much room there is between the anchor and the edge of the screen on the given side — the gap
+ * and the viewport padding already taken out, so the number is the length the element may occupy.
+ *
+ * Used only to choose between two sides that both fail to fit: {@link fits} answers whether an
+ * element fits, this answers which failure is the lesser one.
+ */
+function roomOn(anchor: Rect, viewport: { width: number; height: number }, side: Side, gap: number, padding: number) {
+	switch (side) {
+		case "top":
+			return anchor.top - gap - padding;
+		case "bottom":
+			return viewport.height - padding - (anchor.top + anchor.height + gap);
+		case "left":
+			return anchor.left - gap - padding;
+		case "right":
+			return viewport.width - padding - (anchor.left + anchor.width + gap);
+	}
+}
+
+const OPPOSITE_ALIGN: Record<Align, Align> = { start: "end", end: "start", center: "center" };
+
+/**
+ * Alignments to try, in order of preference: the requested one first, then what to fall back to.
+ * `center` has no opposite, so both ends follow it.
+ */
+const alignCandidates = (align: Align): Align[] =>
+	align === "center" ? ["center", "start", "end"] : [align, OPPOSITE_ALIGN[align]];
+
+/** Presses the coordinate to the edges; a box wider than the room available goes to the near edge. */
 const clamp = (start: number, length: number, limit: number, padding: number) => {
 	const max = limit - padding - length;
-	// Верхняя граница может оказаться левее нижней — элемент шире экрана. Тогда `Math.min`
-	// сначала уводит его в минус, и `Math.max` возвращает к отступу: видно начало, а не середину.
+	// The upper bound can turn out to be lower than the lower one — the element is wider than the
+	// screen. Then `Math.min` first takes it negative and `Math.max` brings it back to the padding:
+	// the beginning is visible rather than the middle.
 	return Math.max(padding, Math.min(start, max));
 };
 
 /**
- * Считает, где встать элементу.
+ * Works out where the element should stand.
  *
- * Порядок такой: сперва выбираем сторону — на своей ли остаёмся или переворачиваемся, — и только
- * потом сдвигаем вдоль неё. Наоборот было бы неверно: сдвиг вдоль стороны не влияет на то,
- * помещается ли элемент поперёк, а вот выбранная сторона задаёт, вдоль чего сдвигать.
+ * The order is this: first choose the side — stay on ours or flip over — and only then shift along
+ * it. The other way round would be wrong: a shift along the side does not affect whether the
+ * element fits across it, whereas the chosen side decides what to shift along.
  */
 export function computePosition(
 	anchor: Rect,
-	size: { width: number; height: number },
+	size: Size,
 	viewport: { width: number; height: number },
 	options: PositionOptions = {}
 ): PositionResult {
-	const { gap = 4, viewportPadding: padding = 8, flip = true, shift = true } = options;
-	const [wanted, align] = parse(options.placement ?? "bottom-start");
+	const {
+		gap = 4,
+		viewportPadding: padding = 8,
+		flip = true,
+		fallback = "keep",
+		flipAlign = false,
+		shift = true,
+		clampCross = false,
+	} = options;
+	const [wanted, wantedAlign] = parse(options.placement ?? "bottom-start");
+
+	// A flip keeps the axis — top swaps with bottom, left with right — so the axis is decided by
+	// the requested side once, and the flip, the alignment and the shift below all read the same
+	// answer. Across the side lies the choice of side; along it, the alignment.
+	const vertical = wanted === "top" || wanted === "bottom";
 
 	let side = wanted;
 
 	if (flip) {
-		const vertical = wanted === "top" || wanted === "bottom";
 		const limit = vertical ? viewport.height : viewport.width;
 		const length = vertical ? size.height : size.width;
+		const opposite = OPPOSITE[wanted];
 
+		// Across the side the position does not depend on the alignment, so the requested one is
+		// good enough to measure with — the alignment is chosen below, once the side is known.
 		const room = (s: Side) => {
-			const at = place(anchor, size, s, align, gap);
+			const at = place(anchor, size, s, wantedAlign, gap);
 
 			return fits(vertical ? at.top : at.left, length, limit, padding);
 		};
 
-		// Переворачиваем, только если на своей стороне не помещаемся, а на другой помещаемся:
-		// не влезая нигде (низкий экран, длинный список) остаёмся на запрошенной — там элемент
-		// хотя бы ожидаем, а прижмёт его к краю уже сдвиг ниже.
-		if (!room(wanted) && room(OPPOSITE[wanted])) side = OPPOSITE[wanted];
+		if (!room(wanted)) {
+			// Fits on the other side — go there.
+			if (room(opposite)) side = opposite;
+			// Fits on neither: stay where we were asked to, unless told to take the roomier side.
+			else if (
+				fallback === "bestFit" &&
+				roomOn(anchor, viewport, opposite, gap, padding) > roomOn(anchor, viewport, wanted, gap, padding)
+			)
+				side = opposite;
+		}
+	}
+
+	// The alignment runs along the side, so it is measured on the other axis than the flip above.
+	let align = wantedAlign;
+
+	if (flipAlign) {
+		const limit = vertical ? viewport.width : viewport.height;
+		const length = vertical ? size.width : size.height;
+
+		const found = alignCandidates(wantedAlign).find((candidate) => {
+			const at = place(anchor, size, side, candidate, gap);
+
+			return fits(vertical ? at.left : at.top, length, limit, padding);
+		});
+
+		// None of them fits — keep the requested one, as the side does in the same situation; the
+		// shift below will press the element to the edge.
+		if (found) align = found;
 	}
 
 	const at = place(anchor, size, side, align, gap);
 	const placement: Placement = `${side}-${align}`;
 
-	if (!shift) return { left: at.left, top: at.top, placement };
+	// Along the side — the shift; across it — only if asked (see `clampCross`). By default the
+	// element stays where the gap put it: pressing it across would tear it away from the anchor.
+	const alongAxis = (start: number, length: number, limit: number) =>
+		shift ? clamp(start, length, limit, padding) : start;
+	const crossAxis = (start: number, length: number, limit: number) =>
+		clampCross ? clamp(start, length, limit, padding) : start;
 
-	// Сдвигаем только вдоль стороны: поперёк элемент прижат к якорю зазором, и подвинуть его
-	// там значило бы оторвать от кнопки, к которой он относится.
-	const vertical = side === "top" || side === "bottom";
-
-	return {
-		left: vertical ? clamp(at.left, size.width, viewport.width, padding) : at.left,
-		top: vertical ? at.top : clamp(at.top, size.height, viewport.height, padding),
-		placement,
-	};
+	return vertical
+		? {
+				left: alongAxis(at.left, size.width, viewport.width),
+				top: crossAxis(at.top, size.height, viewport.height),
+				placement,
+			}
+		: {
+				left: crossAxis(at.left, size.width, viewport.width),
+				top: alongAxis(at.top, size.height, viewport.height),
+				placement,
+			};
 }
 
-/** Размеры вьюпорта без полосы прокрутки: `innerWidth` считает и её, и край уходил бы под полосу. */
+/** Viewport size without the scrollbar: `innerWidth` counts it too, and the edge would go under it. */
 const viewportOf = (elem: HTMLElement) => {
 	const root = elem.ownerDocument.documentElement;
 
 	return { width: root.clientWidth, height: root.clientHeight };
 };
 
+/** The inline properties this module writes — and therefore the ones it has to give back. */
+const OWNED = ["position", "left", "top", "right", "bottom", "margin"] as const;
+
 /**
- * Ставит элемент у якоря. Возвращает выбранную сторону — по ней рисуют хвостик подсказки
- * и направление появления.
+ * The inline styles the element had before we took it over.
  *
- * Размеры читаются со снятыми координатами: коробка, ужатая прошлым показом у края экрана,
- * померилась бы уже, чем ей нужно, и осталась бы такой навсегда.
+ * Without this {@link clearPosition} would leave the element in a different state than it was found
+ * in: the host may have written `margin` or `top` on the popup itself, and wiping those is not ours
+ * to do. Kept in a `WeakMap` so the element does not outlive its entry.
  */
-export function positionElement(elem: HTMLElement, anchor: HTMLElement, options: PositionOptions = {}): PositionResult {
+const savedStyles = new WeakMap<HTMLElement, Record<string, string>>();
+
+function takeOver(elem: HTMLElement) {
+	if (savedStyles.has(elem)) return; // already ours — the first snapshot is the honest one
+
+	const saved: Record<string, string> = {};
+	for (const name of OWNED) saved[name] = elem.style.getPropertyValue(name);
+
+	savedStyles.set(elem, saved);
+}
+
+/** Non-empty and not a keyword meaning "nothing set". */
+const isSet = (value: string | undefined | null) => !!value && value !== "none" && value !== "normal";
+
+/**
+ * Whether the element establishes a containing block for `position: fixed` descendants. `transform`,
+ * `perspective`, `filter` and friends do that, and inside such an ancestor fixed coordinates stop
+ * being viewport ones.
+ */
+function createsFixedContainer(style: CSSStyleDeclaration): boolean {
+	const willChange = style.willChange ?? "";
+	const contain = style.contain ?? "";
+
+	return (
+		isSet(style.transform) ||
+		isSet(style.perspective) ||
+		isSet(style.filter) ||
+		isSet((style as unknown as { backdropFilter?: string }).backdropFilter) ||
+		/transform|perspective|filter/.test(willChange) ||
+		/paint|layout|strict|content/.test(contain)
+	);
+}
+
+/**
+ * The ancestor `position: fixed` is resolved against, or `null` when that is the viewport.
+ *
+ * A page-transition wrapper with a `transform`, a panel with a `filter` — any of them turns itself
+ * into the containing block, and coordinates written as viewport ones would land the popup offset
+ * by that ancestor's own position, sometimes right off the screen.
+ */
+function fixedContainer(elem: HTMLElement): HTMLElement | null {
+	const view = elem.ownerDocument.defaultView;
+	if (!view) return null;
+
+	for (let node = elem.parentElement; node && node !== elem.ownerDocument.documentElement; node = node.parentElement)
+		if (createsFixedContainer(view.getComputedStyle(node))) return node;
+
+	return null;
+}
+
+/**
+ * How much to subtract from viewport coordinates to get into the container's system. Fixed
+ * descendants are laid out from the padding box, so the border of the container counts.
+ */
+function containerOffset(container: HTMLElement): { left: number; top: number } {
+	const view = container.ownerDocument.defaultView;
+	const rect = container.getBoundingClientRect();
+	const style = view?.getComputedStyle(container);
+
+	return {
+		left: rect.left + (parseFloat(style?.borderLeftWidth ?? "") || 0),
+		top: rect.top + (parseFloat(style?.borderTopWidth ?? "") || 0),
+	};
+}
+
+/**
+ * Measures the element for the calculation.
+ *
+ * The size is read with the coordinates cleared: a box squeezed by a previous showing at the edge
+ * of the screen would measure narrower than it needs and would stay that way for good. This is the
+ * expensive half — it writes styles and reads the layout back — so callers that repeat themselves
+ * ({@link trackPosition}) do it once rather than every frame.
+ */
+function measure(elem: HTMLElement): Size {
+	takeOver(elem);
+
 	elem.style.position = "fixed";
 	elem.style.left = "0";
 	elem.style.top = "0";
@@ -181,80 +372,175 @@ export function positionElement(elem: HTMLElement, anchor: HTMLElement, options:
 	elem.style.bottom = "auto";
 	elem.style.margin = "0";
 
-	const at = computePosition(
-		anchor.getBoundingClientRect(),
-		{ width: elem.offsetWidth, height: elem.offsetHeight },
-		viewportOf(elem),
-		options
-	);
+	return { width: elem.offsetWidth, height: elem.offsetHeight };
+}
 
-	elem.style.left = `${Math.round(at.left)}px`;
-	elem.style.top = `${Math.round(at.top)}px`;
+/** Writes the result, translating it into the coordinate system the element is actually laid out in. */
+function write(elem: HTMLElement, at: PositionResult, container: HTMLElement | null) {
+	const offset = container ? containerOffset(container) : null;
+
+	elem.style.left = `${Math.round(offset ? at.left - offset.left : at.left)}px`;
+	elem.style.top = `${Math.round(offset ? at.top - offset.top : at.top)}px`;
+}
+
+/**
+ * Puts the element by the anchor. Returns the chosen side — the tooltip tail and the direction of
+ * appearance are drawn from it.
+ */
+export function positionElement(elem: HTMLElement, anchor: HTMLElement, options: PositionOptions = {}): PositionResult {
+	const size = measure(elem);
+	const at = computePosition(anchor.getBoundingClientRect(), size, viewportOf(elem), options);
+
+	write(elem, at, fixedContainer(elem));
 
 	return at;
 }
 
-/** Снимает всё, что записал {@link positionElement}: элемент возвращается к своим стилям. */
+/**
+ * Gives the element back its own styles: whatever inline values it had before {@link positionElement}
+ * took it over are restored, and the properties it did not have are removed.
+ */
 export function clearPosition(elem: HTMLElement): void {
-	for (const name of ["position", "left", "top", "right", "bottom", "margin"]) elem.style.removeProperty(name);
+	const saved = savedStyles.get(elem);
+	savedStyles.delete(elem);
+
+	for (const name of OWNED) {
+		const value = saved?.[name];
+
+		if (value) elem.style.setProperty(name, value);
+		else elem.style.removeProperty(name);
+	}
 }
 
 export interface TrackOptions extends PositionOptions {
 	/**
-	 * Позиционировать ли сейчас. Спрашивается на каждом пересчёте, поэтому ответ может меняться
-	 * по ходу — окно то шире порога, то уже.
+	 * Whether to position at all right now. Asked on every recalculation, so the answer may change
+	 * as things go — the window is now wider than the threshold, now narrower.
 	 *
-	 * Нужно тому, у кого на узком экране вид другой: попап кита ниже `@adaptive-tablet-small`
-	 * показывается окном по центру, и координаты у кнопки ему тогда не нужны — больше того,
-	 * вредны, потому что инлайновый стиль сильнее правила и растащил бы окно обратно к кнопке.
+	 * Needed by anyone whose narrow screen looks different: below `@adaptive-tablet-small` the kit
+	 * popup is shown as a window in the centre, and coordinates by the button are not needed then —
+	 * more than that, they are harmful, because an inline style outweighs the rule and would drag
+	 * the window back to the button.
 	 */
 	enabled?: () => boolean;
 }
 
+/** Overflow values that make an element a scroll container. */
+const SCROLLABLE = /auto|scroll|overlay|hidden/;
+
 /**
- * Ставит элемент у якоря и держит его там, пока не позовут возвращённую отписку.
+ * The scrollable ancestors of the anchor — the only ones whose scrolling moves the anchor out from
+ * under the element.
  *
- * Координаты вьюпортные, поэтому прокрутка любого предка уводит якорь из-под элемента —
- * слушаем её в фазе перехвата, чтобы поймать и прокрутку внутреннего контейнера, которая
- * до документа не всплывает.
+ * Listening on `window` in the capture phase would catch these too, but it would also fire on every
+ * scroll of every unrelated panel and on scrolling inside the popup itself, forcing a reposition
+ * each time for nothing.
+ */
+function scrollParents(anchor: HTMLElement): HTMLElement[] {
+	const doc = anchor.ownerDocument;
+	const view = doc.defaultView;
+	if (!view) return [];
+
+	const parents: HTMLElement[] = [];
+
+	// body and documentElement are left out on purpose: page scrolling arrives as a `scroll` event
+	// on the window, which is subscribed to separately.
+	for (
+		let node = anchor.parentElement;
+		node && node !== doc.body && node !== doc.documentElement;
+		node = node.parentElement
+	) {
+		const style = view.getComputedStyle(node);
+		if (SCROLLABLE.test(style.overflowX + style.overflowY)) parents.push(node);
+	}
+
+	return parents;
+}
+
+/**
+ * Puts the element by the anchor and keeps it there until the returned unsubscribe is called.
+ *
+ * The size is measured on the first run and on resize, not on every frame: the measurement writes
+ * styles and reads the layout straight back, and doing that per scroll frame makes the browser lay
+ * the page out twice a frame. While scrolling, only the anchor moves, so only the coordinates are
+ * rewritten.
  */
 export function trackPosition(elem: HTMLElement, anchor: HTMLElement, options: TrackOptions = {}): () => void {
-	const update = () => {
-		// Снимаем написанное раньше: пока элемент не позиционируется, свои координаты должны
-		// остаться за ним, а не за прошлым пересчётом.
-		if (options.enabled && !options.enabled()) return clearPosition(elem);
+	let size: Size | null = null;
+	let container: HTMLElement | null = null;
+	let positioned = false;
 
-		positionElement(elem, anchor, options);
+	const update = (remeasure: boolean) => {
+		if (options.enabled && !options.enabled()) {
+			// Only on the transition into the disabled state: while it holds, the element already
+			// carries its own styles and clearing them again every frame is pure churn.
+			if (positioned) {
+				clearPosition(elem);
+				positioned = false;
+				size = null;
+			}
+
+			return;
+		}
+
+		if (remeasure || !size) {
+			size = measure(elem);
+			container = fixedContainer(elem);
+		}
+
+		positioned = true;
+
+		write(elem, computePosition(anchor.getBoundingClientRect(), size, viewportOf(elem), options), container);
 	};
 
-	// Первый раз — сразу: элемент уже показан, и ждать кадра значило бы дать ему мигнуть
-	// на прежнем месте.
-	update();
+	// The first time — straight away: the element is already shown, and waiting for a frame would
+	// let it blink in its old place.
+	update(true);
 
 	const view = elem.ownerDocument.defaultView;
-	if (!view) return () => clearPosition(elem);
+	if (!view)
+		return () => {
+			if (positioned) clearPosition(elem);
+		};
 
-	// Дальше — не чаще кадра. Пересчёт пишет элементу стили и тут же читает его размеры,
-	// то есть заставляет браузер считать раскладку прямо в обработчике; делать это на каждое
-	// событие прокрутки незачем — до отрисовки всё равно доживёт только последнее значение.
+	// Beyond that — no more often than a frame: only the last value survives to the paint anyway.
 	let frame = 0;
-	const schedule = () => {
+	let pendingMeasure = false;
+
+	const schedule = (remeasure: boolean) => {
+		pendingMeasure = pendingMeasure || remeasure;
+
 		if (frame) return;
 
 		frame = view.requestAnimationFrame(() => {
 			frame = 0;
-			update();
+
+			const remeasureNow = pendingMeasure;
+			pendingMeasure = false;
+
+			update(remeasureNow);
 		});
 	};
 
-	view.addEventListener("scroll", schedule, { passive: true, capture: true });
-	view.addEventListener("resize", schedule, { passive: true });
+	const onScroll = () => schedule(false);
+	// Resizing changes both the room available and the size the element takes in it, so the
+	// measurement has to be redone — that is the case the reset-and-measure trick exists for.
+	const onResize = () => schedule(true);
+
+	const parents = scrollParents(anchor);
+	for (const parent of parents) parent.addEventListener("scroll", onScroll, { passive: true });
+
+	view.addEventListener("scroll", onScroll, { passive: true });
+	view.addEventListener("resize", onResize, { passive: true });
 
 	return () => {
 		if (frame) view.cancelAnimationFrame(frame);
 
-		view.removeEventListener("scroll", schedule, { capture: true });
-		view.removeEventListener("resize", schedule);
-		clearPosition(elem);
+		for (const parent of parents) parent.removeEventListener("scroll", onScroll);
+
+		view.removeEventListener("scroll", onScroll);
+		view.removeEventListener("resize", onResize);
+
+		if (positioned) clearPosition(elem);
 	};
 }
