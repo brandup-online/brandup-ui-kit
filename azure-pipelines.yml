@@ -54,9 +54,9 @@ stages:
                       command: "custom"
                       customCommand: "run i"
 
-                # Проверки исходников идут до сборки: они дешевле её и падают понятнее,
-                # а разбирать ошибку типов в собранном пакете, когда рядом лежит невычищенный
-                # lint, дольше, чем починить lint.
+                # Source checks run before the build: they are cheaper than it and fail more clearly,
+                # and digging into a type error in a built package while an uncleaned lint sits next to it
+                # takes longer than fixing the lint.
                 - task: "Npm@1"
                   displayName: "lint"
                   inputs:

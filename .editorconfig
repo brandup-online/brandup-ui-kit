@@ -7,10 +7,10 @@ charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
 
-# Окончание строки здесь намеренно не задано: его определяет git по .gitattributes
-# (`* text=auto`) — в репозитории LF, в рабочем дереве то, что принято в системе.
-# Жёсткое `end_of_line = crlf` спорило бы с этим на Linux и в CI.
+# The line ending is deliberately not set here: git decides it via .gitattributes
+# (`* text=auto`) — LF in the repository, and whatever is native to the system in the working tree.
+# A hard-coded `end_of_line = crlf` would conflict with that on Linux and in CI.
 
-# В markdown два пробела в конце строки — это перенос, обрезать их нельзя.
+# In markdown two spaces at the end of a line are a line break, they must not be trimmed.
 [*.md]
 trim_trailing_whitespace = false

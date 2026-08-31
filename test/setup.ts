@@ -1,21 +1,21 @@
 import { initUICommands } from "@brandup/ui";
 
-// Файл общий на весь прогон, а среда у наборов разная: почти всем нужен jsdom, но набору,
-// который читает собранный CSS, DOM не нужен вовсе и он объявляет `@jest-environment node`.
-// Всё, что ниже, трогает DOM, поэтому в node-среде пропускаем: иначе первое же обращение
-// к `Element` роняет такой набор ещё до его запуска.
+// The file is shared by the whole run, while the suites' environments differ: almost all of them
+// need jsdom, but the suite that reads the built CSS does not need a DOM at all and declares
+// `@jest-environment node`. Everything below touches the DOM, so in a node environment it is
+// skipped: otherwise the very first reference to `Element` brings such a suite down before it runs.
 const HAS_DOM = typeof window !== "undefined" && typeof Element !== "undefined";
 
 if (HAS_DOM) {
-	// Регистрируем глобальный click-обработчик команд (@brandup/ui v2.0.2+).
-	// В продакшене это делает Application.run(); в тестах вызываем явно.
+	// Register the global click handler for commands (@brandup/ui v2.0.2+).
+	// In production Application.run() does this; in tests it is called explicitly.
 	initUICommands();
 
-	// jsdom не реализует scrollIntoView — стабим, чтобы UI-логика (InputControl.focus и т.п.) не падала под тестами.
+	// jsdom does not implement scrollIntoView — stubbed so UI logic (InputControl.focus and the like) does not throw under tests.
 	(Element.prototype as any).scrollIntoView = function () {};
 
-	// jsdom не реализует innerText — проксируем к textContent. Этого достаточно для UI-логики
-	// (для одиночных строк без разрывов innerText и textContent совпадают).
+	// jsdom does not implement innerText — proxied to textContent. That is enough for UI logic
+	// (for single lines without breaks innerText and textContent are the same).
 	if (!Object.getOwnPropertyDescriptor(HTMLElement.prototype, "innerText")) {
 		Object.defineProperty(HTMLElement.prototype, "innerText", {
 			get() {

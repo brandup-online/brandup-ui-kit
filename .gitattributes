@@ -1,11 +1,11 @@
-# Переводы строк нормализуются в репозитории к LF, а в рабочее дерево попадают
-# такими, какие приняты в системе разработчика. Без этого файла окончания строк
-# определяет локальная настройка core.autocrlf: на Windows дерево получалось CRLF,
-# на Linux и в CI — LF, и `format:check` с жёстко заданным `endOfLine` падал на всех
-# файлах сразу — не потому, что форматирование разошлось, а потому, что среда другая.
+# Line endings are normalized to LF in the repository, and land in the working tree
+# in whatever form is native to the developer's system. Without this file the line endings
+# are decided by the local core.autocrlf setting: on Windows the tree ended up CRLF,
+# on Linux and in CI — LF, and `format:check` with a hard-coded `endOfLine` failed on every
+# file at once — not because the formatting diverged, but because the environment is different.
 * text=auto
 
-# Двоичное — не трогать вовсе: нормализация испортила бы содержимое.
+# Binary — do not touch at all: normalization would corrupt the contents.
 *.png binary
 *.jpg binary
 *.jpeg binary
