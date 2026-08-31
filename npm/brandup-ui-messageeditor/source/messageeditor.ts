@@ -1077,7 +1077,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 			// открытым попап держал бы PopupManager на невидимом элементе: на body остался бы его
 			// класс, и на узком экране страница перестала бы прокручиваться.
 			formatToolbar.detach(this.__editor);
-			if (this.__emojiPicker && PopupManager.isOpened(this.__emojiPicker)) PopupManager.close();
+			if (this.__emojiPicker) PopupManager.close(this.__emojiPicker);
 
 			// Режим — своё поле, класс на элементе только оформляет его (см. sourceMode)
 			this.__sourceMode = true;

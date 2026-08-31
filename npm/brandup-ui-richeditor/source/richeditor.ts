@@ -1117,7 +1117,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// (см. openEmojiPicker). Оставленный, он держал бы PopupManager на удалённом элементе:
 		// на body висел бы класс открытого попапа и слушатель закрытия, а на узком экране
 		// страница осталась бы непрокручиваемой.
-		if (this.__emojiPicker && PopupManager.isOpened(this.__emojiPicker)) PopupManager.close();
+		if (this.__emojiPicker) PopupManager.close(this.__emojiPicker);
 
 		formatToolbar.detach(this);
 

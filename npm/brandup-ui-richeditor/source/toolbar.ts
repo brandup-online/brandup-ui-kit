@@ -6,7 +6,7 @@
 // т.к. тулбар находится вне привязанных UIElement).
 
 import { DOM } from "@brandup/ui";
-import { PopupManager } from "@brandup/ui-kit";
+import { PopupManager, positionElement } from "@brandup/ui-kit";
 import { UIKIT } from "@brandup/ui-kit/names";
 import { RICHEDITOR } from "./names";
 import {
@@ -366,29 +366,20 @@ class FormatToolbar {
 	reposition() {
 		if (!this.__active || !this.__elem || this.__inContainer) return;
 
-		const rect = this.__active.editable.getBoundingClientRect();
-		const elem = this.__elem;
-
-		// Ширина панели зависит от left: коробка ужимается по содержимому, и прижатый к правому
-		// краю left от прошлого показа ужал бы её до зазора — панель одна на все редакторы,
-		// а прошлый мог стоять у самого края. Меряем со снятой координатой.
-		elem.style.left = "";
-		const width = elem.offsetWidth;
-
-		const top = rect.top - elem.offsetHeight - RICHEDITOR.VALUE.TOOLBAR_MARGIN;
-
-		// Панель шире редактора (у узкого поля так бывает всегда), и по его левому краю она уехала
-		// бы за правый край экрана. Прижимаем к правому краю, но не левее отступа: панель шире
-		// самого экрана прижимается к левому и прокручивается — см. .toolbar-body.
-		// clientWidth корня, а не innerWidth: тот считает и полосу прокрутки страницы,
-		// и крайняя кнопка панели оказывалась бы под ней.
-		const viewport = elem.ownerDocument.documentElement.clientWidth;
-		const maxLeft = Math.max(
-			RICHEDITOR.VALUE.TOOLBAR_EDGE_GAP,
-			viewport - width - RICHEDITOR.VALUE.TOOLBAR_EDGE_GAP
-		);
-		elem.style.left = `${Math.min(Math.max(RICHEDITOR.VALUE.TOOLBAR_EDGE_GAP, rect.left), maxLeft)}px`;
-		elem.style.top = `${Math.max(RICHEDITOR.VALUE.TOOLBAR_EDGE_GAP, top)}px`;
+		// The calculation is the set's shared one (see position.ts in @brandup/ui-kit): the panel
+		// stands above the field and is pressed into the screen on both axes. There is no arithmetic
+		// of our own here any more — the very same had also been written in the dropdown list, and
+		// fixes to one never reached the other.
+		positionElement(this.__elem, this.__active.editable, {
+			placement: "top-start",
+			gap: RICHEDITOR.VALUE.TOOLBAR_MARGIN,
+			viewportPadding: RICHEDITOR.VALUE.TOOLBAR_EDGE_GAP,
+			// No flipping: the panel belongs above the field, and under the text is the last place
+			// it would be looked for. Above the topmost line there is no room — there it lies over
+			// the text (clampCross) rather than going off the edge of the screen.
+			flip: false,
+			clampCross: true,
+		});
 	}
 
 	private __removeViewportListeners() {
@@ -576,7 +567,7 @@ class FormatToolbar {
 
 	/** Закрыть панель смайликов, если открыта именно она (тулбар уходит — попап не должен остаться). */
 	private __closeEmoji() {
-		if (this.__emojiPicker && PopupManager.isOpened(this.__emojiPicker)) PopupManager.close();
+		if (this.__emojiPicker) PopupManager.close(this.__emojiPicker);
 	}
 
 	/** Открыть правку адреса хоткеем — так же, как её открывает собственная кнопка. */

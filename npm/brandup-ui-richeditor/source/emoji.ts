@@ -273,7 +273,11 @@ export function createEmojiPicker(onPick: (emoji: string) => void): HTMLElement 
 		// удалась ли она (filterChar, снятый редактор), знает только владелец попапа.
 		rememberEmoji(emoji);
 		onPick(emoji);
-		PopupManager.close();
+
+		// This panel is closed, not everything that is open: the editor is sometimes shown inside
+		// someone else's popup, and that popup is no obstacle to this choice — closing it would take
+		// away the form the user is writing in.
+		PopupManager.close(picker);
 	});
 
 	return picker;
