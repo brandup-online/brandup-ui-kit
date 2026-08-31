@@ -1,7 +1,7 @@
 ﻿import { Page } from "./base";
 import html from "./popups.html";
 import "./popups.less";
-import { PopupManager } from "@brandup/ui-kit";
+import { PopupManager, type Placement } from "@brandup/ui-kit";
 
 export default class PopupsPage extends Page {
 	get typeName(): string {
@@ -18,17 +18,26 @@ export default class PopupsPage extends Page {
 			PopupManager.toggle(context.target.nextElementSibling as HTMLElement, { initiator: context.target });
 		});
 
-		// Координат в стилях нет вовсе — их считает кит: `position: true` ставит попап под
-		// кнопкой, переворачивает вверх у нижнего края экрана и прижимает к правому.
+		// There are no coordinates in the stylesheet at all — the kit works them out. The side and
+		// the alignment come from the button itself: `bottom-start` by default, and `bottom-end` for
+		// the button at the right edge of the block, whose popup is wider than it is and would
+		// otherwise hang out past it.
+		//
+		// `flipAlign` and `fallback` are both switched on here to show them working. Neither is on
+		// by default, and neither replaces the explicit `bottom-end` above: they answer to the edge
+		// of the screen, so they come into play once the window is narrow or short enough for the
+		// button to actually be near it.
 		this.registerCommand("anchored", (context) => {
+			const placement = context.target.dataset.placement as Placement | undefined;
+
 			PopupManager.toggle(context.target.nextElementSibling as HTMLElement, {
 				initiator: context.target,
-				position: true,
+				position: { placement, flipAlign: true, fallback: "bestFit" },
 			});
 		});
 
-		// Подменю раскрывается вбок: кнопка стоит внутри уже открытого попапа, поэтому родитель
-		// остаётся, а не закрывается.
+		// The submenu opens sideways: its button stands inside an already open popup, so the parent
+		// stays rather than closing.
 		this.registerCommand("anchored-right", (context) => {
 			PopupManager.toggle(context.target.nextElementSibling as HTMLElement, {
 				initiator: context.target,

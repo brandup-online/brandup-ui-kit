@@ -25,27 +25,36 @@
 	</div>
 	<div class="example">
 		<p>
-			Позиционирование у якоря: попап ставит сам кит — с переворотом на другую сторону,
-			когда на своей не помещается, и со сдвигом от края экрана. Кнопки нарочно стоят
-			у краёв.
+			Позиционирование у якоря: попап ставит сам кит. Сторона и выравнивание задаются
+			опцией <code>placement</code> — у кнопки справа попап выровнен по её правому краю,
+			иначе он свисал бы наружу.
+		</p>
+		<p>
+			Дальше кит решает сам, и всё это считается от краёв <em>экрана</em>, а не блока.
+			<code>flip</code> (по умолчанию) переворачивает попап на другую сторону, когда на
+			своей он не помещается; <code>flipAlign</code> так же меняет выравнивание вдоль
+			стороны; <code>fallback: "bestFit"</code> выбирает сторону с бо́льшим запасом, если
+			не помещается нигде. Здесь включено всё три — сузьте окно по ширине или по высоте
+			и понажимайте кнопки. Пересчёт идёт и на прокрутке: открытый попап перевернётся
+			на ходу, когда кнопка уедет к низу экрана.
 		</p>
 		<div class="anchored">
 			<button data-command="anchored" class="ui-button mini">Слева вверху</button>
 			<div class="ui-popup"><menu>
-				<li><a href="">Первый пункт меню</a></li>
+				<li><a href="">bottom-start — по левому краю кнопки</a></li>
 				<li><a href="">Второй пункт меню</a></li>
 				<li><a href="">Третий пункт меню</a></li>
 			</menu></div>
 
-			<button data-command="anchored" class="ui-button mini at-right">Справа</button>
+			<button data-command="anchored" data-placement="bottom-end" class="ui-button mini at-right">Справа</button>
 			<div class="ui-popup"><menu>
-				<li><a href="">Здесь попап прижмётся к правому краю</a></li>
+				<li><a href="">bottom-end — по правому краю кнопки</a></li>
 				<li><a href="">Второй пункт меню</a></li>
 			</menu></div>
 
-			<button data-command="anchored" class="ui-button mini at-bottom">Внизу страницы</button>
+			<button data-command="anchored" data-placement="top-start" class="ui-button mini at-bottom">Внизу блока</button>
 			<div class="ui-popup"><menu>
-				<li><a href="">Здесь попап перевернётся вверх</a></li>
+				<li><a href="">top-start — над кнопкой</a></li>
 				<li><a href="">Второй пункт меню</a></li>
 				<li><a href="">Третий пункт меню</a></li>
 			</menu></div>

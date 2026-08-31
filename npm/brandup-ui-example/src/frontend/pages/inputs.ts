@@ -14,9 +14,10 @@ export default class NavigationPage extends Page {
 	protected async onRenderContent(container: HTMLElement) {
 		container.insertAdjacentHTML("beforeend", html);
 
-		// «Часть набора отмечена» — состояние без атрибута: в разметке его не записать,
-		// браузер читает только свойство. В примере помечаем такой чекбокс `data-indeterminate`,
-		// чтобы показанная рядом разметка объясняла, откуда взялся третий вид.
+		// "Part of the set is ticked" is a state with no attribute: it cannot be written in markup,
+		// the browser reads the property only. In the example such a checkbox is marked with
+		// `data-indeterminate` so the markup shown beside it explains where the third look came
+		// from.
 		DOM.queryElements(container, "input[data-indeterminate]").forEach((elem) => {
 			(elem as HTMLInputElement).indeterminate = true;
 		});

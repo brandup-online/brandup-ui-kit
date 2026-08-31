@@ -1,6 +1,7 @@
 "use strict";
 
 const path = require("path");
+const fs = require("fs/promises");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const CleanCSSPlugin = require("less-plugin-clean-css");
 const TerserPlugin = require("terser-webpack-plugin");
@@ -14,47 +15,82 @@ const themeFile = path.resolve(__dirname, "uikit.vars.less");
 const darkThemeFile = path.resolve(__dirname, "uikit.dark.vars.less");
 
 /**
- * Кладёт рядом с бандлом отдельный `theme.css`.
+ * Puts a separate `theme.css` beside the bundle.
  *
- * Сама светлая тема в бандл уже запечена — её подставляет `modifyVars` ниже. Этот файл нужен
- * ради второй: он объявляет тёмный вариант под `:root[data-theme="dark"]`, и переключатель
- * в шапке примера меняет только атрибут на `<html>`.
+ * The light theme itself is already baked into the bundle — `modifyVars` below substitutes it. This
+ * file exists for the second one: it declares the dark variant under `:root[data-theme="dark"]`,
+ * and the switch in the example's header changes nothing but the attribute on `<html>`.
  *
- * Вариант — дельта поверх основной темы, а не её копия, и после того как входы компонентов
- * стали ссылаться на палитру, в дельту попадает почти одна палитра: перекрасить пример
- * целиком стоит десятка значений в `uikit.dark.vars.less`.
+ * The variant is a delta over the main theme rather than a copy of it, and now that component
+ * inputs refer to the palette, almost nothing but the palette lands in that delta: recolouring the
+ * whole example costs a dozen values in `uikit.dark.vars.less`.
  *
- * Отдаём файл webpack-у как свой ассет, а не пишем на диск мимо него: с `output.clean` всё
- * постороннее в каталоге сборки удаляется, и записанная своими руками тема пропадала бы
- * при следующей пересборке.
+ * The file is handed to webpack as an asset of ours rather than written to disk behind its back:
+ * with `output.clean` everything foreign in the build directory is deleted, and a theme written by
+ * hand would disappear on the next rebuild.
  */
 class UiKitThemePlugin {
+	constructor() {
+		/**
+		 * The built theme and a fingerprint of the files it was built from.
+		 *
+		 * Building the theme is a full less compilation, and twice over: the main one plus the
+		 * variant. Under `--watch` a rebuild happens on every edit of any source, while the theme
+		 * only changes when its own files are edited — so the result is kept until they are.
+		 */
+		this.__cache = null;
+	}
+
+	/** A fingerprint of the theme inputs: mtime and size — enough to notice a change. */
+	async __stamp() {
+		const stat = async (file) => {
+			const info = await fs.stat(file);
+
+			return `${file}:${info.mtimeMs}:${info.size}`;
+		};
+
+		return (await Promise.all([themeFile, darkThemeFile].map(stat))).join("|");
+	}
+
+	async __build() {
+		const stamp = await this.__stamp();
+		if (this.__cache && this.__cache.stamp === stamp) return this.__cache.css;
+
+		const css = await buildTheme({
+			theme: themeFile,
+			variants: [{ selector: ':root[data-theme="dark"]', theme: darkThemeFile }],
+		});
+
+		this.__cache = { stamp, css };
+
+		return css;
+	}
+
 	apply(compiler) {
 		compiler.hooks.thisCompilation.tap("UiKitThemePlugin", (compilation) => {
 			compilation.hooks.processAssets.tapPromise(
 				{ name: "UiKitThemePlugin", stage: compilation.PROCESS_ASSETS_STAGE_ADDITIONAL },
 				async () => {
-					const css = await buildTheme({
-						theme: themeFile,
-						variants: [{ selector: ':root[data-theme="dark"]', theme: darkThemeFile }],
-					});
-
-					compilation.emitAsset(THEME_FILE_NAME, new sources.RawSource(css));
+					compilation.emitAsset(THEME_FILE_NAME, new sources.RawSource(await this.__build()));
 				}
 			);
 
-			// Тег подключения ставим сами, и обязательно последним среди стилей: тема перекрывает
-			// умолчания бандла, а перекрыть их при равном весе может только то, что идёт ниже.
-			// Написанная в шаблоне ссылка встала бы выше — HtmlWebpackPlugin дописывает свои теги
-			// в конец `<head>`, — и тема проигрывала бы бандлу везде, кроме тёмного варианта:
-			// тот выигрывает не порядком, а весом селектора. То есть ровно там, ради чего
-			// отдельный файл и заведён, — правку темы без пересборки бандла никто бы не увидел.
+			// The link tag is added by us, and necessarily last among the stylesheets: the theme
+			// overrides the bundle's defaults, and at equal weight only what comes below can do
+			// that. A link written in the template would stand above — HtmlWebpackPlugin appends
+			// its own tags to the end of `<head>` — and the theme would lose to the bundle
+			// everywhere except in the dark variant, which wins by selector weight rather than by
+			// order. That is, precisely where the separate file exists for: nobody would see a
+			// theme edit made without rebuilding the bundle.
 			//
-			// Отсюда же берётся `publicPath`: путь к теме обязан считаться так же, как к остальным
-			// ассетам, иначе она потеряется при развёртывании не в корне сайта.
+			// `publicPath` comes from here too: the path to the theme has to be worked out the same
+			// way as for every other asset, or it is lost when deployed anywhere but the site root.
+			// It is taken from the hook's own data — that is the path HtmlWebpackPlugin has already
+			// signed the bundle's tags with. Recomputing it from `compilation.outputOptions` is not
+			// allowed: the plugin has a `publicPath` option of its own, and wherever the two differ
+			// the theme would go somewhere the bundle does not.
 			HtmlWebpackPlugin.getHooks(compilation).alterAssetTagGroups.tap("UiKitThemePlugin", (data) => {
-				const publicPath = compilation.outputOptions.publicPath;
-				const prefix = !publicPath || publicPath === "auto" ? "" : publicPath;
+				const prefix = data.publicPath ?? "";
 
 				data.headTags.push({
 					tagName: "link",
@@ -66,7 +102,7 @@ class UiKitThemePlugin {
 				return data;
 			});
 
-			// пересобирать тему, когда правят её файлы, а не только исходники страниц
+			// rebuild the theme when its own files are edited, not only the page sources
 			compilation.fileDependencies.add(themeFile);
 			compilation.fileDependencies.add(darkThemeFile);
 		});

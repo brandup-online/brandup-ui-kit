@@ -7,8 +7,8 @@
 	--input-width: 100%;
 
 	--placeholder-font-weidth: 300;
-	// не литералом: на тёмной теме серый по тёмному пропадал бы — приглушаем цвет текста
-	// до фона поля, тем же приёмом, что и выключенное значение в ките
+	// not a literal: on a dark theme grey on dark would vanish — the text colour is dimmed toward
+	// the field's background, by the same trick the kit uses for a disabled value
 	--placeholder-color: color-mix(in srgb, var(--input-color) 55%, var(--input-fill));
 
 	& .part {
@@ -26,9 +26,9 @@
 				flex-flow: column nowrap;
 				row-gap: 10px;
 
-				// Разметка примера под каждым контролом. Цвета выведены из палитры, а не заданы
-				// литералом: на тёмной теме жёлтая плашка со светлым текстом становилась
-				// нечитаемой, а страница — единственное место, где тему и разглядывают.
+				// The example markup under each control. The colours are derived from the palette
+				// rather than given as literals: on a dark theme a yellow plate with light text
+				// became unreadable, and this page is the one place the theme is examined on.
 				& .html {
 					font-size: 10px;
 					background: color-mix(in srgb, var(--surface) 92%, var(--ink));

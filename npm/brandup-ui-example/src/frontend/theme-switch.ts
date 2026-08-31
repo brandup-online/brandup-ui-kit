@@ -1,26 +1,26 @@
 import { DOM } from "@brandup/ui";
 
 /**
- * Переключатель темы в шапке примера.
+ * Theme switch in the example header.
  *
- * Показывает то, ради чего входы компонентов стали ссылаться на палитру: смена темы — это
- * атрибут на `<html>`, а не пересборка. Файл `theme.css` объявляет светлую тему в `:root`,
- * тёмную — под `:root[data-theme="dark"]`, и во втором блоке лежит почти одна палитра:
- * заливка полей, главная кнопка, переключатель, кольцо фокуса, попап и окно выведены из неё
- * и едут следом сами.
+ * It shows what component inputs were made to reference the palette for: switching the theme is
+ * an attribute on `<html>`, not a rebuild. The `theme.css` file declares the light theme in
+ * `:root` and the dark one under `:root[data-theme="dark"]`, and the second block holds almost
+ * nothing but the palette: input fill, the primary button, the toggle, the focus ring, the popup
+ * and the dialog are all derived from it and follow along on their own.
  *
- * Пока выбор не сделан, страница идёт за системной настройкой; нажатие делает выбор явным
- * и запоминает его. К первой отрисовке всё это применяет встроенный в `<head>` скрипт —
- * иначе страница мигала бы светлым у того, кому нужна тёмная.
+ * Until a choice is made, the page follows the system setting; a click makes the choice explicit
+ * and remembers it. By the first paint all of this is applied by the script inlined into `<head>` —
+ * otherwise the page would flash light for someone who wants dark.
  */
 const STORAGE_KEY = "uikit-theme";
 const DARK = "dark";
 const LIGHT = "light";
 
-// Ссылку на запрос держим в модуле, а не создаём её на месте подписки: слушатель живёт ровно
-// столько, сколько живёт сам `MediaQueryList`, и брошенный сразу после `addEventListener`
-// объект сборщик мусора вправе унести вместе с подпиской — тема молча перестанет следовать
-// за системой.
+// The reference to the query is kept in the module rather than created at the subscription site:
+// the listener lives exactly as long as the `MediaQueryList` itself, and an object dropped right
+// after `addEventListener` may be taken by the garbage collector together with the subscription —
+// the theme would silently stop following the system.
 const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
 
 const isDark = (): boolean => document.documentElement.getAttribute("data-theme") === DARK;
@@ -29,7 +29,7 @@ const readChoice = (): string | null => {
 	try {
 		return localStorage.getItem(STORAGE_KEY);
 	} catch {
-		// приватный режим: выбора не помним — значит его и нет
+		// private mode: we do not remember a choice — so there is none
 		return null;
 	}
 };
@@ -39,7 +39,7 @@ const apply = (dark: boolean) => {
 	else document.documentElement.removeAttribute("data-theme");
 };
 
-/** Подписывает переключатель в шапке. Зовётся один раз при старте приложения. */
+/** Wires up the switch in the header. Called once at application start. */
 export function initThemeSwitch(): void {
 	const button = DOM.queryElement(document.body, "[data-theme-switch]");
 	if (!button) return;
@@ -49,8 +49,9 @@ export function initThemeSwitch(): void {
 	const refresh = () => {
 		const dark = isDark();
 
-		// Подпись — про то, куда переключит нажатие, а не про то, что сейчас: кнопка называет
-		// действие. Состояние читает скринридер — `aria-pressed` у переключателя для того и есть.
+		// The label is about where a click switches to, not about what is current: a button names
+		// the action. The state is read by a screen reader — that is what `aria-pressed` is for
+		// on a toggle.
 		if (label) label.textContent = dark ? "Светлая тема" : "Тёмная тема";
 		button.setAttribute("aria-pressed", dark ? "true" : "false");
 	};
@@ -60,19 +61,19 @@ export function initThemeSwitch(): void {
 		apply(dark);
 
 		try {
-			// Пишем выбор целиком, а не «тёмную или ничего»: пустое значение означало бы
-			// «идти за системой», и выбранная светлая на тёмной системе не пережила бы
-			// перезагрузку.
+			// The choice is written in full rather than as "dark or nothing": an empty value would
+			// mean "follow the system", and light chosen on a dark system would not survive
+			// a reload.
 			localStorage.setItem(STORAGE_KEY, dark ? DARK : LIGHT);
 		} catch {
-			// приватный режим: тема останется выбранной до перезагрузки — это лучше падения
+			// private mode: the theme stays chosen until a reload — better than throwing
 		}
 
 		refresh();
 	});
 
-	// Системную настройку слушаем, только пока выбор не сделан: сделанный руками он сильнее,
-	// и переключать тему под пользователем, потому что у него стемнело в системе, нельзя.
+	// The system setting is listened to only while no choice has been made: a choice made by hand
+	// is stronger, and switching the theme under the user because their system went dark is wrong.
 	systemDark.addEventListener("change", (e) => {
 		if (readChoice()) return;
 
