@@ -1,28 +1,30 @@
 /**
- * Делает `readonly` на элементе выбора тем, чем он выглядит.
+ * Makes `readonly` on a choice control mean what it looks like.
  *
- * Атрибута `readonly` у чекбокса и радио в HTML нет вовсе — браузер его не читает. Стили кита
- * рисуют такому элементу вид «только для чтения» и снимают ему `pointer-events`, но указателем
- * дело и кончается: пробел с клавиатуры по-прежнему переключает его, и значение, которое хост
- * считал неизменяемым, тихо меняется.
+ * HTML has no `readonly` attribute for a checkbox or a radio at all — the browser does not read it.
+ * The kit's stylesheet draws such a control in a read-only look, but that is where it ends: Space
+ * on the keyboard still toggles it, and a value the host considered fixed changes quietly.
  *
- * Здесь отменяется само действие. Слушаем `click`, а не `keydown`: нажатие пробела на элементе
- * выбора браузер сам превращает в `click`, поэтому один обработчик закрывает и указатель,
- * и клавиатуру, и вызов `elem.click()` из чужого кода.
+ * The action itself is cancelled here. We listen for `click` rather than `keydown`: the browser
+ * turns Space on a choice control into a `click` of its own accord, so a single handler covers the
+ * pointer, the keyboard, and an `elem.click()` call from someone else's code.
  *
- * В фазе перехвата и на документе — чтобы отмена случилась раньше, чем до элемента доберётся
- * обработчик хоста: остановленное им событие сюда бы не дошло.
+ * In the capture phase and on the document — so the cancel happens before the host's handler gets
+ * to the element: an event the host stopped would never reach us.
  *
- * Подписка ставится при загрузке модуля, как в `user-scroll`, и по той же причине: закрытый вид
- * такому элементу рисуют стили кита — безусловно, всем, кто их подключил. Приди поведение
- * с чем-то ещё (регистрацией middleware, вызовом из кода приложения), у части проектов элемент
- * выглядел бы закрытым и при этом менялся — то есть ровно тот разрыв, ради которого всё это
- * и написано, никуда бы не делся, просто перестал бы попадаться на глаза.
+ * The event is not stopped, only its default action: a press on a closed field stays an ordinary
+ * press, so the host's own handler — the hint explaining why the field is fixed — still sees it.
  *
- * Чего это не делает: `readonly` остаётся невидимым для скринридера — про него говорит
- * `aria-readonly`, и написать его на элементе обязан хост. И оно не заменяет `disabled`:
- * выключенное значение с формой не отправляется, а прочитанное — отправляется, ради чего
- * `readonly` обычно и берут.
+ * The subscription is set up as the module loads, as in `user-scroll`, and for the same reason: the
+ * closed look is drawn by the kit's stylesheet, unconditionally, for everyone who includes it. Were
+ * the behaviour to arrive with something else (registering a middleware, a call from application
+ * code), some projects would have a control that looks closed and changes anyway — that is, exactly
+ * the gap all of this is written for would still be there, just out of sight.
+ *
+ * What it does not do: `readonly` stays invisible to a screen reader — `aria-readonly` speaks for
+ * it, and writing that on the element is the host's job. And it is not a substitute for `disabled`:
+ * a disabled value is not submitted with the form while a read-only one is, which is usually the
+ * point of reaching for `readonly`.
  */
 const CHOICE_TYPES = new Set(["checkbox", "radio"]);
 
@@ -33,16 +35,15 @@ const onClick = (e: MouseEvent) => {
 	if (!(target instanceof HTMLInputElement)) return;
 	if (!CHOICE_TYPES.has(target.type) || !target.hasAttribute("readonly")) return;
 
-	// Только действие по умолчанию — переключение. Событие не останавливаем: нажатие по такому
-	// элементу остаётся обычным нажатием, и обработчик хоста (подсказка, почему поле закрыто)
-	// его увидит.
+	// The default action only — the toggle. The event itself is not stopped: a press on such a
+	// control stays an ordinary press, and the host's handler (the hint explaining why the field is
+	// closed) will see it.
 	e.preventDefault();
 };
 
 /**
- * Включает отмену. Зовётся сама при загрузке модуля; наружу отдана для того, кто грузит кит
- * отложенно и хочет включить её раньше, и для тестов. Повторные вызовы ничего не делают —
- * слушатель на документе нужен один.
+ * Arms the cancel. Called by the module itself as it loads; exposed for the tests. Repeated calls
+ * do nothing — one listener on the document is all that is needed.
  */
 export const enforceReadonlyChoice = (): void => {
 	if (listening || typeof document === "undefined") return;
@@ -51,6 +52,6 @@ export const enforceReadonlyChoice = (): void => {
 	document.addEventListener("click", onClick, true);
 };
 
-// Проверку окружения делает сама функция: пакет собирают и там, где документа нет вовсе
-// (серверный рендер).
+// The function checks the environment itself: the package is also built where there is no document
+// at all (server-side rendering).
 enforceReadonlyChoice();

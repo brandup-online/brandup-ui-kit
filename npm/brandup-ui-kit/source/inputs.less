@@ -1,4 +1,5 @@
 @import (reference) "../vars.less";
+@import (reference) "mixins.less";
 
 /*
 
@@ -60,9 +61,9 @@
 	--invalid--input-color: @invalid--input-color;
 
 	--incorrect--input-fill: @incorrect--input-fill;
-	// Свой вход, а не `@input-color`: тот стоял здесь опечаткой, из-за которой
-	// `@incorrect--input-color` не читал никто — переопределить его в теме было нельзя,
-	// значение молча бралось от обычного текста поля.
+	// Its own input rather than `@input-color`: that one stood here as a typo, because of which
+	// nobody ever read `@incorrect--input-color` — it could not be overridden in a theme, and the
+	// value came quietly from the field's ordinary text colour.
 	--incorrect--input-color: @incorrect--input-color;
 
 	--expanded--input-color: @expanded--input-color;
@@ -71,7 +72,7 @@
 	--hasvalue--input-color: @hasvalue--input-color;
 	--hasvalue--input-fill: @hasvalue--input-fill;
 
-	// checkbox и radio
+	// checkbox and radio
 	--checkbox-size: @checkbox-size;
 	--checkbox-fill-checked: @checkbox-fill-checked;
 	--checkbox-mark: @checkbox-mark;
@@ -82,7 +83,7 @@
 	// toggler
 	--toggler-height: @toggler-height;
 	--toggler-padding: @toggler-padding;
-	--toggler-round-fill: @toggler-round-fill; // цвет круглешка
+	--toggler-round-fill: @toggler-round-fill; // colour of the knob
 }
 
 input,
@@ -96,7 +97,9 @@ select {
 	font-style: var(--input-font-style);
 	color: var(--input-color);
 	line-height: var(--input-line-height);
-	// повторяет общее правило из reset.less: этот файл бывает подключён и сам по себе
+	// The kit does not switch `box-sizing` for the whole page (that is opt-in, see border-box.less),
+	// so every element it draws declares it itself — a field's height is set together with its
+	// padding and border.
 	box-sizing: border-box;
 	padding: 0;
 	margin: 0;
@@ -118,11 +121,11 @@ input[type=file],
 textarea, 
 select {
 	appearance: none;
-	// Гасим кольцо только здесь — там, где кит даёт замену: фокус поле показывает
-	// собственным видом, цветом рамки (`:focus` ниже). У кнопки такого вида нет, поэтому
-	// общее правило выше кольца больше не снимает: снятое там, оно оставляло бы невидимым
-	// фокус на крестике модального окна (ловушка ставит каретку туда первым делом) и на
-	// любой кнопке страницы, к киту отношения не имеющей.
+	// The ring is dropped only here — where the kit gives a replacement: a field shows focus by its
+	// own look, the border colour (`:focus` below). A button has no such look, which is why the
+	// shared rule above no longer drops the ring: dropped there, it would leave focus invisible on
+	// the close button of a modal window (the focus trap puts the caret there first of all) and on
+	// any button of the page that has nothing to do with the kit.
 	outline: none;
 	border-style: var(--input-border-type);
 	border-width: var(--input-border-width);
@@ -185,7 +188,7 @@ input[type=file] {
 		font-size: var(--font-size);
 	}
 
-	// нужно отключить пользовательские события, так как атрибут readonly не влияет на input file
+	// user events have to be switched off here: the readonly attribute has no effect on input file
 	&[readonly] {
 		pointer-events: none;
 		touch-action: none;
@@ -202,33 +205,32 @@ textarea {
 	min-height: var(--textarea-size);
 }
 
-// ── Элементы выбора: чекбокс, тумблер, радио ─────────────────────────────────────────────
+// ── Choice controls: checkbox, switch, radio ─────────────────────────────────────────────
 //
-// До этой правки `input[type=checkbox]` кит безусловно превращал в тумблер, и обычного
-// чекбокса получить было нельзя, а `input[type=radio]` не оформлял вовсе — радиокнопка
-// стояла в форме нативной рядом с оформленными полями.
+// Before this change the kit turned `input[type=checkbox]` into a switch unconditionally: an
+// ordinary checkbox could not be had at all, while `input[type=radio]` was not styled in the least
+// — a radio button stood in the form natively next to styled fields.
 //
-// Теперь вид следует за смыслом. Чекбокс — это «отмечено или нет» в наборе, который
-// отправляют вместе с формой; тумблер — «включено или выключено» прямо сейчас, и в ARIA
-// у него своя роль. Роль и задаёт вид: `role="switch"` — тумблер, без неё — чекбокс.
-// Скринридер при этом читает то же, что видит зрячий, а раньше он читал «флажок» там,
-// где нарисован переключатель.
+// Now the look follows the meaning. A checkbox is "ticked or not" within a set submitted with the
+// form; a switch is "on or off right now", and in ARIA it has a role of its own. The role is what
+// sets the look: `role="switch"` — a switch, without it — a checkbox. A screen reader then reads
+// what a sighted person sees, where before it read "checkbox" over a drawn toggle.
 //
-//   <input type="checkbox" />                  — чекбокс
-//   <input type="checkbox" role="switch" />    — тумблер
-//   <input type="radio" name="…" />            — радио
+//   <input type="checkbox" />                  — checkbox
+//   <input type="checkbox" role="switch" />    — switch
+//   <input type="radio" name="…" />            — radio
 //
-// Общее у всех трёх — рамка, заливка и состояния поля ввода; своё — форма и отметка.
+// Shared by all three: border, fill and the states of a text field; their own: shape and mark.
 
-// Рамка, заливка и состояния поля: у элемента выбора они те же, что у строки ввода,
-// и повторять их для каждой из трёх форм незачем.
+// Border, fill and field states: on a choice control they are the same as on a text field, and
+// there is no point repeating them for each of the three shapes.
 .ui-choice-control() {
 	appearance: none;
 	position: relative;
 	flex: 0 0 auto;
-	// рядом с подписью, а не на своей строке: `display: block` из общего правила выше
-	// поставил бы элемент выбора отдельным блоком, оторвав его от текста, к которому он
-	// относится
+	// next to its label rather than on a line of its own: `display: block` from the shared rule
+	// above would put the choice control in a block of its own, tearing it away from the text it
+	// belongs to
 	display: inline-block;
 	vertical-align: middle;
 	cursor: pointer;
@@ -243,27 +245,27 @@ textarea {
 		background-color: var(--hover--input-fill);
 	}
 
-	// `readonly` для элемента выбора браузер не соблюдает вовсе, поэтому вид ему рисуем сами
-	// и заодно гасим указатель. Клавиатуру стили не остановят — само переключение отменяет
-	// `readonly-choice.ts`; он подписывается при загрузке кита, чтобы поведение приходило туда
-	// же, куда и этот вид. Скринридеру про закрытое поле говорит хост — атрибутом `aria-readonly`.
+	// The browser does not honour `readonly` on a choice control at all, so the kit draws the closed
+	// look itself; the toggle is cancelled by `readonly-choice.ts`, which subscribes as the kit loads
+	// so that the behaviour arrives wherever this look does. The screen reader is told about the
+	// closed field by the host — with `aria-readonly`.
+	//
+	// Pointer events are deliberately left on. Switching them off removed the control from hit
+	// testing altogether, so a click never reached it — and the host's own handler (the hint
+	// explaining why the field is locked) never ran, although that is exactly what cancelling only
+	// the default action was meant to preserve. The cursor says the control is not for pressing;
+	// the hover rules below skip it so that it does not answer the pointer like a working one.
 	&[readonly] {
-		pointer-events: none;
-		touch-action: none;
+		cursor: default;
 		background-color: var(--readonly--input-fill);
-	}
-
-	&:user-invalid {
-		border-color: var(--invalid--input-border-color);
-		background-color: var(--invalid--input-fill);
 	}
 }
 
-// Выключенное состояние — отдельным миксином, и вызывать его положено последним, уже после
-// правил `:checked`: у отмеченного элемента заливка своя, и объяви мы выключенность раньше,
-// отмеченный выключенный остался бы залит акцентом, ничем не отличаясь от рабочего.
-// Отметка при этом гасится, но не пропадает — иначе выключенный отмеченный не отличить
-// от выключенного пустого.
+// The disabled state goes in a mixin of its own, and it is to be called last, after the `:checked`
+// rules: a ticked control has a fill of its own, and had disabledness been declared earlier, a
+// ticked disabled one would have stayed filled with the accent, indistinguishable from a working
+// one. The mark is dimmed but does not disappear — otherwise a ticked disabled control could not be
+// told from an empty disabled one.
 .ui-choice-disabled() {
 	&:disabled {
 		cursor: default;
@@ -271,11 +273,12 @@ textarea {
 		background-color: var(--disabled--input-fill);
 
 		&::after {
-			// Отметка на приглушённой заливке рисуется акцентом, а не цветом подписи поверх
-			// акцента: у рабочего элемента она белая на залитой коробке, а у выключенного
-			// коробка светлая — белым по светлому отметка пропадала бы совсем, и выключенный
-			// отмеченный стал бы неотличим от выключенного пустого.
-			// Оба свойства сразу: галочку рисует рамка, а точку и чёрточку — заливка.
+			// On the dimmed fill the mark is drawn in the accent rather than in the label colour
+			// over the accent: on a working control it is white on a filled box, while a disabled
+			// one has a light box — white on light would make the mark vanish entirely, and a
+			// ticked disabled control would become indistinguishable from an empty disabled one.
+			// Both properties at once: the tick is drawn by the border, the dot and dash by the
+			// fill.
 			border-color: var(--checkbox-fill-checked);
 			background-color: var(--checkbox-fill-checked);
 			opacity: 0.4;
@@ -283,11 +286,11 @@ textarea {
 	}
 }
 
-// `:not([role=switch])` — чтобы правила чекбокса не доставались тумблеру: он объявлен тем же
-// тегом и типом, а перекрывает своим блоком не каждое из них. Без исключения круглешок получал
-// от галочки рамку с двух сторон и поворот на 45°.
-// Селекторы здесь той же длины, что у видов ниже, — вплоть до `:not([role=switch])`: вес
-// правила считается вместе с ним, и объявленное короче проиграло бы `:checked` по весу.
+// `:not([role=switch])` keeps the checkbox rules away from the switch: it is declared with the same
+// tag and type, and its own block does not override every one of them. Without the exclusion the
+// knob inherited the tick's two-sided border and its 45 degree rotation.
+// The selectors here are as long as those of the views below, down to `:not([role=switch])`: the
+// weight of a rule counts it too, and anything declared shorter would lose to `:checked`.
 input[type=checkbox]:not([role=switch]),
 input[type=checkbox][role=switch],
 input[type=radio] {
@@ -299,11 +302,16 @@ input[type=radio] {
 	width: var(--checkbox-size);
 	height: var(--checkbox-size);
 
-	// Отметка — псевдоэлементом по центру коробки. Форму ей задаёт каждый вид сам
-	// (галочка, точка, чёрточка), общее здесь только положение.
+	// The mark is a pseudo-element in the centre of the box. Its shape is set by each view itself
+	// (tick, dot, dash); only the position is shared here.
+	//
+	// `box-sizing` is declared here rather than left to a page-wide rule: the tick is drawn by a
+	// border, and its size is set together with that border. The kit does not switch `box-sizing`
+	// for the whole page (see border-box.less), so what it relies on itself is written in place.
 	&::after {
 		content: "";
 		position: absolute;
+		box-sizing: border-box;
 		left: 50%;
 		top: 50%;
 	}
@@ -317,20 +325,21 @@ input[type=radio] {
 input[type=checkbox]:not([role=switch]) {
 	border-radius: var(--input-border-radius);
 
-	// Галочка — угол рамки без двух сторон, повёрнутый на 45°. Рисовать её так, а не
-	// значком, значит не тянуть в стили ни файла, ни data-адреса и красить одним свойством.
+	// The tick is a corner of a border with two sides missing, rotated 45 degrees. Drawing it this
+	// way rather than with an icon means pulling neither a file nor a data URL into the stylesheet,
+	// and colouring it with a single property.
 	&:checked::after {
 		width: calc(var(--checkbox-size) / 5);
 		height: calc(var(--checkbox-size) / 2.4);
 		border: solid var(--checkbox-mark);
 		border-width: 0 var(--checkbox-mark-width) var(--checkbox-mark-width) 0;
-		// по вертикали чуть выше середины: у повёрнутой галочки визуальный центр ниже
-		// геометрического
+		// slightly above the middle vertically: on a rotated tick the visual centre sits below the
+		// geometric one
 		transform: translate(-50%, -60%) rotate(45deg);
 	}
 
-	// Состояние «часть набора отмечена» — чёрточка вместо галочки. Ставится только из
-	// сценария (`elem.indeterminate = true`), атрибута для него в разметке нет.
+	// The "part of the set is ticked" state — a dash instead of a tick. It can only be set from
+	// script (`elem.indeterminate = true`); there is no attribute for it in markup.
 	&:indeterminate {
 		background-color: var(--checkbox-fill-checked);
 		border-color: var(--checkbox-fill-checked);
@@ -348,8 +357,9 @@ input[type=checkbox]:not([role=switch]) {
 input[type=radio] {
 	border-radius: 50%;
 
-	// Точка — круг вдвое меньше коробки. Радио не квадратное ни при каком `--input-border-radius`:
-	// круглая форма и есть то, чем оно отличается от чекбокса в наборе.
+	// The dot is a circle half the size of the box. A radio is never square, whatever
+	// `--input-border-radius` says: the round shape is exactly what tells it from a checkbox in a
+	// set.
 	&:checked::after {
 		width: calc(var(--checkbox-size) / 2.5);
 		height: calc(var(--checkbox-size) / 2.5);
@@ -359,7 +369,7 @@ input[type=radio] {
 	}
 }
 
-// Тумблер: то же поле, но вытянутое, с круглешком, который переезжает при включении.
+// The switch: the same field, but stretched, with a knob that travels across when turned on.
 input[type=checkbox][role=switch] {
 	height: var(--toggler-height);
 	width: calc(var(--toggler-height) * 2);
@@ -379,12 +389,12 @@ input[type=checkbox][role=switch] {
 		margin-bottom: auto;
 		top: 0;
 		bottom: 0;
-		// Переезд круглешка виден как движение, а не как подмена картинки.
+		// The knob's travel reads as movement rather than as a swapped picture.
 		//
-		// Двигаем `transform`, а не `left`: включённое положение раньше задавалось парой
-		// `right: <отступ>; left: auto`, а `auto` с длиной не интерполируется — переход был
-		// объявлен, но не случался ни разу, круглешок просто перескакивал. Заодно `transform`
-		// не заставляет пересчитывать раскладку на каждом кадре.
+		// `transform` is moved rather than `left`: the on position used to be set by the pair
+		// `right: <padding>; left: auto`, and `auto` does not interpolate with a length — the
+		// transition was declared but never once happened, the knob simply jumped. `transform` also
+		// spares the browser a layout pass on every frame.
 		transition: transform ease 120ms;
 	}
 
@@ -394,60 +404,77 @@ input[type=checkbox][role=switch] {
 
 		&::after {
 			background-color: var(--input-fill);
-			// Ровно на высоту тумблера: его ширина вдвое больше высоты, а отступы и рамка
-			// с обеих сторон одинаковы — остаток пути круглешка сходится к ней.
+			// Exactly the height of the switch: its width is twice its height, and the padding and
+			// border are the same on both sides — the rest of the knob's path comes out to it.
 			transform: translateX(var(--toggler-height));
 		}
 	}
 
 }
 
-// Наведение на отмеченный элемент.
+// Hover on a ticked control.
 //
-// Объявляем отдельно, потому что общий `:hover` до него не доходит: он красит рамку и фон
-// цветами поля ввода, а отмеченный залит акцентом — те же цвета стёрли бы с него отметку.
-// К тому же `:checked` весит больше общего `:hover` и перекрывал бы его в любом порядке,
-// поэтому селекторы здесь длиннее ровно на него.
+// Declared separately because the shared `:hover` does not reach it: that one paints border and
+// background in the text field's colours, and a ticked control is filled with the accent — the same
+// colours would wipe the mark off it. On top of that `:checked` outweighs the shared `:hover` and
+// would override it in any order, so the selectors here are longer by exactly that.
 //
-// `:not(:disabled)` обязателен: у выключенного элемента браузер по-прежнему шлёт `:hover`,
-// а правило ниже, гасящее его, весит меньше — без исключения выключенный отмеченный
-// подсвечивался бы под курсором как рабочий. У `readonly` этого не нужно: ему наведение
-// не доходит вовсе, `pointer-events` снят раньше.
+// `:not(:disabled)` is required: the browser still sends `:hover` to a disabled control, and the
+// rule below that dims it weighs less — without the exclusion a ticked disabled control would light
+// up under the cursor like a working one. `readonly` needs the same treatment now that it keeps its
+// pointer events (see `.ui-choice-control()`), and it is excluded on the rules below.
 .ui-choice-checked-hover(@fill) {
-	background-color: color-mix(in srgb, @fill, #000 var(--hover--checkbox-tint));
-	border-color: color-mix(in srgb, @fill, #000 var(--hover--checkbox-tint));
+	// The same darkening the button uses, and by the same share (see mixins.less): the response to
+	// the pointer is uniform across the kit.
+	.ui-tint-fill(@fill, var(--hover--checkbox-tint));
 }
 
-input[type=checkbox]:not([role=switch]):checked:hover:not(:disabled),
-input[type=checkbox]:not([role=switch]):indeterminate:hover:not(:disabled),
-input[type=radio]:checked:hover:not(:disabled) {
+// `:not([readonly])` and `:not(:user-invalid)` alongside `:not(:disabled)`: this rule outweighs both
+// the readonly and the invalid look, so a control that must not answer the pointer, or must stay
+// red, is excluded here rather than repainted back on hover.
+input[type=checkbox]:not([role=switch]):checked:hover:not(:disabled):not([readonly]):not(:user-invalid),
+input[type=checkbox]:not([role=switch]):indeterminate:hover:not(:disabled):not([readonly]):not(:user-invalid),
+input[type=radio]:checked:hover:not(:disabled):not([readonly]):not(:user-invalid) {
 	.ui-choice-checked-hover(var(--checkbox-fill-checked));
 }
 
-input[type=checkbox][role=switch]:checked:hover:not(:disabled) {
+input[type=checkbox][role=switch]:checked:hover:not(:disabled):not([readonly]):not(:user-invalid) {
 	.ui-choice-checked-hover(var(--toggler-round-fill));
 }
 
-// Выключенное состояние — последним, уже после всех трёх видов. Отметку каждый из них красит
-// по-своему: галочку рисует рамка, точку и чёрточку — заливка, — и гашение, объявленное раньше,
-// эти правила перекрыли бы обратно. Тогда выключенный отмеченный оставался бы с белой отметкой
-// на светлой коробке, то есть выглядел бы пустым.
-// Селекторы повторяют те, которыми объявлены сами виды, — вплоть до `:not([role=switch])`:
-// вес правила считается вместе с ним, и написанное здесь короче проиграло бы `:checked`
-// выше, оставив выключенный отмеченный залитым акцентом.
+// The invalid look goes after all three views, for the same reason the disabled one below does: a
+// checked control is filled with the accent by rules of equal weight, and an invalid state declared
+// earlier would be painted over by them — a checked field with a validation error looked exactly
+// like a correct one.
+input[type=checkbox]:not([role=switch]),
+input[type=checkbox][role=switch],
+input[type=radio] {
+	&:user-invalid {
+		border-color: var(--invalid--input-border-color);
+		background-color: var(--invalid--input-fill);
+	}
+}
+
+// The disabled state comes last, after all three views. Each of them paints the mark in its own
+// way — the tick is drawn by a border, the dot and dash by the fill — and dimming declared earlier
+// would be painted back over by those rules. A ticked disabled control would then be left with a
+// white mark on a light box, that is, would look empty.
+// The selectors repeat the ones the views themselves are declared with, down to
+// `:not([role=switch])`: the weight of a rule counts it too, and anything written shorter here
+// would lose to the `:checked` above, leaving a ticked disabled control filled with the accent.
 input[type=checkbox]:not([role=switch]),
 input[type=checkbox][role=switch],
 input[type=radio] {
 	.ui-choice-disabled();
 }
 
-// Круглешок выключенного тумблера — своим цветом, а не отметки чекбокса: по умолчанию это
-// один и тот же акцент, но переопределяют их порознь.
+// The knob of a disabled switch takes its own colour rather than the checkbox mark's: by default
+// they are the same accent, but they are overridden apart.
 input[type=checkbox][role=switch]:disabled::after {
 	background-color: var(--toggler-round-fill);
 }
 
-// Тому, кто отключил движение, переезд круглешка не нужен: включённость видна и без него.
+// Whoever has switched motion off does not need the knob's travel: on-ness is visible without it.
 @media (prefers-reduced-motion: reduce) {
 	input[type=checkbox][role=switch]::after {
 		transition: none;
@@ -455,14 +482,14 @@ input[type=checkbox][role=switch]:disabled::after {
 }
 
 .ui-input {
-	// состояние для выбранного значения
+	// state for a chosen value
 	&.hasvalue {
 		background: var(--hasvalue--input-fill);
 		color: var(--hasvalue--input-color);
 		border-radius: var(--input-border-radius);
 	}
 
-	// состояние при открытии выпадашки
+	// state while the dropdown is open
 	&.expanded {
 		background: var(--expanded--input-fill);
 		color: var(--expanded--input-color);

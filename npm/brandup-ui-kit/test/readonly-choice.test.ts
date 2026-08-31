@@ -1,16 +1,16 @@
 import { enforceReadonlyChoice } from "../source/utils/readonly-choice";
 
-// `readonly` на чекбоксе и радио браузер не читает вовсе: атрибута для них в HTML нет. Стили кита
-// рисуют такому элементу закрытый вид и снимают `pointer-events`, но указателем дело и кончалось —
-// пробел с клавиатуры переключал его, и значение, которое хост считал неизменяемым, менялось.
+// The browser does not read `readonly` on a checkbox or a radio at all: HTML has no such attribute
+// for them. The kit's stylesheet draws such a control in a closed look, but that was where it ended
+// — Space on the keyboard toggled it, and a value the host considered fixed changed.
 //
-// Проверяем через `click`: нажатие пробела на элементе выбора браузер сам превращает в него,
-// поэтому отменённый `click` — это и отменённая клавиша (jsdom клавиатурное поведение
-// не воспроизводит, а вот `elem.click()` идёт тем же путём, что и оно).
+// Checked through `click`: the browser turns Space on a choice control into one of its own accord,
+// so a cancelled `click` is a cancelled key too (jsdom does not reproduce keyboard behaviour, but
+// `elem.click()` goes the same way it does).
 
-// Явно ничего не включаем: модуль подписывается сам, как только его загрузили. Набор потому
-// и не зовёт `enforceReadonlyChoice()` до проверок — если однажды подписку снова повесят на
-// вызов извне, эти проверки упадут первыми.
+// Nothing is armed explicitly: the module subscribes itself as soon as it is loaded. That is why
+// this suite does not call `enforceReadonlyChoice()` before the checks — should the subscription
+// ever be moved back to an outside call, these checks would be the first to fail.
 
 beforeEach(() => {
 	document.body.innerHTML = "";
@@ -41,7 +41,7 @@ describe("enforceReadonlyChoice", () => {
 		expect(elem.checked).toBe(true);
 	});
 
-	// Тумблер — тот же чекбокс, отличается только ролью, поэтому отмена обязана доставать и его.
+	// A switch is the same checkbox and differs only by its role, so the cancel has to reach it too.
 	it("keeps a readonly switch as it was", () => {
 		const elem = input({ type: "checkbox", readonly: "", checked: "" });
 		elem.setAttribute("role", "switch");
@@ -67,8 +67,8 @@ describe("enforceReadonlyChoice", () => {
 		expect(elem.checked).toBe(true);
 	});
 
-	// Отменяется нажатие, а не присваивание: значение закрытого поля хост меняет из кода
-	// сколько угодно — `readonly` про пользователя, а не про программу.
+	// The press is cancelled, not the assignment: the host may change the value of a closed field
+	// from code as much as it likes — `readonly` is about the user, not about the program.
 	it("does not stand in the way of the host setting the value", () => {
 		const elem = input({ type: "checkbox", readonly: "" });
 
@@ -77,8 +77,8 @@ describe("enforceReadonlyChoice", () => {
 		expect(elem.checked).toBe(true);
 	});
 
-	// Атрибут читается в момент нажатия, поэтому снятый `readonly` возвращает элемент в строй
-	// сразу — без переподписки и без пересоздания элемента.
+	// The attribute is read at the moment of the press, so removing `readonly` puts the control back
+	// in service straight away — with no re-subscription and no re-created element.
 	it("lets the control work again once the attribute is removed", () => {
 		const elem = input({ type: "checkbox", readonly: "" });
 
@@ -91,8 +91,8 @@ describe("enforceReadonlyChoice", () => {
 		expect(elem.checked).toBe(true);
 	});
 
-	// Отменяем действие, а не событие: нажатие по закрытому полю остаётся обычным нажатием,
-	// и обработчик хоста — подсказка, почему поле не меняется, — обязан его увидеть.
+	// The action is cancelled, not the event: a press on a closed field stays an ordinary press, and
+	// the host's handler — the hint explaining why the field does not change — has to see it.
 	it("still lets the host see the click", () => {
 		const elem = input({ type: "checkbox", readonly: "" });
 		const seen = jest.fn();
@@ -104,8 +104,8 @@ describe("enforceReadonlyChoice", () => {
 		expect(elem.checked).toBe(false);
 	});
 
-	// Текстовому полю `readonly` соблюдает сам браузер, и отменять на нём нажатия нельзя:
-	// щелчок ставит каретку, а по ней выделяют и копируют.
+	// On a text field the browser honours `readonly` itself, and presses on it must not be cancelled:
+	// a click places the caret, and that is what selecting and copying go by.
 	it("does not touch a readonly text field", () => {
 		const elem = input({ type: "text", readonly: "" });
 		const defaultPrevented = jest.fn();
@@ -116,8 +116,9 @@ describe("enforceReadonlyChoice", () => {
 		expect(defaultPrevented).toHaveBeenCalledWith(false);
 	});
 
-	// Слушатель на документе нужен один: подписка уже стоит с загрузки модуля, и повторные
-	// вызовы — из приложения, что грузит кит отложенно, — не должны добавлять второй.
+	// One listener on the document is all that is needed: the subscription has been in place since
+	// the module loaded, and repeated calls — from an application that loads the kit lazily — must
+	// not add a second one.
 	it("subscribes once however many times it is called", () => {
 		const spy = jest.spyOn(document, "addEventListener");
 
@@ -130,9 +131,10 @@ describe("enforceReadonlyChoice", () => {
 	});
 });
 
-// Отмена обязана приходить вместе с пакетом, а не с регистрацией middleware: закрытый вид
-// рисуют стили — безусловно всем, кто их подключил. Здесь проверяется вся цепочка целиком:
-// импортирован сам кит, ничего не настроено, приложение не запущено.
+// The cancel has to arrive with the package rather than with registering a middleware: the closed
+// look is drawn by the stylesheet, unconditionally, for everyone who includes it. What is checked
+// here is the whole chain at once: the kit itself is imported, nothing is configured, no application
+// is running.
 describe("importing the kit is enough", () => {
 	it("cancels the toggle without any setup", async () => {
 		await import("../source/index");

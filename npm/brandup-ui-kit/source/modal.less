@@ -87,12 +87,12 @@
 			background-color: rgba(0, 0, 0, 0.06);
 		}
 
-		// Крестик — первое, на что ловушка фокуса ставит каретку в открытом окне, и до этой
-		// строки он единственный из видимого не показывал фокус вовсе: общее правило полей
-		// снимало кольцо со всякой кнопки, а своего вида фокуса у крестика нет.
+		// The cross is the first thing the focus trap puts the caret on in an open window, and until
+		// this rule it was the only visible thing that showed no focus at all: the shared field rule
+		// dropped the ring from every button, and the cross has no focus look of its own.
 		&:focus-visible {
 			outline: var(--focus-ring-width) solid var(--focus-ring-color);
-			// наружу, как у `.ui-button`: путь по Tab обязан выглядеть одинаково по всему киту
+			// outwards, as on `.ui-button`: the path taken by Tab has to look the same across the kit
 			outline-offset: var(--focus-ring-offset);
 		}
 	}

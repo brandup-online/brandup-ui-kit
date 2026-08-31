@@ -1,0 +1,25 @@
+// Shared style helpers of the kit.
+//
+// Mixins only, no rules of its own — reference-importing it from several files costs nothing.
+
+// Darkening by a share: the kit's single response to hover and to a press.
+//
+// The formula lives in one place because the shares already do — `@hover--checkbox-tint` is defined
+// as `@hover--button-tint` precisely so that a button and a ticked checkbox answer the pointer
+// alike. With the arithmetic written out at every call site that agreement held only by luck:
+// changing the mix in one file (to `oklch`, or to lightening on a dark theme) would leave them
+// darkening differently.
+//
+// `#000` is mixed in rather than the opacity lowered: a translucent control shows whatever lies
+// under it, and over text a filled surface would go grey unevenly.
+
+/** Fill and border darkened together — a filled control under the cursor or pressed. */
+.ui-tint-fill(@color, @share) {
+	background-color: color-mix(in srgb, @color, #000 @share);
+	border-color: color-mix(in srgb, @color, #000 @share);
+}
+
+/** The fill alone — for a control whose border is not repainted along with it. */
+.ui-tint-background(@color, @share) {
+	background: color-mix(in srgb, @color, #000 @share);
+}

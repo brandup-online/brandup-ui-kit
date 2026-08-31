@@ -1,0 +1,17 @@
+// Opt-in: the border-box sizing rule for the whole page.
+//
+// The kit declares `box-sizing` on its own selectors — the input, the button, the window, the
+// popup — and stops there. Host markup between them keeps whatever the page already used, because
+// a stylesheet that arrives with a package upgrade must not resize elements it was never asked
+// about: a block sized `width: X; padding: P` under the browser default loses 2P of rendered width,
+// and the breakage shows up far from any kit component.
+//
+// A project that wants the single convention across its own markup as well imports this file after
+// the kit:
+//
+//   @import "@brandup/ui-kit/source/border-box.less";
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}

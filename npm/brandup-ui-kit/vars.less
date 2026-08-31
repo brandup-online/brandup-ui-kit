@@ -70,25 +70,25 @@
 // ════════════════════════════════════════════════════════════════════════════════════════════
 // ВХОДЫ КОМПОНЕНТОВ — выведены из палитры выше.
 //
-// Выведены ссылкой на её CSS-токен (`var(--surface)`), а не вычисленным значением. Разница
-// видна не в собранном файле, а в браузере: раньше less подставлял сюда цвет в момент сборки,
-// и в `:root` уезжал литерал — `--input-border-color: #aaa`. Связь с палитрой на этом
-// кончалась, поэтому переопределить `--accent` на странице и ждать, что за ним поедут рамка
-// фокуса, главная кнопка и переключатель, было нельзя: производные посчитаны и запечены.
-// Ради этого и появилась сборка темы отдельным файлом.
+// Derived by referring to the palette's CSS token (`var(--surface)`) rather than by a computed
+// value. The difference shows not in the built file but in the browser: less used to substitute the
+// colour here at build time, and a literal went into `:root` — `--input-border-color: #aaa`. The
+// link to the palette ended there, so overriding `--accent` on the page and expecting the focus
+// border, the primary button and the switch to follow was not possible: the derived values were
+// already computed and baked in. That is what building the theme as a separate file appeared for.
 //
-// Теперь производные считает браузер. Тёмная тема — это семь значений палитры под
-// медиазапросом, оформление под клиента — один блок `:root`, предпросмотр — правка на живой
-// странице; пересобирать при этом нечего.
+// Now the browser computes the derived values. A dark theme is seven palette values under a media
+// query, a client's branding is a single `:root` block, a preview is an edit on the live page —
+// with nothing to rebuild for any of it.
 //
-// Переопределение поимённо работает как работало: `@input-border-color: #333` в файле темы
-// подставится сюда вместо ссылки и победит любой `@line` — less разрешает переменную до того,
-// как её увидит браузер. Оборотная сторона та же, что и была: вход, заданный в теме поимённо,
-// перестаёт следовать за палитрой.
+// Overriding by name works as it always did: `@input-border-color: #333` in a theme file is
+// substituted here instead of the reference and beats any `@line` — less resolves the variable
+// before the browser ever sees it. The flip side is the same as it always was: an input given by
+// name in a theme stops following the palette.
 //
-// Чего сюда писать нельзя: значение, которое потом попадает в медиазапрос (`@adaptive-*`)
-// или в less-арифметику, — CSS-переменную ни то, ни другое не читает. Границы адаптива
-// поэтому остались числами в палитре.
+// What must not be written here: a value that later lands in a media query (`@adaptive-*`) or in
+// less arithmetic — a CSS variable is read by neither. That is why the adaptive breakpoints stayed
+// numbers in the palette.
 // ════════════════════════════════════════════════════════════════════════════════════════════
 
 // common
@@ -190,23 +190,24 @@
 @incorrect--input-fill: rgb(255, 220, 220);
 @incorrect--input-color: inherit;
 
-@expanded--input-fill: var(--surface); // переменные для выпадашки
+@expanded--input-fill: var(--surface); // variables for the dropdown
 @expanded--input-color: inherit;
 
-@hasvalue--input-fill: var(--surface); // переменные для выбранного значения
+@hasvalue--input-fill: var(--surface); // variables for a chosen value
 @hasvalue--input-color: var(--input-color);
 
-// Чекбокс и радио — коробка размером с текстовую строку, чтобы вставать рядом с подписью,
-// а не нависать над ней.
+// Checkbox and radio: a box the size of a line of text, so that it stands beside its label rather
+// than looming over it.
 @checkbox-size: 20px;
-@checkbox-fill-checked: var(--accent); // заливка отмеченного
-@checkbox-mark: var(--accent-contrast); // галочка и чёрточка поверх заливки
-@checkbox-mark-width: 2px; // толщина галочки
-// Насколько темнеет заливка отмеченного под курсором. Отдельно от `@hover--input-*`: у пустого
-// элемента наведение меняет рамку и фон на цвета поля ввода, а отмеченный залит акцентом —
-// те же цвета стёрли бы с него отметку. Доля общая с кнопкой: отклик по всему киту одинаков.
+@checkbox-fill-checked: var(--accent); // fill of a ticked control
+@checkbox-mark: var(--accent-contrast); // tick and dash over the fill
+@checkbox-mark-width: 2px; // thickness of the tick
+// How much the fill of a ticked control darkens under the cursor. Kept apart from
+// `@hover--input-*`: on an empty control hover changes border and background to the text field's
+// colours, while a ticked one is filled with the accent — the same colours would wipe the mark off
+// it. The share is shared with the button: the response is uniform across the kit.
 @hover--checkbox-tint: @hover--button-tint;
-@radio-dot: var(--accent-contrast); // точка внутри отмеченного радио
+@radio-dot: var(--accent-contrast); // dot inside a ticked radio
 
 @toggler-height: 30px;
 @toggler-padding: 3px;
@@ -214,11 +215,11 @@
 
 // buttons
 
-@button-height: var(--input-height); // кнопка встаёт в строку с полями ввода, поэтому высота у них общая
+@button-height: var(--input-height); // a button stands in line with text fields, so the height is shared
 @button-height-mini: 32px;
 @button-padding-lr: var(--input-padding-lr);
 @button-padding-lr-mini: 10px;
-@button-gap: var(--space); // между значком и подписью
+@button-gap: var(--space); // between the icon and the label
 @button-radius: var(--input-border-radius);
 @button-border-width: var(--input-border-width);
 @button-border-color: var(--input-border-color);
@@ -226,21 +227,22 @@
 @button-color: var(--text-color);
 @button-font-size: var(--input-font-size);
 @button-font-weight: 500; // чуть плотнее текста страницы: подпись кнопки читают, а не вчитываются
-@button-accent: var(--focus--input-border-color); // заливка главной кнопки
-@button-accent-color: var(--accent-contrast); // подпись на залитой кнопке
+@button-accent: var(--focus--input-border-color); // fill of the primary button
+@button-accent-color: var(--accent-contrast); // label on a filled button
 @button-spinner-size: 16px;
 
 @hover--button-tint: 12%; // насколько темнее заливка под курсором
 @active--button-tint: 20%; // и в момент нажатия
-@danger--button-accent: var(--danger); // тон разрушающего действия
+@danger--button-accent: var(--danger); // tone of a destructive action
 @disabled--button-opacity: 0.5;
 @focus--button-ring-width: var(--focus-ring-width);
 @focus--button-ring-color: var(--focus-ring-color);
 
 // focus ring
 
-// Кольцо, которым кит показывает фокус тому, у кого своего вида фокуса нет: кнопке, крестику
-// окна. Одно на весь набор — иначе путь по Tab выглядел бы на каждом элементе по-своему.
+// The ring the kit shows focus with on anything that has no focus look of its own: a button, a
+// window's close cross. One for the whole set — otherwise the path taken by Tab would look
+// different on every element.
 @focus-ring-width: 2px;
 @focus-ring-offset: 2px;
 @focus-ring-color: var(--accent);
