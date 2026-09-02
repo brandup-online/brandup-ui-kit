@@ -25,7 +25,11 @@
 	font-weight: var(--input-font-weight, inherit);
 	color: var(--input-color, #222);
 
-	--svg-fill: var(--input-color, #222);
+	// currentColor, а не var(--input-color): токены состояний (--hover--input-color и прочие)
+	// равны `inherit`, и подставленные сюда они давали `fill: inherit` — а это наследование
+	// свойства `fill` родителя, то есть чёрный. На тёмной теме значок чернел под курсором,
+	// в фокусе и на неверном значении.
+	--svg-fill: currentColor;
 	--svg-size: 18px;
 
 	& .decorator {
@@ -87,6 +91,9 @@
 		height: var(--input-height, 46px);
 
 		& button {
+			// Цвет поля, а не UA-цвет кнопки: по нему значок красится через currentColor.
+			color: inherit;
+
 			display: flex;
 			flex-flow: row nowrap;
 			justify-content: center;
@@ -149,27 +156,23 @@
 		--input-border-color: var(--hover--input-border-color, #666);
 		--input-fill: var(--hover--input-fill, #fff);
 		--input-color: var(--hover--input-color, inherit);
-		--svg-fill: var(--hover--input-color, inherit);
 	}
 
 	&.focused {
 		--input-border-color: var(--focus--input-border-color, #222);
 		--input-fill: var(--focus--input-fill, #fff);
 		--input-color: var(--focus--input-color, inherit);
-		--svg-fill: var(--focus--input-color, inherit);
 	}
 
 	&.readonly {
 		--input-fill: var(--readonly--input-fill, #f7f7f7);
 		--input-color: var(--readonly--input-color, #222);
-		--svg-fill: var(--readonly--input-color, #222);
 	}
 
 	&.disabled {
 		--input-border-color: var(--disabled--input-border-color, #aaa);
 		--input-fill: var(--disabled--input-fill, #eee);
 		--input-color: var(--disabled--input-color, #a2a2a2);
-		--svg-fill: var(--disabled--input-color, #a2a2a2);
 
 		& .editor {
 			user-select: none;
@@ -191,8 +194,6 @@
 		--input-border-color: var(--invalid--input-border-color, red);
 		--input-fill: var(--invalid--input-fill, rgb(255, 220, 220));
 		--input-color: var(--invalid--input-color, inherit);
-		--placeholder-color: var(--invalid--input-color, inherit);
-		--svg-fill: var(--invalid--input-color, inherit);
 
 		& .decorator {
 			transition-delay: 0s;
@@ -202,7 +203,6 @@
 	&.incorrect {
 		--input-fill: var(--incorrect--input-fill, rgb(255, 220, 220));
 		--input-color: var(--incorrect--input-color, #222);
-		--svg-fill: var(--incorrect--input-color, #222);
 
 		& .decorator {
 			transition-delay: 0s;
