@@ -142,7 +142,12 @@
 
 @placeholder-font-weight: inherit;
 @placeholder-font-style: inherit;
-@placeholder-color: inherit;
+// Подсказка светлее набранного текста — иначе пустое поле не отличить от заполненного.
+// Смешивается с заливкой поля, а не задаётся серым литералом: на тёмной теме серое по тёмному
+// пропадает, а так подсказка светлеет или темнеет вместе с темой. Выведено из палитры, а не
+// из `--input-color`: тот в состояниях равен `inherit`, и подстановка ключевого слова в
+// color-mix сделала бы значение недействительным.
+@placeholder-color: color-mix(in srgb, var(--text-color) 55%, var(--input-fill)); // подсказка: светлее набранного текста
 
 @input-border-width: var(--border-width);
 @input-border-color: var(--line);

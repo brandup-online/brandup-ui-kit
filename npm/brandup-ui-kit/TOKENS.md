@@ -124,7 +124,7 @@
 | --- | --- | --- | --- |
 | `@placeholder-font-weight` | `inherit` | `--placeholder-font-weight` |  |
 | `@placeholder-font-style` | `inherit` | `--placeholder-font-style` |  |
-| `@placeholder-color` | `inherit` | `--placeholder-color` |  |
+| `@placeholder-color` | `color-mix(in srgb, var(--text-color) 55%, var(--input-fill))` | `--placeholder-color` | подсказка: светлее набранного текста |
 | `@input-border-width` | `var(--border-width)` | `--input-border-width` |  |
 | `@input-border-color` | `var(--line)` | `--input-border-color` |  |
 | `@input-border-type` | `solid` | `--input-border-type` |  |

@@ -179,3 +179,19 @@ describe("the views stay apart", () => {
 		expect(winner(rules, elem, "border-radius")).toBe("50%");
 	});
 });
+
+describe("подсказка в поле", () => {
+	// Пустое поле должно отличаться от заполненного, а `inherit` — то, чем токен был раньше, —
+	// давал подсказке ровно цвет набранного текста. Литеральный серый тоже не годится: на тёмной
+	// теме он пропадает, поэтому цвет смешивается с заливкой поля и едет за темой.
+	const placeholder = () => declared(rules, document.documentElement, "--placeholder-color");
+
+	it("не повторяет цвет текста", () => {
+		expect(placeholder()).not.toBe("inherit");
+		expect(placeholder()).not.toBe(declared(rules, document.documentElement, "--input-color"));
+	});
+
+	it("выведена из темы, а не задана литералом", () => {
+		expect(placeholder()).toMatch(/^color-mix\(.*var\(--/);
+	});
+});
