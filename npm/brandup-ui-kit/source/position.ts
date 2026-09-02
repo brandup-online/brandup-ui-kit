@@ -87,8 +87,20 @@ export interface PositionOptions {
 export interface PositionResult {
 	left: number;
 	top: number;
-	/** The side the element ended up on: after a flip it is not the one that was asked for. */
+	/**
+	 * Where the element ended up: after a flip or an alignment swap this is not what was asked for.
+	 *
+	 * Always in full `side-align` form, even when the request was a bare side — asking for `bottom`
+	 * gives back `bottom-center`, because that is what a bare side means. So this is not to be
+	 * compared with the {@link PositionOptions.placement} that was passed in; read {@link side} and
+	 * {@link align} instead, which is what the tail of a tooltip and the direction it appears from
+	 * are drawn by.
+	 */
 	placement: Placement;
+	/** The side the element ended up on, apart — so as not to have to parse {@link placement}. */
+	side: Side;
+	/** The alignment it ended up with, likewise. */
+	align: Align;
 }
 
 /** Element size in pixels — what the measurement gives to the calculation. */
@@ -251,6 +263,7 @@ export function computePosition(
 
 	const at = place(anchor, size, side, align, gap);
 	const placement: Placement = `${side}-${align}`;
+	const chosen = { placement, side, align };
 
 	// Along the side — the shift; across it — only if asked (see `clampCross`). By default the
 	// element stays where the gap put it: pressing it across would tear it away from the anchor.
@@ -263,12 +276,12 @@ export function computePosition(
 		? {
 				left: alongAxis(at.left, size.width, viewport.width),
 				top: crossAxis(at.top, size.height, viewport.height),
-				placement,
+				...chosen,
 			}
 		: {
 				left: crossAxis(at.left, size.width, viewport.width),
 				top: alongAxis(at.top, size.height, viewport.height),
-				placement,
+				...chosen,
 			};
 }
 
@@ -279,8 +292,26 @@ const viewportOf = (elem: HTMLElement) => {
 	return { width: root.clientWidth, height: root.clientHeight };
 };
 
-/** The inline properties this module writes — and therefore the ones it has to give back. */
-const OWNED = ["position", "left", "top", "right", "bottom", "margin"] as const;
+/**
+ * The inline properties this module writes — and therefore the ones it has to give back.
+ *
+ * The margin is listed as its four longhands rather than as `margin`, because the shorthand cannot
+ * be read back: `style.getPropertyValue("margin")` answers with an empty string unless all four
+ * sides are set inline, so a host that wrote `style="margin-left: 17px"` was snapshotted as having
+ * written nothing — and {@link clearPosition} then removed the shorthand, taking that 17px with it.
+ * The longhands are readable one by one whichever way the host set them.
+ */
+const OWNED = [
+	"position",
+	"left",
+	"top",
+	"right",
+	"bottom",
+	"margin-top",
+	"margin-right",
+	"margin-bottom",
+	"margin-left",
+] as const;
 
 /**
  * The inline styles the element had before we took it over.
@@ -386,6 +417,12 @@ function write(elem: HTMLElement, at: PositionResult, container: HTMLElement | n
 /**
  * Puts the element by the anchor. Returns the chosen side — the tooltip tail and the direction of
  * appearance are drawn from it.
+ *
+ * The element is taken over from this call onwards, not just for the duration of it: it is left
+ * `position: fixed` with `right`, `bottom` and the margins pinned, because the written coordinates
+ * only hold while nothing else moves it. Whoever positions an element once and then goes on using
+ * it for something else calls {@link clearPosition} to give those properties back — and one that is
+ * repositioned again and again ({@link trackPosition} does exactly this) needs nothing in between.
  */
 export function positionElement(elem: HTMLElement, anchor: HTMLElement, options: PositionOptions = {}): PositionResult {
 	const size = measure(elem);
@@ -402,10 +439,22 @@ export function positionElement(elem: HTMLElement, anchor: HTMLElement, options:
  */
 export function clearPosition(elem: HTMLElement): void {
 	const saved = savedStyles.get(elem);
+
+	// Nothing was taken from this element, so there is nothing to give back — and wiping its
+	// coordinates and margin would be taking something instead. That is what would happen to an
+	// element positioned by the host itself and passed here by mistake, or to one cleared twice.
+	if (!saved) return;
+
 	savedStyles.delete(elem);
 
+	// The margin goes first and as the shorthand, before the loop below puts the saved sides back.
+	// Written as `margin: 0`, it is only reliably removed by that same name: removing the four
+	// longhands one at a time undoes a shorthand in a browser, but jsdom keeps the shorthand and
+	// ignores the removal — a `margin: 0` nobody asked for stayed on the element for good.
+	elem.style.removeProperty("margin");
+
 	for (const name of OWNED) {
-		const value = saved?.[name];
+		const value = saved[name];
 
 		if (value) elem.style.setProperty(name, value);
 		else elem.style.removeProperty(name);
@@ -460,10 +509,10 @@ function scrollParents(anchor: HTMLElement): HTMLElement[] {
 /**
  * Puts the element by the anchor and keeps it there until the returned unsubscribe is called.
  *
- * The size is measured on the first run and on resize, not on every frame: the measurement writes
- * styles and reads the layout straight back, and doing that per scroll frame makes the browser lay
- * the page out twice a frame. While scrolling, only the anchor moves, so only the coordinates are
- * rewritten.
+ * The size is measured on the first run, on resize and when the element or the anchor actually
+ * changes size — not on every frame: the measurement writes styles and reads the layout straight
+ * back, and doing that per scroll frame makes the browser lay the page out twice a frame. While
+ * scrolling, only the anchor moves, so only the coordinates are rewritten.
  */
 export function trackPosition(elem: HTMLElement, anchor: HTMLElement, options: TrackOptions = {}): () => void {
 	let size: Size | null = null;
@@ -527,6 +576,44 @@ export function trackPosition(elem: HTMLElement, anchor: HTMLElement, options: T
 	// measurement has to be redone — that is the case the reset-and-measure trick exists for.
 	const onResize = () => schedule(true);
 
+	// Not only the window: the element and the anchor change size on their own too, and neither a
+	// scroll nor a resize says so. A list that loads its rows, a submenu that unfolds, a field that
+	// grows with its text — the coordinates were worked out for the old size, and the element is
+	// left hanging over the edge or torn away from what it belongs to.
+	//
+	// The reported size is compared with the previous one, and that comparison is what keeps this
+	// from spinning: `measure` clears the coordinates before reading, so an element whose width
+	// depends on where it stands — a shrink-to-fit box pressed against the right edge — measures
+	// wide and is then rendered narrow, which wakes the observer again. Since what the observer
+	// reports is the settled size after the frame, the next report equals the last and the pass
+	// stops there. (With the shift on, which is the default, this does not arise at all: the
+	// element is placed where its measured size fits.)
+	//
+	// The very first report about an element is only ever remembered, never acted on: `observe`
+	// delivers one straight away, saying what the size is rather than that it changed — and it was
+	// measured and placed a moment ago by the first run above. Acting on it would buy every showing
+	// an extra measurement, on the frame right after opening, for no change at all.
+	const sizes = new WeakMap<Element, Size>();
+	const observer = view.ResizeObserver
+		? new view.ResizeObserver((entries) => {
+				let changed = false;
+
+				for (const entry of entries) {
+					const box = entry.contentRect;
+					const seen = sizes.get(entry.target);
+
+					sizes.set(entry.target, { width: box.width, height: box.height });
+
+					if (seen && (seen.width !== box.width || seen.height !== box.height)) changed = true;
+				}
+
+				if (changed) schedule(true);
+			})
+		: null;
+
+	observer?.observe(elem);
+	observer?.observe(anchor);
+
 	const parents = scrollParents(anchor);
 	for (const parent of parents) parent.addEventListener("scroll", onScroll, { passive: true });
 
@@ -535,6 +622,8 @@ export function trackPosition(elem: HTMLElement, anchor: HTMLElement, options: T
 
 	return () => {
 		if (frame) view.cancelAnimationFrame(frame);
+
+		observer?.disconnect();
 
 		for (const parent of parents) parent.removeEventListener("scroll", onScroll);
 

@@ -1,7 +1,14 @@
 /**
  * @jest-environment jsdom
  */
-import { computePosition, type PositionOptions, type Rect } from "../source/position";
+import {
+	clearPosition,
+	computePosition,
+	positionElement,
+	trackPosition,
+	type PositionOptions,
+	type Rect,
+} from "../source/position";
 
 // The calculation is separated from the DOM for the sake of this suite: jsdom lays nothing out and
 // every size in it is zero, so there would be nothing to check "does not fit below — flip over"
@@ -21,7 +28,7 @@ describe("computePosition: side and alignment", () => {
 	it("stands under the anchor by its left edge by default", () => {
 		const result = at(anchorAt(300, 300));
 
-		expect(result).toEqual({ left: 300, top: 324, placement: "bottom-start" });
+		expect(result).toEqual({ left: 300, top: 324, placement: "bottom-start", side: "bottom", align: "start" });
 	});
 
 	it("separates from the anchor by the gap rather than overlapping it", () => {
@@ -42,6 +49,8 @@ describe("computePosition: side and alignment", () => {
 			left: 300,
 			top: 196,
 			placement: "top-start",
+			side: "top",
+			align: "start",
 		});
 	});
 
@@ -50,6 +59,8 @@ describe("computePosition: side and alignment", () => {
 			left: 404,
 			top: 300,
 			placement: "right-start",
+			side: "right",
+			align: "start",
 		});
 	});
 
@@ -307,5 +318,259 @@ describe("computePosition: fallback", () => {
 		const result = at(trigger, { fallback: "bestFit", flip: false }, SIZE, shortScreen);
 
 		expect(result.placement).toBe("bottom-start");
+	});
+});
+
+// The result names the side and the alignment apart, so that a caller drawing a tooltip tail does
+// not have to take the placement string back apart. And the placement itself is always in full
+// form — asking for a bare `bottom` gives back `bottom-center`, which is what a bare side means.
+describe("computePosition: what the result says about the placement", () => {
+	it("gives the side and the alignment apart from the string", () => {
+		const result = at(anchorAt(300, 300), { placement: "right-end" });
+
+		expect(result.placement).toBe("right-end");
+		expect(result.side).toBe("right");
+		expect(result.align).toBe("end");
+	});
+
+	it("spells out the alignment a bare side leaves implied", () => {
+		const result = at(anchorAt(300, 300), { placement: "bottom" });
+
+		expect(result.placement).toBe("bottom-center");
+		expect(result.side).toBe("bottom");
+		expect(result.align).toBe("center");
+	});
+
+	it("reports the side it flipped to, not the one asked for", () => {
+		const result = at(anchorAt(300, 760), { placement: "bottom-start" });
+
+		expect(result.side).toBe("top");
+		expect(result.align).toBe("start");
+	});
+});
+
+// The DOM half, on the one thing jsdom can answer for: which inline properties the module takes
+// over and what it gives back. Sizes here are all zero, so the coordinates are not the point —
+// whose styles end up on the element is.
+describe("clearPosition: the element's own styles", () => {
+	const anchor = () => document.getElementById("anchor") as HTMLElement;
+	const popup = () => document.getElementById("popup") as HTMLElement;
+
+	const render = (style: string) => {
+		document.body.innerHTML = `<button id="anchor"></button><div id="popup" style="${style}"></div>`;
+	};
+
+	// The margin used to be saved as the shorthand, and `style.getPropertyValue("margin")` answers
+	// with an empty string unless all four sides are set inline. A host that had written one side
+	// was therefore recorded as having written nothing, and the restore removed the shorthand —
+	// taking that side with it.
+	it("gives back a margin the host set on one side only", () => {
+		render("margin-left: 17px");
+
+		positionElement(popup(), anchor());
+		clearPosition(popup());
+
+		expect(popup().style.marginLeft).toBe("17px");
+	});
+
+	it("gives back a margin the host set as the shorthand", () => {
+		render("margin: 5px");
+
+		positionElement(popup(), anchor());
+		clearPosition(popup());
+
+		expect(popup().style.marginTop).toBe("5px");
+		expect(popup().style.marginLeft).toBe("5px");
+	});
+
+	it("gives back the coordinates the host set", () => {
+		render("right: 5px; bottom: 7px; position: absolute");
+
+		positionElement(popup(), anchor());
+		clearPosition(popup());
+
+		expect(popup().style.right).toBe("5px");
+		expect(popup().style.bottom).toBe("7px");
+		expect(popup().style.position).toBe("absolute");
+	});
+
+	// Nothing was taken from this element, so there is nothing to give back — and wiping its
+	// coordinates would be taking something instead.
+	it("does not touch an element it never took over", () => {
+		render("position: absolute; left: 3px; margin-left: 9px");
+
+		clearPosition(popup());
+
+		expect(popup().style.position).toBe("absolute");
+		expect(popup().style.left).toBe("3px");
+		expect(popup().style.marginLeft).toBe("9px");
+	});
+
+	it("does not touch the element a second time either", () => {
+		render("margin-left: 9px");
+
+		positionElement(popup(), anchor());
+		clearPosition(popup());
+
+		popup().style.left = "40px";
+		clearPosition(popup());
+
+		expect(popup().style.left).toBe("40px");
+		expect(popup().style.marginLeft).toBe("9px");
+	});
+
+	// What the host did not write must not appear out of the restore either.
+	it("leaves nothing behind on an element that had no styles of its own", () => {
+		render("");
+
+		positionElement(popup(), anchor());
+		clearPosition(popup());
+
+		expect(popup().getAttribute("style")).toBeFalsy();
+	});
+});
+
+// Tracking the size, on a stub: jsdom ships no `ResizeObserver`, so in every other suite this
+// branch is simply skipped — and it is the one that can spin. `measure` clears the coordinates
+// before reading, so an element whose width depends on where it stands measures wide and is then
+// rendered narrow, which wakes the observer again; the guard is that a report equal to the previous
+// one is ignored, and the settled size after a frame is always the same. What is checked here is
+// that guard, because without it the pair "measure, write" would chase itself through the frames.
+describe("trackPosition: the element and the anchor changing size", () => {
+	type Report = { target: Element; contentRect: { width: number; height: number } };
+
+	let notify: (entries: Report[]) => void;
+	let observed: Element[];
+	let disconnected: boolean;
+
+	const original = (window as unknown as { ResizeObserver?: unknown }).ResizeObserver;
+
+	beforeEach(() => {
+		observed = [];
+		disconnected = false;
+
+		(window as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
+			constructor(callback: (entries: Report[]) => void) {
+				notify = callback;
+			}
+			observe(target: Element) {
+				observed.push(target);
+			}
+			disconnect() {
+				disconnected = true;
+			}
+		};
+	});
+
+	afterEach(() => {
+		(window as unknown as { ResizeObserver?: unknown }).ResizeObserver = original;
+		document.body.innerHTML = "";
+	});
+
+	/** Long enough for the scheduled frame to have run. */
+	const frame = () => new Promise((resolve) => setTimeout(resolve, 48));
+
+	const scene = () => {
+		document.body.innerHTML = `<button id="anchor"></button><div id="popup"></div>`;
+
+		const anchor = document.getElementById("anchor") as HTMLElement;
+		const popup = document.getElementById("popup") as HTMLElement;
+
+		// Every recalculation asks the anchor where it is, so counting that counts the passes.
+		const rect = jest.fn(() => ({ left: 10, top: 10, width: 100, height: 20 }) as DOMRect);
+		anchor.getBoundingClientRect = rect;
+
+		return { anchor, popup, rect };
+	};
+
+	it("watches both the element and the anchor", () => {
+		const { anchor, popup } = scene();
+
+		const stop = trackPosition(popup, anchor);
+
+		expect(observed).toContain(popup);
+		expect(observed).toContain(anchor);
+
+		stop();
+		expect(disconnected).toBe(true);
+	});
+
+	// `observe` delivers a report straight away, and it says what the size is rather than that it
+	// changed — the element was measured and placed a moment before. Acting on it would buy every
+	// showing an extra measurement one frame after opening, for nothing.
+	it("only remembers the report that arrives with the subscription", async () => {
+		const { anchor, popup, rect } = scene();
+		const stop = trackPosition(popup, anchor);
+
+		const opened = rect.mock.calls.length;
+
+		notify([
+			{ target: popup, contentRect: { width: 200, height: 100 } },
+			{ target: anchor, contentRect: { width: 100, height: 20 } },
+		]);
+		await frame();
+
+		expect(rect.mock.calls.length).toBe(opened);
+
+		stop();
+	});
+
+	it("recalculates when the size actually changes", async () => {
+		const { anchor, popup, rect } = scene();
+		const stop = trackPosition(popup, anchor);
+
+		notify([{ target: popup, contentRect: { width: 200, height: 100 } }]);
+		await frame();
+
+		const settled = rect.mock.calls.length;
+
+		notify([{ target: popup, contentRect: { width: 200, height: 260 } }]);
+		await frame();
+
+		expect(rect.mock.calls.length).toBeGreaterThan(settled);
+
+		stop();
+	});
+
+	// The guard against chasing itself: the same size reported again is the element settling where
+	// it was put, not a change worth another pass.
+	it("ignores a report that says the size is what it already was", async () => {
+		const { anchor, popup, rect } = scene();
+		const stop = trackPosition(popup, anchor);
+
+		notify([{ target: popup, contentRect: { width: 200, height: 100 } }]);
+		notify([{ target: popup, contentRect: { width: 200, height: 260 } }]);
+		await frame();
+
+		const settled = rect.mock.calls.length;
+
+		notify([{ target: popup, contentRect: { width: 200, height: 260 } }]);
+		notify([{ target: popup, contentRect: { width: 200, height: 260 } }]);
+		await frame();
+
+		expect(rect.mock.calls.length).toBe(settled);
+
+		stop();
+	});
+
+	it("tells the element's size from the anchor's", async () => {
+		const { anchor, popup, rect } = scene();
+		const stop = trackPosition(popup, anchor);
+
+		// Both are seeded, then only the anchor changes: the element must not be taken for it.
+		notify([
+			{ target: popup, contentRect: { width: 200, height: 100 } },
+			{ target: anchor, contentRect: { width: 100, height: 20 } },
+		]);
+		await frame();
+
+		const settled = rect.mock.calls.length;
+
+		notify([{ target: anchor, contentRect: { width: 100, height: 44 } }]);
+		await frame();
+
+		expect(rect.mock.calls.length).toBeGreaterThan(settled);
+
+		stop();
 	});
 });
