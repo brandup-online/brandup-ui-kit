@@ -17,8 +17,14 @@ export interface BuildThemeOptions {
 	paths?: string[];
 	/** Куда записать результат. Без него CSS только возвращается. */
 	out?: string;
+	/**
+	 * Сюда складываются пути всех файлов, из которых собрана тема, — файл темы, входные файлы и
+	 * все их импорты. Нужно тому, кто кеширует результат или следит за правками: тема собирается
+	 * из десятка файлов кита, и по одному лишь файлу темы правка `vars.less` остаётся незамеченной.
+	 */
+	dependencies?: Set<string>;
 	/** Экземпляр less. По умолчанию берётся из зависимостей кита. */
-	less?: { render(source: string, options: object): Promise<{ css: string }> };
+	less?: { render(source: string, options: object): Promise<{ css: string; imports?: string[] }> };
 }
 
 declare function buildTheme(options: BuildThemeOptions): Promise<string>;

@@ -113,7 +113,7 @@ function splitDeclarations(body) {
  * меняет цвета, а шрифт, кегль и пропорции берёт у основной. Иначе всё, чего нет в файле
  * варианта, откатывалось бы к умолчаниям кита — и вариант пришлось бы писать целиком.
  */
-async function renderVariant(less, entries, modifyVars, extraPaths) {
+async function renderVariant(less, entries, modifyVars, extraPaths, dependencies) {
 	const seen = new Map();
 
 	for (const entry of entries) {
@@ -134,6 +134,15 @@ async function renderVariant(less, entries, modifyVars, extraPaths) {
 			math: "always",
 			modifyVars,
 		});
+
+		// Список импортов отдаём наружу: тема собирается из десятка файлов кита, и тому, кто
+		// кеширует результат или следит за правками (см. UiKitThemePlugin в примере), нужен весь
+		// список, а не только сам файл темы. Иначе правка `vars.less` остаётся незамеченной:
+		// пересборки не будет, а в сборке останется прежняя тема.
+		if (dependencies) {
+			dependencies.add(path.resolve(entry));
+			for (const imported of rendered.imports ?? []) dependencies.add(path.resolve(imported));
+		}
 
 		for (const block of extractRootBlocks(rendered.css)) {
 			for (const declaration of splitDeclarations(block)) {
@@ -157,12 +166,14 @@ async function renderVariant(less, entries, modifyVars, extraPaths) {
  * @param {Array<{selector: string, theme: string}>} [options.variants] дополнительные варианты —
  *   тёмная тема, оформление под клиента; каждый попадает под свой селектор
  * @param {string[]} [options.paths] дополнительные каталоги для поиска импортов
+ * @param {Set<string>} [options.dependencies] сюда складываются пути всех файлов, из которых
+ *   собрана тема, — для кеша и слежения за правками
  * @param {string} [options.out] куда записать результат; без него CSS только возвращается
  * @param {object} [options.less] экземпляр less (по умолчанию берётся из зависимостей кита)
  * @returns {Promise<string>} собранный CSS
  */
 async function buildTheme(options) {
-	const { theme, entries = DEFAULT_ENTRIES, variants = [], paths = [], out } = options;
+	const { theme, entries = DEFAULT_ENTRIES, variants = [], paths = [], out, dependencies } = options;
 	if (!theme) throw new Error('buildTheme: не задан "theme" — путь к файлу темы.');
 
 	const less = options.less ?? require("less");
@@ -172,11 +183,21 @@ async function buildTheme(options) {
 	// Файл темы разбираем один раз: разбор ещё и проверяет имена, а повторять эти жалобы
 	// столько раз, сколько собирается вариантов, значит приучить их не читать.
 	const baseVars = parseLessVars(theme);
-	const base = await renderVariant(less, entries, baseVars, paths);
+	const base = await renderVariant(less, entries, baseVars, paths, dependencies);
 	parts.push(formatBlock(":root", base));
 
+	dependencies?.add(path.resolve(theme));
+
 	for (const variant of variants) {
-		const values = await renderVariant(less, entries, { ...baseVars, ...parseLessVars(variant.theme) }, paths);
+		const values = await renderVariant(
+			less,
+			entries,
+			{ ...baseVars, ...parseLessVars(variant.theme) },
+			paths,
+			dependencies
+		);
+
+		dependencies?.add(path.resolve(variant.theme));
 
 		// В вариант пишем только то, что отличается от основной темы: иначе тёмная тема была бы
 		// копией светлой целиком, и разницу между ними пришлось бы искать глазами.

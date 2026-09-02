@@ -13,6 +13,9 @@ import { DOM } from "@brandup/ui";
  * and remembers it. By the first paint all of this is applied by the script inlined into `<head>` —
  * otherwise the page would flash light for someone who wants dark.
  */
+// These three are repeated by the inline script in template.html, and cannot be shared with it: it
+// runs before the first paint, that is before this bundle exists at all. Changing one means
+// changing the other — that script reads the same key and understands the same two values.
 const STORAGE_KEY = "uikit-theme";
 const DARK = "dark";
 const LIGHT = "light";

@@ -5,22 +5,26 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<title>brandup_ui_example</title>
-	<!-- Ссылку на theme.css здесь не пишем: её дописывает `UiKitThemePlugin`
-	     (см. webpack.config.js) последней среди стилей, иначе тема шла бы выше бандла
-	     и его умолчания не перекрывала. -->
+	<!-- No link to theme.css here: `UiKitThemePlugin` (see webpack.config.js) appends it last
+	     among the stylesheets. Written here it would stand above the bundle and would not
+	     override its defaults. -->
 	<script>
-		// До первой отрисовки, иначе страница успеет мигнуть светлым у того, кто выбрал тёмную.
-		// Поэтому же скрипт встроен в шапку, а не приходит бандлом.
+		// Before the first paint, or the page flashes light for someone who chose dark. That is
+		// also why the script is inlined in the head rather than arriving with the bundle.
+		//
+		// The key and the values are repeated from theme-switch.ts, which cannot be imported
+		// here — it arrives with the bundle, which is exactly what this runs ahead of. Keep the
+		// two in step: the pair is "uikit-theme" / "dark" | "light".
 		(function () {
 			var saved = null;
 			try {
 				saved = localStorage.getItem("uikit-theme");
 			} catch (e) {
-				// приватный режим: выбора не помним, идём за системной настройкой
+				// private mode: no choice is remembered, so we follow the system setting
 			}
 
-			// Явный выбор сильнее системной настройки, но пока его не сделали — идём за ней:
-			// у того, кто держит систему в тёмной теме, светлая страница режет глаза.
+			// An explicit choice is stronger than the system setting, but until one is made we
+			// follow it: a light page hurts for someone who keeps their system dark.
 			var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
 			if (dark) document.documentElement.setAttribute("data-theme", "dark");
 		})();

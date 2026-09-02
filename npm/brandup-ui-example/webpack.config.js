@@ -32,7 +32,7 @@ const darkThemeFile = path.resolve(__dirname, "uikit.dark.vars.less");
 class UiKitThemePlugin {
 	constructor() {
 		/**
-		 * The built theme and a fingerprint of the files it was built from.
+		 * The built theme, the files it was built from, and a fingerprint of them.
 		 *
 		 * Building the theme is a full less compilation, and twice over: the main one plus the
 		 * variant. Under `--watch` a rebuild happens on every edit of any source, while the theme
@@ -41,29 +41,49 @@ class UiKitThemePlugin {
 		this.__cache = null;
 	}
 
-	/** A fingerprint of the theme inputs: mtime and size — enough to notice a change. */
-	async __stamp() {
+	/**
+	 * A fingerprint of the theme inputs: mtime and size — enough to notice a change.
+	 *
+	 * Over every file the theme was built from, not just the two of the example's own: the theme is
+	 * `vars.less` of the kit plus a dozen files that declare tokens, and a fingerprint of the two
+	 * outer ones left an edit to any of them invisible — the theme went on being served from the
+	 * cache while the bundle beside it was already rebuilt with the new values.
+	 *
+	 * Which files those are is known only after a build, so the first one is fingerprinted by the
+	 * theme files alone. That is enough: there is nothing to serve from the cache yet anyway.
+	 */
+	async __stamp(files) {
 		const stat = async (file) => {
-			const info = await fs.stat(file);
+			try {
+				const info = await fs.stat(file);
 
-			return `${file}:${info.mtimeMs}:${info.size}`;
+				return `${file}:${info.mtimeMs}:${info.size}`;
+			} catch {
+				// a file that has gone is a change in itself — and the build below will say so properly
+				return `${file}:missing`;
+			}
 		};
 
-		return (await Promise.all([themeFile, darkThemeFile].map(stat))).join("|");
+		return (await Promise.all([...files].sort().map(stat))).join("|");
 	}
 
 	async __build() {
-		const stamp = await this.__stamp();
-		if (this.__cache && this.__cache.stamp === stamp) return this.__cache.css;
+		const known = this.__cache?.files ?? [themeFile, darkThemeFile];
+		const stamp = await this.__stamp(known);
+		if (this.__cache && this.__cache.stamp === stamp) return this.__cache;
 
+		const dependencies = new Set();
 		const css = await buildTheme({
 			theme: themeFile,
 			variants: [{ selector: ':root[data-theme="dark"]', theme: darkThemeFile }],
+			dependencies,
 		});
 
-		this.__cache = { stamp, css };
+		const files = [...dependencies];
 
-		return css;
+		this.__cache = { stamp: await this.__stamp(files), css, files };
+
+		return this.__cache;
 	}
 
 	apply(compiler) {
@@ -71,7 +91,15 @@ class UiKitThemePlugin {
 			compilation.hooks.processAssets.tapPromise(
 				{ name: "UiKitThemePlugin", stage: compilation.PROCESS_ASSETS_STAGE_ADDITIONAL },
 				async () => {
-					compilation.emitAsset(THEME_FILE_NAME, new sources.RawSource(await this.__build()));
+					const built = await this.__build();
+
+					compilation.emitAsset(THEME_FILE_NAME, new sources.RawSource(built.css));
+
+					// Registered here rather than in `thisCompilation`: which files the theme is
+					// built from is only known once it has been built, and on the first compilation
+					// there is nothing to register yet. `processAssets` still runs inside the seal,
+					// so what is added here is picked up for watching.
+					for (const file of built.files) compilation.fileDependencies.add(file);
 				}
 			);
 
@@ -102,7 +130,8 @@ class UiKitThemePlugin {
 				return data;
 			});
 
-			// rebuild the theme when its own files are edited, not only the page sources
+			// The theme's own files, straight away: the full list arrives with the build above, but
+			// these two are known now, and on the very first compilation they are all there is.
 			compilation.fileDependencies.add(themeFile);
 			compilation.fileDependencies.add(darkThemeFile);
 		});

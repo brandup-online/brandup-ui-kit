@@ -87,6 +87,11 @@ describe("component inputs follow the palette", () => {
 		["--button-accent-color", "--accent-contrast"],
 		["--danger--button-accent", "--danger"],
 		["--focus-ring-color", "--accent"],
+		// The button used to stand its ring off by the ring's own width, which is the same 2px and
+		// so looked interchangeable — until overriding the shared offset moved the ring on a modal's
+		// close cross and left the button where it was.
+		["--focus--button-ring-width", "--focus-ring-width"],
+		["--focus--button-ring-offset", "--focus-ring-offset"],
 		["--popup-fill", "--main-background"],
 		["--popup-border-color", "--line"],
 		["--popup-border-radius", "--radius-overlay"],
@@ -135,4 +140,29 @@ describe("component inputs follow the palette", () => {
 
 		expect(following.length).toBeGreaterThanOrEqual(15);
 	});
+});
+
+// The builder is also asked which files it read, and that answer is what a build keeps its cache
+// and its watching by (see UiKitThemePlugin in the example). Fingerprinting the theme file alone
+// left an edit to `vars.less` invisible: no rebuild, and the old theme still served beside a bundle
+// already built with the new values.
+describe("the builder names the files it read", () => {
+	it("lists the kit's own sources, not just the theme file", async () => {
+		const directory = fs.mkdtempSync(path.join(os.tmpdir(), "uikit-deps-"));
+		const theme = path.join(directory, "uikit.vars.less");
+		fs.writeFileSync(theme, "", "utf-8");
+
+		try {
+			const dependencies = new Set<string>();
+			await buildTheme({ theme, paths: [KIT], dependencies });
+
+			const files = [...dependencies];
+
+			expect(files).toContain(path.resolve(theme));
+			expect(files.some((file) => file.endsWith("vars.less"))).toBe(true);
+			expect(files.some((file) => file.endsWith(path.join("source", "inputs.less")))).toBe(true);
+		} finally {
+			fs.rmSync(directory, { recursive: true, force: true });
+		}
+	}, 30000);
 });
