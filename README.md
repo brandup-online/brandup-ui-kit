@@ -15,6 +15,19 @@
 | [@brandup/ui-messageeditor](npm/brandup-ui-messageeditor/README.md) | Ввод сообщения в виде плашки чата |
 | [@brandup/ui-dropdown](npm/brandup-ui-dropdown/README.md) | Компонент выпадающего списка (`select`) |
 
+## Подключение
+
+Пакеты поставляются исходниками, поэтому бандлер проекта нужно настроить — рабочие конфигурации
+webpack и vite, а также список входов темы: [@brandup/ui-kit](npm/brandup-ui-kit/README.md#установка)
+и [TOKENS.md](npm/brandup-ui-kit/TOKENS.md).
+
+## Версии
+
+Версия пакета — номер сборки CI (`autonpm-version` подставляет `Build.BuildNumber`), а не semver:
+по смене номера нельзя понять, ломающее обновление или нет. Что изменилось и что придётся
+поправить у себя — в [CHANGELOG.md](CHANGELOG.md); ломающие изменения помечены там словом
+**Migration**. Обновляясь, фиксируйте версию точно и читайте changelog.
+
 ## Пример
 
 Открыть [пример](npm/brandup-ui-example/README.md) использования пакетов.
