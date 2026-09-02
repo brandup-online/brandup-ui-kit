@@ -133,7 +133,13 @@ export function compileRules(options: CompileOptions): Rule[] {
 
 	const rules: Rule[] = [];
 
-	for (const [, selectors, body] of stripAtRules(css).matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+	// Комментарии убираем до разбора: less оставляет `/* … */` в выводе, а всё, что стоит
+	// перед `{`, здесь считается селектором — комментарий над правилом приклеивался к нему,
+	// и такое правило не совпадало уже ни с чем. Молча: `elem.matches` на испорченном
+	// селекторе либо бросает, либо отвечает «нет», и правило просто выпадало из каскада.
+	const source = stripAtRules(css).replace(/\/\*[\s\S]*?\*\//g, " ");
+
+	for (const [, selectors, body] of source.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
 		const declarations = new Map<string, string>();
 		for (const [, property, value] of body.matchAll(/([\w-]+)\s*:\s*([^;]+)/g))
 			declarations.set(property.trim(), value.trim());
