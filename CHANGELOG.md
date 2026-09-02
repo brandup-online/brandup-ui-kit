@@ -416,6 +416,27 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Changed
 
+- **The arrow and the field icons stop turning black on a dark theme.** Every
+  state painted them with its own colour token — `--svg-fill:
+  var(--hover--input-color)` in the dropdown, the same in six blocks of the
+  textbox. Those tokens are the keyword `inherit`, which is right for `color`
+  and wrong the moment the token reaches `fill`: there it means the parent's
+  fill, and the parent is a button, whose fill is the initial black. On a light
+  theme that was the text colour anyway. Both follow the label through
+  `currentColor` now — for the textbox that also meant giving its action buttons
+  the field's colour, a `<button>` taking its own from the browser. The states
+  that mean to differ, the dimming of a read-only and a disabled control, stay
+  and say so.
+
+- **A placeholder lighter than the text it stands in for.** `@placeholder-color`
+  was `inherit`, so a hint was painted in exactly the colour of a typed value
+  and an empty field read like a filled one. Three packages of the set write
+  `var(--placeholder-color, #999)` — the grey they expected never arrived,
+  a declared token leaving no room for a fallback. It is a mix rather than a
+  literal, so it follows the theme: #858585 on the light one, #898b90 on the
+  dark. **Migration:** a project that liked the hint indistinguishable from the
+  value sets `@placeholder-color: inherit` back in its theme.
+
 - **The example shows the kit as it ships.** The two pages a reader goes to for
   the look of a field set `--input-font-weight`, `--placeholder-font-weight` and
   `--placeholder-color` on themselves. The names were misspelled (`weidth`), so
