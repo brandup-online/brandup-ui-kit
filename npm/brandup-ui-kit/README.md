@@ -83,15 +83,21 @@ less-loader mini-css-extract-plugin`.
 ### vite
 
 Vite сам разбирает TypeScript и Less, поэтому от проекта нужна одна настройка — тема.
-Достаточно поставить `less`:
+Из зависимостей достаточно `less`. Конфигурация в проекте с `"type": "module"` — таким его
+создаёт `npm create vite`:
 
 ```js
-const parseLessVars = require("@brandup/ui-kit/build/parse-less-vars.cjs");
+import { createRequire } from "node:module";
 
-module.exports = {
+// parse-less-vars — CommonJS-модуль: из ESM-конфигурации он берётся через createRequire
+const parseLessVars = createRequire(import.meta.url)("@brandup/ui-kit/build/parse-less-vars.cjs");
+
+export default {
     css: { preprocessorOptions: { less: { modifyVars: parseLessVars("uikit.vars.less") } } },
 };
 ```
+
+В проекте без `"type": "module"` то же самое пишется обычным `require` и `module.exports`.
 
 Отдельно исключать пакеты кита из `optimizeDeps` не нужно: их предсборка проходит вместе
 со стилями и в `dev`, и в `build`.
