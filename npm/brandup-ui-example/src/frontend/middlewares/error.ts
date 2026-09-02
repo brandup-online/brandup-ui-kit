@@ -1,4 +1,4 @@
-﻿import { Middleware, MiddlewareNext, NavigateContext } from "@brandup/ui-app";
+﻿import type { Middleware, MiddlewareNext, NavigateContext } from "@brandup/ui-app";
 import { ExampleApplication } from "../app";
 import type { PageNavigationData } from "../typings/app";
 

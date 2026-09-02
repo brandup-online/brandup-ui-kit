@@ -1,9 +1,9 @@
 ﻿import { DOM } from "@brandup/ui";
 import { AjaxQueue } from "@brandup/ui-ajax";
-import {
+import { NAV_OVERIDE_ERROR } from "@brandup/ui-app";
+import type {
 	Middleware,
 	MiddlewareNext,
-	NAV_OVERIDE_ERROR,
 	NavigateContext,
 	StartContext,
 	StopContext,

@@ -1,8 +1,9 @@
 ﻿import { DOM, UIElement } from "@brandup/ui";
-import { AjaxQueue, AjaxResponse } from "@brandup/ui-ajax";
+import { AjaxQueue } from "@brandup/ui-ajax";
+import type { AjaxResponse } from "@brandup/ui-ajax";
 import { ExampleApplication } from "../app";
 import type { PageNavigationData, PageSubmitData } from "../typings/app";
-import { NavigateContext, SubmitContext } from "@brandup/ui-app";
+import type { NavigateContext, SubmitContext } from "@brandup/ui-app";
 import "./base.less";
 
 export abstract class Page extends UIElement {

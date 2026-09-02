@@ -1,4 +1,4 @@
-import { Middleware, MiddlewareNext, NavigateContext, StartContext } from "@brandup/ui-app";
+import type { Middleware, MiddlewareNext, NavigateContext, StartContext } from "@brandup/ui-app";
 import { LayerManager } from "./layer";
 import { UIKIT } from "./names";
 import { PopupManager } from "./popup";
