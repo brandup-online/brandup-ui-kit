@@ -774,6 +774,131 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Fixed
 
+- **Two jsdom gaps that made the dropdown's tests watch a list that only looked open.** The custom
+  test environment replaced `AbortController` / `AbortSignal` with node's for the sake of `fetch`,
+  and jsdom checks a signal handed to `addEventListener` against *its own* class — so the dropdown
+  threw at the very line where it subscribes to reposition on scroll. The throw was swallowed by the
+  event dispatch, and everything after it never ran: the layer, and the listeners that close the
+  list on a press outside it. `Element.prototype.scrollTo`, which the dropdown calls to scroll its
+  list to the chosen option, was missing for the same reason. The environment now leaves jsdom's own
+  `AbortController` in place when it has one, and `scrollTo` is stubbed beside `scrollIntoView`.
+  Nothing in the suite depended on the old behaviour — the numbers are unchanged — but the open path
+  is now actually exercised.
+
+- **A second press on the dropdown's button closes the list.** The rule that closes the list on a
+  press outside it counted the button as outside, so a full press there closed the list on `mouseup`
+  — and the `click` right behind it found the list shut and opened it again. The list looked as if
+  it never closed. The button now counts as part of the control, like the list itself, and closing
+  it by the button is left to the `toggle` command, which is whose job it was all along. Closing
+  that way clears the search too, as closing by an outside press and by Escape already did.
+
+- **The dropdown recalculates its side no more often than a frame.** The listener that repositions
+  the open list sits in the capture phase, so it fires on a scroll of any box on the page, and the
+  calculation strips two classes and reads the geometry back twice — that is, makes the browser lay
+  the page out again, on every one of those events. It is throttled to a frame now, as the kit's own
+  `trackPosition` already was: only the last value of a frame survives to the paint anyway.
+
+- **The example stopped cutting off everything that opens downwards.** `.app`, the container every
+  page renders into, carried `overflow: hidden`. The specification turns the other axis into `auto`
+  when one is not `visible`, so a box meant to be clipped only sideways clipped vertically too — and
+  its height is its content's height. Anything unfolding below the last element of a page was cut by
+  the page's own bottom edge: the dropdown in the form at the foot of the page opened downwards and
+  was shown half. It is `overflow-x: clip` now, which does not drag the other axis with it; the
+  clipping is there for the page transition, which moves `.app` by a transform.
+
+- **The dropdown reads the narrow-screen threshold off the window.** It compared
+  `document.body.clientWidth` with the breakpoint its stylesheet uses in a media query, and the two
+  do not measure the same thing: a media query measures the viewport, scrollbar included, while the
+  body's is its own content width, with the scrollbar and the gutter the kit reserves already taken
+  out. In the couple of dozen pixels between them the script took the list for a narrow-screen sheet
+  while the stylesheet was showing an ordinary one, and skipped choosing a side altogether.
+
+- **The class that turns the dropdown's list over now reaches the list.** `__positionPopup` decides
+  the side and says so with a `top` / `right` class on the list element, and the rules acting on that
+  class sat one level deeper — on the box inside the list — so they compiled to `.content.top` and
+  matched nothing. The class went on and nothing moved, whatever the measurement said. Moved up to
+  the element the script actually marks. Which element a rule lands on is invisible in a nested
+  stylesheet, so it is now asked of the compiled one instead.
+
+- **The dropdown chooses which way to open by the room around its button.** The check measured
+  against `document.body.clientHeight` — the height of the page's content, not of the visible part —
+  so on any long page it was satisfied by default and the list opened downwards even with its button
+  against the bottom of the window. It measures the window now, and goes up only when the list does
+  not fit below *and* there is more room above: on a short window it fits neither way, and turning
+  over for its own sake only makes the list jump. Recalculated on scroll and resize, so the side
+  changes as the button moves.
+
+- **The dropdown's list is `ui-dropdown-popup` rather than `popup`.** A bare `popup` on an element
+  inside a package is a name any page can already be using for something of its own. Read it from
+  `DROPDOWN.CLASS.ELEMENT.POPUP` as before; a project that wrote the old class into its own
+  stylesheet or scripts has to rename it.
+
+- **The dropdown's list no longer keeps room for a scrollbar it is not showing.** The options list
+  was `overflow-y: scroll`, which reserves the track whether or not there is anything to scroll, so
+  a short list carried an empty column down its right side — and not a thin one: the kit's own
+  scrollbar is `--scrollbar-size` plus the cross-axis inset on both sides. It is `auto` now, which
+  every other scrollable box in the set already was. The list is a little narrower once the options
+  overflow, which is the trade `auto` makes and the point of the change.
+
+- **The dropdown's trigger answers every state the way a text field does.** It is meant to be a copy
+  of the kit's field, and two states broke that. It had no read-only look at all — `InputControl`
+  puts a `readonly` class on the root, and the stylesheet never drew it, so a locked dropdown was
+  indistinguishable from a working one. And its focus look sat on the trigger button, which loses
+  focus the moment the list opens: the accent border went out at the moment the control was most
+  plainly in use. The focus look now hangs on the whole control (`:focus-within`, plus the open
+  state), covering both the button reached by Tab and the open list being walked with the arrows,
+  and the read-only state paints fill and text like `[readonly]` on a field while leaving the border
+  to hover and focus, exactly as a field does. `hasvalue` also read the hover tokens on focus, where
+  a field reads the focus ones; the two resolve to the same colour today, so nothing moves until a
+  theme separates them. The read-only arrow is dimmed like a disabled one — a locked list opens
+  nothing, so the affordance should not look live — and that is declared on the trigger itself: the
+  arrow's `--svg-fill` is set on `.ui-dropdown .view`, and an element's own declaration beats an
+  inherited one whatever the weight of the rule it came from, so the same token written in a state
+  block on the root never reaches the arrow at all. That goes unnoticed in the other states, where
+  the token repeats what `--input-color` already carries; read-only is the one state where the two
+  differ. The match is now checked rather than asserted: `dropdown-css.test.ts` compiles both
+  stylesheets, resolves the cascade, and compares the trigger with the field across ten states.
+
+- **`clearPosition` gives back a margin the host had set on one side.** The module snapshots the
+  inline properties it is about to take over so it can hand them back, and it listed the margin as
+  the `margin` shorthand. That one cannot be read back: `style.getPropertyValue("margin")` answers
+  with an empty string unless all four sides are set inline, so an element carrying
+  `style="margin-left: 17px"` was recorded as having had no margin at all — and the restore then
+  removed the shorthand, taking that 17px with it. The four sides are snapshotted separately now.
+  The removal still goes through the shorthand, which is the name the module wrote it under: taking
+  the longhands off one at a time undoes a shorthand in a browser but not in jsdom, where the
+  `margin: 0` this module writes for measuring would have stayed on the element for good. On an
+  element the module never took over `clearPosition` now does nothing at all, rather than wiping
+  coordinates it did not write — that is what it did to one positioned by the host itself, and to
+  any element cleared twice.
+- **A read-only choice control no longer answers the pointer with its border.** The shared hover
+  rule painted both border and background, and the `readonly` rule that follows it at equal weight
+  repaints only the background — so a locked checkbox went on lighting its border up under the
+  cursor, the one part of a working control's response it had no business showing. The hover rule
+  now excludes `[readonly]`, and with it `:disabled` and `:user-invalid`: adding the first exclusion
+  raises the rule above those two, which are declared with plain selectors and used to win by coming
+  later, so leaving them in would have handed a disabled control the hover look and wiped the red
+  border off an invalid one. The whole cascade is now checked on the compiled stylesheet
+  (`inputs-css.test.ts`) rather than counted by eye.
+- **The button's focus ring reads the shared offset.** It stood its ring off by the ring's own
+  width — the same 2px, so the two looked interchangeable until the shared `--focus-ring-*` trio
+  appeared. From then on overriding `--focus-ring-offset` moved the ring on a modal's close cross
+  and left the button where it was, which is the one thing a shared token exists to prevent. The
+  button has `--focus--button-ring-offset` of its own now, derived from the shared one like its
+  width and colour.
+- **A choice control shows the kit's focus ring.** Splitting the checkbox, the switch and the radio
+  apart dropped their old `:focus` rule, which recoloured the border — on a ticked control that
+  border is the accent fill, so it showed nothing. Nothing took its place, and `appearance: none`
+  had already taken away whatever focus look the browser drew itself: the one element the kit draws
+  by hand was left showing focus differently in every browser. It now carries the same
+  `:focus-visible` ring as a button and a modal's close cross.
+- **The example's theme is rebuilt when the kit's own sources change.** `UiKitThemePlugin`
+  fingerprinted the two theme files of the example, while the theme is built from `vars.less` and a
+  dozen more files of the kit. Editing any of them under `--watch` changed nothing: no rebuild was
+  triggered, and the stale theme went on being served beside a bundle already rebuilt with the new
+  values. `buildTheme` now reports every file it read, through an optional `dependencies` set, and
+  the plugin fingerprints and watches all of them.
+
 - **A closed popup leaves the layout instead of only turning invisible.** It was hidden with
   `visibility: collapse`, which keeps the box in the flow. A popup is placed by the project, usually
   beside its button — `left: calc(100% + 10px)` in the example — so an invisible closed popup went

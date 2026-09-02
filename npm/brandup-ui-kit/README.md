@@ -84,7 +84,7 @@ app.run();
 | `--danger--button-accent` | `#d64545` |
 | `--hover--button-tint` / `--active--button-tint` | `12%` / `20%` — насколько темнее под курсором |
 | `--disabled--button-opacity` | `0.5` |
-| `--focus--button-ring-width` / `--focus--button-ring-color` | `2px` / цвет рамки поля в фокусе |
+| `--focus--button-ring-width` / `--focus--button-ring-offset` / `--focus--button-ring-color` | выведены из общих `--focus-ring-*` |
 | `--button-spinner-size` | `16px` |
 
 Значок внутри кнопки следует за цветом подписи (`--svg-fill: currentColor`), поэтому на залитой
@@ -284,17 +284,28 @@ import { computePosition, positionElement, trackPosition } from "@brandup/ui-kit
 computePosition(anchorRect, { width, height }, { width, height }, { placement: "top-center" });
 
 // разовая установка и слежение, пока не позовут отписку
-positionElement(tooltipElem, wordElem, { placement: "top-center" });
+const { side, align } = positionElement(tooltipElem, wordElem, { placement: "top-center" });
 const stop = trackPosition(tooltipElem, wordElem);
 ```
+
+Результат говорит, где элемент встал на самом деле: после переворота это не та сторона, которую
+просили. `side` и `align` отдаются отдельными полями — по ним рисуют хвостик подсказки и
+направление появления. Поле `placement` всегда полное: на запрос `bottom` вернётся `bottom-center`,
+поэтому сравнивать его с тем, что передали, не нужно — для этого есть `side` и `align`.
 
 Координаты вьюпортные, элемент ставится `position: fixed`. Предок с `transform`, `filter` или
 `contain` делает контейнером себя, и координаты пересчитываются в его систему — попап внутри
 блока с анимацией перехода встаёт там, где нужно. Пересчёт делается по замеру: трансформация,
 появившаяся уже во время показа, до следующего замера не учитывается.
 
-Свои инлайновые `position` / `left` / `top` / `right` / `bottom` / `margin` элемента запоминаются
-и возвращаются на место, когда слежение снимают.
+Свои инлайновые `position` / `left` / `top` / `right` / `bottom` и поля `margin` элемента
+запоминаются и возвращаются на место, когда слежение снимают. `positionElement` берёт элемент
+на себя не на время вызова, а начиная с него: координаты держатся, только пока никто их не
+трогает. Тому, кто поставил элемент один раз и дальше пользуется им для другого, нужен
+`clearPosition`; тому, кто переставляет его снова и снова, — не нужен ничего.
+
+Размер элемента и якоря отслеживается: список, догрузивший строки, или поле, выросшее вместе
+с текстом, пересчитываются сами, без прокрутки и изменения окна.
 
 ### Состояния
 
