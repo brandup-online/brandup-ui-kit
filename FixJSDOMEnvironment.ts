@@ -11,7 +11,14 @@ export default class FixJSDOMEnvironment extends JSDOMEnvironment {
 		this.global.Request = Request;
 		this.global.Response = Response;
 		this.global.FormData = FormData;
-		this.global.AbortController = AbortController;
-		this.global.AbortSignal = AbortSignal;
+		// AbortController/AbortSignal only when jsdom has none of its own. Overwriting them
+		// unconditionally, as this did, broke everything that hands a signal to a DOM listener:
+		// `addEventListener(type, fn, { signal })` is checked by jsdom against *its* AbortSignal,
+		// and a node one is refused with a TypeError. The dropdown does exactly that when it opens
+		// its list, so the throw landed in the middle of opening — after the class was set, before
+		// the layer and the listeners that close the list — and the suite went on testing a list
+		// that only looked open.
+		if (!this.global.AbortController) this.global.AbortController = AbortController;
+		if (!this.global.AbortSignal) this.global.AbortSignal = AbortSignal;
 	}
 }

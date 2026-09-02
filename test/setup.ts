@@ -14,6 +14,13 @@ if (HAS_DOM) {
 	// jsdom does not implement scrollIntoView — stubbed so UI logic (InputControl.focus and the like) does not throw under tests.
 	(Element.prototype as any).scrollIntoView = function () {};
 
+	// Nor scrollTo, and its absence was not harmless: the dropdown scrolls its list to the chosen
+	// option while opening, so the call threw in the middle of `__openPopup` — after the class and
+	// the layer were in place, but before the listeners that close the list on a press outside it.
+	// The throw was swallowed by the event dispatch, so every suite saw a list that looked open and
+	// closed by rules it had never subscribed to.
+	if (!(Element.prototype as any).scrollTo) (Element.prototype as any).scrollTo = function () {};
+
 	// jsdom does not implement innerText — proxied to textContent. That is enough for UI logic
 	// (for single lines without breaks innerText and textContent are the same).
 	if (!Object.getOwnPropertyDescriptor(HTMLElement.prototype, "innerText")) {
