@@ -35,6 +35,7 @@
 	--danger--button-accent: @danger--button-accent;
 	--disabled--button-opacity: @disabled--button-opacity;
 	--focus--button-ring-width: @focus--button-ring-width;
+	--focus--button-ring-offset: @focus--button-ring-offset;
 	--focus--button-ring-color: @focus--button-ring-color;
 }
 
@@ -89,7 +90,11 @@
 	// по Tab становится невидимым.
 	&:focus-visible {
 		outline: var(--focus--button-ring-width) solid var(--focus--button-ring-color);
-		outline-offset: var(--focus--button-ring-width);
+		// Its own input rather than the ring's width: the two are the same 2px by default, and
+		// standing in for one another they looked interchangeable — until the shared focus ring
+		// appeared. Overriding `--focus-ring-offset` then moved the ring on a modal's close cross
+		// and left the button where it was, which is the one thing a shared token is for.
+		outline-offset: var(--focus--button-ring-offset);
 	}
 
 	// Главное действие набора: залито акцентом. Рамка не убрана, а перекрашена в тот же цвет —

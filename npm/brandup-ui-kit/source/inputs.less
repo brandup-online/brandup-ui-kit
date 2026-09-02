@@ -240,9 +240,37 @@ textarea {
 	border-width: var(--input-border-width);
 	border-color: var(--input-border-color);
 
-	&:hover {
+	// The three exclusions are the same ones the checked-hover rules below carry, and they are here
+	// for the same reason: this rule outweighs nothing, so a state that must not answer the pointer
+	// has to be kept out of it rather than painted back afterwards.
+	//
+	// `[readonly]` in particular: the readonly rule below repaints the background but says nothing
+	// about the border, so without the exclusion a locked control still lit its border up under the
+	// cursor — the one part of a working control's response it had no business showing.
+	//
+	// Excluding them costs weight, and that is what the other two are about. Adding `:not()` raises
+	// this rule above `:disabled` and `:user-invalid`, which are declared with plain selectors at
+	// the end of the file and used to win by coming later. Leaving them in would hand a disabled
+	// control the hover look and wipe the red border off an invalid one.
+	&:hover:not([readonly]):not(:disabled):not(:user-invalid) {
 		border-color: var(--hover--input-border-color);
 		background-color: var(--hover--input-fill);
+	}
+
+	// The kit's shared ring, the same one a button and a modal's close cross show (see vars.less).
+	//
+	// A choice control needs it declared: `appearance: none` takes away the browser's own drawing
+	// of the control, and with it whatever focus look came with it, so what is left is the plain UA
+	// outline — that is, the one element the kit draws itself would have been the one showing focus
+	// differently in every browser. Its old `:focus` rule went when the views were split apart: it
+	// recoloured the border, which on a ticked control is the accent fill and shows nothing.
+	//
+	// `:focus-visible` rather than `:focus`, as on the button: the ring is for the path taken by
+	// Tab, and a control just clicked with the mouse has no need of it. Only `outline` is set, so
+	// this does not argue with `:checked` or `:disabled` over the fill.
+	&:focus-visible {
+		outline: var(--focus-ring-width) solid var(--focus-ring-color);
+		outline-offset: var(--focus-ring-offset);
 	}
 
 	// The browser does not honour `readonly` on a choice control at all, so the kit draws the closed
