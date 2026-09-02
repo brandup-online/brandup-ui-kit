@@ -51,10 +51,12 @@
 		"build",
 		"svg",
 		"vars.less",
-		"README.md"
+		"README.md",
+		"TOKENS.md"
 	],
 	"scripts": {
 		"build": "tsc",
-		"watch": "tsc -w"
+		"watch": "tsc -w",
+		"docs:tokens": "node build/build-tokens-doc.cjs"
 	}
 }
