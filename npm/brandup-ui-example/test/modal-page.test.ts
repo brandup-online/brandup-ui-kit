@@ -3,13 +3,18 @@
  */
 import { LayerManager, PopupManager, UIKIT } from "@brandup/ui-kit";
 import ModalPage from "../src/frontend/pages/modal";
+import type { NavigateContext } from "@brandup/ui-app";
+import type { ExampleApplication } from "../src/frontend/app";
+import type { PageNavigationData } from "../src/frontend/typings/app";
 
 // Страница показывает окно, стек слоёв и свой слой — то, у чего в README кита есть описание,
 // но не было ни одного работающего примера. Проверяем её так, как её видит читатель: клик
 // по кнопке, разметка на экране, Escape.
 
+// Странице от контекста навигации нужны только `app` и `data`: первое она кладёт в поле,
+// второе — то, куда страница записывает себя. Полное приложение ради этого не поднимаем.
 const page = async () => {
-	const context = { app: {}, data: {} } as never;
+	const context = { app: {}, data: {} } as unknown as NavigateContext<ExampleApplication, PageNavigationData>;
 	const instance = new ModalPage(context);
 
 	document.body.appendChild(await instance.render());
@@ -108,4 +113,23 @@ test("своя панель живёт слоем: Escape закрывает е�
 	click('[data-command="panel-close"]');
 	expect(panel.hidden).toBe(true);
 	expect(LayerManager.count).toBe(0);
+});
+
+// Счётчик обновляется не из обработчика команды, а после него — стек меняют и кит (попап внутри
+// окна), и Escape, мимо любого обработчика страницы. Поэтому проверка ждёт следующий тик.
+test("счётчик слоёв показывает то, что в стеке на самом деле", async () => {
+	await page();
+
+	const settle = () => new Promise((resolve) => setTimeout(resolve));
+	const depth = () => document.querySelector("[data-depth]")?.textContent;
+
+	expect(depth()).toBe("слоёв открыто: 0");
+
+	click('[data-command="panel"]');
+	await settle();
+	expect(depth()).toBe("слоёв открыто: 1");
+
+	escape();
+	await settle();
+	expect(depth()).toBe("слоёв открыто: 0");
 });

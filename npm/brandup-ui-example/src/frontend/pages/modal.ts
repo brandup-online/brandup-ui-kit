@@ -81,6 +81,8 @@ class LayersModal extends Modal {
 }
 
 export default class ModalPage extends Page {
+	private __refreshDepth: (() => void) | null = null;
+
 	get typeName(): string {
 		return "ModalPage";
 	}
@@ -101,6 +103,16 @@ export default class ModalPage extends Page {
 			for (let i = 1; i <= 30; i++) elem.appendChild(DOM.tag("p", null, `строка ${i}`));
 		});
 
+		// Стек меняют не только кнопки этой страницы: попап внутри окна открывает кит, а Escape
+		// снимает верхний слой мимо любого обработчика. Событий у стека нет, поэтому счётчик
+		// пересчитывается после каждого клика и нажатия — отложенно, чтобы попасть уже после
+		// обработчика, которым слой поставили или сняли.
+		this.__refreshDepth = () => window.setTimeout(showDepth);
+		document.addEventListener("click", this.__refreshDepth);
+		document.addEventListener("keydown", this.__refreshDepth);
+
+		showDepth();
+
 		this.registerCommand("open", () => {
 			new HelloModal();
 		});
@@ -112,11 +124,7 @@ export default class ModalPage extends Page {
 		});
 
 		this.registerCommand("layers", () => {
-			const modal = new LayersModal();
-
-			// Стек считается на закрытии тоже: попап и окно уходят по одному, и счётчик это видно.
-			modal.onClosed(showDepth);
-			window.setTimeout(showDepth);
+			new LayersModal();
 		});
 
 		// Слой не закрывает себя сам: закрытие — дело того, кто его поставил, а `release` снимает
@@ -128,7 +136,6 @@ export default class ModalPage extends Page {
 			panel.hidden = true;
 			panelLayer?.release();
 			panelLayer = null;
-			showDepth();
 		};
 
 		this.registerCommand("panel", (context) => {
@@ -141,10 +148,20 @@ export default class ModalPage extends Page {
 				trapFocus: true,
 				returnFocus: context.target,
 			});
-
-			showDepth();
 		});
 
 		this.registerCommand("panel-close", hidePanel);
+	}
+
+	// Слушатели висят на документе, а страница живёт до ухода с неё: без снятия каждый визит
+	// добавлял бы ещё одну пару.
+	override destroy() {
+		if (this.__refreshDepth) {
+			document.removeEventListener("click", this.__refreshDepth);
+			document.removeEventListener("keydown", this.__refreshDepth);
+			this.__refreshDepth = null;
+		}
+
+		super.destroy();
 	}
 }
