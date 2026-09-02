@@ -3,13 +3,9 @@
 	flex-flow:  column nowrap;
 	row-gap: 30px;
 
-	--input-font-weight: 500;
+	// the one override left: the demo stacks fields in a column, and a field of its default
+	// width would not fill it
 	--input-width: 100%;
-
-	--placeholder-font-weight: 300;
-	// not a literal: on a dark theme grey on dark would vanish — the text colour is dimmed toward
-	// the field's background, by the same trick the kit uses for a disabled value
-	--placeholder-color: color-mix(in srgb, var(--input-color) 55%, var(--input-fill));
 
 	& .part {
 		display: flex;

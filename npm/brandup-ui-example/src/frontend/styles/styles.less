@@ -1,18 +1,9 @@
 ﻿@import (reference) "@brandup/ui-kit/source/adaptive.less";
 
 :root {
-	// overide ui kit vars
-	--font-size: 14px;
-	--line-height: 140%;
-	--h-line-height: 140%;
-	--h1-font-size: 40px;
-	--h2-font-size: 32px;
-	--h3-font-size: 26px;
-	--h4-font-size: 22px;
-	--h5-font-size: 18px;
-	--input-border-radius: 5px;
-
-	// define new vars
+	// The theme of the example is uikit.vars.less alone. Nothing of the kit is overridden here:
+	// a declaration in this block would quietly beat the theme file and the values would live twice.
+	// Below are tokens of the example itself — the kit has no link and no content width.
 	--link-color: var(--text-color);
 	--link-decoration: underline;
 	--link-weight: var(--font-weight);
