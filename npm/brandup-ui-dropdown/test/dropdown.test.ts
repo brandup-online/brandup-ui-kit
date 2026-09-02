@@ -288,7 +288,7 @@ describe("DropDown", () => {
 	// в списке работают с ним самим: промах мимо пункта, поиск, полоса прокрутки
 	it("keeps the popup open when the press lands inside it", () => {
 		const dd = openedDropDown();
-		const popup = dd.element!.querySelector(".popup") as HTMLElement;
+		const popup = dd.element!.querySelector(".ui-dropdown-popup") as HTMLElement;
 		const list = dd.element!.querySelector("ul") as HTMLElement;
 
 		press(list);
@@ -320,6 +320,122 @@ describe("DropDown", () => {
 		release(document.body); // отпускание без своего нажатия — свежий жест мимо списка
 
 		expect(dd.element!.classList.contains("expanded")).toBe(false);
+	});
+
+	// Нажатие на кнопку показа — работа команды `toggle`, а не правила «нажали мимо списка».
+	// Пока кнопка считалась чужой, полный жест по ней закрывал список на mouseup, а идущий следом
+	// click открывал его заново: со стороны список не закрывался вовсе.
+	it("closes the popup on a second full press on the view", () => {
+		const dd = openedDropDown();
+		const view = dd.element!.querySelector(".view") as HTMLElement;
+
+		press(view);
+		release(view);
+		view.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(dd.element!.classList.contains("expanded")).toBe(false);
+	});
+
+	// Именно mouseup не должен закрывать: закрытие принадлежит команде, и если сделать его здесь,
+	// команда получит уже закрытый список и откроет его снова.
+	it("leaves the popup to the command when the press lands on the view", () => {
+		const dd = openedDropDown();
+		const view = dd.element!.querySelector(".view") as HTMLElement;
+
+		press(view);
+		release(view);
+
+		expect(dd.element!.classList.contains("expanded")).toBe(true);
+	});
+
+	// Сторону выбирают по месту вокруг кнопки, и меряется оно от окна. Раньше здесь стоял
+	// `document.body.clientHeight` — высота документа, а не видимой части: на длинной странице она
+	// заведомо больше низа списка, поэтому вверх список не уходил никогда.
+	describe("which way the list opens", () => {
+		/** Окно заданной высоты и кнопка показа в заданном месте — всё, от чего зависит выбор. */
+		const layout = (dd: DropDown, options: { viewport: number; anchorTop: number; popupHeight: number }) => {
+			const view = dd.element!.querySelector(".view") as HTMLElement;
+			const popup = dd.element!.querySelector(".ui-dropdown-popup") as HTMLElement;
+
+			// шире планшетной границы, иначе список показывается листом и место не считается
+			Object.defineProperty(document.body, "clientWidth", { value: 1400, configurable: true });
+			Object.defineProperty(window, "innerWidth", { value: 1400, configurable: true });
+			Object.defineProperty(document.documentElement, "clientHeight", {
+				value: options.viewport,
+				configurable: true,
+			});
+
+			view.getBoundingClientRect = () =>
+				({
+					x: 0,
+					y: options.anchorTop,
+					top: options.anchorTop,
+					bottom: options.anchorTop + 40,
+					left: 0,
+					right: 200,
+					width: 200,
+					height: 40,
+				}) as DOMRect;
+			popup.getBoundingClientRect = () =>
+				({
+					x: 0,
+					y: 0,
+					top: 0,
+					bottom: options.popupHeight,
+					left: 0,
+					right: 200,
+					width: 200,
+					height: options.popupHeight,
+				}) as DOMRect;
+
+			return popup;
+		};
+
+		const opensUp = (options: { viewport: number; anchorTop: number; popupHeight: number }) => {
+			const dd = new DropDown(makeSelect([["a", "Alpha"]]));
+			const popup = layout(dd, options);
+
+			(dd.element!.querySelector(".view") as HTMLElement).dispatchEvent(
+				new MouseEvent("click", { bubbles: true, cancelable: true })
+			);
+
+			return popup.classList.contains("top");
+		};
+
+		it("opens down when the list fits under the button", () => {
+			expect(opensUp({ viewport: 800, anchorTop: 100, popupHeight: 300 })).toBe(false);
+		});
+
+		// то, ради чего правка: страница длинная, но кнопка у нижнего края окна
+		it("opens up when the button sits at the bottom of the window", () => {
+			expect(opensUp({ viewport: 800, anchorTop: 700, popupHeight: 300 })).toBe(true);
+		});
+
+		it("stays down when it fits nowhere but has more room below", () => {
+			expect(opensUp({ viewport: 400, anchorTop: 60, popupHeight: 1000 })).toBe(false);
+		});
+
+		it("goes up when it fits nowhere but has more room above", () => {
+			expect(opensUp({ viewport: 400, anchorTop: 300, popupHeight: 1000 })).toBe(true);
+		});
+
+		// Граница узкого экрана здесь та же, что у медиазапроса в стилях, и мерить её надо тем же:
+		// вьюпортом. У `document.body` ширина своя — из неё вычтено место под полосу прокрутки, —
+		// и в этой разнице список считался листом, хотя стили показывали обычный.
+		it("measures the narrow-screen threshold by the window, not by the body", () => {
+			const dd = new DropDown(makeSelect([["a", "Alpha"]]));
+			const popup = layout(dd, { viewport: 800, anchorTop: 700, popupHeight: 300 });
+
+			// окно шире границы, а содержимая ширина body — уже неё
+			Object.defineProperty(window, "innerWidth", { value: 1040, configurable: true });
+			Object.defineProperty(document.body, "clientWidth", { value: 1010, configurable: true });
+
+			(dd.element!.querySelector(".view") as HTMLElement).dispatchEvent(
+				new MouseEvent("click", { bubbles: true, cancelable: true })
+			);
+
+			expect(popup.classList.contains("top")).toBe(true);
+		});
 	});
 
 	it("closes the popup on a press outside it", () => {
@@ -537,7 +653,7 @@ describe("DropDown layers", () => {
 
 	it("Escape closes the popup and returns to the view button", () => {
 		const dd = openedDropDown();
-		const popup = dd.element!.querySelector(".popup") as HTMLElement;
+		const popup = dd.element!.querySelector(".ui-dropdown-popup") as HTMLElement;
 		popup.focus();
 
 		escape();
@@ -602,7 +718,7 @@ describe("DropDown names", () => {
 		expect(DROPDOWN.CLASS.MINIATURE).toBe("ui-dropdown-miniature");
 		expect(DROPDOWN.CLASS.BODY).toBe("body-dropdown-opened");
 		expect(DROPDOWN.CLASS.ELEMENT).toEqual({
-			POPUP: "popup",
+			POPUP: "ui-dropdown-popup",
 			CONTENT: "content",
 			HEADER: "header",
 			SEARCH: "search",
@@ -704,7 +820,7 @@ describe("DropDown accessibility", () => {
 		select.dataset.cancel = "Закрыть список";
 		const dd = new DropDown(select);
 
-		const close = dd.element!.querySelector(".popup .header button")!;
+		const close = dd.element!.querySelector(".ui-dropdown-popup .header button")!;
 		expect(close.getAttribute("title")).toBe("Закрыть список");
 	});
 
@@ -715,7 +831,7 @@ describe("DropDown accessibility", () => {
 
 		expect((root.querySelector(".view") as HTMLElement).dataset.command).toBe(DROPDOWN.COMMAND.TOGGLE);
 		expect((root.querySelector(".cancel") as HTMLElement).dataset.command).toBe(DROPDOWN.COMMAND.CLOSE);
-		expect((root.querySelector(".popup .header button") as HTMLElement).dataset.command).toBe(
+		expect((root.querySelector(".ui-dropdown-popup .header button") as HTMLElement).dataset.command).toBe(
 			DROPDOWN.COMMAND.CLOSE
 		);
 		expect((root.querySelector("li") as HTMLElement).dataset.command).toBe(DROPDOWN.COMMAND.SELECT);

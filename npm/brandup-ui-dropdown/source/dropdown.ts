@@ -43,8 +43,9 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	private __searchInput: HTMLInputElement;
 	private __pressPopupFunc: (e: MouseEvent) => void;
 	private __closePopupFunc: (e: MouseEvent) => void;
-	private __pressedInPopup = false;
+	private __pressedInside = false;
 	private __reposAbort?: AbortController;
+	private __reposFrame = 0;
 	private __layer?: Layer;
 	private __hasEmptyValue: boolean = false;
 
@@ -171,16 +172,24 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		// Список закрывает нажатие мимо него, и решает это начало нажатия, а не место, где
 		// отпустили: перетаскивание полосы прокрутки списка и выделение текста заканчиваются
 		// где угодно, а список при этом закрываться не должен.
+		//
+		// Кнопка показа считается своей наравне со списком, и это не мелочь: нажатие на неё
+		// приходило сюда как «мимо», список закрывался на mouseup — а следом шёл click, команда
+		// `toggle` видела уже закрытый список и открывала его заново. Со стороны это выглядело
+		// так, будто повторное нажатие не закрывает вовсе. Закрытие по кнопке — работа `toggle`,
+		// и здесь в неё лезть не надо.
 		this.__pressPopupFunc = (e: MouseEvent) => {
-			this.__pressedInPopup = this.__popupElem.contains(e.target as Node);
+			const target = e.target as Node;
+
+			this.__pressedInside = this.__popupElem.contains(target) || this.__viewElem.contains(target);
 		};
 
 		this.__closePopupFunc = () => {
-			const pressedInPopup = this.__pressedInPopup;
-			this.__pressedInPopup = false; // жест закончился, следующий начнётся со своего нажатия
+			const pressedInside = this.__pressedInside;
+			this.__pressedInside = false; // жест закончился, следующий начнётся со своего нажатия
 
 			// внутри списка работают с ним самим: прокрутка, поиск, промах мимо пункта
-			if (pressedInPopup) return;
+			if (pressedInside) return;
 
 			this.__closePopup();
 			this.__clearSearch();
@@ -373,8 +382,10 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 	private __togglePopup() {
 		if (this.element.classList.contains(STATE.EXPANDED)) {
-			// уже открыт — закрываем чисто, чтобы и body-класс, и mouseup-листенер ушли
+			// уже открыт — закрываем чисто, чтобы и body-класс, и mouseup-листенер ушли.
+			// Поиск сбрасываем, как и на любом другом закрытии — мимо списка и по Escape.
 			this.__closePopup();
+			this.__clearSearch();
 			return;
 		}
 
@@ -393,7 +404,21 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 		// пока popup открыт, перепозиционируем при изменении окна/скролле страницы
 		this.__reposAbort = new AbortController();
-		const reposition = () => this.__positionPopup();
+
+		// Не чаще кадра. Слушатель прокрутки стоит в фазе перехвата, то есть срабатывает на
+		// прокрутку любой коробки страницы, а сам пересчёт снимает классы и дважды читает
+		// геометрию — то есть заставляет браузер разложить страницу заново. Без ограничения это
+		// происходило бы на каждое событие прокрутки; до кадра всё равно доживает только последнее
+		// значение. Так же сделано слежение за якорем в `position.ts` кита.
+		const reposition = () => {
+			if (this.__reposFrame) return;
+
+			this.__reposFrame = window.requestAnimationFrame(() => {
+				this.__reposFrame = 0;
+				this.__positionPopup();
+			});
+		};
+
 		window.addEventListener("resize", reposition, { signal: this.__reposAbort.signal });
 		window.addEventListener("scroll", reposition, {
 			signal: this.__reposAbort.signal,
@@ -431,15 +456,43 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		document.body.addEventListener("mouseup", this.__closePopupFunc);
 	}
 
+	/**
+	 * Выбирает, куда раскрыть список — вниз или вверх, — по месту вокруг кнопки показа.
+	 *
+	 * Считается от окна, а не от документа. Раньше здесь стоял `document.body.clientHeight` — это
+	 * высота содержимого страницы, а не видимой её части, и на любой длинной странице она заведомо
+	 * больше низа списка. Условие не выполнялось никогда, и список раскрывался вниз даже упираясь
+	 * в нижний край окна.
+	 *
+	 * Вверх уходим не при первой же нехватке места, а только если сверху его больше: у короткого
+	 * окна не помещается ни туда, ни сюда, и разворот ради разворота лишь дёргает список. Это то же
+	 * правило, по которому работает `fallback: "bestFit"` в `position.ts` кита; сюда его расчёт не
+	 * взят намеренно — тот ставит элемент инлайновыми координатами и `position: fixed`, а список
+	 * держится на классах и на `width: 100%` от самого контрола.
+	 *
+	 * Пересчитывается на прокрутке и изменении окна (см. подписку в `__togglePopup`), поэтому
+	 * сторона меняется на ходу, когда кнопка уезжает к краю.
+	 */
 	private __positionPopup() {
 		this.__popupElem.classList.remove(STATE.TOP, STATE.RIGHT);
 
-		if (document.body.clientWidth <= DROPDOWN.VALUE.TABLET_WIDTH) return;
+		// Ширину берём у окна, а не у `document.body`: граница здесь та же, что у медиазапроса
+		// в стилях (`.adaptive-tablet`), а тот меряет вьюпорт вместе с полосой прокрутки. У body
+		// же ширина — его собственная содержимая: из неё вычтена и полоса, и место под неё
+		// (`scrollbar-gutter: stable` у кита). Расхождение выходило в пару десятков пикселей, и
+		// в этой полосе список считался узкоэкранным листом, хотя стили показывали обычный, —
+		// сторона не выбиралась вовсе. Та же ошибка, что была с `body.clientHeight` ниже.
+		if (window.innerWidth <= DROPDOWN.VALUE.TABLET_WIDTH) return;
 
-		const bodyHeight = document.body.clientHeight;
+		const viewportHeight = document.documentElement.clientHeight;
+		const anchor = this.__viewElem.getBoundingClientRect();
 		const popupRect = this.__popupElem.getBoundingClientRect();
 
-		if (popupRect.y + popupRect.height > bodyHeight) {
+		// Место под список с обеих сторон кнопки, за вычетом его отступа от неё.
+		const roomBelow = viewportHeight - anchor.bottom - DROPDOWN.VALUE.POPUP_GAP;
+		const roomAbove = anchor.top - DROPDOWN.VALUE.POPUP_GAP;
+
+		if (popupRect.height > roomBelow && roomAbove > roomBelow) {
 			this.__popupElem.classList.add(STATE.TOP);
 		}
 
@@ -449,7 +502,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	}
 
 	private __closePopup() {
-		this.__pressedInPopup = false; // от прошлого показа не наследуем
+		this.__pressedInside = false; // от прошлого показа не наследуем
 		this.__layer?.release(); // класс на body снимает менеджер — по последнему слою, который его просил
 		this.__layer = undefined;
 		this.element.classList.remove(STATE.EXPANDED);
@@ -459,6 +512,13 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		document.body.removeEventListener("mouseup", this.__closePopupFunc);
 		this.__reposAbort?.abort();
 		this.__reposAbort = undefined;
+
+		// Кадр, назначенный последним событием, снимаем сам: отписка слушателей его не отменяет,
+		// и он пересчитал бы положение уже закрытого списка.
+		if (this.__reposFrame) {
+			window.cancelAnimationFrame(this.__reposFrame);
+			this.__reposFrame = 0;
+		}
 	}
 
 	private __search(query: string) {

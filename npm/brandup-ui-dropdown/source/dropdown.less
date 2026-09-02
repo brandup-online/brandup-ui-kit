@@ -10,7 +10,7 @@
 	& .view {
 		--svg-size: 12px;
 		--svg-fill: var(--input-color);
-			
+
 		display: flex;
 		height: var(--input-height);
 		flex-flow: row nowrap;
@@ -44,7 +44,7 @@
 			box-sizing: border-box;
 			transition: border-color ease 100ms;
 	  	}
-  
+
 	  	& span {
 			flex: 1 1 auto;
 			display: block;
@@ -52,25 +52,41 @@
 			white-space: nowrap;
 			text-overflow: ellipsis;
 	  	}
-  
+
 	  	& svg {
 			transition: fill ease 100ms, transform ease 150ms;
 	  	}
-  
+
 	  	&:hover {
 			--input-color: var(--hover--input-color);
 			--input-fill: var(--hover--input-fill);
 			--input-border-color: var(--hover--input-border-color);
 	  	}
-  
-	  	&:focus {
-			--input-color: var(--focus--input-color);
-			--input-fill: var(--focus--input-fill);
-			--input-border-color: var(--focus--input-border-color);
-	  	}
+
 	}
-  
-	& .popup {
+
+	// Вид в фокусе — на всём контроле, а не на одной кнопке.
+	//
+	// `&:focus` на кнопке гас в тот самый момент, когда контролом пользуются: открытие списка
+	// уводит фокус на попап (см. `__popupElem.focus()` в dropdown.ts), кнопка фокус теряет, и
+	// рамка возвращалась к обычной. `:focus-within` покрывает оба случая — и кнопку, до которой
+	// дошли по Tab, и раскрытый список, по которому ходят стрелками. `.expanded` добавлен рядом
+	// на случай, если фокус ушёл мимо попапа: раскрытый список всё равно должен читаться как
+	// работающий контрол.
+	//
+	// Правило стоит после блока кнопки намеренно: у него тот же вес, что у `.view:hover`, и порядок
+	// решает, кто из них выиграет. У текстового поля точно так же — `:focus` объявлен после
+	// `:hover`, поэтому наведение не сбивает рамку фокуса.
+	//
+	// Набор тот же, что у `:focus` поля ввода: рамка, заливка и цвет текста.
+	&:not(.disabled):focus-within .view,
+	&:not(.disabled).expanded .view {
+		--input-color: var(--focus--input-color);
+		--input-fill: var(--focus--input-fill);
+		--input-border-color: var(--focus--input-border-color);
+	}
+
+	& .ui-dropdown-popup {
 		z-index: var(--layer-dropdown);
 	  	display: none;
 	  	position: absolute;
@@ -81,7 +97,7 @@
 	  	outline: none;
 	  	min-width: 200px;
 		box-sizing: border-box;
-  
+
 	  	& .content {
 			--svg-fill: var(--popup-color);
 
@@ -98,7 +114,7 @@
 			padding: var(--input-padding-lr);
 			box-sizing: border-box;
 			max-height: 370px;
-  
+
 		  	& .header {
 				padding: 0;
 				display: none;
@@ -111,7 +127,7 @@
 					font-weight: 500;
 					font-size: var(--svg-size);
 				}
-			
+
 				& button {
 					flex: 0 0 auto;
 					appearance: none;
@@ -123,7 +139,7 @@
 			  		cursor: pointer;
 					position: relative;
 					padding: 0;
-				
+
 			  		&:after {
 						content: '';
 						display: block;
@@ -135,15 +151,18 @@
 			  		}
 				}
 		  	}
-		
+
 		  	& ul {
 				flex: 1 1 100%;
 				height: 100%;
 				position: relative;
-				overflow-y: scroll;
+				// auto, а не scroll: при scroll место под полосу отведено всегда, и у короткого
+				// списка справа оставалась пустая колонка в толщину полосы — а она у кита не
+				// тонкая, это `--scrollbar-size` плюс поперечный отступ с обеих сторон.
+				// Остальные прокручиваемые коробки набора давно на auto, дропдаун был последним.
+				overflow-y: auto; // полоса прокрутки — общая, от .ui-scrollable кита
 				padding-right: 5px;
-				// полоса прокрутки — общая, от .ui-scrollable кита
-			
+
 				& li {
 					padding: calc(var(--input-padding-lr) / 2) var(--input-padding-lr);
 			  		display: flex;
@@ -152,86 +171,93 @@
 					border-radius: var(--input-border-radius);
 					min-height: unset;
 					cursor: pointer;
-				
+
 					& svg {
 						display: none;
 					}
-				
+
 					&:hover {
 						--input-color: var(--hover--input-color);
 						--input-fill: var(--hover--input-fill);
 					}
-				
+
 					&:focus {
 						--input-color: var(--focus--input-color);
 						--input-fill: var(--focus--input-fill);
 					}
-				
+
 					&.hasvalue {
 						--input-color: var(--hasvalue--input-color);
 						--input-fill: var(--hasvalue--input-fill);
-						
+
 						& svg {
 							display: block;
-						
+
 						  	--svg-fill: var(--hasvalue--input-color);
 					  	}
-					
+
 						&:focus {
 						  --input-color: var(--focus--input-color);
 						  --input-fill: var(--focus--input-fill);
 						}
 					}
 				}
-			
+
 				&.result {
 					& li {
 						display: none;
-					
+
 						&.ok {
 				  			display: flex;
 						}
 			  		}
 				}
-			
+
 				&.notfound {
 			  		display: none;
-				
+
 			  		& ~ .empty {
 						flex: 1 1 auto;
 						display: block;
 			  		}
 				}
 		  	}
-		
+
 		  	& .empty {
 				display: none;
 				flex: 1 1 auto;
 		  	}
-		
+
 		  	& .cancel {
 				display: none;
 		  	}
-		
-		  	&.top {
-				top: auto;
-				bottom: 100%;
-				transform: translateY(-8px);
-		  	}
-		
-		  	&.right {
-				left: 0;
-				right: auto;
-		  	}
+		}
+
+		// Развороты — на самом списке, а не на коробке внутри него: класс `top`/`right` ставит
+		// сценарий (см. `__positionPopup`) на элемент списка, и правило, лежавшее внутри
+		// `& .content`, ждало его на другом элементе. Оно не срабатывало никогда, поэтому список
+		// раскрывался вниз даже там, где места нет, а класс тихо висел без дела.
+		//
+		// Здесь же и координаты, которые эти правила отменяют: список стоит на `top: 100%`
+		// и `transform: translateY(8px)` — оба заданы выше на нём самом.
+		&.top {
+			top: auto;
+			bottom: 100%;
+			transform: translateY(-8px);
+		}
+
+		&.right {
+			left: 0;
+			right: auto;
 		}
 	}
-  
+
 	& .search {
 	  	flex: 0 0 auto;
 	  	display: none;
 	  	flex-flow: row nowrap;
 	  	position: relative;
-		
+
 	  	& svg {
 			display: block;
 			position: absolute;
@@ -239,7 +265,7 @@
 			top: 50%;
 			transform: translateY(-50%);
 	  	}
-  
+
 	  	& input {
 			--input-width: 100%;
 			padding-left: calc(var(--input-padding-lr) + var(--svg-size) + var(--input-padding-lr) / 2);
@@ -253,7 +279,7 @@
 	}
 
 	&.empty {
-		& .popup {
+		& .ui-dropdown-popup {
 			& .content {
 				& ul {
 					display: none;
@@ -269,14 +295,23 @@
 	&.hasvalue {
 		--input-color: var(--hasvalue--input-color);
 		--input-fill: var(--hasvalue--input-fill);
-		--svg-fill: var(--hasvalue--input-color);
 
 		& .view {
-		  	&:hover,
-		  	&:focus {
+			--svg-fill: var(--hasvalue--input-color);
+
+			&:hover {
 				--input-color: var(--hover--input-color);
 				--input-fill: var(--hover--input-fill);
 				--svg-fill: var(--hover--input-color);
+		  	}
+
+			// Разведено с наведением: у поля ввода фокус читает свои `--focus--input-*`, и раз
+			// дропдаун — копия поля, здесь то же самое. Сегодня оба набора дают один цвет, так что
+			// видимой разницы нет; разница появится у того, кто их разведёт в своей теме.
+		  	&:focus {
+				--input-color: var(--focus--input-color);
+				--input-fill: var(--focus--input-fill);
+				--svg-fill: var(--focus--input-color);
 		  	}
 		}
 	}
@@ -284,35 +319,77 @@
 	&.expanded {
 		--input-color: var(--expanded--input-color);
 		--input-fill: var(--expanded--input-fill);
-		--svg-fill: var(--expanded--input-color);
 
 		& .view {
+			--svg-fill: var(--expanded--input-color);
+
 	  		& svg {
 				transform: rotate(180deg);
 	  		}
 		}
 
-		& .popup {
+		& .ui-dropdown-popup {
 			display: block;
 		}
 	}
-  
+
+	// Закрытое поле. Класс ставит базовый `InputControl` (см. `INPUT.CLASS.STATE.READONLY`), а
+	// нарисован он тут не был вовсе: закрытый дропдаун ничем не отличался от обычного. У поля ввода
+	// это `[readonly]` — своя заливка и свой цвет текста, курсор обычный, значение видно.
+	//
+	// Правило стоит после `hasvalue` и `expanded` и повторяет их вес на кнопке: те переназначают
+	// заливку прямо на ней, и объявленное короче или выше закрытое поле опять стало бы белым.
+	// Рамку правило не трогает — как и `[readonly]` у поля, которое под курсором и в фокусе рамку
+	// меняет, а заливку держит.
+	&.readonly {
+		--input-color: var(--readonly--input-color);
+		--input-fill: var(--readonly--input-fill);
+
+		& .view {
+			cursor: default;
+
+			// Стрелку гасим, как в `disabled`: список закрыт, открывать ей нечего. Цвет текста при
+			// этом обычный — `--readonly--input-color` равен `--input-color`, как и у поля ввода,
+			// где закрытое значение читается в полную силу. Из-за этого совпадения приглушение и
+			// не могло приехать сюда через `--input-color`, как оно приезжает в `disabled`.
+			//
+			// Про место объявления: `--svg-fill` во всех состояниях задан на `& .view`, а не на
+			// корне, потому что базовое `.ui-dropdown .view` объявляет его прямо на кнопке —
+			// а собственное объявление элемента сильнее унаследованного, какой бы вес у корневого
+			// правила ни был. На корне такое объявление до стрелки не доходит вовсе.
+			--svg-fill: var(--disabled--input-color);
+		}
+
+		// Наведение и фокус переназначают заливку прямо на кнопке, поэтому вернуть закрытую
+		// заливку можно только правилом того же веса. `:focus-within`, а не `:focus` на кнопке, —
+		// по той же причине, что и у правила фокуса выше.
+		& .view:hover,
+		&:focus-within .view {
+			--input-color: var(--readonly--input-color);
+			--input-fill: var(--readonly--input-fill);
+		}
+	}
+
 	&.invalid {
 		--input-color: var(--invalid--input-color);
 		--input-fill: var(--invalid--input-fill);
 		--input-border-color: var(--invalid--input-border-color);
-		--svg-fill: var(--invalid--input-color);
+
+		& .view {
+			--svg-fill: var(--invalid--input-color);
+		}
 	}
-  
+
 	&.disabled {
 		--input-color: var(--disabled--input-color);
 		--input-fill: var(--disabled--input-fill);
-		--svg-fill: var(--disabled--input-color);
 		--input-border-color: var(--disabled--input-border-color);
 
 	  	& .view {
 			cursor: default;
-  
+
+			--svg-fill: var(--disabled--input-color);
+
 			&:focus,
 			&:hover {
 		  		--input-color: var(--disabled--input-color);
@@ -323,19 +400,19 @@
 	}
 
 	.adaptive-notebook({
-		& .popup .content {
+		& .ui-dropdown-popup .content {
 			max-height: 340px;
 		}
 	});
-	
+
 	.adaptive-notebook-small({
-		& .popup .content {
+		& .ui-dropdown-popup .content {
 			max-height: 320px;
 		}
 	});
-	
+
 	.adaptive-tablet({
-		& .popup {
+		& .ui-dropdown-popup {
 			position: fixed;
 			background: rgba(0, 0, 0, 0.5);
 			top: 0;
@@ -371,7 +448,7 @@
 		}
 
 		&.expanded {
-			& .popup {
+			& .ui-dropdown-popup {
 				display: flex;
 				align-items: center;
 				justify-content: center;
@@ -382,9 +459,9 @@
 			}
 		}
 	});
-	
+
 	.adaptive-mobile({
-		& .popup {
+		& .ui-dropdown-popup {
 			padding: 0;
 
 			& .content {
@@ -398,9 +475,9 @@
 			}
 		}
 	});
-	
+
 	.adaptive-mobile-small({
-		& .popup {
+		& .ui-dropdown-popup {
 			& .content {
 				padding: 20px;
 			}

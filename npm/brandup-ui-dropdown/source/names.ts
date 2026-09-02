@@ -21,7 +21,7 @@ export const DROPDOWN = {
 		BODY: "body-dropdown-opened",
 		/** Части разметки внутри корня. */
 		ELEMENT: {
-			POPUP: "popup",
+			POPUP: "ui-dropdown-popup",
 			CONTENT: "content",
 			HEADER: "header",
 			SEARCH: "search",
@@ -68,6 +68,8 @@ export const DROPDOWN = {
 		SEARCH_MAX_LENGTH: 50,
 		/** Ниже этой ширины список раскрывается во весь экран — парно с `@adaptive-tablet`. */
 		TABLET_WIDTH: 1030,
+		/** Отступ списка от кнопки показа — тот же, что в `transform: translateY()` у `.ui-dropdown-popup`. */
+		POPUP_GAP: 8,
 	},
 	/** Префикс идентификатора списка: по нему кнопка показа ссылается на него (`aria-controls`). */
 	LIST_ID: "ui-dropdown-list-",
