@@ -9,7 +9,11 @@
 
 	& .view {
 		--svg-size: 12px;
-		--svg-fill: var(--input-color);
+		// currentColor, а не var(--input-color): токены состояний (--hover--input-color и
+		// прочие) равны `inherit`, и подставленные сюда они превращались в `fill: inherit` —
+		// а наследуется при этом `fill` родителя, то есть чёрный. На тёмной теме стрелка
+		// чернела под курсором, в фокусе и на раскрытом списке.
+		--svg-fill: currentColor;
 
 		display: flex;
 		height: var(--input-height);
@@ -297,12 +301,9 @@
 		--input-fill: var(--hasvalue--input-fill);
 
 		& .view {
-			--svg-fill: var(--hasvalue--input-color);
-
 			&:hover {
 				--input-color: var(--hover--input-color);
 				--input-fill: var(--hover--input-fill);
-				--svg-fill: var(--hover--input-color);
 		  	}
 
 			// Разведено с наведением: у поля ввода фокус читает свои `--focus--input-*`, и раз
@@ -311,7 +312,6 @@
 		  	&:focus {
 				--input-color: var(--focus--input-color);
 				--input-fill: var(--focus--input-fill);
-				--svg-fill: var(--focus--input-color);
 		  	}
 		}
 	}
@@ -321,8 +321,6 @@
 		--input-fill: var(--expanded--input-fill);
 
 		& .view {
-			--svg-fill: var(--expanded--input-color);
-
 	  		& svg {
 				transform: rotate(180deg);
 	  		}
@@ -353,10 +351,10 @@
 			// где закрытое значение читается в полную силу. Из-за этого совпадения приглушение и
 			// не могло приехать сюда через `--input-color`, как оно приезжает в `disabled`.
 			//
-			// Про место объявления: `--svg-fill` во всех состояниях задан на `& .view`, а не на
-			// корне, потому что базовое `.ui-dropdown .view` объявляет его прямо на кнопке —
-			// а собственное объявление элемента сильнее унаследованного, какой бы вес у корневого
-			// правила ни был. На корне такое объявление до стрелки не доходит вовсе.
+			// Про место объявления: приглушение задано на `& .view`, а не на корне, потому что
+			// базовое `.ui-dropdown .view` объявляет `--svg-fill` прямо на кнопке — а собственное
+			// объявление элемента сильнее унаследованного, какой бы вес у корневого правила
+			// ни был. На корне такое объявление до стрелки не доходит вовсе.
 			--svg-fill: var(--disabled--input-color);
 		}
 
@@ -374,10 +372,6 @@
 		--input-color: var(--invalid--input-color);
 		--input-fill: var(--invalid--input-fill);
 		--input-border-color: var(--invalid--input-border-color);
-
-		& .view {
-			--svg-fill: var(--invalid--input-color);
-		}
 	}
 
 	&.disabled {

@@ -49,6 +49,8 @@ interface Situation {
 	invalid?: boolean;
 	/** The dropdown only: the list is open, which is where its focus goes. */
 	expanded?: boolean;
+	/** The dropdown only: a value has been chosen — the state a used control spends its life in. */
+	hasvalue?: boolean;
 }
 
 /** The kit's text field in that situation. */
@@ -77,6 +79,7 @@ function trigger(state: Situation) {
 	const root = document.querySelector(".ui-dropdown") as HTMLElement;
 	const view = document.querySelector(".view") as HTMLElement;
 
+	if (state.hasvalue) root.classList.add("hasvalue");
 	if (state.readonly) root.classList.add("readonly");
 	if (state.disabled) root.classList.add("disabled");
 	if (state.invalid) root.classList.add("invalid");
@@ -163,8 +166,46 @@ describe("the trigger answers every state the way the field does", () => {
 describe("the arrow", () => {
 	const arrow = (state: Situation) => declared(dropdownRules, trigger(state), "--svg-fill");
 
+	/**
+	 * The value the arrow ends up with, with one hop through the token.
+	 *
+	 * The hop is looked up in the field's stylesheet rather than in the dropdown's: the dropdown
+	 * imports the kit by reference, so its own compiled CSS carries no `:root` block at all — and
+	 * a lookup there would quietly find nothing and answer the token name back.
+	 */
+	const resolvedArrow = (state: Situation) => {
+		const value = inherited(dropdownRules, trigger(state), "--svg-fill");
+		const token = value?.match(/^var\((--[\w-]+)\)$/)?.[1];
+		if (!token) return value;
+
+		const root = declared(inputRules, document.documentElement, token);
+		if (root === undefined) throw new Error(`Токен ${token} не объявлен в :root — проверять нечего`);
+
+		return root;
+	};
+
 	it("follows the text colour when nothing is the matter", () => {
-		expect(arrow({})).toBe("var(--input-color)");
+		expect(arrow({})).toBe("currentColor");
+	});
+
+	// Why currentColor and not `var(--input-color)`: the state tokens are the keyword `inherit`
+	// (`@hover--input-color`, `@focus--*`, `@expanded--*`, `@invalid--*`), which is right for
+	// `color` — it takes the colour of the page — and wrong the moment the same token is
+	// substituted into `fill`. There `inherit` means the parent's `fill`, and the parent is a
+	// button, whose `fill` is the initial black. On a light theme that was indistinguishable from
+	// the text colour; on a dark one the arrow turned black under the pointer, in focus and on an
+	// open list. Any state whose colour is the label's is left to `currentColor` now, and only a
+	// state that means to differ says so.
+	// With a value chosen for the two of them: `hover` and `focus` are answered inside `.hasvalue`,
+	// which is where a control lives once it has been used at all.
+	it.each([
+		[{ hasvalue: true, hover: true }],
+		[{ hasvalue: true, focus: true }],
+		[{ expanded: true }],
+		[{ invalid: true }],
+		[{}],
+	])("is never painted with the keyword inherit (%o)", (state: Situation) => {
+		expect(resolvedArrow(state)).not.toBe("inherit");
 	});
 
 	// Asked for: a read-only list opens nothing, so its arrow is dimmed the way a disabled one is.
@@ -192,8 +233,10 @@ describe("the arrow", () => {
 		expect(arrow({ readonly: true })).toBe(arrow({ disabled: true }));
 	});
 
-	it("takes the invalid colour on an invalid control", () => {
-		expect(arrow({ invalid: true })).toBe("var(--invalid--input-color)");
+	// An invalid control recolours its label, and the arrow follows it — through `currentColor`,
+	// because `--invalid--input-color` is `inherit` and cannot be given to `fill`.
+	it("follows the label on an invalid control", () => {
+		expect(arrow({ invalid: true })).toBe("currentColor");
 	});
 
 	// Every state now says it on the button, which is the only place the arrow reads it from.
