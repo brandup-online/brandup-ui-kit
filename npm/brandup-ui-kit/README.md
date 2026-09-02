@@ -10,6 +10,99 @@
 npm i @brandup/ui-kit
 ```
 
+Пакеты кита поставляются **исходниками**: TypeScript и Less, без сборки. Бандлер проекта
+собирает их вместе со своим кодом — это даёт теме подстановку переменных на сборке и убирает
+из дерева зависимостей вторую копию `@brandup/ui`. Взамен от проекта требуется настройка,
+и она не сводится к установке пакета.
+
+### Что должен уметь бандлер
+
+| Что | Зачем |
+| --- | --- |
+| Транспилировать `.ts` **внутри `node_modules/@brandup`** | пакеты приезжают исходниками; конфигурация «не трогать node_modules» на них и спотыкается |
+| Компилировать `.less` с `modifyVars` темы | иначе кит соберётся со своими умолчаниями, а `uikit.vars.less` проекта ни на что не повлияет |
+| Отдавать `.svg` строкой (`asset/source`) | иконки внутри кита вставляются в разметку как текст, а не подключаются адресом |
+
+### webpack
+
+Ключевая строка — `exclude`: обычное `exclude: /node_modules/` оставляет исходники кита
+babel'у неизвестными, и сборка падает на первом же из них — `Module parse failed: Unexpected
+token` в `node_modules/@brandup/ui-kit/source/index.ts`.
+
+```js
+const path = require("path");
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
+const parseLessVars = require("@brandup/ui-kit/build/parse-less-vars.cjs");
+
+module.exports = {
+    entry: "./src/index.ts",
+    resolve: { extensions: [".ts", ".js"] },
+    module: {
+        rules: [
+            {
+                test: /\.(ts|js)$/,
+                // пакеты кита — единственное, что транспилируется из node_modules
+                exclude: { and: [/node_modules/], not: [/@brandup/] },
+                use: "babel-loader",
+            },
+            {
+                test: /\.less$/,
+                use: [
+                    MiniCssExtractPlugin.loader,
+                    { loader: "css-loader", options: { importLoaders: 1 } },
+                    {
+                        loader: "less-loader",
+                        options: { lessOptions: { modifyVars: parseLessVars("uikit.vars.less") } },
+                    },
+                ],
+            },
+            { test: /\.svg$/, type: "asset/source" },
+        ],
+    },
+    plugins: [new MiniCssExtractPlugin()],
+    output: { path: path.resolve(__dirname, "dist"), clean: true },
+};
+```
+
+`babel.config.js` к нему — обычный:
+
+```js
+module.exports = {
+    presets: ["@babel/preset-env", "@babel/preset-typescript"],
+    plugins: ["@babel/plugin-transform-runtime"],
+};
+```
+
+Зависимости сборки: `webpack webpack-cli babel-loader @babel/core @babel/preset-env
+@babel/preset-typescript @babel/plugin-transform-runtime @babel/runtime css-loader less
+less-loader mini-css-extract-plugin`.
+
+Более полный конфиг — с темой отдельным файлом, оптимизацией SVG и разделением чанков —
+лежит в [примере](../brandup-ui-example/webpack.config.js).
+
+### vite
+
+Vite сам разбирает TypeScript и Less, поэтому от проекта нужна одна настройка — тема.
+Достаточно поставить `less`:
+
+```js
+const parseLessVars = require("@brandup/ui-kit/build/parse-less-vars.cjs");
+
+module.exports = {
+    css: { preprocessorOptions: { less: { modifyVars: parseLessVars("uikit.vars.less") } } },
+};
+```
+
+Отдельно исключать пакеты кита из `optimizeDeps` не нужно: их предсборка проходит вместе
+со стилями и в `dev`, и в `build`.
+
+### Тема
+
+`uikit.vars.less` в корне проекта — переопределения [входов кита](TOKENS.md). Файла может
+не быть вовсе: тогда `parseLessVars` бросит ошибку, поэтому пустой файл лучше создать сразу.
+Начинать стоит с палитры — семи цветов и пропорций, из которых выведено остальное
+(см. [Палитра](#палитра)).
+
 ## Подключение middleware
 
 Зарегистрируйте `uiKitMiddlewareFactory` в сборщике приложения. Middleware автоматически регистрирует команду `ui-popup-toggle` для управления попапами.
@@ -628,6 +721,7 @@ resetUserScroll();
 ### Переменные Less
 
 Переопределите значения в файле `uikit.vars.less` в корне проекта перед сборкой. Файл с переменными по умолчанию: [vars.less](vars.less).
+Полный список входов — имя, умолчание, CSS-токен и что задаёт — в [TOKENS.md](TOKENS.md).
 
 Файл темы можно разложить на несколько: `@import` в нём разворачивается — и рядом лежащий, и адрес в пакет (`@import (reference) "@brandup/ui-kit/vars.less";`). Имя, похожее на вход кита, но им не являющееся (`@fontSize` вместо `@font-size`), сборка называет вслух: молча оно не действовало бы вовсе.
 
