@@ -3,6 +3,7 @@ export * from "./popup";
 export { UIKIT } from "./names";
 export {
 	computePosition,
+	clippingRect,
 	positionElement,
 	clearPosition,
 	trackPosition,

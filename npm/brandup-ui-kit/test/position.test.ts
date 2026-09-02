@@ -3,6 +3,7 @@
  */
 import {
 	clearPosition,
+	clippingRect,
 	computePosition,
 	positionElement,
 	trackPosition,
@@ -570,6 +571,193 @@ describe("trackPosition: the element and the anchor changing size", () => {
 		await frame();
 
 		expect(rect.mock.calls.length).toBeGreaterThan(settled);
+
+		stop();
+	});
+});
+
+// The screen is not the only thing that can cut an element off. A box with `overflow: hidden` is as
+// tall as its content, so a menu unfolding below the last thing on a page is cut by the page's own
+// bottom edge while the viewport still reports room to spare.
+describe("computePosition: a boundary narrower than the screen", () => {
+	// The page wrapper: as wide as the screen, but ending well above its bottom.
+	const wrapper: Rect = { left: 0, top: 0, width: 1000, height: 500 };
+
+	it("flips over the edge of the boundary, not of the screen", () => {
+		const trigger = anchorAt(300, 440);
+
+		expect(at(trigger, {}).side).toBe("bottom");
+		expect(at(trigger, { boundary: wrapper }).side).toBe("top");
+	});
+
+	it("leaves a placement the boundary still allows", () => {
+		const result = at(anchorAt(300, 100), { boundary: wrapper });
+
+		expect(result.side).toBe("bottom");
+		expect(result.top).toBe(124);
+	});
+
+	it("shifts along the boundary rather than along the screen", () => {
+		const narrow: Rect = { left: 100, top: 0, width: 300, height: 800 };
+		const result = at(anchorAt(350, 100), { boundary: narrow });
+
+		// 100 + 300 - 8 - 200 — pressed to the boundary's right edge, not to the screen's
+		expect(result.left).toBe(192);
+	});
+
+	it("keeps the element off the near edge of the boundary too", () => {
+		const offset: Rect = { left: 400, top: 0, width: 400, height: 800 };
+		const result = at(anchorAt(380, 100), { boundary: offset });
+
+		expect(result.left).toBe(408);
+	});
+
+	// Which of two failures is the lesser one is also a question about the boundary.
+	it("takes the roomier side of the boundary when asked", () => {
+		const short: Rect = { left: 0, top: 0, width: 1000, height: 300 };
+		const result = at(anchorAt(300, 200), { boundary: short, fallback: "bestFit" }, { width: 200, height: 400 });
+
+		expect(result.side).toBe("top");
+	});
+});
+
+// Working the boundary out from the DOM. jsdom lays nothing out, so the geometry of the ancestors
+// is given directly; what is being checked is which of them are counted and along which axis.
+describe("clippingRect", () => {
+	const VIEWPORT = { width: 1000, height: 800 };
+
+	beforeEach(() => {
+		Object.defineProperty(document.documentElement, "clientWidth", { value: VIEWPORT.width, configurable: true });
+		Object.defineProperty(document.documentElement, "clientHeight", { value: VIEWPORT.height, configurable: true });
+	});
+
+	afterEach(() => {
+		document.body.innerHTML = "";
+	});
+
+	/**
+	 * A wrapper of the given geometry around an element, with whatever overflow is asked for.
+	 *
+	 * The overflow is written as the two longhands rather than the shorthand: jsdom does not take
+	 * `overflow: hidden` apart into the axes, and the axes are what the code reads — and has to
+	 * read, since they are allowed to differ.
+	 */
+	const scene = (overflow: string, box: Rect, position = "absolute") => {
+		document.body.innerHTML = `<div id="wrap"><div id="inner"></div></div>`;
+
+		const wrap = document.getElementById("wrap") as HTMLElement;
+		const inner = document.getElementById("inner") as HTMLElement;
+
+		if (overflow) wrap.style.cssText = overflow;
+		wrap.style.position = "relative";
+		inner.style.position = position;
+
+		wrap.getBoundingClientRect = () =>
+			({ ...box, right: box.left + box.width, bottom: box.top + box.height }) as DOMRect;
+		Object.defineProperty(wrap, "clientWidth", { value: box.width, configurable: true });
+		Object.defineProperty(wrap, "clientHeight", { value: box.height, configurable: true });
+
+		return inner;
+	};
+
+	const page: Rect = { left: 0, top: 0, width: 1000, height: 500 };
+
+	it("is the whole screen when nothing cuts the element off", () => {
+		const inner = scene("overflow-x: visible; overflow-y: visible", page);
+
+		expect(clippingRect(inner)).toEqual({ left: 0, top: 0, ...VIEWPORT });
+	});
+
+	it("shrinks to an ancestor that hides its overflow", () => {
+		const inner = scene("overflow-x: hidden; overflow-y: hidden", page);
+
+		expect(clippingRect(inner)).toEqual({ left: 0, top: 0, width: 1000, height: 500 });
+	});
+
+	// The pair the example's page wrapper uses: cut sideways, let things unfold downwards. Counting
+	// such a box as clipping in both directions would take away the very room it was left to give.
+	it("counts a box that clips one axis only on that axis", () => {
+		const inner = scene("overflow-x: clip; overflow-y: visible", { left: 0, top: 0, width: 600, height: 500 });
+		const rect = clippingRect(inner);
+
+		expect(rect.width).toBe(600);
+		expect(rect.height).toBe(VIEWPORT.height);
+	});
+
+	// A fixed element is laid out against the viewport, so an `overflow: hidden` on the way up
+	// never reaches it.
+	it("ignores a hiding ancestor for an element the viewport holds", () => {
+		const inner = scene("overflow-x: hidden; overflow-y: hidden", page, "fixed");
+
+		expect(clippingRect(inner)).toEqual({ left: 0, top: 0, ...VIEWPORT });
+	});
+
+	it("never reports a box larger than the screen", () => {
+		const inner = scene("overflow-x: hidden; overflow-y: hidden", {
+			left: -200,
+			top: -200,
+			width: 3000,
+			height: 3000,
+		});
+
+		expect(clippingRect(inner)).toEqual({ left: 0, top: 0, ...VIEWPORT });
+	});
+});
+
+// A clipping ancestor scrolls with the page, so where it is changes on every frame while the page
+// moves — unlike the answer to which ancestors clip, which comes from the stylesheet. Remembering
+// the whole boundary with the size left the element placed against a box that had already moved.
+//
+// The wrapper here carries a transform as well as the hidden overflow, and it needs both: this
+// module lays the element out `position: fixed`, which the viewport holds and an `overflow: hidden`
+// on the way up therefore does not reach — until an ancestor makes itself the containing block,
+// which is what the transform does.
+describe("trackPosition: a boundary that moves with the page", () => {
+	const VIEWPORT = { width: 1000, height: 800 };
+
+	beforeEach(() => {
+		Object.defineProperty(document.documentElement, "clientWidth", { value: VIEWPORT.width, configurable: true });
+		Object.defineProperty(document.documentElement, "clientHeight", { value: VIEWPORT.height, configurable: true });
+	});
+
+	afterEach(() => {
+		document.body.innerHTML = "";
+	});
+
+	// The numbers are chosen so that the boundary alone decides the side: the anchor does not move,
+	// the element does not change size, and a scroll of 100 is the whole difference between the
+	// element fitting under the anchor and having to turn over.
+	it("turns the element over when the ancestor has scrolled the room away", async () => {
+		document.body.innerHTML = `<div id="wrap"><button id="anchor"></button><div id="popup"></div></div>`;
+
+		const wrap = document.getElementById("wrap") as HTMLElement;
+		const anchor = document.getElementById("anchor") as HTMLElement;
+		const popup = document.getElementById("popup") as HTMLElement;
+
+		wrap.style.cssText = "overflow-x: hidden; overflow-y: hidden; transform: translateY(0px)";
+		Object.defineProperty(popup, "offsetWidth", { value: 200, configurable: true });
+		Object.defineProperty(popup, "offsetHeight", { value: 200, configurable: true });
+
+		let wrapTop = 0;
+		wrap.getBoundingClientRect = () => ({ left: 0, top: wrapTop, width: 1000, height: 800 }) as DOMRect;
+		Object.defineProperty(wrap, "clientWidth", { value: 1000, configurable: true });
+		Object.defineProperty(wrap, "clientHeight", { value: 800, configurable: true });
+
+		anchor.getBoundingClientRect = () =>
+			({ left: 0, top: 500, width: 100, height: 20, right: 100, bottom: 520 }) as DOMRect;
+
+		const stop = trackPosition(popup, anchor);
+
+		// under the anchor at 520 + 4, and written in the wrapper's own coordinates, which start at 0
+		expect(popup.style.top).toBe("524px");
+
+		// the page scrolls by 100: the wrapper's bottom edge comes up to 700, and 724 no longer fits
+		wrapTop = -100;
+		window.dispatchEvent(new Event("scroll"));
+		await new Promise((resolve) => setTimeout(resolve, 48));
+
+		// above the anchor now: 500 - 200 - 4 = 296, plus the wrapper's own 100
+		expect(popup.style.top).toBe("396px");
 
 		stop();
 	});

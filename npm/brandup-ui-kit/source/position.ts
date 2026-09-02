@@ -47,6 +47,16 @@ export interface PositionOptions {
 	gap?: number;
 	/** How close to the edge of the screen the element is allowed to come. 8 by default. */
 	viewportPadding?: number;
+	/**
+	 * The box the element has to stay inside, in viewport coordinates. The whole viewport by
+	 * default, which is what every calculation here used to assume.
+	 *
+	 * Given when something smaller than the screen will cut the element off — an ancestor with
+	 * `overflow: hidden`, a panel that scrolls. The screen says there is room, the box says there
+	 * is not, and it is the box the reader actually sees. {@link clippingRect} works one out from
+	 * the DOM; the DOM helpers here pass it in on their own.
+	 */
+	boundary?: Rect;
 	/** Flip to the opposite side when there is no room on the requested one. Yes by default. */
 	flip?: boolean;
 	/**
@@ -146,8 +156,8 @@ function place(anchor: Rect, size: Size, side: Side, align: Align, gap: number) 
 }
 
 /** Whether the box fits whole between the edges with the padding. */
-const fits = (start: number, length: number, limit: number, padding: number) =>
-	start >= padding && start + length <= limit - padding;
+const fits = (start: number, length: number, min: number, max: number, padding: number) =>
+	start >= min + padding && start + length <= max - padding;
 
 /**
  * How much room there is between the anchor and the edge of the screen on the given side — the gap
@@ -156,16 +166,16 @@ const fits = (start: number, length: number, limit: number, padding: number) =>
  * Used only to choose between two sides that both fail to fit: {@link fits} answers whether an
  * element fits, this answers which failure is the lesser one.
  */
-function roomOn(anchor: Rect, viewport: { width: number; height: number }, side: Side, gap: number, padding: number) {
+function roomOn(anchor: Rect, bounds: Rect, side: Side, gap: number, padding: number) {
 	switch (side) {
 		case "top":
-			return anchor.top - gap - padding;
+			return anchor.top - bounds.top - gap - padding;
 		case "bottom":
-			return viewport.height - padding - (anchor.top + anchor.height + gap);
+			return bounds.top + bounds.height - padding - (anchor.top + anchor.height + gap);
 		case "left":
-			return anchor.left - gap - padding;
+			return anchor.left - bounds.left - gap - padding;
 		case "right":
-			return viewport.width - padding - (anchor.left + anchor.width + gap);
+			return bounds.left + bounds.width - padding - (anchor.left + anchor.width + gap);
 	}
 }
 
@@ -179,12 +189,12 @@ const alignCandidates = (align: Align): Align[] =>
 	align === "center" ? ["center", "start", "end"] : [align, OPPOSITE_ALIGN[align]];
 
 /** Presses the coordinate to the edges; a box wider than the room available goes to the near edge. */
-const clamp = (start: number, length: number, limit: number, padding: number) => {
-	const max = limit - padding - length;
-	// The upper bound can turn out to be lower than the lower one — the element is wider than the
-	// screen. Then `Math.min` first takes it negative and `Math.max` brings it back to the padding:
+const clamp = (start: number, length: number, min: number, max: number, padding: number) => {
+	const furthest = max - padding - length;
+	// The upper bound can turn out to be lower than the lower one — the element is longer than the
+	// room it has. Then `Math.min` first takes it past the near edge and `Math.max` brings it back:
 	// the beginning is visible rather than the middle.
-	return Math.max(padding, Math.min(start, max));
+	return Math.max(min + padding, Math.min(start, furthest));
 };
 
 /**
@@ -203,6 +213,7 @@ export function computePosition(
 	const {
 		gap = 4,
 		viewportPadding: padding = 8,
+		boundary,
 		flip = true,
 		fallback = "keep",
 		flipAlign = false,
@@ -210,6 +221,15 @@ export function computePosition(
 		clampCross = false,
 	} = options;
 	const [wanted, wantedAlign] = parse(options.placement ?? "bottom-start");
+
+	// The box the element has to stay inside. Without a boundary of its own that is the whole
+	// viewport, which is what it always used to be; a caller that knows the element will be clipped
+	// by something smaller hands that in instead (see `clippingRect`).
+	const bounds: Rect = boundary ?? { left: 0, top: 0, width: viewport.width, height: viewport.height };
+	const edges = {
+		vertical: [bounds.top, bounds.top + bounds.height] as const,
+		horizontal: [bounds.left, bounds.left + bounds.width] as const,
+	};
 
 	// A flip keeps the axis — top swaps with bottom, left with right — so the axis is decided by
 	// the requested side once, and the flip, the alignment and the shift below all read the same
@@ -219,7 +239,7 @@ export function computePosition(
 	let side = wanted;
 
 	if (flip) {
-		const limit = vertical ? viewport.height : viewport.width;
+		const [min, max] = vertical ? edges.vertical : edges.horizontal;
 		const length = vertical ? size.height : size.width;
 		const opposite = OPPOSITE[wanted];
 
@@ -228,7 +248,7 @@ export function computePosition(
 		const room = (s: Side) => {
 			const at = place(anchor, size, s, wantedAlign, gap);
 
-			return fits(vertical ? at.top : at.left, length, limit, padding);
+			return fits(vertical ? at.top : at.left, length, min, max, padding);
 		};
 
 		if (!room(wanted)) {
@@ -237,7 +257,7 @@ export function computePosition(
 			// Fits on neither: stay where we were asked to, unless told to take the roomier side.
 			else if (
 				fallback === "bestFit" &&
-				roomOn(anchor, viewport, opposite, gap, padding) > roomOn(anchor, viewport, wanted, gap, padding)
+				roomOn(anchor, bounds, opposite, gap, padding) > roomOn(anchor, bounds, wanted, gap, padding)
 			)
 				side = opposite;
 		}
@@ -247,13 +267,13 @@ export function computePosition(
 	let align = wantedAlign;
 
 	if (flipAlign) {
-		const limit = vertical ? viewport.width : viewport.height;
+		const [min, max] = vertical ? edges.horizontal : edges.vertical;
 		const length = vertical ? size.width : size.height;
 
 		const found = alignCandidates(wantedAlign).find((candidate) => {
 			const at = place(anchor, size, side, candidate, gap);
 
-			return fits(vertical ? at.left : at.top, length, limit, padding);
+			return fits(vertical ? at.left : at.top, length, min, max, padding);
 		});
 
 		// None of them fits — keep the requested one, as the side does in the same situation; the
@@ -267,20 +287,20 @@ export function computePosition(
 
 	// Along the side — the shift; across it — only if asked (see `clampCross`). By default the
 	// element stays where the gap put it: pressing it across would tear it away from the anchor.
-	const alongAxis = (start: number, length: number, limit: number) =>
-		shift ? clamp(start, length, limit, padding) : start;
-	const crossAxis = (start: number, length: number, limit: number) =>
-		clampCross ? clamp(start, length, limit, padding) : start;
+	const alongAxis = (start: number, length: number, [min, max]: readonly [number, number]) =>
+		shift ? clamp(start, length, min, max, padding) : start;
+	const crossAxis = (start: number, length: number, [min, max]: readonly [number, number]) =>
+		clampCross ? clamp(start, length, min, max, padding) : start;
 
 	return vertical
 		? {
-				left: alongAxis(at.left, size.width, viewport.width),
-				top: crossAxis(at.top, size.height, viewport.height),
+				left: alongAxis(at.left, size.width, edges.horizontal),
+				top: crossAxis(at.top, size.height, edges.vertical),
 				...chosen,
 			}
 		: {
-				left: crossAxis(at.left, size.width, viewport.width),
-				top: alongAxis(at.top, size.height, viewport.height),
+				left: crossAxis(at.left, size.width, edges.horizontal),
+				top: alongAxis(at.top, size.height, edges.vertical),
 				...chosen,
 			};
 }
@@ -385,6 +405,147 @@ function containerOffset(container: HTMLElement): { left: number; top: number } 
 	};
 }
 
+/** Overflow values that cut a box off. `visible` does not; `clip` and the scrolling ones do. */
+const CLIPS = /auto|scroll|hidden|clip|overlay/;
+
+/**
+ * Where the clipping ancestors of the element start.
+ *
+ * Not simply its parent, because an ancestor only cuts off a positioned element when that element
+ * is laid out inside it — that is, when its containing block is that ancestor or something within.
+ * A `position: fixed` element is resolved against the viewport, so an `overflow: hidden` on the way
+ * up does not touch it at all; unless some ancestor made itself the containing block with a
+ * `transform` or a `filter`, and then the walk starts there. An absolutely positioned one starts at
+ * its nearest positioned ancestor. Anything else is in the flow and starts at its parent.
+ *
+ * `null` — nothing can cut this element off but the screen.
+ */
+function clipStart(elem: HTMLElement): HTMLElement | null {
+	const view = elem.ownerDocument.defaultView;
+	if (!view) return null;
+
+	const position = view.getComputedStyle(elem).position;
+
+	if (position === "fixed") return fixedContainer(elem);
+	if (position === "absolute") return (elem.offsetParent as HTMLElement | null) ?? elem.parentElement;
+
+	return elem.parentElement;
+}
+
+/** The part of one box that lies inside the other. */
+function intersect(a: Rect, b: Rect): Rect {
+	const left = Math.max(a.left, b.left);
+	const top = Math.max(a.top, b.top);
+
+	return {
+		left,
+		top,
+		width: Math.max(0, Math.min(a.left + a.width, b.left + b.width) - left),
+		height: Math.max(0, Math.min(a.top + a.height, b.top + b.height) - top),
+	};
+}
+
+/** An ancestor that cuts the element off, and along which axis it does so. */
+interface Clipper {
+	node: HTMLElement;
+	x: boolean;
+	y: boolean;
+	/** Border widths, read once: they do not change while the page is being scrolled. */
+	borderLeft: number;
+	borderTop: number;
+}
+
+/**
+ * The ancestors that cut the element off.
+ *
+ * Split from measuring them because the two go stale at different rates. Which ancestors clip, and
+ * along which axis, is a question for the stylesheet and changes only when the page does; where
+ * they are is a question for the layout and changes on every scroll. Keeping them together meant
+ * either asking the stylesheet every frame or trusting a boundary from before the scroll.
+ *
+ * The two axes are asked separately on purpose: `overflow-x: clip` with `overflow-y: visible` is a
+ * real and useful pair — clip sideways, let things unfold downwards — and treating a box as
+ * clipping in both directions because it clips in one would take away exactly the room that pair
+ * was written to leave.
+ *
+ * `body` and `documentElement` are left out, as they are in {@link scrollParents}: page-level
+ * overflow is the viewport's business, and the kit itself puts `overflow: hidden` on the body while
+ * a popup window is open, which is about holding the page still rather than about cutting anything
+ * off.
+ */
+function clippingAncestors(elem: HTMLElement): Clipper[] {
+	const doc = elem.ownerDocument;
+	const view = doc.defaultView;
+	if (!view) return [];
+
+	const clippers: Clipper[] = [];
+
+	for (
+		let node = clipStart(elem);
+		node && node !== doc.body && node !== doc.documentElement;
+		node = node.parentElement
+	) {
+		const style = view.getComputedStyle(node);
+		const x = CLIPS.test(style.overflowX);
+		const y = CLIPS.test(style.overflowY);
+		if (!x && !y) continue;
+
+		clippers.push({
+			node,
+			x,
+			y,
+			borderLeft: parseFloat(style.borderLeftWidth) || 0,
+			borderTop: parseFloat(style.borderTopWidth) || 0,
+		});
+	}
+
+	return clippers;
+}
+
+/**
+ * The screen narrowed by each of those ancestors, in viewport coordinates.
+ *
+ * The padding box is measured rather than the border box, so an element is not placed under a
+ * scrollbar of the box that holds it.
+ */
+function boundsOf(clippers: Clipper[], elem: HTMLElement): Rect {
+	const viewport = viewportOf(elem);
+	let rect: Rect = { left: 0, top: 0, width: viewport.width, height: viewport.height };
+
+	for (const clipper of clippers) {
+		const box = clipper.node.getBoundingClientRect();
+		const inside: Rect = {
+			left: box.left + clipper.borderLeft,
+			top: box.top + clipper.borderTop,
+			width: clipper.node.clientWidth,
+			height: clipper.node.clientHeight,
+		};
+
+		// Only along the axis the box actually cuts: the other one keeps whatever it had.
+		rect = intersect(rect, {
+			left: clipper.x ? inside.left : rect.left,
+			width: clipper.x ? inside.width : rect.width,
+			top: clipper.y ? inside.top : rect.top,
+			height: clipper.y ? inside.height : rect.height,
+		});
+	}
+
+	return rect;
+}
+
+/**
+ * The box the element can actually be seen in: the screen, narrowed by every ancestor that cuts it
+ * off, in viewport coordinates.
+ *
+ * This is what the screen alone cannot answer. A page wrapper with `overflow: hidden` is as tall as
+ * its content, so a menu unfolding below the last thing on the page is cut by the page's own bottom
+ * edge while the viewport still reports room to spare — and the calculation, asking the screen,
+ * keeps the menu where it is cut.
+ */
+export function clippingRect(elem: HTMLElement): Rect {
+	return boundsOf(clippingAncestors(elem), elem);
+}
+
 /**
  * Measures the element for the calculation.
  *
@@ -426,7 +587,10 @@ function write(elem: HTMLElement, at: PositionResult, container: HTMLElement | n
  */
 export function positionElement(elem: HTMLElement, anchor: HTMLElement, options: PositionOptions = {}): PositionResult {
 	const size = measure(elem);
-	const at = computePosition(anchor.getBoundingClientRect(), size, viewportOf(elem), options);
+	const at = computePosition(anchor.getBoundingClientRect(), size, viewportOf(elem), {
+		...options,
+		boundary: options.boundary ?? clippingRect(elem),
+	});
 
 	write(elem, at, fixedContainer(elem));
 
@@ -517,6 +681,7 @@ function scrollParents(anchor: HTMLElement): HTMLElement[] {
 export function trackPosition(elem: HTMLElement, anchor: HTMLElement, options: TrackOptions = {}): () => void {
 	let size: Size | null = null;
 	let container: HTMLElement | null = null;
+	let clippers: Clipper[] = [];
 	let positioned = false;
 
 	const update = (remeasure: boolean) => {
@@ -535,11 +700,23 @@ export function trackPosition(elem: HTMLElement, anchor: HTMLElement, options: T
 		if (remeasure || !size) {
 			size = measure(elem);
 			container = fixedContainer(elem);
+			// Which ancestors clip is settled with the size, not per frame: that answer comes from
+			// the stylesheet and does not change between two frames of a scroll. Where they are is
+			// read below, every time — a clipping ancestor scrolls with the page, so a boundary
+			// remembered from the last measurement would be wrong exactly while the page moves.
+			clippers = clippingAncestors(elem);
 		}
 
 		positioned = true;
 
-		write(elem, computePosition(anchor.getBoundingClientRect(), size, viewportOf(elem), options), container);
+		write(
+			elem,
+			computePosition(anchor.getBoundingClientRect(), size, viewportOf(elem), {
+				...options,
+				boundary: options.boundary ?? boundsOf(clippers, elem),
+			}),
+			container
+		);
 	};
 
 	// The first time — straight away: the element is already shown, and waiting for a frame would
