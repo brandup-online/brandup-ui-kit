@@ -14,7 +14,8 @@
 		"resolveJsonModule": true,
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
-		"skipLibCheck": true
+		"skipLibCheck": true,
+		"types": ["jest"]
 	},
 	"exclude": ["node_modules", "wwwroot", "server", "src/backend", ".idea", ".vscode"],
 	"compileOnSave": false
