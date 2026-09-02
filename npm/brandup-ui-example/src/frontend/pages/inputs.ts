@@ -3,7 +3,7 @@ import { Page } from "./base";
 import html from "./inputs.html";
 import "./inputs.less";
 
-export default class NavigationPage extends Page {
+export default class InputsPage extends Page {
 	get typeName(): string {
 		return "InputsModel";
 	}

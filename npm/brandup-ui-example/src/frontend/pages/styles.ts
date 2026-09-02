@@ -2,7 +2,7 @@
 import html from "./styles.html";
 import "./styles.less";
 
-export default class AjaxPage extends Page {
+export default class StylesPage extends Page {
 	get typeName(): string {
 		return "StylesPage";
 	}
