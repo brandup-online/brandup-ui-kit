@@ -772,6 +772,21 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   browsers that have everything we use natively. Example app.js dropped
   from 72.7 KiB → 38.7 KiB minified (~47%).
 
+### Added
+
+- **The positioning measures the room by what can actually be seen, not by the screen.**
+  `clippingRect` walks the ancestors and narrows the screen by every one that cuts its content off,
+  and the calculation takes that box through the new `boundary` option. A page wrapper with
+  `overflow: hidden` is as tall as its content, so a menu unfolding below the last thing on a page
+  is cut by the page's own bottom edge while the viewport still reports room to spare — and a
+  calculation that asks the screen keeps the menu where it is cut. The two axes are asked
+  separately: `overflow-x: clip` with `overflow-y: visible` is a real pair, and counting such a box
+  as clipping both ways would take away the very room it was written to leave. A `position: fixed`
+  element is laid out against the viewport, so an `overflow: hidden` on the way up does not reach it
+  unless an ancestor made itself the containing block; an absolutely positioned one is reached by
+  all of them, which is why the dropdown — positioned by its own classes — reads the same boundary
+  through the exported helper.
+
 ### Fixed
 
 - **Two jsdom gaps that made the dropdown's tests watch a list that only looked open.** The custom
