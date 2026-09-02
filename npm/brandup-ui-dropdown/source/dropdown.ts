@@ -1,6 +1,6 @@
 import { InputControl } from "@brandup/ui-input";
 import { DOM } from "@brandup/ui";
-import { LayerManager, type Layer } from "@brandup/ui-kit";
+import { clippingRect, LayerManager, type Layer } from "@brandup/ui-kit";
 import { UIKIT } from "@brandup/ui-kit/names";
 import { DROPDOWN } from "./names";
 import { detectLanguage, transcriptText } from "./utils/utilities";
@@ -459,10 +459,14 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	/**
 	 * Выбирает, куда раскрыть список — вниз или вверх, — по месту вокруг кнопки показа.
 	 *
-	 * Считается от окна, а не от документа. Раньше здесь стоял `document.body.clientHeight` — это
-	 * высота содержимого страницы, а не видимой её части, и на любой длинной странице она заведомо
-	 * больше низа списка. Условие не выполнялось никогда, и список раскрывался вниз даже упираясь
-	 * в нижний край окна.
+	 * Место считается по коробке, в которой список видно на самом деле, — её даёт `clippingRect`
+	 * кита. Это не всегда окно: обёртка с `overflow: hidden` высотой по содержимому режет всё, что
+	 * раскрывается ниже последнего элемента страницы, а окно при этом сообщает, что место есть.
+	 * Список абсолютный, поэтому такие предки его достают — в отличие от фиксированных слоёв кита.
+	 *
+	 * Раньше здесь стоял `document.body.clientHeight` — высота содержимого страницы, а не видимой
+	 * её части: на любой длинной странице она заведомо больше низа списка, условие не выполнялось
+	 * никогда, и список раскрывался вниз даже упираясь в нижний край.
 	 *
 	 * Вверх уходим не при первой же нехватке места, а только если сверху его больше: у короткого
 	 * окна не помещается ни туда, ни сюда, и разворот ради разворота лишь дёргает список. Это то же
@@ -484,13 +488,13 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		// сторона не выбиралась вовсе. Та же ошибка, что была с `body.clientHeight` ниже.
 		if (window.innerWidth <= DROPDOWN.VALUE.TABLET_WIDTH) return;
 
-		const viewportHeight = document.documentElement.clientHeight;
+		const bounds = clippingRect(this.__popupElem);
 		const anchor = this.__viewElem.getBoundingClientRect();
 		const popupRect = this.__popupElem.getBoundingClientRect();
 
 		// Место под список с обеих сторон кнопки, за вычетом его отступа от неё.
-		const roomBelow = viewportHeight - anchor.bottom - DROPDOWN.VALUE.POPUP_GAP;
-		const roomAbove = anchor.top - DROPDOWN.VALUE.POPUP_GAP;
+		const roomBelow = bounds.top + bounds.height - anchor.bottom - DROPDOWN.VALUE.POPUP_GAP;
+		const roomAbove = anchor.top - bounds.top - DROPDOWN.VALUE.POPUP_GAP;
 
 		if (popupRect.height > roomBelow && roomAbove > roomBelow) {
 			this.__popupElem.classList.add(STATE.TOP);

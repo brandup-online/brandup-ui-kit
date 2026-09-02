@@ -415,6 +415,29 @@ describe("DropDown", () => {
 			expect(opensUp({ viewport: 400, anchorTop: 60, popupHeight: 1000 })).toBe(false);
 		});
 
+		// Место меряется по коробке, в которой список видно, а не по окну: обёртка с
+		// `overflow: hidden` высотой по содержимому режет всё, что раскрывается ниже последнего
+		// элемента страницы, — а окно при этом сообщает, что места вдоволь.
+		it("opens up when a clipping wrapper ends just below the button", () => {
+			const dd = new DropDown(makeSelect([["a", "Alpha"]]));
+			const popup = layout(dd, { viewport: 900, anchorTop: 400, popupHeight: 300 });
+
+			// обёртка кончается сразу под кнопкой, хотя до низа окна ещё 460
+			const wrap = document.createElement("div");
+			wrap.style.cssText = "overflow-x: hidden; overflow-y: hidden";
+			dd.element!.parentElement!.insertBefore(wrap, dd.element!);
+			wrap.appendChild(dd.element!);
+			wrap.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1400, height: 460 }) as DOMRect;
+			Object.defineProperty(wrap, "clientWidth", { value: 1400, configurable: true });
+			Object.defineProperty(wrap, "clientHeight", { value: 460, configurable: true });
+
+			(dd.element!.querySelector(".view") as HTMLElement).dispatchEvent(
+				new MouseEvent("click", { bubbles: true, cancelable: true })
+			);
+
+			expect(popup.classList.contains("top")).toBe(true);
+		});
+
 		it("goes up when it fits nowhere but has more room above", () => {
 			expect(opensUp({ viewport: 400, anchorTop: 300, popupHeight: 1000 })).toBe(true);
 		});
