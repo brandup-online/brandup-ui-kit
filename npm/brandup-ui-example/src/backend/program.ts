@@ -19,7 +19,8 @@ function openBrowser(url: string) {
 	const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
 
 	try {
-		const child = spawn(command, args, { detached: true, stdio: "ignore" });
+		// windowsHide: иначе `cmd /c start` моргает консольным окном поверх терминала
+		const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: true });
 		child.on("error", () => console.log(`Open ${url} manually`));
 		child.unref();
 	} catch {

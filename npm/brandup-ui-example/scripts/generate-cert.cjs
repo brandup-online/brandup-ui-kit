@@ -10,6 +10,9 @@ const keyPath = path.join(dir, "local.decrypted.key");
 const certPath = path.join(dir, "local.crt");
 
 const SERVER_AUTH_OID = "1.3.6.1.5.5.7.3.1";
+// Перевыпускаем заранее: сертификат, доживающий последние дни, посреди работы превращается
+// в предупреждение браузера, и причина этого дальше всего от того, чем в тот момент заняты.
+const RENEW_BEFORE_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Regenerate an expired cert, and one without extKeyUsage: browsers reject such a cert
 // with ERR_CERT_INVALID, without even offering to continue.
@@ -18,7 +21,7 @@ function isCertUsable() {
 
 	try {
 		const cert = new nodeCrypto.X509Certificate(fs.readFileSync(certPath));
-		if (new Date(cert.validTo) <= new Date()) return false;
+		if (new Date(cert.validTo).getTime() - Date.now() <= RENEW_BEFORE_MS) return false;
 
 		return Array.isArray(cert.keyUsage) && cert.keyUsage.includes(SERVER_AUTH_OID);
 	} catch {
