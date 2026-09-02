@@ -21,6 +21,7 @@ builder
 			"/inputs": { page: () => import("./pages/inputs") },
 			"/buttons": { page: () => import("./pages/buttons") },
 			"/popups": { page: () => import("./pages/popups") },
+			"/modal": { page: () => import("./pages/modal") },
 			"/textbox": { page: () => import("./pages/textbox") },
 			"/richeditor": { page: () => import("./pages/richeditor") },
 			"/messageeditor": { page: () => import("./pages/messageeditor") },

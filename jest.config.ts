@@ -7,6 +7,7 @@ const config: Config = {
 	transform: {
 		"^.+\\.[jt]sx?$": "babel-jest",
 		".+\\.(css|styl|less|sass|scss|png|jpg|ttf|woff|woff2)$": "jest-transform-stub",
+		"^.+\\.html$": "<rootDir>/test/html-transform.cjs",
 	},
 	modulePaths: ["<rootDir>/npm/brandup-ui-dropdown/node_modules"],
 	moduleNameMapper: {

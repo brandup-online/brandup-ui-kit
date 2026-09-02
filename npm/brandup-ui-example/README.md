@@ -9,6 +9,8 @@
 | `/styles` | Базовые стили и типографика |
 | `/inputs` | Элементы ввода `@brandup/ui-input` |
 | `/popups` | Всплывающие окна `@brandup/ui-kit` |
+| `/buttons` | Кнопки `@brandup/ui-kit`: виды, тона, размеры, состояния |
+| `/modal` | `Modal`, стек слоёв (`LayerManager`) и прокручиваемая область `ui-scrollable` |
 | `/textbox` | `@brandup/ui-textbox`: режимы, типы ввода, счётчик, валидация, форматирование |
 | `/richeditor` | `@brandup/ui-richeditor` напрямую: кнопки действий, вызов методов, форматы хранения, режимы, блоки |
 | `/messageeditor` | `@brandup/ui-messageeditor`: плашка сообщения, переменные, рандомизация, блоки, состояния |

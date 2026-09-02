@@ -1,0 +1,63 @@
+.page-block.modals {
+	display: flex;
+	flex-flow: column nowrap;
+	row-gap: 30px;
+
+	& .example {
+		display: flex;
+		flex-flow: column nowrap;
+		row-gap: 12px;
+
+		& p {
+			margin: 0;
+			max-width: 900px;
+		}
+	}
+
+	& .row {
+		display: flex;
+		flex-flow: row nowrap;
+		align-items: center;
+		column-gap: 15px;
+	}
+
+	& .answer {
+		color: color-mix(in srgb, var(--ink) 65%, var(--surface));
+	}
+
+	// Панель — разметка страницы, а не компонент кита: слои ей даёт LayerManager, вид она берёт
+	// на себя. Порядок — тот же, которым кит рисует попап, чтобы панель не спорила с окном.
+	& .side-panel {
+		position: fixed;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		z-index: var(--layer-popup);
+		width: 320px;
+		max-width: 100%;
+		box-sizing: border-box;
+		padding: 20px;
+		background: var(--surface);
+		border-left: solid var(--border-width) var(--line);
+		overflow: auto;
+	}
+
+	& .scrollables {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 20px;
+
+		& > div {
+			height: 220px;
+			overflow: auto;
+			box-sizing: border-box;
+			padding: 10px 15px;
+			border: solid var(--border-width) var(--line);
+			border-radius: var(--radius);
+
+			& p {
+				margin: 0;
+			}
+		}
+	}
+}

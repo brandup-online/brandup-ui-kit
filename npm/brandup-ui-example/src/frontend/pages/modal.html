@@ -1,0 +1,68 @@
+<section class="page-block modals">
+	<div class="example">
+		<p>
+			Окно наполняет наследник <code>Modal</code> в своём конструкторе. Заголовок, крестик и
+			затемнение — рамка окна, её кит рисует сам.
+		</p>
+		<div class="row">
+			<button type="button" class="ui-button" data-command="open">Открыть окно</button>
+		</div>
+	</div>
+
+	<div class="example">
+		<p>
+			Окно без крестика: <code>closeButton: false</code> и <code>closeOnBackdrop: false</code>.
+			Кончиться оно обязано выбором внутри тела, поэтому шапка не рисуется вовсе, а закрытие
+			остаётся за кнопками окна и за <kbd>Esc</kbd>. Выбор приходит в <code>onClosed</code>.
+		</p>
+		<div class="row">
+			<button type="button" class="ui-button" data-command="confirm">Спросить</button>
+			<span class="answer" data-answer>ответа ещё не было</span>
+		</div>
+	</div>
+
+	<div class="example">
+		<p>
+			Слои. В теле окна стоит кнопка попапа — попап встаёт <em>над</em> окном, а не вместо
+			него, и <kbd>Esc</kbd> снимает только верхний слой: сначала попап, потом окно.
+			Счётчик показывает глубину стека.
+		</p>
+		<div class="row">
+			<button type="button" class="ui-button" data-command="layers">Окно с попапом</button>
+			<span class="answer" data-depth>слоёв открыто: 0</span>
+		</div>
+	</div>
+
+	<div class="example">
+		<p>
+			Свой слой. Боковая панель — не компонент кита, а разметка этой страницы:
+			<code>LayerManager.push</code> даёт ей то же, что есть у окна, — <kbd>Esc</kbd>,
+			придержанную прокрутку страницы, ловушку фокуса и возврат фокуса на кнопку.
+		</p>
+		<div class="row">
+			<button type="button" class="ui-button" data-command="panel">Открыть панель</button>
+		</div>
+		<aside class="side-panel" data-panel hidden aria-label="Боковая панель">
+			<p>Фокус не уходит на страницу под панелью: <kbd>Tab</kbd> ходит по кругу внутри.</p>
+			<p><input type="text" placeholder="Поле внутри панели" /></p>
+			<p><button type="button" class="ui-button" data-command="panel-close">Закрыть</button></p>
+		</aside>
+	</div>
+
+	<div class="example">
+		<p>
+			Прокручиваемая область: класс <code>ui-scrollable</code> даёт одинаковую полосу во всех
+			компонентах кита — тонкую, без стрелок, не касающуюся краёв коробки. Слева она, справа
+			полоса браузера. Размер и цвет настраиваются переменными <code>--scrollbar-*</code>
+			на самом элементе.
+		</p>
+		<div class="scrollables">
+			<div class="ui-scrollable" data-filler>
+				<b>ui-scrollable</b>
+			</div>
+			<div class="plain" data-filler>
+				<b>полоса браузера</b>
+			</div>
+		</div>
+	</div>
+</section>
