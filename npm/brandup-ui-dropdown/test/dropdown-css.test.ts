@@ -17,7 +17,7 @@
 // combinators and `:focus-within` are matched by a real engine rather than by a guess.
 
 import path from "node:path";
-import { compileRules, declared, inherited, KIT_DIR, type Rule } from "../../../test/css-cascade";
+import { compileRules, declared, inherited, winningRule, KIT_DIR, type Rule } from "../../../test/css-cascade";
 import { DROPDOWN } from "../source/names";
 
 const PACKAGE = path.join(__dirname, "..");
@@ -178,7 +178,7 @@ describe("the arrow", () => {
 
 		const root = document.querySelector(".ui-dropdown") as HTMLElement;
 
-		expect(declared(dropdownRules, root, "--svg-fill")?.matchable).not.toBe(".ui-dropdown.readonly");
+		expect(winningRule(dropdownRules, root, "--svg-fill")?.matchable).not.toBe(".ui-dropdown.readonly");
 	});
 
 	// Disabled says it outright too. It used to arrive by accident — the root set `--input-color`
@@ -280,7 +280,7 @@ describe("the trigger holds its focus look while the list is open", () => {
 	it("keeps them even if the focus went somewhere else entirely", () => {
 		const { field: expected, trigger: actual } = paints({ expanded: true });
 
-		expect(actual.border).toBe(expected.border.replace("--input-border-color", "--focus--input-border-color"));
+		expect(actual.border).toBe(expected.border?.replace("--input-border-color", "--focus--input-border-color"));
 	});
 
 	it("does not light up a disabled control that somehow holds focus", () => {
