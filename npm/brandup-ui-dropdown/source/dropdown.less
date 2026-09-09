@@ -7,6 +7,17 @@
 	user-select: none;
 	width: var(--input-width);
 
+	// Заливки пункта списка. Токены поля ввода ему не годятся дважды: у кита `--hover--input-fill`
+	// равен фону поверхности — то есть фону попапа, — потому что поле показывает наведение рамкой,
+	// которой у пункта нет. Поэтому свои, выведенные из фона попапа сдвигом к цвету текста: на
+	// светлой теме это притемнение, на тёмной просветление, и подсветка видна в обеих.
+	//
+	// Объявлены на контроле, а не на самом пункте: объявление на элементе сильнее унаследованного,
+	// и переопределение хоста, написанное на `.ui-dropdown`, до пункта бы не дошло.
+	--dropdown-item-fill: transparent;
+	--hover--dropdown-item-fill: color-mix(in srgb, var(--popup-fill) 92%, var(--text-color));
+	--hasvalue--dropdown-item-fill: color-mix(in srgb, var(--popup-fill) 84%, var(--text-color));
+
 	& .view {
 		--svg-size: 12px;
 		// currentColor, а не var(--input-color): токены состояний (--hover--input-color и
@@ -166,6 +177,19 @@
 				// Остальные прокручиваемые коробки набора давно на auto, дропдаун был последним.
 				overflow-y: auto; // полоса прокрутки — общая, от .ui-scrollable кита
 
+				// Пункт списка — не поле ввода, и токены поля ему не подходят дважды.
+				//
+				// Во-первых, их некому было читать: блоки состояний переназначали `--input-fill`,
+				// а сам пункт не красился ничем — ни заливки, ни цвета текста он не объявлял, и
+				// наведение не давало вообще ничего.
+				//
+				// Во-вторых, значения не те: у кита `--hover--input-fill` равен фону поверхности
+				// (поле показывает наведение рамкой, которой у пункта нет), а фон попапа — он же.
+				// Покрасить пункт этим токеном значит покрасить его в цвет подложки.
+				//
+				// Поэтому у пункта свои заливки, выведенные из фона попапа сдвигом к цвету текста:
+				// так подсветка видна и на светлой теме, и на тёмной. Хосту они остаются точками
+				// переопределения, как и всё остальное.
 				& li {
 					padding: calc(var(--input-padding-lr) / 2) var(--input-padding-lr);
 			  		display: flex;
@@ -174,35 +198,38 @@
 					border-radius: var(--input-border-radius);
 					min-height: unset;
 					cursor: pointer;
+					background-color: var(--dropdown-item-fill);
+					transition: background-color ease 100ms;
 
 					& svg {
 						display: none;
 					}
 
-					&:hover {
-						--input-color: var(--hover--input-color);
-						--input-fill: var(--hover--input-fill);
-					}
-
-					&:focus {
-						--input-color: var(--focus--input-color);
-						--input-fill: var(--focus--input-fill);
-					}
-
+					// Выбранный пункт — отметка состояния, а наведение и клавиатура говорят, где
+					// сейчас работают. Поэтому оба объявлены ПОСЛЕ `.hasvalue`: вес у них равный,
+					// и порядок решает, что выбранный пункт под курсором всё равно подсветится.
 					&.hasvalue {
-						--input-color: var(--hasvalue--input-color);
-						--input-fill: var(--hasvalue--input-fill);
+						--dropdown-item-fill: var(--hasvalue--dropdown-item-fill);
 
 						& svg {
 							display: block;
 
-						  	--svg-fill: var(--hasvalue--input-color);
+							// `--hasvalue--input-color` у кита равен `--input-color`, но для `fill`
+							// он негоден там, где тема разрешит его в `inherit`.
+						  	--svg-fill: var(--input-color);
 					  	}
+					}
 
-						&:focus {
-						  --input-color: var(--focus--input-color);
-						  --input-fill: var(--focus--input-fill);
-						}
+					&:hover {
+						--dropdown-item-fill: var(--hover--dropdown-item-fill);
+					}
+
+					// `:focus-within`, а не `:focus`: фокус принимает не сам пункт, а `span` внутри
+					// него — на нём `tabindex` и роль `option`, по ним же ходят стрелки (см.
+					// dropdown.ts). Правило на `:focus` не срабатывало никогда, и по списку ходили
+					// клавиатурой вслепую.
+					&:focus-within {
+						--dropdown-item-fill: var(--hover--dropdown-item-fill);
 					}
 				}
 

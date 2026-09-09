@@ -390,3 +390,65 @@ describe("the validation message stays under the open list", () => {
 		expect(declared(dropdownRules, popup, "z-index")).toContain("--layer-dropdown");
 	});
 });
+
+// Пункт списка не показывал наведение вовсе: блоки состояний переназначали токены поля ввода,
+// а сам пункт не объявлял ни заливки, ни цвета — читать их было некому. Вторая половина беды
+// в значениях: `--hover--input-fill` у кита равен фону поверхности, то есть фону попапа, и даже
+// покрашенный этим токеном пункт остался бы неотличим от подложки.
+describe("the list item shows what the pointer is on", () => {
+	/** Пункт списка в заданном состоянии. */
+	const item = (state: { hover?: boolean; focus?: boolean; chosen?: boolean }) => {
+		document.body.innerHTML = `
+			<div class="ui-dropdown">
+				<div class="ui-dropdown-popup"><div class="content">
+					<ul class="ui-scrollable"><li><span role="option"></span></li></ul>
+				</div></div>
+			</div>`;
+
+		const elem = document.querySelector("li") as HTMLElement;
+
+		if (state.hover) elem.setAttribute("data-hover", "");
+		// Фокус принимает не пункт, а `span` внутри него: на нём tabindex и роль option.
+		if (state.focus) elem.setAttribute("data-focus-within", "");
+		if (state.chosen) elem.classList.add("hasvalue");
+
+		return elem;
+	};
+
+	const fill = (state: Parameters<typeof item>[0]) => inherited(dropdownRules, item(state), "--dropdown-item-fill");
+
+	it("paints itself at all", () => {
+		expect(declared(dropdownRules, item({}), "background-color")).toBe("var(--dropdown-item-fill)");
+	});
+
+	it("stays clear until something happens to it", () => {
+		expect(fill({})).toBe("transparent");
+	});
+
+	it.each([
+		["under the pointer", { hover: true }],
+		["under the keyboard", { focus: true }],
+		["when it is the chosen one", { chosen: true }],
+	])("takes a fill of its own %s", (_, state) => {
+		expect(fill(state)).not.toBe("transparent");
+		expect(fill(state)).toContain("--dropdown-item-fill");
+	});
+
+	// Выбранный пункт — отметка состояния, наведение и клавиатура говорят, где сейчас работают:
+	// второе обязано быть видно поверх первого, иначе на выбранном пункте курсор пропадает.
+	it.each([
+		["the pointer", { chosen: true, hover: true }],
+		["the keyboard", { chosen: true, focus: true }],
+	])("lets %s show through on the chosen item", (_, state) => {
+		expect(fill(state)).toBe("var(--hover--dropdown-item-fill)");
+	});
+
+	// Заливка выводится из фона попапа сдвигом к цвету текста: на светлой теме это притемнение,
+	// на тёмной — просветление. Постоянный цвет пропал бы на одной из них.
+	it.each(["--hover--dropdown-item-fill", "--hasvalue--dropdown-item-fill"])("derives %s from the theme", (token) => {
+		const value = inherited(dropdownRules, item({}), token);
+
+		expect(value).toContain("var(--popup-fill)");
+		expect(value).toContain("var(--text-color)");
+	});
+});
