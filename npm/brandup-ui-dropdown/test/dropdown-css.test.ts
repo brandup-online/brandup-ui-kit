@@ -143,6 +143,13 @@ describe("the trigger answers every state the way the field does", () => {
 		["disabled", { disabled: true }],
 		["disabled under the pointer", { disabled: true, hover: true }],
 		["invalid", { invalid: true }],
+		// The field answers these with the invalid look: `:user-invalid` is declared after both
+		// `:hover` and `:focus`, so it wins at equal weight. The trigger used to lose it — its
+		// state sits on the root while hover and focus write the tokens on the button, and an
+		// element's own declaration beats an inherited one however heavy the rule behind it.
+		["invalid under the pointer", { invalid: true, hover: true }],
+		["invalid in focus", { invalid: true, focus: true }],
+		["invalid with the list open", { invalid: true, expanded: true }],
 	];
 
 	it.each(situations)("fills the same %s", (_, state) => {

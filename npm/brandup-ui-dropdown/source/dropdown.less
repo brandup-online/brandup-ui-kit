@@ -371,6 +371,22 @@
 		--input-color: var(--invalid--input-color);
 		--input-fill: var(--invalid--input-fill);
 		--input-border-color: var(--invalid--input-border-color);
+
+		// Наведение, фокус и раскрытый список переназначают эти же токены прямо на кнопке, а
+		// объявление на элементе сильнее унаследованного от контейнера, каким бы весом ни обладало
+		// правило за ним. Без повтора того же веса вид отказа пропадал, стоило подвести курсор, —
+		// и точно так же в фокусе и на раскрытом списке. Тем же приёмом это решено у readonly
+		// и disabled ниже.
+		//
+		// У текстового поля отказ выигрывает сам собой: `:user-invalid` объявлен после `:hover`
+		// и `:focus`, и при равном весе решает порядок. Кнопка обязана отвечать так же.
+		& .view:hover,
+		&:focus-within .view,
+		&.expanded .view {
+			--input-color: var(--invalid--input-color);
+			--input-fill: var(--invalid--input-fill);
+			--input-border-color: var(--invalid--input-border-color);
+		}
 	}
 
 	&.disabled {
