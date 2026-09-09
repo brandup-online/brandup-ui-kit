@@ -10,10 +10,17 @@
 
 // messageeditor.less
 
-@messageeditor-fill: #e7f3ff;
+// Заливка плашки — оттенок фона страницы, а не постоянный цвет: цвет текста в ней берётся
+// у темы (`--messageeditor-color`), и застывшая светлая заливка на тёмной теме оставляла
+// светлый текст на светлом фоне — плашку было не прочитать.
+//
+// Голубой подмешивается в фон, а не задаётся готовым цветом, чтобы оттенок ехал вместе с темой.
+// Доля и тон подобраны так, что на белом фоне получается ровно прежний #e7f3ff, а на тёмном —
+// та же голубизна по тёмному.
+@messageeditor-fill: color-mix(in srgb, var(--surface, #fff) 88%, #379bff);
 @messageeditor-border: var(--messageeditor-fill);
 @messageeditor-border-width: 1px;
-@messageeditor-border-focus: color-mix(in srgb, var(--messageeditor-fill) 88%, #000);
+@messageeditor-border-focus: color-mix(in srgb, var(--messageeditor-fill) 88%, var(--text-color, #222));
 @messageeditor-color: var(--input-color, #222);
 @messageeditor-radius: 18px;
 @messageeditor-maxheight: 220px;
@@ -30,17 +37,17 @@
 @messageeditor-source-color: var(--messageeditor-color);
 @messageeditor-source-font: var(--richeditor-code-font, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
 @messageeditor-modes-gap: 6px;
-@messageeditor-quote-fill: color-mix(in srgb, var(--messageeditor-fill) 94%, #000);
+@messageeditor-quote-fill: color-mix(in srgb, var(--messageeditor-fill) 94%, var(--text-color, #222));
 @messageeditor-spintax-fill: rgba(255, 193, 7, 0.28);
 @messageeditor-variable-fill: rgba(76, 175, 80, 0.24);
 @messageeditor-variable-unknown-fill: rgba(244, 67, 54, 0.24);
 @messageeditor-variable-unknown-mark: rgba(244, 67, 54, 0.8);
 @messageeditor-variable-new-fill: rgba(156, 39, 176, 0.2);
 @messageeditor-variable-new-mark: rgba(156, 39, 176, 0.7);
-@hover--messageeditor-spintax-fill: color-mix(in srgb, var(--messageeditor-spintax-fill) 95%, #000);
-@hover--messageeditor-variable-fill: color-mix(in srgb, var(--messageeditor-variable-fill) 95%, #000);
-@hover--messageeditor-variable-unknown-fill: color-mix( in srgb, var(--messageeditor-variable-unknown-fill) 95%, #000 );
-@hover--messageeditor-variable-new-fill: color-mix(in srgb, var(--messageeditor-variable-new-fill) 95%, #000);
+@hover--messageeditor-spintax-fill: color-mix(in srgb, var(--messageeditor-spintax-fill) 95%, var(--text-color, #222));
+@hover--messageeditor-variable-fill: color-mix(in srgb, var(--messageeditor-variable-fill) 95%, var(--text-color, #222));
+@hover--messageeditor-variable-unknown-fill: color-mix(in srgb, var(--messageeditor-variable-unknown-fill) 95%, var(--text-color, #222));
+@hover--messageeditor-variable-new-fill: color-mix(in srgb, var(--messageeditor-variable-new-fill) 95%, var(--text-color, #222));
 
 // randomizer.less
 
