@@ -27,7 +27,32 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   would need synchronized edits we can't validate locally. Left in
   place for now.
 
+### Fixed
+
+- **The waiting ring of a button is pinned to its centre.** It used to be placed
+  by the static position a flex container gives an absolutely positioned child,
+  declaring no offsets of its own — so a `button.loading::after` rule in the
+  host's stylesheet, the kind that predates the kit, handed it `left`/`top`
+  and its own negative margins while the kit's rule kept the size, and the ring
+  sat off-centre by the difference. It now pins all four sides and centres by
+  `margin: auto`, which no such rule can shift. The example carried exactly that
+  legacy rule (a 20px ring's margins under the kit's 16px one, two pixels up and
+  to the left) — removed, along with the `spin` keyframes it was the only user of.
+
 ### Added
+
+- **The colour mixed into a control under the pointer is a theme input.**
+  `--hover--button-tint-color` and `--active--button-tint-color` (plus
+  `--hover--checkbox-tint-color` and `--hover--input-toolbar-button-tint-color`,
+  derived from the button one the way the shares already are) say *what* the
+  shares mix in; they default to `#000`, so nothing changes for anyone already
+  on the kit. A share cannot be negative — `color-mix`
+  takes no such thing — so a theme whose fill is already dark had no way to
+  lighten it on hover, and had to bypass the kit's response altogether. Setting
+  the colour to `#fff` and picking a share now lightens through the same mixin,
+  and a ticked checkbox follows the button as before. Being ordinary tokens they
+  are also scoped: `.primary { --hover--button-tint-color: #fff }` lightens the
+  filled button while the rest of the set keeps darkening — see the README.
 
 - **A recipe for plugging the kit into a project.** The packages ship as
   sources, so a consumer has to transpile them — and the one place that said so

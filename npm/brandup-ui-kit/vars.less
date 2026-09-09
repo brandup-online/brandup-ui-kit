@@ -170,6 +170,7 @@
 @hover--input-fill: var(--surface);
 @hover--input-color: inherit;
 @hover--input-toolbar-button-darken: 8%; // на сколько кнопка тулбара темнее --input-fill при наведении
+@hover--input-toolbar-button-tint-color: @hover--button-tint-color; // what is mixed in, shared with the button
 
 @focus--input-border-color: var(--accent);
 @focus--input-fill: var(--input-fill);
@@ -212,6 +213,7 @@
 // colours, while a ticked one is filled with the accent — the same colours would wipe the mark off
 // it. The share is shared with the button: the response is uniform across the kit.
 @hover--checkbox-tint: @hover--button-tint;
+@hover--checkbox-tint-color: @hover--button-tint-color; // what is mixed into a ticked control, shared with the button
 @radio-dot: var(--accent-contrast); // dot inside a ticked radio
 
 @toggler-height: 30px;
@@ -238,6 +240,12 @@
 
 @hover--button-tint: 12%; // насколько темнее заливка под курсором
 @active--button-tint: 20%; // и в момент нажатия
+// A separate token rather than a negative share, which `color-mix` does not take: a control whose
+// fill is already dark has no other way to answer the pointer by lightening. Scoping it is what
+// makes it usable — `.primary { --hover--button-tint-color: #fff }` lightens the filled button
+// while the rest of the set keeps darkening.
+@hover--button-tint-color: #000; // what is mixed in under the cursor: black darkens, white lightens
+@active--button-tint-color: #000; // and at the moment of a press
 @danger--button-accent: var(--danger); // tone of a destructive action
 @disabled--button-opacity: 0.5;
 @focus--button-ring-width: var(--focus-ring-width);

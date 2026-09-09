@@ -32,6 +32,8 @@
 
 	--hover--button-tint: @hover--button-tint;
 	--active--button-tint: @active--button-tint;
+	--hover--button-tint-color: @hover--button-tint-color;
+	--active--button-tint-color: @active--button-tint-color;
 	--danger--button-accent: @danger--button-accent;
 	--disabled--button-opacity: @disabled--button-opacity;
 	--focus--button-ring-width: @focus--button-ring-width;
@@ -74,13 +76,13 @@
 	// кит всё равно не перебьёт — если ссылки у вас оформлены, исключите из них кнопки:
 	// `a:not(.ui-button)`.
 	&:hover {
-		.ui-tint-background(var(--button-fill), var(--hover--button-tint));
+		.ui-tint-background(var(--button-fill), var(--hover--button-tint), var(--hover--button-tint-color));
 		color: var(--button-color);
 		text-decoration: none;
 	}
 
 	&:active {
-		.ui-tint-background(var(--button-fill), var(--active--button-tint));
+		.ui-tint-background(var(--button-fill), var(--active--button-tint), var(--active--button-tint-color));
 		color: var(--button-color);
 		text-decoration: none;
 	}
@@ -106,12 +108,12 @@
 		--button-spinner-color: var(--button-accent-color);
 
 		&:hover {
-			.ui-tint-fill(var(--button-accent), var(--hover--button-tint));
+			.ui-tint-fill(var(--button-accent), var(--hover--button-tint), var(--hover--button-tint-color));
 			color: var(--button-accent-color);
 		}
 
 		&:active {
-			.ui-tint-fill(var(--button-accent), var(--active--button-tint));
+			.ui-tint-fill(var(--button-accent), var(--active--button-tint), var(--active--button-tint-color));
 			color: var(--button-accent-color);
 		}
 	}
@@ -122,6 +124,9 @@
 		border-color: transparent;
 		background: transparent;
 
+		// Доля общая с остальными, а вот цвет свой и намеренно: подмешивать нечего — заливки нет,
+		// — поэтому подсветка набирается цветом подписи по прозрачности. Он и так противоположен
+		// фону, так что светлеть на тёмной странице она начинает сама, без `--*-tint-color`.
 		&:hover {
 			background: color-mix(in srgb, var(--button-color) var(--hover--button-tint), transparent);
 		}
@@ -172,9 +177,16 @@
 		pointer-events: none;
 		color: transparent;
 
+		// Кольцо прижато всеми четырьмя сторонами и центрируется полями, а не встаёт по месту,
+		// которое дал бы ему flex как единственному элементу. Так центр не зависит ни от вида
+		// кнопки, ни от её полей — и, главное, правило хоста для `button.loading::after` (а такие
+		// в проектах живут с прежних времён) не сдвинет кольцо, отдав ему свои `left`/`margin`
+		// при нашем размере.
 		&::after {
 			content: "";
 			position: absolute;
+			inset: 0;
+			margin: auto;
 			width: var(--button-spinner-size);
 			height: var(--button-spinner-size);
 			box-sizing: border-box;

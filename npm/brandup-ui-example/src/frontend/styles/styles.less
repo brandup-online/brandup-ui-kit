@@ -51,26 +51,6 @@ a:not(.ui-button) {
 	}
 }
 
-button {
-	&.loading {
-		&:after {
-			content: '';
-			display: block;
-			border-radius: 50%;
-			width: 20px;
-			height: 20px;
-			border: 2px solid rgba(255, 255, 255, 0.2);
-			border-top-color: var(--text-color);
-			animation: spin 0.5s infinite steps(100);
-			position: absolute;
-			left: 50%;
-			top: 50%;
-			margin-left: -10px;
-			margin-top: -10px;
-		}
-	}
-}
-
 .app {
 	width: 100%;
 	min-height: 100%;

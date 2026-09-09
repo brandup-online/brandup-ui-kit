@@ -41,7 +41,12 @@
 	--hover--input-border-color: @hover--input-border-color;
 	--hover--input-fill: @hover--input-fill;
 	--hover--input-color: @hover--input-color;
-	--hover--input-toolbar-button-fill: color-mix(in srgb, var(--input-fill), #000 @hover--input-toolbar-button-darken);
+	--hover--input-toolbar-button-tint-color: @hover--input-toolbar-button-tint-color;
+	--hover--input-toolbar-button-fill: color-mix(
+		in srgb,
+		var(--input-fill),
+		var(--hover--input-toolbar-button-tint-color) @hover--input-toolbar-button-darken
+	);
 
 	// focus
 	--focus--input-border-color: @focus--input-border-color;
@@ -79,6 +84,7 @@
 	--checkbox-mark-width: @checkbox-mark-width;
 	--radio-dot: @radio-dot;
 	--hover--checkbox-tint: @hover--checkbox-tint;
+	--hover--checkbox-tint-color: @hover--checkbox-tint-color;
 
 	// toggler
 	--toggler-height: @toggler-height;
@@ -452,9 +458,10 @@ input[type=checkbox][role=switch] {
 // up under the cursor like a working one. `readonly` needs the same treatment now that it keeps its
 // pointer events (see `.ui-choice-control()`), and it is excluded on the rules below.
 .ui-choice-checked-hover(@fill) {
-	// The same darkening the button uses, and by the same share (see mixins.less): the response to
-	// the pointer is uniform across the kit.
-	.ui-tint-fill(@fill, var(--hover--checkbox-tint));
+	// The same darkening the button uses, by the same share and with the same colour (see
+	// mixins.less): the response to the pointer is uniform across the kit. A dark theme that
+	// lightens its buttons lightens a ticked control along with them.
+	.ui-tint-fill(@fill, var(--hover--checkbox-tint), var(--hover--checkbox-tint-color));
 }
 
 // `:not([readonly])` and `:not(:user-invalid)` alongside `:not(:disabled)`: this rule outweighs both

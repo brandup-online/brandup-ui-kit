@@ -143,6 +143,7 @@
 | `@hover--input-fill` | `var(--surface)` | `--hover--input-fill` | — |
 | `@hover--input-color` | `inherit` | `--hover--input-color` | — |
 | `@hover--input-toolbar-button-darken` | `8%` | — | на сколько кнопка тулбара темнее --input-fill при наведении |
+| `@hover--input-toolbar-button-tint-color` | `@hover--button-tint-color` | `--hover--input-toolbar-button-tint-color` | what is mixed in, shared with the button |
 | `@focus--input-border-color` | `var(--accent)` | `--focus--input-border-color` | — |
 | `@focus--input-fill` | `var(--input-fill)` | `--focus--input-fill` | — |
 | `@focus--input-color` | `inherit` | `--focus--input-color` | — |
@@ -165,6 +166,7 @@
 | `@checkbox-mark` | `var(--accent-contrast)` | `--checkbox-mark` | tick and dash over the fill |
 | `@checkbox-mark-width` | `2px` | `--checkbox-mark-width` | thickness of the tick |
 | `@hover--checkbox-tint` | `@hover--button-tint` | `--hover--checkbox-tint` | — |
+| `@hover--checkbox-tint-color` | `@hover--button-tint-color` | `--hover--checkbox-tint-color` | what is mixed into a ticked control, shared with the button |
 | `@radio-dot` | `var(--accent-contrast)` | `--radio-dot` | dot inside a ticked radio |
 | `@toggler-height` | `30px` | `--toggler-height` | — |
 | `@toggler-padding` | `3px` | `--toggler-padding` | — |
@@ -191,6 +193,8 @@
 | `@button-spinner-size` | `16px` | `--button-spinner-size` | — |
 | `@hover--button-tint` | `12%` | `--hover--button-tint` | насколько темнее заливка под курсором |
 | `@active--button-tint` | `20%` | `--active--button-tint` | и в момент нажатия |
+| `@hover--button-tint-color` | `#000` | `--hover--button-tint-color` | what is mixed in under the cursor: black darkens, white lightens |
+| `@active--button-tint-color` | `#000` | `--active--button-tint-color` | and at the moment of a press |
 | `@danger--button-accent` | `var(--danger)` | `--danger--button-accent` | tone of a destructive action |
 | `@disabled--button-opacity` | `0.5` | `--disabled--button-opacity` | — |
 | `@focus--button-ring-width` | `var(--focus-ring-width)` | `--focus--button-ring-width` | — |

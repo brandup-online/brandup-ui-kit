@@ -10,16 +10,20 @@
 // changing the mix in one file (to `oklch`, or to lightening on a dark theme) would leave them
 // darkening differently.
 //
-// `#000` is mixed in rather than the opacity lowered: a translucent control shows whatever lies
+// A colour is mixed in rather than the opacity lowered: a translucent control shows whatever lies
 // under it, and over text a filled surface would go grey unevenly.
+//
+// Which colour is a token of its own (`@hover--button-tint-color`, black by default) because a
+// share cannot be negative: a theme whose fill is already dark has no way to lighten it back
+// through the share alone, and would have to bypass the mixin to answer the pointer at all.
 
 /** Fill and border darkened together — a filled control under the cursor or pressed. */
-.ui-tint-fill(@color, @share) {
-	background-color: color-mix(in srgb, @color, #000 @share);
-	border-color: color-mix(in srgb, @color, #000 @share);
+.ui-tint-fill(@color, @share, @tint: #000) {
+	background-color: color-mix(in srgb, @color, @tint @share);
+	border-color: color-mix(in srgb, @color, @tint @share);
 }
 
 /** The fill alone — for a control whose border is not repainted along with it. */
-.ui-tint-background(@color, @share) {
-	background: color-mix(in srgb, @color, #000 @share);
+.ui-tint-background(@color, @share, @tint: #000) {
+	background: color-mix(in srgb, @color, @tint @share);
 }
