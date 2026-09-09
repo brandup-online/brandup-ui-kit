@@ -205,8 +205,13 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	 * Поле-носитель уведено с экрана и фокус не принимает — ведём его в кнопку показа списка:
 	 * с неё же начинается работа с клавиатуры (пробел и Enter открывают список).
 	 */
-	protected override __focusValue(): void {
-		this.__focusView();
+	/**
+	 * Видимая часть списка, а не сам `select`: последний уведён с экрана, и признаки состояния
+	 * на нём читалка не увидит. Базовый {@link InputControl.__focusValue} ведёт фокус туда же,
+	 * поэтому своего переопределения фокуса контролу больше не нужно.
+	 */
+	protected override get __focusElem(): HTMLElement {
+		return this.__viewElem;
 	}
 
 	// рендер элементов; текущий выбор отмечает __renderSelection, когда список уже в DOM
@@ -623,7 +628,9 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 
 		this.__valueElem.selectedIndex = index;
 
-		this.element.classList.remove(STATE.INVALID);
+		// Снимаем отметку через базу: с классом уходят и `aria-invalid`, и сообщение. Снимаем
+		// без перепроверки, как и раньше, — выбор пункта считаем ответом на замечание.
+		this.__setValid(true);
 		this.__renderSelection();
 		this.__onChange();
 	}
@@ -673,17 +680,6 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 	getSelectedTitle(): string | null {
 		const selected = this.__getSelectedElem();
 		return (selected && selected.own.firstElementChild?.textContent?.trim()) || null;
-	}
-
-	// Правила проверяет браузер по атрибутам самого select; контрол отражает результат классом.
-	// Обязательность закрывает нативный required — для этого у пустого пункта value должно
-	// быть пустым, как и требует стандарт.
-	override validate(): boolean {
-		const isValid = super.validate();
-
-		this.element.classList.toggle(STATE.INVALID, !isValid);
-
-		return isValid;
 	}
 
 	override destroy(): void {

@@ -3,6 +3,9 @@ import { INPUT } from "./names";
 // Из кита берём ровно два признака и берём их отдельным входом: его общий вход тянет за собой
 // попап, модальное окно, стили и @brandup/ui-app — базе ввода это не нужно, а сборке пакета мешает.
 import { hasUserScrolled, isCoarsePointer } from "@brandup/ui-kit/env";
+// Тем же узким входом, что и env: позиционирование ничего не импортирует, поэтому попап,
+// модальное окно и @brandup/ui-app за ним не приезжают.
+import { trackPosition } from "@brandup/ui-kit/position";
 import "./input.less";
 
 type InputType = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
@@ -61,6 +64,13 @@ function stopObserving(doc: Document): void {
 	connectedWaiters.delete(doc);
 }
 
+/**
+ * Счётчик для идентификаторов элементов с сообщением об ошибке: связать текст с полем можно
+ * только через `aria-describedby`, а тот ссылается по id. Свой ставим лишь тому элементу,
+ * у которого его нет, — id в разметке хоста трогать нельзя, на него ссылаются и другие.
+ */
+let errorIdCounter = 0;
+
 /** Принимает ли элемент ввод текста — то есть значит ли фокус на нём, что в нём работают. */
 const isTextEntry = (elem: Element): boolean =>
 	elem instanceof HTMLInputElement ||
@@ -78,6 +88,13 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 	private __invalidEvent?: (e: Event) => void;
 	private __overrides?: ValueElemOverrides;
 	private __isValidating?: boolean; // true, когда выполняется checkValidity в validate.
+
+	/** Пузырь с текстом ошибки, созданный базой. Место хоста сюда не попадает: оно не наше. */
+	private __errorBubble?: HTMLElement;
+	/** Снятие слежения за положением пузыря; есть, только пока пузырь показан. */
+	private __untrackError?: () => void;
+	/** Показано ли сейчас сообщение — чтобы не искать место под текст, которого нет. */
+	private __errorShown?: boolean;
 
 	/** Объявлен ли автофокус; ставит его наследник вызовом {@link __applyAutoFocus}. */
 	readonly autoFocus: boolean;
@@ -176,12 +193,13 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 		// классом и своё событие submit не досылает — обработчики формы получают ровно то же,
 		// что и у обычных input/textarea.
 		//
-		// Гасим лишь показ подсказки: поле уведено с экрана, привязать её не к чему, и браузер
-		// вместо неё пишет в консоль «not focusable». Состояние видно по классу invalid.
+		// Гасим лишь показ нативной подсказки: поле уведено с экрана, привязать её не к чему,
+		// и браузер вместо неё пишет в консоль «not focusable». Текст при этом не теряется —
+		// он остаётся в `validationMessage`, и показываем его мы сами, у видимого контрола.
 		this.__invalidEvent = (e: Event) => {
 			e.preventDefault();
 
-			this.element.classList.add(INPUT.CLASS.STATE.INVALID);
+			this.__setValid(false);
 		};
 		this.__valueElem.addEventListener("invalid", this.__invalidEvent);
 
@@ -256,7 +274,152 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 		const result = this.__valueElem.checkValidity();
 		this.__isValidating = false;
 
+		this.__setValid(result);
+
 		return result;
+	}
+
+	/**
+	 * Отражает вердикт проверки: класс состояния, `aria-invalid` и сообщение.
+	 *
+	 * Одно место на всё. Раньше класс ставила база, а снимали наследники — textbox, dropdown
+	 * и messageeditor, каждый по-своему, шесть мест на три пакета, — и вид расходился
+	 * с состоянием: у одного класс снимался на любой правке, у другого только после повторной
+	 * проверки. С появлением текста расхождение стало бы видимым: рамка есть, текста нет.
+	 *
+	 * Текст берём из `validationMessage` поля-носителя: он уже локализован браузером, а свои
+	 * формулировки контролы кладут туда через `setCustomValidity`.
+	 */
+	protected __setValid(isValid: boolean): void {
+		this.element.classList.toggle(INPUT.CLASS.STATE.INVALID, !isValid);
+
+		if (isValid) this.__focusElem.removeAttribute("aria-invalid");
+		else this.__focusElem.setAttribute("aria-invalid", "true");
+
+		this.__renderError(isValid ? "" : this.__valueElem.validationMessage);
+	}
+
+	/**
+	 * Показывает сообщение или убирает его, если строка пуста.
+	 *
+	 * Текст пишется туда, где хост отвёл ему место, и больше никуда: раскладка страницы
+	 * принадлежит хосту, и кит не заводит в ней узлов по своему усмотрению. Постоянная строка
+	 * под полем и лучше всплывающей — она не исчезает при прокрутке, а на форме видно сразу все
+	 * отказы, а не тот, до которого дошла очередь.
+	 *
+	 * Пузырь у контрола — на случай, когда места нет и взять его негде: просят явно, режимом
+	 * `popup`. Сам собой он не появляется, иначе кит менял бы чужую разметку молча.
+	 */
+	private __renderError(message: string): void {
+		// Годный контрол проверяют часто — textbox перепроверяет себя на каждую правку, — и пока
+		// показывать нечего и не показывали, искать место незачем.
+		if (!message && !this.__errorShown) return;
+		this.__errorShown = !!message;
+
+		const mode = this.element.getAttribute(INPUT.ATTR.ERROR_DISPLAY);
+		if (mode === "none") return;
+
+		const slot = this.__findErrorSlot();
+		// Пузырь заводим только в его режиме и только под текст: у контрола, ни разу не отказавшего,
+		// лишнего узла в разметке не появляется. Пустое сообщение попадает в уже созданный —
+		// иначе его нечем было бы убрать.
+		const target = slot ?? (mode === "popup" ? (message ? this.__ensureErrorBubble() : this.__errorBubble) : null);
+		if (!target) return;
+
+		target.textContent = message;
+		target.hidden = !message;
+
+		if (message) {
+			this.__announceable(target);
+			this.__describedBy(target, true);
+			if (target === this.__errorBubble) this.__trackErrorBubble(target);
+		} else {
+			this.__describedBy(target, false);
+			this.__stopTrackingError();
+		}
+	}
+
+	/**
+	 * Место, которое хост отвёл под сообщение: элемент с атрибутом внутри контрола либо, если
+	 * значение атрибута стоит на самом контроле, элемент с таким id где угодно в документе —
+	 * так текст кладут в сводку под формой или в соседнюю колонку таблицы.
+	 */
+	private __findErrorSlot(): HTMLElement | null {
+		const inside = this.element.querySelector<HTMLElement>(`[${INPUT.ATTR.ERROR}]`);
+		// Внутри контрола может стоять другой контрол со своим местом под сообщение — чужое
+		// не занимаем: ближайший контрол-предок найденного места должен быть этим самым.
+		if (inside && inside.closest(`.${INPUT.CLASS.ROOT}`) === this.element) return inside;
+
+		const id = this.element.getAttribute(INPUT.ATTR.ERROR);
+		return id ? this.__valueElem.ownerDocument.getElementById(id) : null;
+	}
+
+	/**
+	 * Просит читалку зачитывать появившийся текст, если хост не распорядился иначе.
+	 *
+	 * Связи через `aria-describedby` мало: она срабатывает, когда в поле входят, а отказ на
+	 * отправке приходит, когда фокус где угодно. Своё объявление хоста — `role` или `aria-live` —
+	 * не трогаем: он мог выбрать и резкость, и молчание намеренно.
+	 */
+	private __announceable(slot: HTMLElement): HTMLElement {
+		if (!slot.hasAttribute("role") && !slot.hasAttribute("aria-live")) slot.setAttribute("aria-live", "polite");
+
+		return slot;
+	}
+
+	/** Заводит собственный пузырь — один раз на контрол, дальше он переиспользуется. */
+	private __ensureErrorBubble(): HTMLElement {
+		if (this.__errorBubble) return this.__errorBubble;
+
+		const bubble = this.__valueElem.ownerDocument.createElement("div");
+		bubble.className = INPUT.CLASS.ERROR;
+		// Пузырь появляется и исчезает мимо фокуса — по отказу на отправке. Вежливая срочность,
+		// а не `alert`: он же связан с полем через `aria-describedby`, и на «резкой» читалка
+		// объявила бы текст дважды.
+		bubble.setAttribute("aria-live", "polite");
+
+		// Внутрь контрола, а не в body: контрол при разрушении и так уносит своё поддерево,
+		// а позиционирование само разбирается с предком, создающим fixed-контекст.
+		this.element.appendChild(bubble);
+
+		return (this.__errorBubble = bubble);
+	}
+
+	/**
+	 * Держит пузырь у контрола, пока текст показан: страницу прокручивают и разворачивают.
+	 *
+	 * Повторную просьбу пропускаем: пока сообщение висит, контрол перепроверяют на каждую правку,
+	 * а слежение каждый раз пересобирало бы слушатели прокрутки у всех прокручиваемых предков.
+	 */
+	private __trackErrorBubble(bubble: HTMLElement): void {
+		if (this.__untrackError) return;
+
+		this.__untrackError = trackPosition(bubble, this.element, { placement: "bottom-start", gap: 4 });
+	}
+
+	private __stopTrackingError(): void {
+		this.__untrackError?.();
+		this.__untrackError = undefined;
+	}
+
+	/**
+	 * Связывает сообщение с полем или отвязывает его.
+	 *
+	 * Свой идентификатор дописываем к тем, что уже перечислены, а не заменяем список: у поля
+	 * бывает и подпись, и подсказка, и потерять их значит оставить читалку без половины сведений
+	 * о поле. Снятие тоже точечное — убираем только свой.
+	 */
+	private __describedBy(target: HTMLElement, linked: boolean): void {
+		if (linked && !target.id) target.id = `ui-input-error-${++errorIdCounter}`;
+		if (!target.id) return; // отвязывать нечего: идентификатора не было, значит и ссылки нет
+
+		const current = this.__focusElem.getAttribute("aria-describedby");
+		const tokens = (current ? current.split(/\s+/) : []).filter((token) => token && token !== target.id);
+
+		if (linked) tokens.push(target.id);
+
+		if (tokens.length) this.__focusElem.setAttribute("aria-describedby", tokens.join(" "));
+		else this.__focusElem.removeAttribute("aria-describedby");
 	}
 
 	/**
@@ -286,7 +449,20 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 	 * оставляют базовому {@link focus}.
 	 */
 	protected __focusValue(): void {
-		this.__valueElem.focus();
+		this.__focusElem.focus();
+	}
+
+	/**
+	 * Элемент, с которым работает пользователь: он принимает фокус и несёт признаки состояния
+	 * для читалки — `aria-invalid` и ссылку на текст ошибки. По умолчанию поле-носитель;
+	 * контролы, у которых ввод идёт в другом элементе, подменяют его здесь.
+	 *
+	 * Ставить эти признаки на поле-носитель вслепую нельзя: оно уведено с экрана
+	 * (`visibility: collapse`), и читалка его не видит — сообщение о неверном значении
+	 * не дошло бы ни до кого.
+	 */
+	protected get __focusElem(): HTMLElement {
+		return this.__valueElem;
 	}
 
 	/**
@@ -381,6 +557,13 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 
 	override destroy() {
 		this.__stopWaitConnected();
+
+		// Признаки отказа снимаем до возврата поля: оно остаётся в форме и живёт дальше, а
+		// `aria-invalid` и ссылка на сообщение, исчезающее вместе с контролом, читалке только
+		// врут. Учёт подменённых атрибутов (`__overrides`) их не покрывает — их ставит база,
+		// а не контрол при сборке.
+		this.__setValid(true);
+		this.__stopTrackingError();
 
 		if (this.form && this.__submitEvent) this.form.removeEventListener("submit", this.__submitEvent);
 

@@ -32,6 +32,7 @@
 		".": "./source/index.ts",
 		"./names": "./source/names.ts",
 		"./env": "./source/env.ts",
+		"./position": "./source/position.ts",
 		"./text": "./source/utils/text.ts",
 		"./vars.less": "./vars.less",
 		"./source/*.less": "./source/*.less",

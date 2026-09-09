@@ -1110,15 +1110,6 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		super.setValue(value); // редактор нормализует значение, поднимет change и обновит носитель
 	}
 
-	// Правила проверяет браузер по атрибутам поля-носителя; контрол отражает результат классом.
-	override validate(): boolean {
-		const isValid = super.validate(); // super синхронизирует значение сам, через __syncValue
-
-		this.element.classList.toggle(MESSAGEEDITOR.CLASS.STATE.INVALID, !isValid);
-
-		return isValid;
-	}
-
 	override destroy(): void {
 		// Придти сюда могут дважды: снял хост, а следом сработало авто-уничтожение по удалению
 		// элемента из DOM (UIElement подписан на MutationObserver) — или наоборот. Второй проход

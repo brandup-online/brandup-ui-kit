@@ -13,3 +13,25 @@
 	outline: none;
 	visibility: collapse;
 }
+
+// Пузырь с сообщением об ошибке — его база заводит сама, когда хост не дал места под текст.
+// Координаты пишет позиционирование кита (position: fixed), поэтому здесь только вид; ширину
+// ограничиваем, иначе длинная фраза браузера растянулась бы во весь экран.
+.ui-input-error {
+	position: fixed;
+	// Ниже раскрытого списка и попапа — своя ступень лестницы слоёв (задана в common.less кита).
+	// Подсказку читают, а со списком работают: легла бы сверху — закрыла бы его пункты.
+	z-index: var(--layer-input-error, 900);
+	max-width: min(320px, calc(100vw - 16px));
+	box-sizing: border-box;
+	padding: 6px 10px;
+	border-radius: var(--popup-border-radius, 5px);
+	background: var(--invalid--input-border-color, red);
+	color: var(--accent-contrast, #fff);
+	font-size: var(--input-font-size, inherit);
+	line-height: 1.3;
+	box-shadow: var(--popup-box-shadow, 0 4px 8px 2px rgba(0, 0, 0, 0.12));
+	// Сообщение показывают, чтобы прочитать, а не чтобы по нему кликать: пусть нажатие уходит
+	// в то, что под ним, — иначе пузырь у самого поля перехватывал бы попадание в это поле.
+	pointer-events: none;
+}

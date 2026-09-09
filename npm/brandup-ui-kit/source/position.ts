@@ -18,6 +18,11 @@
  * have to find the nearest positioned ancestor and subtract its offset, and any `overflow: hidden`
  * along the way would clip the popup. The price is that scrolling the page moves the anchor out
  * from under the element — that is what {@link trackPosition} is for.
+ *
+ * Reachable as its own entry (`@brandup/ui-kit/position`) for the same reason as `./env`: the input
+ * base needs it to show a validation message by the field, and it must not pull in the kit's main
+ * entry, which brings the popup, the modal window, the styles and `@brandup/ui-app` along with it.
+ * The module imports nothing at all, so the narrow entry costs a consumer exactly this file.
  */
 
 /** The side of the anchor the element is pressed against. */

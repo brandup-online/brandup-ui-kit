@@ -339,3 +339,54 @@ describe("the trigger holds its focus look while the list is open", () => {
 		expect(actual.border).toBe("var(--disabled--input-border-color)");
 	});
 });
+
+// Сообщение о непройденной проверке и раскрытый список — оба поверх страницы, и порядок между
+// ними задан лестницей слоёв кита, а не тем, кто из них позже в разметке. На одной ступени
+// подсказка ложилась поверх списка и закрывала его пункты — ровно те, ради которых его открыли.
+describe("the validation message stays under the open list", () => {
+	/** Ступени лестницы, объявленные китом на `:root` (common.less). */
+	const ladder = (): Map<string, number> => {
+		const rules = compile(path.join(KIT, "source", "common.less"));
+		const root = document.documentElement;
+		const values = new Map<string, number>();
+
+		for (const name of ["--layer-input-error", "--layer-popup", "--layer-dropdown", "--layer-modal"]) {
+			const raw = declared(rules, root, name);
+			if (!raw) continue;
+
+			// `--layer-dropdown: var(--layer-popup)` — одна подстановка, глубже лестница не идёт.
+			const link = raw.match(/^var\((--[\w-]+)\)$/);
+			const value = link ? values.get(link[1]) : Number(raw);
+
+			if (value !== undefined && !Number.isNaN(value)) values.set(name, value);
+		}
+
+		return values;
+	};
+
+	it("puts the message rung below the popup one", () => {
+		const rungs = ladder();
+
+		expect(rungs.get("--layer-input-error")).toBeLessThan(rungs.get("--layer-popup")!);
+		expect(rungs.get("--layer-dropdown")).toBe(rungs.get("--layer-popup"));
+		expect(rungs.get("--layer-modal")).toBeGreaterThan(rungs.get("--layer-popup")!);
+	});
+
+	// Ступень мало объявить — ею надо пользоваться: пузырь брал `--layer-popup` и вставал вровень
+	// со списком, а побеждал порядком в разметке, потому что база дописывает его в конец контрола.
+	it("reads that rung in the bubble and the popup one in the list", () => {
+		const inputRules = compile(path.join(PACKAGE, "..", "brandup-ui-input", "source", "input.less"));
+
+		// Разметку строит тот же помощник, что и остальные проверки: правило попапа потомковое,
+		// и в отрыве от контрола оно не сматчится.
+		trigger({ expanded: true });
+		const popup = document.querySelector(`.${DROPDOWN.CLASS.ELEMENT.POPUP}`) as HTMLElement;
+
+		const bubble = document.createElement("div");
+		bubble.className = "ui-input-error";
+		document.body.appendChild(bubble);
+
+		expect(declared(inputRules, bubble, "z-index")).toContain("--layer-input-error");
+		expect(declared(dropdownRules, popup, "z-index")).toContain("--layer-dropdown");
+	});
+});

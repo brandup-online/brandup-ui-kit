@@ -269,9 +269,10 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 
 			this.__refreshSymbolsCount();
 
-			let clearInvalidState = true;
-			if (this.element.classList.contains(STATE.INVALID)) clearInvalidState = this.validate();
-			if (clearInvalidState) this.element.classList.remove(STATE.INVALID);
+			// Перепроверяем только отмеченный неверным: пока отметки нет, показывать по каждой
+			// правке нечего, а снять её нужно сразу, как значение стало годным, — вместе
+			// с сообщением. Состоянием владеет база (см. InputControl.__setValid).
+			if (this.element.classList.contains(STATE.INVALID)) this.validate();
 
 			this.__onChange();
 		});
@@ -444,8 +445,14 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 			if (this.maxlength > 0 && this.maxlength < this.__editor.getLength()) isValid = false;
 		}
 
-		if (!isValid) this.element.classList.add(STATE.INVALID);
-		else this.element.classList.remove(STATE.INVALID);
+		// Состоянием — классом, `aria-invalid` и сообщением — владеет база; здесь только вердикт.
+		//
+		// Свои две проверки текста не дают: они считаются здесь, а не объявлены полю-носителю
+		// через `setCustomValidity`, поэтому `validationMessage` для них пуст и показывать нечего —
+		// остаются отметка и рамка, как было. Дать им текст значит перевести их на тот же хук
+		// `__refreshValidity`, которым пользуется messageeditor, — и тогда их начнёт учитывать
+		// и штатная блокировка отправки, чего сейчас не происходит.
+		this.__setValid(isValid);
 
 		return isValid;
 	}

@@ -216,6 +216,17 @@ export abstract class EditorInputControl<TEditor extends ValueEditor, TChangeDat
 	 * там, где прервали. Начало и выделение всего текста этому не подчиняются: их просили явно,
 	 * поэтому ставим их сами и после редактора.
 	 */
+	/**
+	 * Редактируемый элемент, а не поле-носитель: последнее уведено с экрана, и признаки состояния
+	 * на нём читалка не увидит — сообщение о неверном значении не дошло бы ни до кого.
+	 *
+	 * Редактор появляется уже после `super(...)`, поэтому до его сборки отдаём поле: база в этот
+	 * момент состояние не показывает, а падать на `undefined` ей незачем.
+	 */
+	protected override get __focusElem(): HTMLElement {
+		return this.__editor?.editable ?? this.__valueElem;
+	}
+
 	protected override __focusValue(): void {
 		if (!this.__editor) return;
 
