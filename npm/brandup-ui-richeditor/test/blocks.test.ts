@@ -7,7 +7,7 @@
 import RichEditor from "../source/richeditor";
 import { RICHEDITOR } from "../source/names";
 import { serialize, deserialize, defaultFormatMarkers, ALL_FORMAT_TOOLS, type BlockType } from "../source/format";
-import { applyBlocks } from "../source/editing";
+import { applyBlocks, insertPastedParagraphs } from "../source/editing";
 import { blocksInRange } from "../source/paragraphs";
 
 const ALL: BlockType[] = ["paragraph", "quote", "code"];
@@ -1007,3 +1007,56 @@ describe("interior empty paragraph", () => {
 
 const toHtmlStorage = (value: string) =>
 	deserialize(value, "html", ALL_FORMAT_TOOLS, defaultFormatMarkers(), true, ALL);
+
+// Вставка выносит из абзаца его хвост, чтобы вернуть в конец вставленного. На пустом списке
+// возвращать хвост было бы некуда: он уже извлечён, а первого абзаца, куда его дописать, нет —
+// текст после каретки исчезал ещё до того, как обращение к нему уронит вызов. Разбор отдаёт
+// пустой список на тексте из одних пустых строк (см. buildParagraphs), поэтому случай рабочий.
+describe("insertPastedParagraphs with nothing to insert", () => {
+	const scene = () => {
+		document.body.innerHTML = "";
+		const root = document.createElement("div");
+		root.innerHTML = "<p>foobar</p>";
+		document.body.appendChild(root);
+
+		const text = root.querySelector("p")!.firstChild!;
+		const range = document.createRange();
+		range.setStart(text, 3);
+		range.collapse(true);
+
+		return { root, range };
+	};
+
+	it("leaves the paragraph and its tail alone", () => {
+		const { root, range } = scene();
+
+		expect(() => insertPastedParagraphs(root, [], range)).not.toThrow();
+
+		expect(root.innerHTML).toBe("<p>foobar</p>");
+	});
+
+	it("leaves the editor alone when the caret sits at its level", () => {
+		document.body.innerHTML = "";
+		const root = document.createElement("div");
+		document.body.appendChild(root);
+
+		const range = document.createRange();
+		range.setStart(root, 0);
+		range.collapse(true);
+
+		expect(() => insertPastedParagraphs(root, [], range)).not.toThrow();
+
+		expect(root.innerHTML).toBe("");
+	});
+
+	// один абзац по-прежнему вливается в текущий, а хвост встаёт за ним
+	it("still splices a real paragraph in", () => {
+		const { root, range } = scene();
+		const para = document.createElement("p");
+		para.textContent = "X";
+
+		insertPastedParagraphs(root, [para], range);
+
+		expect(root.innerHTML).toBe("<p>fooXbar</p>");
+	});
+});

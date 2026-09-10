@@ -437,6 +437,12 @@ export function collapseEmptyEdges(editable: HTMLElement, range: Range) {
 
 /** Вставляет санитизированные абзацы <p> в позицию каретки, разбивая текущий абзац. */
 export function insertPastedParagraphs(editable: HTMLElement, paras: HTMLElement[], range: Range) {
+	// Вставлять нечего — и содержимое трогать нельзя: ниже из абзаца выносится его хвост, а на
+	// пустом списке возвращать этот хвост было бы некуда. Разбор отдаёт пустой список на тексте
+	// из одних пустых строк (см. buildParagraphs), и без этой проверки текст после каретки
+	// исчезал бы ещё до того, как обращение к первому абзацу уронит вызов.
+	if (!paras.length) return;
+
 	const block = blockOf(editable, range.startContainer);
 
 	// каретка не внутри абзаца (пустой редактор / уровень редактора) — вставляем абзацы как есть
