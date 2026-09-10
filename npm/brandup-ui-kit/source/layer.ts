@@ -259,14 +259,30 @@ function release(entry: LayerEntry) {
 	const index = stack.indexOf(entry);
 	if (index >= 0) stack.splice(index, 1); // не обязательно верхний: слой мог закрыться сам
 
+	// Остались ли слои, лежавшие ВЫШЕ этого. Считаем до снятия признака и по индексу, а не по
+	// вершине: слой снимают и не по порядку, а фокус тогда принадлежит не ему.
+	const above = index >= 0 && stack.length > index;
+
 	if (entry.options.bodyClass) removeBodyClass(entry.options.bodyClass);
 
 	if (!stack.length) document.removeEventListener("keydown", onKeyDown);
 
-	restoreFocus(entry);
+	restoreFocus(entry, above);
 }
 
-function restoreFocus(entry: LayerEntry) {
+/**
+ * Возвращает фокус туда, откуда слой открыли.
+ *
+ * @param above Остался ли открытым слой, лежавший выше этого. Тогда не возвращаем ничего: фокус
+ * сейчас у него, и забрать его значит выдернуть каретку из окна, которое никто не закрывал.
+ * Проверки «наш ли фокус» ниже для этого не хватает — корень верхнего слоя обычно лежит ВНУТРИ
+ * корня нижнего (попап в модальном окне, список в попапе), и `contains` считает такой фокус своим.
+ * Своё этот слой получит обратно, когда снимется верхний: тот запомнил при постановке ровно тот
+ * элемент, который держал фокус внутри нижнего, — и фокус проходит цепочку сверху вниз.
+ */
+function restoreFocus(entry: LayerEntry, above: boolean) {
+	if (above) return;
+
 	const target = entry.focusReturn;
 	if (!target?.isConnected) return;
 

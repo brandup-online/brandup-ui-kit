@@ -195,6 +195,34 @@ describe("LayerManager", () => {
 
 		expect(document.activeElement).not.toBe(opener);
 	});
+
+	// Корень верхнего слоя обычно лежит ВНУТРИ корня нижнего (попап в окне, список в попапе),
+	// поэтому проверки «наш ли фокус» тут не хватает: contains считает своим и чужой.
+	it("leaves focus alone when a layer above is still open", () => {
+		const opener = makeButton("Открыть");
+		const lowerElem = document.createElement("div");
+		document.body.appendChild(lowerElem);
+
+		opener.focus();
+		const lower = LayerManager.push({ close: () => {}, element: lowerElem });
+
+		// верхний слой — внутри нижнего, как попап внутри модального окна
+		const upperElem = document.createElement("div");
+		lowerElem.appendChild(upperElem);
+		const inside = makeButton("В верхнем", upperElem);
+		const upper = LayerManager.push({ close: () => {}, element: upperElem });
+		inside.focus();
+
+		// нижний снимают не по порядку — верхний ещё открыт, и каретка сейчас его
+		lower.release();
+
+		expect(document.activeElement).toBe(inside);
+
+		// своё нижний получит обратно, когда снимется верхний: фокус проходит цепочку сверху вниз
+		upper.release();
+
+		expect(document.activeElement).toBe(opener);
+	});
 });
 
 describe("Modal focus", () => {
