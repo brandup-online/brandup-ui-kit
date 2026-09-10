@@ -260,6 +260,10 @@ class FormatToolbar {
 			// рост высоты редактора (многострочный ввод) сдвигает его верх — пересчитываем позицию
 			if (typeof ResizeObserver !== "undefined") {
 				this.__resizeObserver ??= new ResizeObserver(this.__reposition);
+				// Только за текущим редактором: панель одна на всех, а `observe` копится —
+				// перейди фокус с одного поля на другое, и наблюдатель остался бы подписан на
+				// оба, пересчитывая положение на рост того, которого на экране уже нет.
+				this.__resizeObserver.disconnect();
 				this.__resizeObserver.observe(host.editable);
 			}
 			this.reposition();

@@ -1152,6 +1152,72 @@ describe("RichEditor toolbar placement", () => {
 	});
 });
 
+// Панель одна на все редакторы, а `observe` копится: перейди фокус с одного поля на другое,
+// и наблюдатель остался бы подписан на оба — пересчитывая положение на рост того, которого
+// на экране уже нет. В jsdom `ResizeObserver` не поставляется, поэтому в остальных наборах эта
+// ветка просто не работает; проверяем её на заглушке, как слежение за размером в position.test.
+describe("RichEditor toolbar size tracking", () => {
+	type Stub = { observe(target: Element): void; disconnect(): void };
+
+	let observed: Element[];
+	const original = (window as unknown as { ResizeObserver?: unknown }).ResizeObserver;
+
+	beforeEach(() => {
+		observed = [];
+
+		(window as unknown as { ResizeObserver: unknown }).ResizeObserver = class implements Stub {
+			observe(target: Element) {
+				observed.push(target);
+			}
+			disconnect() {
+				observed.length = 0;
+			}
+		};
+	});
+
+	afterEach(() => {
+		(window as unknown as { ResizeObserver?: unknown }).ResizeObserver = original;
+		document.body.innerHTML = "";
+	});
+
+	/** Два редактора в одном документе: `makeEditor` чистит body, а здесь нужны оба сразу. */
+	const pair = () => {
+		document.body.innerHTML = "";
+		const first = new RichEditor(document.body.appendChild(document.createElement("div")), {
+			format: true,
+			tools: ["bold"],
+		});
+		const second = new RichEditor(document.body.appendChild(document.createElement("div")), {
+			format: true,
+			tools: ["bold"],
+		});
+
+		return { first, second };
+	};
+
+	const focus = (editor: RichEditor) => editor.editable.dispatchEvent(new FocusEvent("focus"));
+
+	it("follows only the editor the toolbar is showing for", () => {
+		const { first, second } = pair();
+
+		focus(first);
+		expect(observed).toEqual([first.editable]);
+
+		focus(second);
+		expect(observed).toEqual([second.editable]);
+	});
+
+	// панель ушла с экрана — следить не за чем
+	it("stops following once the toolbar is detached", () => {
+		const { first } = pair();
+
+		focus(first);
+		first.editable.dispatchEvent(new FocusEvent("blur"));
+
+		expect(observed).toEqual([]);
+	});
+});
+
 describe("RichEditor toolbar actions", () => {
 	it("adds no action buttons by default", () => {
 		const editor = makeEditor();
