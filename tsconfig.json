@@ -1,4 +1,11 @@
 {
+	// Конфиг корня — только для файлов самого корня: настройки прогона тестов и его окружение.
+	// Исходники пакетов проверяются своими конфигами (npm/*/tsconfig.json), и сборка идёт по ним:
+	// `npm run build` — это autonpm, а он зовёт `tsc` внутри каждого пакета.
+	//
+	// Без `include` сюда попадал и весь npm/*, а вместе с ним чужие тесты и импорты пакетов кита —
+	// и `tsc` из корня падал сотнями ошибок на том, что на своём месте проверяется чисто:
+	// jest-глобалы тут не объявлены, а @brandup/ui ставится не в корень, а по пакетам.
 	"compilerOptions": {
 		"module": "ESNext",
 		"moduleResolution": "bundler",
@@ -15,8 +22,19 @@
 		"resolveJsonModule": true,
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
-		"skipLibCheck": true
+		"skipLibCheck": true,
+		// TypeScript 6 больше не подбирает @types сам из родительских node_modules, поэтому
+		// нужное просим явно: "jest" — глобалы в test/setup.ts, "node" — прогон тестов
+		// (jest.config.ts, FixJSDOMEnvironment.ts, чтение файлов в test/css-cascade.ts).
+		"types": ["jest", "node"],
+		// Пакеты кита в корень не ставятся: их зависимости живут в node_modules самих пакетов
+		// (см. autonpm). Разрешаем их так же, как это делает прогон тестов — через node_modules
+		// соседнего пакета, куда они пришли симлинками (см. modulePaths в jest.config.ts).
+		"paths": {
+			"@brandup/*": ["./npm/brandup-ui-dropdown/node_modules/@brandup/*"]
+		}
 	},
+	"include": ["FixJSDOMEnvironment.ts", "jest.config.ts", "test"],
 	"exclude": ["node_modules", "dist", ".vs", ".vscode"],
 	"compileOnSave": false
 }
