@@ -596,6 +596,30 @@ describe("a construct split by formatting", () => {
 		expect(editable.querySelector("span.variable")!.textContent).toBe("{ИМЯ}");
 	});
 
+	// Склейка идёт циклом: за проход одна конструкция, а предел числа проходов — сколько
+	// в тексте открывающих символов. Предел не должен резать законные склейки, поэтому проверяем
+	// его на нескольких разорванных конструкциях сразу — и на обоих их видах.
+	it("joins every split construct in one pass, however many there are", () => {
+		const editor = bold("**ИМЯ** и **ГОРОД** и **раз**", [{ key: "ИМЯ" }, { key: "ГОРОД" }]);
+		const editable = editor.editor.editable;
+
+		// скобки дописывают вокруг каждого готового жирного слова
+		const words = [...editable.querySelectorAll("b")];
+		words.forEach((b, index) => {
+			b.before(document.createTextNode(index === 2 ? "[два|" : "{"));
+			b.after(document.createTextNode(index === 2 ? "]" : "}"));
+		});
+		editable.dispatchEvent(new Event("input", { bubbles: true }));
+
+		expect([...editable.querySelectorAll("span.variable")].map((span) => span.textContent)).toEqual([
+			"{ИМЯ}",
+			"{ГОРОД}",
+		]);
+		expect(editable.querySelector("span.spintax")!.textContent).toBe("[два|раз]");
+		expect(editable.querySelector("b")).toBeNull();
+		expect(editor.getValue()).toBe("{ИМЯ} и {ГОРОД} и [два|раз]");
+	});
+
 	// Пока конструкция не склеена, разметка не совпадает с текстом, и подсветка пересобирает её
 	// на каждый ввод — вместе с возвратом каретки по смещениям.
 	it("stops rebuilding the markup once it is joined", () => {

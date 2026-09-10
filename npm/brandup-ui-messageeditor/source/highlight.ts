@@ -666,10 +666,29 @@ export function joinSplitMarkup(root: HTMLElement, options: HighlightOptions = {
 	let joined = false;
 
 	// Склейка меняет дерево, и собранные смещения после неё уже не верны — собираем заново.
-	// За проход склеивается одна конструкция, а больше, чем их есть в тексте, не выйдет.
-	while (joinFirstSplit(root, pattern)) joined = true;
+	// За проход склеивается одна конструкция: склеенная лежит в одном узле и больше разорванной
+	// не считается (см. joinFirstSplit). Открывающих символов в тексте не больше, чем есть, а
+	// склейка их не добавляет — она возвращает на место ровно тот текст, что нашла; поэтому их
+	// число и есть предел числа проходов.
+	//
+	// Предел стоит не ради него самого: цикл идёт на каждый ввод, и сорвись инвариант — поле
+	// зависло бы прямо под руками. Лучше оставить конструкцию неподсвеченной.
+	let left = openingCount(root);
+
+	while (left-- > 0 && joinFirstSplit(root, pattern)) joined = true;
 
 	return joined;
+}
+
+/** Сколько в тексте символов, которыми конструкция открывается, — предел числа склеек. */
+function openingCount(root: HTMLElement): number {
+	const text = root.textContent ?? "";
+	let count = 0;
+
+	for (const char of text)
+		if (char === MESSAGEEDITOR.SYNTAX.VARIABLE_OPEN || char === MESSAGEEDITOR.SYNTAX.SPINTAX_OPEN) count++;
+
+	return count;
 }
 
 /** Склеивает первую разорванную конструкцию; false — таких больше нет. */
