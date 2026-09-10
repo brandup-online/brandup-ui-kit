@@ -332,6 +332,50 @@ describe("VariablesModal", () => {
 		link.click();
 		expect(onClick).toHaveBeenCalled();
 	});
+
+	// `javascript:` в href — исполнение кода, пришедшего вместе с адресом. Проверка стоит
+	// у самой записи в DOM, потому что через это место идут обе стороны: и разбор атрибута
+	// разметки, и настройка, переданная в опциях, — а окно ещё и экспортируется наружу.
+	it("never writes an unsafe url into the href", () => {
+		const unsafe = [
+			"javascript:alert(1)",
+			"JavaScript:alert(1)",
+			"java\tscript:alert(1)",
+			"javascript:alert(1)",
+			"data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+			"vbscript:msgbox(1)",
+		];
+
+		for (const url of unsafe) {
+			document.body.innerHTML = "";
+			const onClick = jest.fn();
+			const modal = open(
+				new VariablesModal([{ key: "ИМЯ" }], () => {}, null, { text: "Настроить", url, onClick })
+			);
+
+			// негодный адрес равносилен неназванному: остаётся кнопка, действие у неё то же
+			const link = modal.element!.querySelector<HTMLElement>(".setup .setup-link")!;
+			expect(link.tagName).toBe("BUTTON");
+			expect(link.getAttribute("href")).toBeNull();
+
+			link.click();
+			expect(onClick).toHaveBeenCalled();
+		}
+	});
+
+	// относительные и протокол-относительные адреса ссылками остаются — их и пишут чаще всего
+	it("keeps ordinary urls", () => {
+		for (const url of ["/fields", "fields", "//example.com/fields", "https://example.com/fields", "mailto:a@b.c"]) {
+			document.body.innerHTML = "";
+			const modal = open(
+				new VariablesModal([{ key: "ИМЯ" }], () => {}, null, { text: "Настроить", url, onClick: () => {} })
+			);
+
+			const link = modal.element!.querySelector<HTMLElement>(".setup .setup-link")!;
+			expect(link.tagName).toBe("A");
+			expect(link.getAttribute("href")).toBe(url);
+		}
+	});
 });
 
 describe("parseVariables", () => {

@@ -2,6 +2,7 @@ import "./variables.less"; // стили окна
 
 import { DOM } from "@brandup/ui";
 import { Modal, textTag } from "@brandup/ui-kit";
+import { safeUrl } from "@brandup/ui-richeditor";
 import { MESSAGEEDITOR } from "./names";
 
 /** Переменная персонализации: подставляется приложением при отправке. */
@@ -139,10 +140,16 @@ export default class VariablesModal extends Modal {
 		if (!this.__setup) return;
 		const { text, url, onClick } = this.__setup;
 
+		// Адрес проверяем здесь, у самой записи в `href`: через это место идут обе стороны —
+		// и разбор атрибута разметки, и переданная в опциях настройка, — а `javascript:` в href
+		// это исполнение кода, пришедшего вместе с адресом (см. safeUrl в @brandup/ui-richeditor).
+		// Негодный адрес равносилен неназванному: рисуем кнопку, действие у неё то же.
+		const href = url ? safeUrl(url) : "";
+
 		// Подпись — данные хоста: в окно она идёт текстом, не разметкой (см. textTag).
 		// У ссылки переход остаётся штатным — обработчик его не гасит, он лишь закрывает окно.
-		const link = url
-			? textTag("a", { class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.SETUP_LINK, href: url }, text)
+		const link = href
+			? textTag("a", { class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.SETUP_LINK, href }, text)
 			: textTag("button", { type: "button", class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.SETUP_LINK }, text);
 		link.addEventListener("click", () => onClick());
 

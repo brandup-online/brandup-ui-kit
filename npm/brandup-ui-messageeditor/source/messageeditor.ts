@@ -317,14 +317,9 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 			? cleanVariables(options.variables)
 			: parseVariables(valueElem.dataset.variables);
 		this.variablesEmpty = options.variablesEmpty ?? valueElem.dataset.variablesEmpty ?? null;
-		const declaredSetup = options.variablesSetup ?? valueElem.dataset.variablesSetup ?? null;
-		// Адрес настройки уходит в `href`, а `javascript:` там — исполнение кода, пришедшего вместе
-		// с разметкой (см. safeUrl в @brandup/ui-richeditor). Негодный адрес — как необъявленная
-		// настройка: строки в окне не будет вовсе. Про потерю говорим в консоль: молча пропавшая
-		// ссылка выглядит как «её забыли объявить».
-		const unsafeSetup = typeof declaredSetup === "string" && !!declaredSetup.trim() && !safeUrl(declaredSetup);
-		if (unsafeSetup) console.error("MessageEditor: настройка полей отброшена — негодный адрес.", declaredSetup);
-		this.variablesSetup = unsafeSetup ? null : declaredSetup;
+		this.variablesSetup = MessageEditor.parseSetup(
+			options.variablesSetup ?? valueElem.dataset.variablesSetup ?? null
+		);
 		this.variablesSetupText =
 			options.variablesSetupText ?? valueElem.dataset.variablesSetupText ?? MESSAGEEDITOR.TEXT.VARIABLES_SETUP;
 		this.newVariables = options.newVariables ?? dataFlag(valueElem.dataset, "newVariables");
@@ -417,6 +412,36 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		this.__refreshValidity();
 
 		this.__applyAutoFocus(); // автофокус — вместе с прокруткой к плашке; условия у базового класса
+	}
+
+	/**
+	 * Разбирает объявленную настройку полей: действие хоста берётся как есть, адрес — только
+	 * годный.
+	 *
+	 * Адрес уходит в `href`, а `javascript:` там — исполнение кода, пришедшего вместе с разметкой
+	 * (см. safeUrl в @brandup/ui-richeditor); окно проверяет его ещё раз у самой записи в DOM,
+	 * но решение «есть ли настройка вообще» принимается здесь: от него зависит и включение
+	 * персонализации. Негодный адрес — как необъявленная настройка: строки в окне не будет вовсе.
+	 * Про потерю говорим в консоль: молча пропавшая ссылка выглядит как «её забыли объявить».
+	 *
+	 * Адрес из одних пробелов объявлением не считается: он никуда не ведёт, а раньше проходил
+	 * мимо проверки (`trim` пустой — значит и проверять нечего) и давал в окне мёртвую строку,
+	 * заодно включая персонализацию.
+	 *
+	 * Статический, потому что зовётся из конструктора — до того, как поля объявлены.
+	 */
+	private static parseSetup(
+		declared: string | (() => void | boolean) | null
+	): string | (() => void | boolean) | null {
+		if (typeof declared !== "string") return declared;
+
+		const url = safeUrl(declared);
+		if (url) return url;
+
+		// про пустое не сообщаем: объявить настройку пустой строкой — то же, что не объявить
+		if (declared.trim()) console.error("MessageEditor: настройка полей отброшена — негодный адрес.", declared);
+
+		return null;
 	}
 
 	private __initLogic() {
