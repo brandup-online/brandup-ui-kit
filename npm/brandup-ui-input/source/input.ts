@@ -84,6 +84,14 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 {
 	protected __valueElem: FormInput<T>;
 	protected __submitEvent?: (e: SubmitEvent) => void;
+	/**
+	 * Форма, на которую повешен {@link __submitEvent}. Запоминается в момент подписки, потому что
+	 * снимать слушатель по геттеру {@link form} нельзя: тот спрашивает поле-носитель, а к моменту
+	 * `destroy` поле могло из формы уехать (хост перенёс шаг мастера, убрал форму, оставив поле) —
+	 * и тогда слушатель оставался на форме навсегда, дёргая {@link __syncValue} на разрушенном
+	 * контроле. Та же причина, по которой ниже запоминается документ.
+	 */
+	private __submitFormElem?: HTMLFormElement;
 	private __submitCaptureEvent?: (e: Event) => void;
 	private __invalidEvent?: (e: Event) => void;
 	private __overrides?: ValueElemOverrides;
@@ -208,9 +216,12 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 		// уже отказал бы. Синхронизация нужна и при отключённой валидации, поэтому она первым делом.
 		this.__submitEvent = () => this.__syncValue();
 
-		if (!this.form) return;
+		const form = this.form;
+		if (!form) return;
 
-		this.form.addEventListener("submit", this.__submitEvent);
+		// Форму держим полем, а не спрашиваем геттер при снятии: см. __submitFormElem.
+		this.__submitFormElem = form;
+		form.addEventListener("submit", this.__submitEvent);
 
 		// Тот же сброс, но гарантированно раньше любого обработчика самой формы: в фазе перехвата
 		// на документе событие приходит до цели, в каком бы порядке ни вешали слушатели. Иначе
@@ -565,7 +576,9 @@ export abstract class InputControl<T extends InputType, TEvents = {}>
 		this.__setValid(true);
 		this.__stopTrackingError();
 
-		if (this.form && this.__submitEvent) this.form.removeEventListener("submit", this.__submitEvent);
+		if (this.__submitFormElem && this.__submitEvent)
+			this.__submitFormElem.removeEventListener("submit", this.__submitEvent);
+		this.__submitFormElem = undefined;
 
 		if (this.__submitCaptureEvent)
 			this.__valueElem.ownerDocument.removeEventListener("submit", this.__submitCaptureEvent, true);

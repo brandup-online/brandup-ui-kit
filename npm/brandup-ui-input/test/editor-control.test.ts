@@ -198,3 +198,47 @@ describe("EditorInputControl without an attached editor", () => {
 		expect(input.isConnected).toBe(true);
 	});
 });
+
+// Слушатель submit снимается по запомненной форме, а не по геттеру `form`: тот спрашивает
+// поле-носитель, и к моменту destroy поле могло из формы уехать.
+describe("EditorInputControl teardown", () => {
+	const submit = (form: HTMLFormElement) =>
+		form.dispatchEvent(new SubmitEvent("submit", { cancelable: true, bubbles: true }));
+
+	it("stops syncing the value on submit after destroy", () => {
+		const { input, form } = setup();
+		const control = new TestControl(input);
+		const editor = control.testEditor;
+
+		submit(form);
+		const flushesAlive = editor.flushes;
+		expect(flushesAlive).toBeGreaterThan(0); // живой контрол значение доводит
+
+		control.destroy();
+		submit(form);
+
+		expect(editor.flushes).toBe(flushesAlive);
+	});
+
+	// Хост мог перенести поле из формы прежде, чем снял контрол — переставил шаг мастера, убрал
+	// форму, оставив поле. Слушатель тогда оставался на форме навсегда и дёргал синхронизацию
+	// на разрушенном контроле: у контрола на редакторе это flushChange() по снятому редактору.
+	it("removes the submit listener even when the field already left the form", () => {
+		const { input, form } = setup();
+		const control = new TestControl(input);
+		const editor = control.testEditor;
+
+		// поле уходит из формы вместе с контейнером контрола
+		document.body.appendChild(control.element);
+		expect(control.form).toBeNull();
+
+		control.destroy();
+
+		// поле вернулось в форму — слушателя на ней быть уже не должно
+		form.appendChild(input);
+		const flushesBefore = editor.flushes;
+		submit(form);
+
+		expect(editor.flushes).toBe(flushesBefore);
+	});
+});
