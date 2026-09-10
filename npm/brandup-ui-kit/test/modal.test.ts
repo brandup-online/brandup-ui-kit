@@ -94,6 +94,38 @@ describe("Modal", () => {
 		expect(order).toEqual(["closing: окно ещё здесь", "closed: окна уже нет"]);
 	});
 
+	// Окна могло уже не стать: авто-уничтожение по удалению элемента из DOM зовёт сразу destroy(),
+	// мимо close(). Поздний close() от хоста не должен звать onClosing() — наследник отдаёт им
+	// результат, а отдавать его после того, как подписчики закрытия отработали, значит нарушить
+	// их «ровно один раз, чем бы оно ни кончилось».
+	it("does not call onClosing when close() comes after destroy()", () => {
+		let closings = 0;
+		const closes: number[] = [];
+
+		class HookedModal extends Modal {
+			override get typeName(): string {
+				return "Test.LateCloseModal";
+			}
+
+			protected override onClosing(): void {
+				closings++;
+			}
+		}
+
+		const modal = open(new HookedModal({ title: "Окно" }));
+		modal.onClosed(() => closes.push(1));
+
+		modal.destroy(); // так приходит авто-уничтожение по удалению элемента
+
+		expect(closings).toBe(0);
+		expect(closes).toHaveLength(1);
+
+		modal.close();
+
+		expect(closings).toBe(0);
+		expect(closes).toHaveLength(1);
+	});
+
 	// Esc and the backdrop have their own settings — dropping the button leaves them alone
 	it("still closes by Esc without the close button", () => {
 		const modal = open(new TestModal({ closeButton: false }));
