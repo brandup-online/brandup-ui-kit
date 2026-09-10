@@ -881,3 +881,182 @@ describe("DropDown accessibility", () => {
 		).toEqual(["true", "false"]);
 	});
 });
+
+// Поиск прячет непопавшие пункты классом (`.result li { display: none }` в dropdown.less), а
+// навигация ходила по порядку разметки — стрелка приводила фокус на скрытый пункт. В браузере
+// `focus()` на `display: none` ничего не делает, поэтому клавиша выглядела сломанной: фокус
+// оставался на месте, и до следующего совпадения было не добраться.
+describe("DropDown keyboard navigation while searching", () => {
+	/** Раскрытый список с отфильтрованными пунктами: видимы первый и третий, второй скрыт. */
+	function filtered(): { dd: DropDown; items: HTMLElement[] } {
+		const select = makeSelect([
+			["a", "Alpha"],
+			["b", "Beta"],
+			["c", "Alps"],
+		]);
+		select.setAttribute("data-search-on", "true");
+
+		const dd = new DropDown(select);
+		const root = dd.element!;
+		(root.querySelector(".view") as HTMLElement).dispatchEvent(
+			new MouseEvent("click", { bubbles: true, cancelable: true })
+		);
+
+		const search = root.querySelector('input[type="search"]') as HTMLInputElement;
+		search.value = "al";
+		search.dispatchEvent(new Event("input", { bubbles: true }));
+
+		const items = [...root.querySelectorAll("li")] as HTMLElement[];
+		// сцена держится на этом: Beta между двумя совпадениями и скрыта
+		expect(items.map((li) => li.classList.contains("ok"))).toEqual([true, false, true]);
+
+		return { dd, items };
+	}
+
+	const arrow = (span: HTMLElement, key: "ArrowDown" | "ArrowUp") =>
+		span.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+
+	const option = (item: HTMLElement) => item.firstElementChild as HTMLElement;
+
+	/**
+	 * То же, но скрытый пункт стоит ПОСЛЕ последнего совпадения: только на такой сцене видно
+	 * разницу между «последний в разметке» и «последний видимый».
+	 */
+	function trailingHidden(): { dd: DropDown; items: HTMLElement[] } {
+		const select = makeSelect([
+			["a", "Alpha"],
+			["c", "Alps"],
+			["b", "Beta"],
+		]);
+		select.setAttribute("data-search-on", "true");
+
+		const dd = new DropDown(select);
+		const root = dd.element!;
+		(root.querySelector(".view") as HTMLElement).dispatchEvent(
+			new MouseEvent("click", { bubbles: true, cancelable: true })
+		);
+
+		const search = root.querySelector('input[type="search"]') as HTMLInputElement;
+		search.value = "al";
+		search.dispatchEvent(new Event("input", { bubbles: true }));
+
+		const items = [...root.querySelectorAll("li")] as HTMLElement[];
+		expect(items.map((li) => li.classList.contains("ok"))).toEqual([true, true, false]);
+
+		return { dd, items };
+	}
+
+	it("ArrowDown skips the items the search hid", () => {
+		const { items } = filtered();
+
+		option(items[0]).focus();
+		arrow(option(items[0]), "ArrowDown");
+
+		expect(document.activeElement).toBe(option(items[2]));
+	});
+
+	it("ArrowUp skips them too", () => {
+		const { items } = filtered();
+
+		option(items[2]).focus();
+		arrow(option(items[2]), "ArrowUp");
+
+		expect(document.activeElement).toBe(option(items[0]));
+	});
+
+	// дальше по списку видимых пунктов нет — фокус остаётся, а не уезжает на скрытый
+	it("keeps focus put at the last visible match", () => {
+		const { items } = trailingHidden();
+
+		option(items[1]).focus();
+		arrow(option(items[1]), "ArrowDown");
+
+		expect(document.activeElement).toBe(option(items[1]));
+	});
+
+	// Tab с последнего ВИДИМОГО совпадения уводит фокус из контрола, и список надо закрыть:
+	// проверка по порядку разметки его не закрывала — за Alps в разметке стоит скрытая Beta,
+	// и раскрытый список оставался висеть вместе с классом на body и слушателями закрытия.
+	it("closes the list on Tab from the last visible match", () => {
+		const { dd, items } = trailingHidden();
+
+		option(items[1]).focus();
+		option(items[1]).dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+
+		expect(dd.element!.classList.contains("expanded")).toBe(false);
+	});
+
+	// а с непоследнего — не закрывает: работа в списке продолжается
+	it("keeps the list open on Tab from a match that has another one after it", () => {
+		const { dd, items } = trailingHidden();
+
+		option(items[0]).focus();
+		option(items[0]).dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+
+		expect(dd.element!.classList.contains("expanded")).toBe(true);
+	});
+
+	// без поиска ходить по-прежнему можно по всем пунктам
+	it("walks every item when nothing is filtered", () => {
+		const dd = new DropDown(
+			makeSelect([
+				["a", "Alpha"],
+				["b", "Beta"],
+			])
+		);
+		const items = [...dd.element!.querySelectorAll("li")] as HTMLElement[];
+
+		option(items[0]).focus();
+		arrow(option(items[0]), "ArrowDown");
+
+		expect(document.activeElement).toBe(option(items[1]));
+	});
+});
+
+// Негодный порог оставляет умолчание, а не выключает поиск: `parseInt` отдавал на нём NaN,
+// а `количество >= NaN` всегда ложно — опечатка в атрибуте выходила хуже, чем его отсутствие.
+describe("DropDown data-search-on parsing", () => {
+	const twenty = (): HTMLSelectElement => {
+		const opts: Array<[string, string]> = [];
+		for (let i = 0; i < 20; i++) opts.push([`${i}`, `Option ${i}`]);
+
+		return makeSelect(opts);
+	};
+
+	it("falls back to the default threshold on a value that is not a number", () => {
+		const select = twenty();
+		select.setAttribute("data-search-on", "yes");
+
+		const error = jest.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			const dd = new DropDown(select);
+
+			expect(dd.searchOn).toBe(DROPDOWN.VALUE.SEARCH_ON);
+			expect(dd.element!.classList.contains("searchable")).toBe(true);
+			expect(error).toHaveBeenCalled(); // молча проигнорированный атрибут не найти
+		} finally {
+			error.mockRestore();
+		}
+	});
+
+	it("never leaves NaN in the public threshold", () => {
+		const error = jest.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			for (const value of ["yes", "1.5", "-3", "", "  ", "abc", "3px"]) {
+				const select = twenty();
+				select.setAttribute("data-search-on", value);
+
+				expect(Number.isNaN(new DropDown(select).searchOn)).toBe(false);
+			}
+		} finally {
+			error.mockRestore();
+		}
+	});
+
+	it("still reads a whitespace-padded number", () => {
+		const select = twenty();
+		select.setAttribute("data-search-on", " 3 ");
+
+		expect(new DropDown(select).searchOn).toBe(3);
+	});
+});

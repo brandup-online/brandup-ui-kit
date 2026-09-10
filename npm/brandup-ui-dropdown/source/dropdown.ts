@@ -64,7 +64,7 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 		const cancelText = selectElem.dataset.cancel || DROPDOWN.TEXT.CANCEL;
 
 		let searchOn: number | boolean = DROPDOWN.VALUE.SEARCH_ON;
-		const se = selectElem.dataset.searchOn;
+		const se = selectElem.dataset.searchOn?.trim();
 		if (se) {
 			switch (se.toLowerCase()) {
 				case "true":
@@ -73,9 +73,17 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 				case "false":
 					searchOn = false;
 					break;
-				default:
-					searchOn = parseInt(se);
+				default: {
+					// Порог — целое число пунктов. Негодное значение оставляет умолчание, а не
+					// выключает поиск: `parseInt` отдавал на нём NaN, а `количество >= NaN` всегда
+					// ложно — опечатка в атрибуте выходила хуже, чем его отсутствие, и сам NaN
+					// уезжал наружу в `searchOn`. Про потерю говорим в консоль: молча
+					// проигнорированный атрибут выглядит как «он не работает».
+					const parsed = Number(se);
+					if (Number.isInteger(parsed) && parsed >= 0) searchOn = parsed;
+					else console.error("DropDown: data-search-on отброшен — негодный порог.", se);
 					break;
+				}
 			}
 		}
 
@@ -313,8 +321,8 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 			switch (e.key) {
 				case "ArrowUp": {
 					if (isSpan) {
-						// Если есть предыдущий элемент, то переводим фокус на него
-						const prevItemElem = target.parentElement?.previousElementSibling;
+						// Если есть предыдущий видимый пункт, то переводим фокус на него
+						const prevItemElem = this.__siblingItem(target, false);
 						if (prevItemElem) (<HTMLElement>prevItemElem.firstElementChild).focus();
 
 						e.preventDefault();
@@ -323,8 +331,8 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 				}
 				case "ArrowDown": {
 					if (isSpan) {
-						// Если есть следующий элемент, то переводим фокус на него
-						const nextItemElem = target.parentElement?.nextElementSibling;
+						// Если есть следующий видимый пункт, то переводим фокус на него
+						const nextItemElem = this.__siblingItem(target, true);
 						if (nextItemElem) (<HTMLElement>nextItemElem.firstElementChild).focus();
 
 						e.preventDefault();
@@ -338,8 +346,8 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 					} else if (target == this.__searchInput && this.__listElem.classList.contains(STATE.NOT_FOUND)) {
 						// если не найдено, то фокус уйдёт от компанента на следующий и нужно закрыть popup
 						this.__closePopup();
-					} else if (isSpan && !target.parentElement?.nextElementSibling) {
-						// если фокус на последнем элементе списка, то фокус уйдёт от компанента на следующий и нужно закрыть popup
+					} else if (isSpan && !this.__siblingItem(target, true)) {
+						// если фокус на последнем видимом пункте, то фокус уйдёт от компанента на следующий и нужно закрыть popup
 						this.__closePopup();
 					}
 					break;
@@ -353,6 +361,39 @@ class DropDown extends InputControl<HTMLSelectElement, DropDownEvents> {
 				}
 			}
 		});
+	}
+
+	/**
+	 * Виден ли пункт списка сейчас. Пока идёт поиск, список несёт класс результата, и стили
+	 * прячут всё, кроме совпавшего (см. `.result li` в dropdown.less).
+	 *
+	 * Спрашиваем классы, а не размеры коробки: размеров не отдаёт ни ещё не отрисованный
+	 * список, ни jsdom, — а правило видимости здесь ровно одно, и оно объявлено классом.
+	 */
+	private __isItemVisible(itemElem: Element): boolean {
+		return !this.__listElem.classList.contains(STATE.RESULT) || itemElem.classList.contains(STATE.MATCH);
+	}
+
+	/**
+	 * Соседний ВИДИМЫЙ пункт списка от того, в котором стоит фокус; null — дальше в эту сторону
+	 * пунктов нет.
+	 *
+	 * Скрытые поиском пункты проскакиваем: браузер фокус на `display: none` не ставит, поэтому
+	 * стрелка, дошедшая до отфильтрованного соседа, выглядела бы сломанной — фокус оставался бы
+	 * на месте, и до следующего совпадения с клавиатуры было не добраться. По той же причине
+	 * последним считается последний видимый, а не последний в разметке: иначе Tab с него уводил
+	 * фокус из контрола, не закрыв список (см. keydown).
+	 *
+	 * @param spanElem Элемент в фокусе — `span` с ролью пункта; сам пункт это его родитель.
+	 * @param forward Вперёд по списку (ArrowDown, Tab) или назад (ArrowUp).
+	 */
+	private __siblingItem(spanElem: HTMLElement, forward: boolean): Element | null {
+		let itemElem = spanElem.parentElement?.[forward ? "nextElementSibling" : "previousElementSibling"] ?? null;
+
+		while (itemElem && !this.__isItemVisible(itemElem))
+			itemElem = itemElem[forward ? "nextElementSibling" : "previousElementSibling"];
+
+		return itemElem;
 	}
 
 	/** Фокус в кнопку показа списка: с неё начинается работа с контролом с клавиатуры. */
