@@ -198,7 +198,7 @@ describe("LayerManager", () => {
 
 	// Корень верхнего слоя обычно лежит ВНУТРИ корня нижнего (попап в окне, список в попапе),
 	// поэтому проверки «наш ли фокус» тут не хватает: contains считает своим и чужой.
-	it("leaves focus alone when a layer above is still open", () => {
+	it("leaves focus alone when a layer above is holding it", () => {
 		const opener = makeButton("Открыть");
 		const lowerElem = document.createElement("div");
 		document.body.appendChild(lowerElem);
@@ -220,6 +220,55 @@ describe("LayerManager", () => {
 
 		// своё нижний получит обратно, когда снимется верхний: фокус проходит цепочку сверху вниз
 		upper.release();
+
+		expect(document.activeElement).toBe(opener);
+	});
+
+	// Слой выше бывает и без каретки: попап, раскрытый в окне, пока правят поле самого окна.
+	// Отменить возврат «потому что сверху кто-то есть» тут нельзя — сделать его потом некому:
+	// попап вернул бы фокус в уже удалённое окно, а список dropdown не возвращает его вовсе.
+	it("returns focus when the layer above is not holding it", () => {
+		const opener = makeButton("Открыть");
+		const lowerElem = document.createElement("div");
+		document.body.appendChild(lowerElem);
+		const field = makeButton("Поле нижнего", lowerElem);
+
+		opener.focus();
+		const lower = LayerManager.push({ close: () => {}, element: lowerElem });
+
+		// попап внутри нижнего слоя, но каретка осталась в самом нижнем
+		const upperElem = document.createElement("div");
+		lowerElem.appendChild(upperElem);
+		const upper = LayerManager.push({ close: () => {}, element: upperElem, returnFocus: false });
+		field.focus();
+
+		lower.release();
+
+		expect(document.activeElement).toBe(opener);
+
+		upper.release();
+	});
+});
+
+// Попап живёт на разметке внутри окна (панель смайликов в поле сообщения), и закрыть окно могут
+// из кода, пока попап ещё в стеке: правку значения, перерисовку контейнера.
+describe("modal closed under an open popup", () => {
+	it("still returns focus to whatever opened the window", () => {
+		const opener = makeButton("Открыть окно");
+		opener.focus();
+
+		const field = document.createElement("input");
+		const modal = open(new TestModal({ closeButton: false })).fill(field);
+		const body = modal.element!.querySelector<HTMLElement>(`.${UIKIT.MODAL.CLASS.ELEMENT.BODY}`)!;
+
+		const popupElem = makePopup(body);
+		PopupManager.open(popupElem, { initiator: makeButton("Показать", body) });
+
+		// каретка в поле ОКНА, а не в попапе
+		field.focus();
+		expect(LayerManager.count).toBe(2);
+
+		modal.close();
 
 		expect(document.activeElement).toBe(opener);
 	});

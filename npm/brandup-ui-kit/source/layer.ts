@@ -259,37 +259,42 @@ function release(entry: LayerEntry) {
 	const index = stack.indexOf(entry);
 	if (index >= 0) stack.splice(index, 1); // не обязательно верхний: слой мог закрыться сам
 
-	// Остались ли слои, лежавшие ВЫШЕ этого. Считаем до снятия признака и по индексу, а не по
-	// вершине: слой снимают и не по порядку, а фокус тогда принадлежит не ему.
-	const above = index >= 0 && stack.length > index;
-
 	if (entry.options.bodyClass) removeBodyClass(entry.options.bodyClass);
 
 	if (!stack.length) document.removeEventListener("keydown", onKeyDown);
 
-	restoreFocus(entry, above);
+	// Уже без себя в стеке: возврат фокуса смотрит на слои, которые остались открытыми.
+	restoreFocus(entry);
 }
 
 /**
- * Возвращает фокус туда, откуда слой открыли.
+ * Держит ли фокус какой-то из ещё открытых слоёв.
  *
- * @param above Остался ли открытым слой, лежавший выше этого. Тогда не возвращаем ничего: фокус
- * сейчас у него, и забрать его значит выдернуть каретку из окна, которое никто не закрывал.
- * Проверки «наш ли фокус» ниже для этого не хватает — корень верхнего слоя обычно лежит ВНУТРИ
- * корня нижнего (попап в модальном окне, список в попапе), и `contains` считает такой фокус своим.
- * Своё этот слой получит обратно, когда снимется верхний: тот запомнил при постановке ровно тот
- * элемент, который держал фокус внутри нижнего, — и фокус проходит цепочку сверху вниз.
+ * Спрашиваем именно про фокус, а не про то, есть ли слой выше: слой выше бывает и без каретки —
+ * попап, раскрытый в модальном окне, пока правят поле самого окна. Закрой тогда окно, и возврат,
+ * отменённый «потому что сверху кто-то есть», не сделал бы никто: попап при снятии вернул бы
+ * фокус в уже удалённое окно (или, как список dropdown, не возвращает его вовсе).
  */
-function restoreFocus(entry: LayerEntry, above: boolean) {
-	if (above) return;
+function heldByOpenLayer(active: HTMLElement | null): boolean {
+	return !!active && stack.some((other) => other.options.element?.contains(active));
+}
 
+/** Возвращает фокус туда, откуда слой открыли. */
+function restoreFocus(entry: LayerEntry) {
 	const target = entry.focusReturn;
 	if (!target?.isConnected) return;
+
+	const active = document.activeElement as HTMLElement | null;
+
+	// Каретка у другого ещё открытого слоя — попапа внутри окна, списка внутри попапа. Забрать
+	// её значит выдернуть фокус из того, что никто не закрывал; своё этот слой получит обратно,
+	// когда снимется тот. Проверки «наш ли фокус» ниже для этого не хватает: корень верхнего
+	// слоя обычно лежит ВНУТРИ корня нижнего, и `contains` считает такой фокус своим.
+	if (heldByOpenLayer(active)) return;
 
 	// Фокус мог уйти мимо слоя — пользователь сам ткнул в другое поле, а закрытие пришло следом.
 	// Забирать такой фокус нельзя; возвращаем только свой — оставшийся внутри слоя или потерянный
 	// на body вместе со снятым слоем.
-	const active = document.activeElement as HTMLElement | null;
 	const root = entry.options.element;
 	const ours = !active || active === document.body || (!!root && root.contains(active));
 	if (!ours) return;
