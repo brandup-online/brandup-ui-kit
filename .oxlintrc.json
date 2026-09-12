@@ -1,0 +1,35 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["typescript", "oxc"],
+	"categories": { "correctness": "error" },
+	"env": { "builtin": true, "browser": true, "es2024": true },
+	"ignorePatterns": [
+		"**/node_modules/**",
+		"**/out/**",
+		"**/dist/**",
+		"**/server/**",
+		"**/wwwroot/**",
+		"**/*.d.cts",
+		"**/*.less.d.ts",
+		"**/svg.d.ts",
+		"**/html.d.ts"
+	],
+	"rules": {
+		"typescript/no-empty-object-type": "off",
+		"typescript/no-explicit-any": "off",
+		"typescript/no-non-null-assertion": "off",
+		"no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+		"no-empty": ["warn", { "allowEmptyCatch": true }]
+	},
+	"overrides": [
+		{
+			"files": ["**/test/**/*.ts", "**/*.test.ts"],
+			"env": { "jest": true }
+		},
+		{
+			"files": ["**/src/backend/**/*.ts", "**/*.cjs", "**/*.js", "**/scripts/**", "**/*.mjs"],
+			"env": { "node": true },
+			"rules": { "typescript/no-require-imports": "off" }
+		}
+	]
+}

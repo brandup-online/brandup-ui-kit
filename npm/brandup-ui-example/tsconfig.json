@@ -10,7 +10,7 @@
 		// Как и у остальных пакетов: этот конфиг только проверяет типы, собирает фронтенд webpack
 		// (бэкенд — свой tsconfig.backend.json). Флагом это и так просил `npm run build`, но без
 		// него в конфиге `tsc -p` рядом с исходниками раскладывал .js — а на них потом валился
-		// `eslint .`: там браузерных глобалов нет, и получалось «document is not defined».
+		// `oxlint`: там браузерных глобалов нет, и получалось «document is not defined».
 		"noEmit": true,
 		"noImplicitOverride": true,
 		"noImplicitReturns": true,

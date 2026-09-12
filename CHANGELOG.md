@@ -27,6 +27,23 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   would need synchronized edits we can't validate locally. Left in
   place for now.
 
+### Changed
+
+- **The linter is now `oxlint`, and the whole repository runs on TypeScript 7.**
+  The packages had already moved to the native compiler; the root stayed on
+  TypeScript 6 for one reason only — `typescript-eslint` refuses to load beside
+  it ("typescript-eslint does not support TS 7.0") and takes all of
+  `npm run lint` down with it, and no release of it supports the version yet.
+  `oxlint` is written in Rust and never touches the compiler API, so the pin is
+  gone: `eslint`, `@eslint/js`, `eslint-config-prettier`, `globals` and
+  `typescript-eslint` are dropped, `eslint.config.mjs` gives way to
+  `.oxlintrc.json`, and `lint` / `lint:fix` call `oxlint`. The rule set carries
+  over as it stood — the `correctness` category plus the same four relaxations
+  and the per-environment globals — formatting stays with Prettier, and the
+  sources pass unchanged. Type-aware rules were never enabled here, so nothing
+  is lost with them; `oxlint-tsgolint` can add them later and it runs on the
+  same TypeScript 7.
+
 ### Fixed
 
 - **The waiting ring of a button is pinned to its centre.** It used to be placed
