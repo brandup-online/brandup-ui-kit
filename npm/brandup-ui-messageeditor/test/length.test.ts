@@ -55,7 +55,7 @@ describe("MessageEditor length", () => {
 		expect(editor.messageLength).toBe(3);
 	});
 
-	// подставленное значение длиннее ключа — переменная считается условной длиной
+	// подставленное значение длиннее ключа — свойство считается условной длиной
 	it("counts a variable as the default placeholder length", () => {
 		const { editor } = setup({ value: "{ИМЯ}!" });
 
@@ -91,14 +91,14 @@ describe("MessageEditor length", () => {
 		expect(editor.messageLength).toBe(5);
 	});
 
-	// вложенных конструкций нет: переменная внутри варианта — часть его текста
+	// вложенных конструкций нет: свойство внутри варианта — часть его текста
 	it("counts a variable inside a spintax variant literally", () => {
 		const { editor } = setup({ value: "[{ИМЯ}|привет]" });
 
 		expect(editor.messageLength).toBe(6);
 	});
 
-	// конструкция не пересекает строку: скобки из соседних строк не склеиваются в переменную
+	// конструкция не пересекает строку: скобки из соседних строк не склеиваются в свойство
 	it("does not join constructs across lines", () => {
 		const { editor } = setup({ value: "а{\nБ}" });
 
@@ -134,7 +134,7 @@ describe("MessageEditor length", () => {
 	// Оценка с конструкциями форму не держит: остановка отправки по догадке отняла бы у хоста
 	// его же решение — свой лимит он проверяет сам.
 	it("does not block the form over the maxlength of the value element", () => {
-		// переменная объявлена: чужая остановила бы отправку сама, и проверка вышла бы не о том
+		// свойство объявлено: чужое остановило бы отправку само, и проверка вышла бы не о том
 		const { input, editor } = setup({ value: "{ИМЯ}", maxlength: 10, variables: [{ key: "ИМЯ" }] });
 
 		expect(editor.messageLength).toBeGreaterThan(10);

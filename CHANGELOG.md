@@ -41,6 +41,37 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Added
 
+- **Captions of the controls can be replaced by the application.** Every package
+  of the kit declared its captions in `names.ts`, and half of them never got
+  there at all: the mode buttons of the message editor, the titles of the
+  formatting tools and of the emoji groups were written where the markup is
+  built. Nothing outside the package could reach any of them, so a project whose
+  language was not the one a package happened to ship had to either patch the
+  sources or set every caption on every control by hand. The kit now carries a
+  registry, `@brandup/ui-kit/i18n`: `declareTexts` is how a package declares its
+  namespace of captions, `setTexts` is how an application replaces any subset of
+  them, once at startup. Each package augments the typed namespace list, so a
+  misspelt namespace or key does not compile and an editor completes both. A
+  caption set on a control itself, a `data-*` attribute or an option, still wins
+  over the application texts: it says something about that one control, while
+  the texts say what the language is. The message the browser shows when an
+  undeclared property is left in a message went in as well: it was a Russian
+  literal handed to `setCustomValidity`, the one caption of the set a
+  consumer could see but not reach. A caption reaches the markup when the
+  control is built, so `setTexts` belongs next to the middleware registration,
+  before the controls appear; switching the language later means rebuilding
+  them. Declaring the captions of a control of your own takes the same two
+  calls — see the README.
+
+- **Russian dictionaries ship with the packages.** `@brandup/ui-kit`,
+  `@brandup/ui-dropdown`, `@brandup/ui-textbox`, `@brandup/ui-richeditor` and
+  `@brandup/ui-messageeditor` each carry `locale/ru.json` in the shape their
+  namespace declares, so a Russian project passes the file to `setTexts` instead
+  of retyping five dozen strings. A test in each package asserts the dictionary
+  holds exactly the declared keys: a dictionary is not an object literal, and a
+  key that went stale would otherwise pass the type check and simply never be
+  read.
+
 - **The colour mixed into a control under the pointer is a theme input.**
   `--hover--button-tint-color` and `--active--button-tint-color` (plus
   `--hover--checkbox-tint-color` and `--hover--input-toolbar-button-tint-color`,
@@ -440,6 +471,27 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
   listeners on the restored `<input>`.
 
 ### Changed
+
+- **What the message editor calls a variable is a property.** The term was
+  renamed in the product, and the component was the last place still saying
+  «переменная» — in every caption a person reads, in the README and in the
+  comments. The rename is wording only: the public surface keeps its names, so
+  `variables`, `data-variables`, `MessageVariable`, `unknownVariables`, the
+  `.variable` classes and the `VARIABLE_*` caption keys are untouched and no
+  consumer has to change anything. Russian needed more than a search and
+  replace — «свойство» is neuter where «переменная» is feminine, so every
+  agreeing word around it moved too, the caption of a key typed into a message
+  among them («новая» → «новое»).
+
+- **The captions the packages ship are English.** The kit spoke three languages
+  at once: the dropdown answered in English, the close cross of the modal
+  window, the message editor and the text editor in Russian. A published package
+  has no way to know the language of the project that installs it, so it now
+  ships one, and the other arrives from the application. **Migration:** a
+  Russian project registers the dictionaries of the packages it uses at startup,
+  `setTexts(ru)` per package (see the README); until it does, the captions
+  listed in `names.ts` under `TEXT` are shown in English. A caption already set
+  on a control, through a `data-*` attribute or an option, is unaffected.
 
 - **The arrow and the field icons stop turning black on a dark theme.** Every
   state painted them with its own colour token — `--svg-fill:

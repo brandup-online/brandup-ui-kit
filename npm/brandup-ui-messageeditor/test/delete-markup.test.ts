@@ -46,7 +46,7 @@ function caretBehind(editable: HTMLElement, selector = "span.variable") {
 // Конструкция неделима: стереть в ней символ нельзя, а нативное удаление рядом с
 // нередактируемым элементом браузеры делают по-разному. Вдобавок за конструкцией в конце строки
 // стоит невидимая опора каретки — нажатие уходило бы на неё, а её тут же возвращает подсветка:
-// набранную с клавиатуры переменную не удавалось стереть вовсе.
+// набранное с клавиатуры свойство не удавалось стереть вовсе.
 describe("deleting a construct with the keyboard", () => {
 	it("removes a variable that ends the line, with its caret anchor", () => {
 		const { editor, input, editable } = setup("Привет, {ИМЯ}");
@@ -215,7 +215,7 @@ describe("deleting a construct with the keyboard", () => {
 		expect(editor.getValue()).toBe("привет");
 	});
 
-	// подпись невалидности снимается той же правкой: неизвестной переменной в поле больше нет
+	// подпись невалидности снимается той же правкой: неизвестного свойства в поле больше нет
 	it("clears the unknown variable error", () => {
 		const { editor, editable, input } = setup("{ЧУЖАЯ}");
 		expect(editor.validate()).toBe(false);

@@ -52,7 +52,7 @@ export default class RandomizerModal extends Modal {
 	 * @param apply Вызывается с готовым спинтаксом; при отмене не вызывается.
 	 */
 	constructor(text: string, apply: (spintax: string) => void) {
-		super({ title: "Рандомизация текста", className: MESSAGEEDITOR.CLASS.MODAL.ROOT.RANDOMIZER });
+		super({ title: MESSAGEEDITOR.TEXT.RANDOMIZE, className: MESSAGEEDITOR.CLASS.MODAL.ROOT.RANDOMIZER });
 
 		this.__apply = apply;
 		this.__list = DOM.tag("div", { class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.VARIANTS });
@@ -63,7 +63,7 @@ export default class RandomizerModal extends Modal {
 				class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.APPLY,
 				command: MESSAGEEDITOR.COMMAND.RANDOMIZER.APPLY,
 			},
-			"Сохранить"
+			MESSAGEEDITOR.TEXT.SAVE
 		) as HTMLButtonElement;
 
 		// Правка разбирается на списке, а не на каждом поле: строки появляются и исчезают на ходу,
@@ -91,7 +91,7 @@ export default class RandomizerModal extends Modal {
 						class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.CANCEL,
 						command: MESSAGEEDITOR.COMMAND.RANDOMIZER.CANCEL,
 					},
-					"Отмена"
+					MESSAGEEDITOR.TEXT.CANCEL
 				),
 				DOM.tag(
 					"div",
@@ -148,7 +148,11 @@ export default class RandomizerModal extends Modal {
 			// never as markup (see textTag)
 			textTag(
 				"div",
-				{ class: "editable", contenteditable: "true", dataset: { placeholder: "Вариант текста" } },
+				{
+					class: "editable",
+					contenteditable: "true",
+					dataset: { placeholder: MESSAGEEDITOR.TEXT.VARIANT_PLACEHOLDER },
+				},
 				text
 			),
 			DOM.tag(
@@ -156,7 +160,7 @@ export default class RandomizerModal extends Modal {
 				{
 					type: "button",
 					class: MESSAGEEDITOR.CLASS.MODAL.ELEMENT.REMOVE,
-					title: "Убрать вариант",
+					title: MESSAGEEDITOR.TEXT.VARIANT_REMOVE,
 					command: MESSAGEEDITOR.COMMAND.RANDOMIZER.REMOVE,
 				},
 				trashIcon

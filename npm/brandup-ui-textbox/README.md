@@ -186,6 +186,21 @@ textbox.on(TEXTBOX.EVENT.CHANGE, (data: ChangeEventData) => {
 textbox.onChange((data) => { ... });
 ```
 
+## Локализация
+
+Подписи по умолчанию английские. Русские возит сам пакет, приложение объявляет их один раз
+при старте:
+
+```typescript
+import { setTexts } from "@brandup/ui-kit/i18n";
+import ru from "@brandup/ui-textbox/locale/ru.json";
+
+setTexts(ru);
+```
+
+Подпись отдельного контрола задаётся на нём самом и сильнее текстов приложения. Подробнее —
+[@brandup/ui-kit](../brandup-ui-kit/README.md#локализация).
+
 ## Нормализация пробелов
 
 Когда редактирование логически завершено (поле теряет фокус), а также после инициализации и `setValue`, текст нормализуется:

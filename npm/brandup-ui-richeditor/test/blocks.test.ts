@@ -319,7 +319,7 @@ describe("merged code button", () => {
 		focus(editor);
 
 		expect(codeButton()).not.toBeNull();
-		expect(codeButton()!.title).toBe("Код");
+		expect(codeButton()!.title).toBe(RICHEDITOR.TEXT.CODE_MERGED);
 		expect(
 			document.querySelector(`.${RICHEDITOR.CLASS.TOOLBAR.ROOT} .block-button[data-block-type="code"]`)
 		).toBeNull();

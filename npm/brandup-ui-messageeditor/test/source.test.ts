@@ -197,7 +197,7 @@ describe("MessageEditor source", () => {
 		expect(sourceElem(editor)!.textContent).toBe("раз два");
 	});
 
-	// Значение при переключении читается наружу, а значит проходит и проверку переменных —
+	// Значение при переключении читается наружу, а значит проходит и проверку свойств —
 	// как при любом внешнем чтении (голый flushChange оставил бы подпись невалидности старой)
 	it("refreshes the validity while delivering the pending change", () => {
 		const { input } = setup({ value: "привет", attr: true });

@@ -1,0 +1,24 @@
+{
+	"messageeditor": {
+		"MODE_TEXT": "Текст",
+		"MODE_TEXT_TITLE": "Показать сообщение",
+		"MODE_SOURCE": "Markdown",
+		"MODE_SOURCE_TITLE": "Показать разметку, какой значение уйдёт в форму",
+		"EMOJI": "Вставить смайлик",
+		"VARIABLE_INSERT": "Вставить свойство",
+		"RANDOMIZE": "Рандомизация текста",
+		"VARIANT_PLACEHOLDER": "Вариант текста",
+		"VARIANT_REMOVE": "Убрать вариант",
+		"VARIABLE_KEY_PLACEHOLDER": "Ключ свойства",
+		"SAVE": "Сохранить",
+		"CANCEL": "Отмена",
+		"UNKNOWN_TITLE": "Свойство не объявлено — при отправке не подставится.",
+		"UNKNOWN_ERROR": "Неизвестные свойства: {keys}.",
+		"NEW_TITLE": "Новое свойство — его ещё нет в списке.",
+		"VARIABLE_NEW": "новое",
+		"VARIABLES_TITLE": "Персонализация",
+		"VARIABLES_EMPTY": "Свойства не заданы.",
+		"VARIABLES_SETUP": "Настроить поля",
+		"VARIABLE_KEY_HINT": "По краям ключа — буква, цифра или подчёркивание; внутри можно пробелы, точки и дефисы."
+	}
+}

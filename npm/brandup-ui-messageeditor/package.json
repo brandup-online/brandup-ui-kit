@@ -32,6 +32,7 @@
 		".": "./source/index.ts",
 		"./vars.less": "./vars.less",
 		"./names": "./source/names.ts",
+		"./locale/*": "./locale/*",
 		"./source/*.less": "./source/*.less",
 		"./svg/*": "./svg/*",
 		"./package.json": "./package.json"
@@ -48,6 +49,7 @@
 	},
 	"files": [
 		"source",
+		"locale",
 		"vars.less",
 		"svg",
 		"README.md"

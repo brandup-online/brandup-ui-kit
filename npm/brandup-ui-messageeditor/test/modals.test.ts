@@ -277,10 +277,10 @@ describe("VariablesModal", () => {
 
 	// причину пустого списка знает приложение, а не компонент
 	it("shows the text given for an empty list", () => {
-		const modal = open(new VariablesModal([], () => {}, "Переменные появятся после выбора аудитории."));
+		const modal = open(new VariablesModal([], () => {}, "Свойства появятся после выбора аудитории."));
 
 		expect(modal.element!.querySelector(".variables .empty")!.textContent).toBe(
-			"Переменные появятся после выбора аудитории."
+			"Свойства появятся после выбора аудитории."
 		);
 	});
 
@@ -409,7 +409,7 @@ describe("parseVariables", () => {
 		expect(parseVariables(value)).toEqual([]);
 	});
 
-	// потерянный список выглядит как «переменные не заданы» — о разборе сообщаем в консоль
+	// потерянный список выглядит как «свойства не заданы» — о разборе сообщаем в консоль
 	it("reports broken JSON instead of failing", () => {
 		const error = jest.spyOn(console, "error").mockImplementation(() => {});
 

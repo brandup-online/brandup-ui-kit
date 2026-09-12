@@ -31,6 +31,7 @@
 	"exports": {
 		".": "./source/index.ts",
 		"./names": "./source/names.ts",
+		"./locale/*": "./locale/*",
 		"./source/*.less": "./source/*.less",
 		"./svg/*": "./svg/*",
 		"./package.json": "./package.json"
@@ -48,6 +49,7 @@
 	},
 	"files": [
 		"source",
+		"locale",
 		"svg",
 		"README.md"
 	],

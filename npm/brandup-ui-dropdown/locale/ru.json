@@ -1,0 +1,9 @@
+{
+	"dropdown": {
+		"PLACEHOLDER": "Выберите",
+		"EMPTY": "Список пуст",
+		"SEARCH": "Поиск",
+		"SEARCH_EMPTY": "Ничего не найдено",
+		"CANCEL": "Отмена"
+	}
+}

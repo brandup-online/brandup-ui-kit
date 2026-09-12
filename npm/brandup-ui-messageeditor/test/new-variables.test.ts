@@ -71,8 +71,8 @@ afterEach(() => {
 });
 
 describe("new variables mode", () => {
-	// Необъявленный ключ здесь не ошибка, а заявка: заведёт такую переменную приложение,
-	// а помечена она затем, чтобы было видно — это ещё не существующее поле.
+	// Необъявленный ключ здесь не ошибка, а заявка: заведёт такое свойство приложение,
+	// а помечено оно затем, чтобы было видно — это ещё не существующее поле.
 	it("marks a key outside the declared list as new, not as unknown", () => {
 		const editor = setup("Привет, {СКИДКА}!", declared);
 		const span = editor.editor.editable.querySelector<HTMLElement>("span.variable")!;
@@ -84,7 +84,7 @@ describe("new variables mode", () => {
 		expect(editor.getValue()).toBe("Привет, {СКИДКА}!");
 	});
 
-	// Главное отличие режима: отправку такая переменная не держит, и подпись поля остаётся хосту.
+	// Главное отличие режима: отправку такое свойство не держит, и подпись поля остаётся хосту.
 	it("leaves the value valid", () => {
 		const editor = setup("{СКИДКА}", declared);
 		const valueElem = editor.element.querySelector("textarea")!;
@@ -125,7 +125,7 @@ describe("new variables mode", () => {
 		expect(editor.unknownVariables).toEqual([]);
 	});
 
-	// Границы ключа — буква или цифра: иначе `{ }` и `{...}` становились бы переменной на ровном
+	// Границы ключа — буква или цифра: иначе `{ }` и `{...}` становились бы свойством на ровном
 	// месте. Такое не конструкция вовсе — обычный текст, каким его и набрали.
 	it.each([["{ }"], ["{...}"], ["{ СКИДКА }"], ["{СКИДКА.}"], ["{[X]}"], ["{-}"], ["{-СКИДКА}"]])(
 		"does not treat %s as a construct at all",
@@ -147,7 +147,7 @@ describe("new variables mode", () => {
 		expect(editor.editor.editable.querySelectorAll("span.variable.unknown")).toHaveLength(1);
 	});
 
-	// Ключ новой переменной приводится к верхнему регистру: объявить его пока нечем, а заведут
+	// Ключ нового свойства приводится к верхнему регистру: объявить его пока нечем, а заведут
 	// ровно то, что набрано, — и `{Скидка}` рядом с `{СКИДКА}` развели бы два поля вместо одного.
 	it.each([["{скидка}"], ["{Скидка}"], ["{сКиДкА}"]])("raises %s to upper case", (value) => {
 		const editor = setup(`Привет, ${value}!`, declared);
@@ -159,7 +159,7 @@ describe("new variables mode", () => {
 		expect(editor.unknownVariables).toEqual(["СКИДКА"]);
 	});
 
-	// Приведение сводит написанное в разном регистре к одной переменной — и в тексте, и в списке.
+	// Приведение сводит написанное в разном регистре к одному свойству — и в тексте, и в списке.
 	it("counts keys that differ only in case as one new variable", () => {
 		const editor = setup("{Скидка}, {СКИДКА} и {скидка}", declared);
 
@@ -185,7 +185,7 @@ describe("new variables mode", () => {
 		expect(editor.unknownVariables).toEqual(["скидка"]);
 	});
 
-	// Заведённая переменная перестаёт быть новой независимо от того, как её набрали.
+	// Заведённое свойство перестаёт быть новым независимо от того, как его набрали.
 	it("stops treating a key as new once it is declared in another case", () => {
 		const editor = setup("{имя}", declared);
 		const span = editor.editor.editable.querySelector<HTMLElement>("span.variable")!;
@@ -214,7 +214,7 @@ describe("new variables mode", () => {
 	});
 
 	// Строгий режим на пустом списке молчит (набор может быть ещё не известен), а здесь пустой
-	// список — рабочее начало: переменные заводятся по мере того, как их набирают.
+	// список — рабочее начало: свойства заводятся по мере того, как их набирают.
 	it("marks new keys even while the declared list is empty", () => {
 		const editor = setup("{СКИДКА}", { newVariables: true });
 		const span = editor.editor.editable.querySelector<HTMLElement>("span.variable")!;
@@ -258,7 +258,7 @@ describe("new variables mode", () => {
 		expect(editor.unknownVariables).toEqual([]);
 	});
 
-	// Набирают переменные чаще, чем вставляют из окна, а подсветка на печати идёт своим путём —
+	// Набирают свойства чаще, чем вставляют из окна, а подсветка на печати идёт своим путём —
 	// по событию input, до того как значение вообще пересчитано.
 	it.each([["{СКИДКА}"], ["{ДАТА ЗАКАЗА}"], ["{Скидка}", "{СКИДКА}"]])(
 		"marks %s typed by hand",
@@ -272,7 +272,7 @@ describe("new variables mode", () => {
 		}
 	);
 
-	// Набранная только что переменная — первая, которую захотят вставить ещё раз.
+	// Набранное только что свойство — первое, которое захотят вставить ещё раз.
 	it("offers a just-typed key in the window", () => {
 		const editor = setup("", declared);
 		type(editor, "{СКИДКА}");
@@ -298,8 +298,8 @@ describe("new variables mode", () => {
 			field().dispatchEvent(new Event("input", { bubbles: true }));
 		};
 
-		// Новую переменную выбирать не из чего: в списке её нет и быть не может — её набрали
-		// здесь же. Поэтому клик по ней открывает не список, а правку ключа.
+		// Новое свойство выбирать не из чего: в списке его нет и быть не может — его набрали
+		// здесь же. Поэтому клик по нему открывает не список, а правку ключа.
 		it("opens the key window instead of the picker", () => {
 			const editor = setup("{СКИДКА}", declared);
 			open(editor);
@@ -434,7 +434,7 @@ describe("new variables mode", () => {
 	});
 
 	describe("variables modal", () => {
-		// Набранную переменную вставляют повторно так же, как объявленную, — значит она обязана
+		// Набранное свойство вставляют повторно так же, как объявленное, — значит оно обязано
 		// быть в списке. Пометка объясняет, почему запись отличается: поля ещё нет.
 		it("lists the new keys after the declared ones, with a mark", () => {
 			const editor = setup("{СКИДКА} {ИМЯ} {БОНУС}", declared);
@@ -465,7 +465,7 @@ describe("new variables mode", () => {
 			expect(editor.getValue()).toBe("{СКИДКА}{СКИДКА}");
 		});
 
-		// Список собирается на каждое открытие: набранная только что переменная должна найтись
+		// Список собирается на каждое открытие: набранное только что свойство должно найтись
 		// в нём сразу, а собранный однажды список отставал бы от поля.
 		it("follows the text between openings", () => {
 			const editor = setup("{СКИДКА}", declared);
@@ -485,7 +485,7 @@ describe("new variables mode", () => {
 		});
 
 		// Пустой объявленный список — не пустое окно, пока в тексте есть новые: заглушка
-		// «переменные не заданы» рядом с ними противоречила бы сама себе.
+		// «свойства не заданы» рядом с ними противоречила бы сама себе.
 		it("replaces the empty text when the text has new keys", () => {
 			const editor = setup("{СКИДКА}", { newVariables: true });
 			openVariables(editor);

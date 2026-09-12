@@ -1,0 +1,32 @@
+{
+	"richeditor": {
+		"BLOCK_PARAGRAPH": "Обычный текст",
+		"BLOCK_QUOTE": "Цитата",
+		"BLOCK_CODE": "Блок кода",
+		"BOLD": "Жирный",
+		"ITALIC": "Курсив",
+		"STRIKE": "Зачёркнутый",
+		"UNDERLINE": "Подчёркнутый",
+		"SPOILER": "Спойлер",
+		"CODE": "Моноширинный",
+		"LINK": "Ссылка",
+		"CODE_MERGED": "Код",
+		"EMOJI": "Вставить смайлик",
+		"ERASE": "Очистить форматирование",
+		"UNDO": "Отменить (Ctrl+Z)",
+		"REDO": "Повторить (Ctrl+Y)",
+		"LINK_APPLY": "Применить",
+		"LINK_REMOVE": "Убрать ссылку",
+		"EMOJI_SMILEYS": "Смайлы и жесты",
+		"EMOJI_PEOPLE": "Люди",
+		"EMOJI_ANIMALS": "Животные",
+		"EMOJI_NATURE": "Природа",
+		"EMOJI_FOOD": "Еда",
+		"EMOJI_CELEBRATION": "Праздники и спорт",
+		"EMOJI_PLACES": "Места",
+		"EMOJI_TRANSPORT": "Транспорт",
+		"EMOJI_OBJECTS": "Предметы",
+		"EMOJI_SYMBOLS": "Символы",
+		"EMOJI_RECENT": "Недавние"
+	}
+}

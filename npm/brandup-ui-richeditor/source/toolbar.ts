@@ -61,7 +61,6 @@ const ACTION_ICONS: Record<EditorAction, string> = {
 // Код есть и инструментом (моноширинный), и типом блока — панель сводит их в одну кнопку.
 const CODE_TOOL: FormatTool = "code";
 const CODE_BLOCK: BlockType = "code";
-const MERGED_CODE_TITLE = "Код";
 
 // Ссылка — единственный инструмент, у которого есть данные: кнопка не переключает её, а
 // показывает в панели поле адреса вместо кнопок.
@@ -450,7 +449,7 @@ class FormatToolbar {
 					type: "button",
 					class: [RICHEDITOR.CLASS.TOOLBAR.BUTTON, "format-button"],
 					dataset: { formatTool: tool },
-					title: merged ? MERGED_CODE_TITLE : def.title,
+					title: merged ? RICHEDITOR.TEXT.CODE_MERGED : def.title,
 				},
 				FORMAT_ICONS[tool]
 			);
@@ -649,7 +648,11 @@ class FormatToolbar {
 
 		const remove = DOM.tag(
 			"button",
-			{ type: "button", class: [RICHEDITOR.CLASS.TOOLBAR.BUTTON, "link-remove"], title: "Убрать ссылку" },
+			{
+				type: "button",
+				class: [RICHEDITOR.CLASS.TOOLBAR.BUTTON, "link-remove"],
+				title: RICHEDITOR.TEXT.LINK_REMOVE,
+			},
 			unlinkIcon
 		);
 		remove.addEventListener("click", () => apply(""));
@@ -658,7 +661,11 @@ class FormatToolbar {
 			input,
 			DOM.tag(
 				"button",
-				{ type: "button", class: [RICHEDITOR.CLASS.TOOLBAR.BUTTON, "link-apply"], title: "Применить" },
+				{
+					type: "button",
+					class: [RICHEDITOR.CLASS.TOOLBAR.BUTTON, "link-apply"],
+					title: RICHEDITOR.TEXT.LINK_APPLY,
+				},
 				applyIcon
 			),
 			remove,

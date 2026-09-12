@@ -21,6 +21,20 @@
 webpack и vite, а также список входов темы: [@brandup/ui-kit](npm/brandup-ui-kit/README.md#установка)
 и [TOKENS.md](npm/brandup-ui-kit/TOKENS.md).
 
+## Локализация
+
+Подписи контролов по умолчанию английские; русский словарь возит каждый пакет, у которого есть
+подписи. Приложение объявляет свои тексты один раз при старте:
+
+```typescript
+import { setTexts } from "@brandup/ui-kit/i18n";
+import dropdownRu from "@brandup/ui-dropdown/locale/ru.json";
+
+setTexts(dropdownRu);
+```
+
+Подробнее — [@brandup/ui-kit](npm/brandup-ui-kit/README.md#локализация).
+
 ## Версии
 
 Версия пакета — номер сборки CI (`autonpm-version` подставляет `Build.BuildNumber`), а не semver:

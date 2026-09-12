@@ -31,6 +31,8 @@
 	"exports": {
 		".": "./source/index.ts",
 		"./names": "./source/names.ts",
+		"./i18n": "./source/i18n.ts",
+		"./locale/*": "./locale/*",
 		"./env": "./source/env.ts",
 		"./position": "./source/position.ts",
 		"./text": "./source/utils/text.ts",
@@ -49,6 +51,7 @@
 	},
 	"files": [
 		"source",
+		"locale",
 		"build",
 		"svg",
 		"vars.less",

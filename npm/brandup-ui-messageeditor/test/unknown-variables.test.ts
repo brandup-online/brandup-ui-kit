@@ -17,8 +17,8 @@ function setup(value: string, options: MessageEditorOptions = {}) {
 const declared: MessageEditorOptions = { variables: [{ key: "ИМЯ", name: "Имя" }, { key: "ГОРОД" }] };
 
 describe("unknown variables", () => {
-	// Опечатка в ключе выглядит как рабочая переменная, а на отправке подставить её нечем —
-	// получателю она уйдёт скобками наружу. Без пометки это замечается уже по сообщению.
+	// Опечатка в ключе выглядит как рабочее свойство, а на отправке подставить его нечем —
+	// получателю оно уйдёт скобками наружу. Без пометки это замечается уже по сообщению.
 	it("marks a key that is not in the declared list", () => {
 		const editor = setup("Привет, {ИМЯЯ}!", declared);
 		const span = editor.editor.editable.querySelector<HTMLElement>("span.variable")!;
@@ -29,7 +29,7 @@ describe("unknown variables", () => {
 		expect(editor.getValue()).toBe("Привет, {ИМЯЯ}!");
 	});
 
-	// Объявленная переменная остаётся как была — и с названием, и без него
+	// Объявленное свойство остаётся как было — и с названием, и без него
 	it.each([
 		["{ИМЯ}", "с названием"],
 		["{ГОРОД}", "без названия"],
@@ -42,8 +42,8 @@ describe("unknown variables", () => {
 	});
 
 	// Пустой список — это «не объявлено ничего», а не «набор пока не известен»: подставить
-	// переменную нечем ни в том, ни в другом случае. Приложение, которому набор ещё предстоит
-	// узнать (переменные появляются после выбора аудитории), включает персонализацию тогда же,
+	// свойство нечем ни в том, ни в другом случае. Приложение, которому набор ещё предстоит
+	// узнать (свойства появляются после выбора аудитории), включает персонализацию тогда же,
 	// когда узнаёт набор.
 	it("marks every key while the declared list is empty", () => {
 		const editor = setup("{ЧТО_УГОДНО}", { personalization: true });
@@ -71,7 +71,7 @@ describe("unknown variables", () => {
 	});
 
 	// Спинтакс разбирается тем же выражением и матчится целиком: скобки внутри него — часть
-	// его текста, а не переменные. Иначе `[{А}|{Б}]` дал бы две несуществующие проблемы.
+	// его текста, а не свойства. Иначе `[{А}|{Б}]` дал бы две несуществующие проблемы.
 	it("does not look for variables inside a spintax", () => {
 		const editor = setup("[{А}|{Б}]", declared);
 
@@ -79,7 +79,7 @@ describe("unknown variables", () => {
 		expect(editor.unknownVariables).toEqual([]);
 	});
 
-	// Конструкция не пересекает строку: `{` в конце одной и `}` в начале следующей — не переменная.
+	// Конструкция не пересекает строку: `{` в конце одной и `}` в начале следующей — не свойство.
 	// Проверка обходит текстовые узлы по отдельности как раз ради этого — по textContent всего
 	// элемента строки склеились бы и дали ложную проблему.
 	it("does not join a construct across lines", () => {
@@ -89,7 +89,7 @@ describe("unknown variables", () => {
 		expect(editor.editor.editable.querySelector("span.variable")).toBeNull();
 	});
 
-	// Подставить переменную нечем — это ошибка значения, а не оформления: отправку она обязана
+	// Подставить свойство нечем — это ошибка значения, а не оформления: отправку она обязана
 	// остановить так же, как нативные ограничения поля.
 	it("makes the value invalid and explains why", () => {
 		const editor = setup("{ЧУЖАЯ}", declared);
@@ -99,6 +99,17 @@ describe("unknown variables", () => {
 		expect(editor.element.classList.contains("invalid")).toBe(true);
 		expect(valueElem.validity.customError).toBe(true);
 		expect(valueElem.validationMessage).toContain("{ЧУЖАЯ}");
+	});
+
+	// Ключ может содержать `$`, а в строке замены `$&` и `$'` — это узоры: подставленный наивно,
+	// такой ключ съел бы сам себя, и в сообщении оказалось бы `{A{keys}B}`.
+	it("puts a key with a dollar sign into the message as it is", () => {
+		const editor = setup("{A$&B}", declared);
+		const valueElem = editor.element.querySelector("textarea")!;
+
+		expect(editor.validate()).toBe(false);
+		expect(valueElem.validationMessage).toContain("{A$&B}");
+		expect(valueElem.validationMessage).not.toContain("{keys}");
 	});
 
 	it("clears the error once the key is fixed", () => {
@@ -147,7 +158,7 @@ describe("unknown variables", () => {
 	});
 
 	// Проверять не по чему — значит и подпись не наша: приложение могло выставить свою через
-	// setCustomValidity, и пустая строка стёрла бы её. Без персонализации переменных в поле нет
+	// setCustomValidity, и пустая строка стёрла бы её. Без персонализации свойств в поле нет
 	// вовсе, и проверять правда нечего.
 	it("keeps a host-set custom validity when there is nothing to check", () => {
 		const editor = setup("{ЧТО_УГОДНО}", { personalization: false });
@@ -162,7 +173,7 @@ describe("unknown variables", () => {
 });
 
 // Ограничение объявляется полю-носителю, а нативная проверка ограничений идёт до события submit:
-// не проверив начальное значение, поле пропустило бы первую отправку. Разметку с чужой переменной
+// не проверив начальное значение, поле пропустило бы первую отправку. Разметку с чужим свойством
 // отдаёт сервер, и до первой правки события изменения не случается вовсе.
 describe("initial value", () => {
 	it("makes the field invalid before any interaction", () => {

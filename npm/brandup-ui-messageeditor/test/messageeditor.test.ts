@@ -437,10 +437,10 @@ describe("MessageEditor", () => {
 		document.querySelector<HTMLButtonElement>(".ui-modal .modal-close")!.click();
 	});
 
-	// Пустой список — не ошибка: переменные могут появиться позже, и объяснить это должно приложение.
+	// Пустой список — не ошибка: свойства могут появиться позже, и объяснить это должно приложение.
 	it("shows its own empty text in the picker window", () => {
 		const { input } = setup();
-		input.setAttribute("data-variables-empty", "Переменные появятся после выбора аудитории.");
+		input.setAttribute("data-variables-empty", "Свойства появятся после выбора аудитории.");
 		const editor = new MessageEditor(input);
 
 		expect(editor.variables).toEqual([]);
@@ -449,7 +449,7 @@ describe("MessageEditor", () => {
 		document.querySelector<HTMLButtonElement>('.ui-richeditor-toolbar [data-toolbar-button="variable"]')!.click();
 
 		expect(document.querySelector(".ui-messageeditor-variables .variables .empty")!.textContent).toBe(
-			"Переменные появятся после выбора аудитории."
+			"Свойства появятся после выбора аудитории."
 		);
 
 		document.querySelector<HTMLButtonElement>(".ui-modal .modal-close")!.click();

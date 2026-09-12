@@ -1,4 +1,10 @@
 // Конфигурация форматирования: типы, набор инструментов, markdown-маркеры и Ctrl/Cmd-хоткеи.
+//
+// Подписи кнопок берутся из реестра в момент чтения, поэтому они здесь свойствами с геттером,
+// а не строками: записи собираются при загрузке пакета — до того, как приложение объявит свои
+// подписи (см. `@brandup/ui-kit/i18n`).
+
+import { RICHEDITOR } from "./names";
 
 export type FormatTool = "bold" | "italic" | "strike" | "underline" | "spoiler" | "code" | "link";
 export type FormatStorage = "html" | "markdown";
@@ -56,14 +62,18 @@ export const BLOCK_TYPES: Record<BlockType, BlockDef> = {
 	paragraph: {
 		tag: "p",
 		matchTags: ["P", "DIV"],
-		title: "Обычный текст",
+		get title() {
+			return RICHEDITOR.TEXT.BLOCK_PARAGRAPH;
+		},
 		inline: true,
 		enter: "paragraph",
 	},
 	quote: {
 		tag: "blockquote",
 		matchTags: ["BLOCKQUOTE"],
-		title: "Цитата",
+		get title() {
+			return RICHEDITOR.TEXT.BLOCK_QUOTE;
+		},
 		linePrefix: "> ",
 		inline: true,
 		// Enter заканчивает цитату, строка внутри — Shift+Enter: выход нужен чаще, чем
@@ -73,7 +83,9 @@ export const BLOCK_TYPES: Record<BlockType, BlockDef> = {
 	code: {
 		tag: "pre",
 		matchTags: ["PRE"],
-		title: "Блок кода",
+		get title() {
+			return RICHEDITOR.TEXT.BLOCK_CODE;
+		},
 		fence: "```",
 		inline: false,
 		enter: "paragraph",
@@ -130,28 +142,36 @@ export const FORMAT_TOOLS: Record<FormatTool, FormatToolDef> = {
 		// редактора, и получатель увидит их жирными.
 		mdAliases: ["*"],
 		hotkey: "b",
-		title: "Жирный",
+		get title() {
+			return RICHEDITOR.TEXT.BOLD;
+		},
 	},
 	italic: {
 		tag: "i",
 		matchTags: ["I", "EM"],
 		md: "_",
 		hotkey: "i",
-		title: "Курсив",
+		get title() {
+			return RICHEDITOR.TEXT.ITALIC;
+		},
 	},
 	strike: {
 		tag: "s",
 		matchTags: ["S", "STRIKE", "DEL"],
 		md: "~",
 		hotkey: "",
-		title: "Зачёркнутый",
+		get title() {
+			return RICHEDITOR.TEXT.STRIKE;
+		},
 	},
 	underline: {
 		tag: "u",
 		matchTags: ["U", "INS"],
 		md: "__",
 		hotkey: "u",
-		title: "Подчёркнутый",
+		get title() {
+			return RICHEDITOR.TEXT.UNDERLINE;
+		},
 	},
 	spoiler: {
 		// Своего элемента для скрытого текста в HTML нет. Берём собственный тег, а разбирать
@@ -160,7 +180,9 @@ export const FORMAT_TOOLS: Record<FormatTool, FormatToolDef> = {
 		matchTags: ["SPOILER", "TG-SPOILER"],
 		md: "||",
 		hotkey: "",
-		title: "Спойлер",
+		get title() {
+			return RICHEDITOR.TEXT.SPOILER;
+		},
 	},
 	code: {
 		tag: "code",
@@ -168,7 +190,9 @@ export const FORMAT_TOOLS: Record<FormatTool, FormatToolDef> = {
 		md: "`",
 		literal: true,
 		hotkey: "",
-		title: "Моноширинный",
+		get title() {
+			return RICHEDITOR.TEXT.CODE;
+		},
 	},
 	link: {
 		tag: "a",
@@ -178,7 +202,9 @@ export const FORMAT_TOOLS: Record<FormatTool, FormatToolDef> = {
 		// и сборку он делает своими ветками — как и переносы с абзацами.
 		md: "",
 		hotkey: "k",
-		title: "Ссылка",
+		get title() {
+			return RICHEDITOR.TEXT.LINK;
+		},
 	},
 };
 
@@ -188,10 +214,26 @@ interface EditorActionDef {
 }
 
 export const EDITOR_ACTIONS: Record<EditorAction, EditorActionDef> = {
-	emoji: { title: "Вставить смайлик" },
-	erase: { title: "Очистить форматирование" },
-	undo: { title: "Отменить (Ctrl+Z)" },
-	redo: { title: "Повторить (Ctrl+Y)" },
+	emoji: {
+		get title() {
+			return RICHEDITOR.TEXT.EMOJI;
+		},
+	},
+	erase: {
+		get title() {
+			return RICHEDITOR.TEXT.ERASE;
+		},
+	},
+	undo: {
+		get title() {
+			return RICHEDITOR.TEXT.UNDO;
+		},
+	},
+	redo: {
+		get title() {
+			return RICHEDITOR.TEXT.REDO;
+		},
+	},
 };
 
 /** Markdown-маркер для каждого инструмента форматирования. */

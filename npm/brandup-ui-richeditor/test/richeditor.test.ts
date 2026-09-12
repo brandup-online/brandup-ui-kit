@@ -1591,7 +1591,7 @@ describe("RichEditor recent emojis", () => {
 
 		const group = recentGroup()!;
 		expect(group).not.toBeNull();
-		expect(group.getAttribute("aria-label")).toBe("Недавние");
+		expect(group.getAttribute("aria-label")).toBe(RICHEDITOR.TEXT.EMOJI_RECENT);
 		expect(picker().querySelector(".emoji-list")!.firstElementChild).toBe(group);
 		expect(group.querySelectorAll(".emoji")).toHaveLength(1);
 		expect(group.querySelector(".emoji")!.textContent).toBe(EMOJIS[5]);

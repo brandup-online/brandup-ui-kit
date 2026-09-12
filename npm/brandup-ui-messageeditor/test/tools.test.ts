@@ -42,7 +42,7 @@ describe("format tools of the message", () => {
 		expect(setup({}, { "data-tools": attr }).tools).toEqual(expected);
 	});
 
-	// как и у переменных с блоками: приложение знает набор точнее, чем разметка от сервера
+	// как и у свойств с блоками: приложение знает набор точнее, чем разметка от сервера
 	it("prefers the option over the attribute", () => {
 		expect(setup({ tools: ["code"] }, { "data-tools": "bold italic" }).tools).toEqual(["code"]);
 	});
@@ -65,7 +65,7 @@ describe("format tools of the message", () => {
 		expect(actionButton("erase")).toBeNull();
 	});
 
-	// доменные кнопки от разметки не зависят: рандомизация и переменные — не форматирование
+	// доменные кнопки от разметки не зависят: рандомизация и свойства — не форматирование
 	it("keeps the domain buttons with no tools at all", () => {
 		setup({ tools: [], personalization: true });
 

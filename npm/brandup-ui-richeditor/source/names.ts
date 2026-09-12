@@ -2,15 +2,68 @@
  * Имена, которыми редактор объявлен снаружи и в своей разметке: классы поля, панели
  * форматирования и панели смайликов, событие и числа, на которые опирается поведение.
  *
- * Отдельным модулем и без единого импорта: имена делят между собой поле (`richeditor.ts`),
+ * Отдельным модулем и почти без импортов: имена делят между собой поле (`richeditor.ts`),
  * панель (`toolbar.ts`) и попап смайликов (`emoji.ts`), а его самого тянут к себе соседние
  * пакеты — поле сообщения и текстбокс ищут по `.ui-richeditor-toolbar` в своих кликах.
+ * Единственный импорт — реестр подписей (`@brandup/ui-kit/i18n`): он сам без импортов
+ * и без побочных эффектов.
  *
  * Соглашение об именах — в `@brandup/ui-kit/names`.
  *
  * Одним объектом, а не россыпью констант: потребитель пишет `RICHEDITOR.EVENT.CHANGE` и по пути
  * видит, что бывает рядом, а новое имя не разрастается в ещё один экспорт.
  */
+import { declareTexts } from "@brandup/ui-kit/i18n";
+
+declare module "@brandup/ui-kit/i18n" {
+	interface KitTexts {
+		/** Подписи редактора: типы блоков, инструменты форматирования, панель и группы смайликов. */
+		richeditor: {
+			/** Типы блоков в панели. */
+			BLOCK_PARAGRAPH: string;
+			BLOCK_QUOTE: string;
+			BLOCK_CODE: string;
+			/** Инструменты форматирования. */
+			BOLD: string;
+			ITALIC: string;
+			STRIKE: string;
+			UNDERLINE: string;
+			SPOILER: string;
+			CODE: string;
+			LINK: string;
+			/**
+			 * Подпись сведённой кнопки кода: моноширинный и блок кода панель показывает одной
+			 * кнопкой, и называется она короче обоих.
+			 */
+			CODE_MERGED: string;
+			/** Действия панели. */
+			EMOJI: string;
+			ERASE: string;
+			UNDO: string;
+			REDO: string;
+			/** Кнопки поля адреса в панели. */
+			LINK_APPLY: string;
+			LINK_REMOVE: string;
+			/**
+			 * Названия групп смайликов. В панели не показываются, уходят в подпись для скринридера
+			 * (см. `aria-label` группы).
+			 */
+			EMOJI_SMILEYS: string;
+			EMOJI_PEOPLE: string;
+			EMOJI_ANIMALS: string;
+			EMOJI_NATURE: string;
+			EMOJI_FOOD: string;
+			EMOJI_CELEBRATION: string;
+			EMOJI_PLACES: string;
+			EMOJI_TRANSPORT: string;
+			EMOJI_OBJECTS: string;
+			EMOJI_SYMBOLS: string;
+			/** Группа недавно вставленных: собирается на лету, поэтому стоит особняком. */
+			EMOJI_RECENT: string;
+		};
+	}
+}
+
 export const RICHEDITOR = {
 	CLASS: {
 		/** Редактируемый элемент — к нему привязан `UIElement`. */
@@ -87,4 +140,38 @@ export const RICHEDITOR = {
 		/** Отступ панели от поля, над которым она встаёт. */
 		TOOLBAR_MARGIN: 6,
 	},
+	/**
+	 * Подписи по умолчанию — их переопределяет `setTexts` приложения (см. `@brandup/ui-kit/i18n`).
+	 * Пояснение к каждой — там же, у объявления неймспейса.
+	 */
+	TEXT: declareTexts("richeditor", {
+		BLOCK_PARAGRAPH: "Plain text",
+		BLOCK_QUOTE: "Quote",
+		BLOCK_CODE: "Code block",
+		BOLD: "Bold",
+		ITALIC: "Italic",
+		STRIKE: "Strikethrough",
+		UNDERLINE: "Underline",
+		SPOILER: "Spoiler",
+		CODE: "Monospace",
+		LINK: "Link",
+		CODE_MERGED: "Code",
+		EMOJI: "Insert an emoji",
+		ERASE: "Clear the formatting",
+		UNDO: "Undo (Ctrl+Z)",
+		REDO: "Redo (Ctrl+Y)",
+		LINK_APPLY: "Apply",
+		LINK_REMOVE: "Remove the link",
+		EMOJI_SMILEYS: "Smileys and gestures",
+		EMOJI_PEOPLE: "People",
+		EMOJI_ANIMALS: "Animals",
+		EMOJI_NATURE: "Nature",
+		EMOJI_FOOD: "Food",
+		EMOJI_CELEBRATION: "Celebrations and sport",
+		EMOJI_PLACES: "Places",
+		EMOJI_TRANSPORT: "Transport",
+		EMOJI_OBJECTS: "Objects",
+		EMOJI_SYMBOLS: "Symbols",
+		EMOJI_RECENT: "Recent",
+	}),
 } as const;

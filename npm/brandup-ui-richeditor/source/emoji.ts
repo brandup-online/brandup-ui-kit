@@ -20,7 +20,9 @@ export interface EmojiGroup {
 /** Смайлики по группам (порядок сохраняется в UI). */
 export const EMOJI_GROUPS: EmojiGroup[] = [
 	{
-		title: "Смайлы и жесты",
+		get title() {
+			return RICHEDITOR.TEXT.EMOJI_SMILEYS;
+		},
 		// prettier-ignore
 		emojis: [
 			"😀", "😁", "😂", "😃", "😄", "😅", "😆", "😉", "😊", "😋", "😌", "😍", "😏", "😒", "😓", "😔",
@@ -31,7 +33,9 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
 		],
 	},
 	{
-		title: "Люди",
+		get title() {
+			return RICHEDITOR.TEXT.EMOJI_PEOPLE;
+		},
 		// prettier-ignore
 		emojis: [
 			"👀", "👂", "👃", "👄", "👅", "👆", "👇", "👈", "👉", "👊", "👋", "👌", "👍", "👎", "👏", "👐",
@@ -42,7 +46,9 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
 		],
 	},
 	{
-		title: "Животные",
+		get title() {
+			return RICHEDITOR.TEXT.EMOJI_ANIMALS;
+		},
 		// prettier-ignore
 		emojis: [
 			"🐌", "🐍", "🐎", "🐑", "🐒", "🐔", "🐗", "🐘", "🐙", "🐚", "🐛", "🐜", "🐝", "🐞", "🐟", "🐠",
@@ -52,7 +58,9 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
 		],
 	},
 	{
-		title: "Природа",
+		get title() {
+			return RICHEDITOR.TEXT.EMOJI_NATURE;
+		},
 		// prettier-ignore
 		emojis: [
 			"🌀", "🌁", "🌂", "🌃", "🌄", "🌅", "🌆", "🌇", "🌈", "🌉", "🌊", "🌋", "🌌", "🌏", "🌑", "🌓",
@@ -62,7 +70,9 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
 		],
 	},
 	{
-		title: "Еда",
+		get title() {
+			return RICHEDITOR.TEXT.EMOJI_FOOD;
+		},
 		// prettier-ignore
 		emojis: [
 			"🍄", "🍅", "🍆", "🍇", "🍈", "🍉", "🍊", "🍌", "🍍", "🍎", "🍏", "🍑", "🍒", "🍓", "🍔", "🍕",
@@ -72,7 +82,9 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
 		],
 	},
 	{
-		title: "Праздники и спорт",
+		get title() {
+			return RICHEDITOR.TEXT.EMOJI_CELEBRATION;
+		},
 		// prettier-ignore
 		emojis: [
 			"🎀", "🎁", "🎂", "🎃", "🎄", "🎅", "🎆", "🎇", "🎈", "🎉", "🎊", "🎋", "🎌", "🎍", "🎎", "🎏",
@@ -82,7 +94,9 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
 		],
 	},
 	{
-		title: "Места",
+		get title() {
+			return RICHEDITOR.TEXT.EMOJI_PLACES;
+		},
 		// prettier-ignore
 		emojis: [
 			"🏠", "🏡", "🏢", "🏣", "🏥", "🏦", "🏧", "🏨", "🏩", "🏪", "🏫", "🏬", "🏭", "🏮", "🏯", "🏰",
@@ -90,7 +104,9 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
 		],
 	},
 	{
-		title: "Транспорт",
+		get title() {
+			return RICHEDITOR.TEXT.EMOJI_TRANSPORT;
+		},
 		// prettier-ignore
 		emojis: [
 			"🚀", "🚃", "🚄", "🚅", "🚇", "🚉", "🚌", "🚏", "🚑", "🚒", "🚓", "🚕", "🚗", "🚙", "🚚", "🚢",
@@ -101,7 +117,9 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
 		],
 	},
 	{
-		title: "Предметы",
+		get title() {
+			return RICHEDITOR.TEXT.EMOJI_OBJECTS;
+		},
 		// prettier-ignore
 		emojis: [
 			"💈", "💉", "💊", "💋", "💌", "💍", "💎", "💐", "💠", "💡", "💰", "💱", "💲", "💳", "💴", "💵",
@@ -113,7 +131,9 @@ export const EMOJI_GROUPS: EmojiGroup[] = [
 		],
 	},
 	{
-		title: "Символы",
+		get title() {
+			return RICHEDITOR.TEXT.EMOJI_SYMBOLS;
+		},
 		// prettier-ignore
 		emojis: [
 			"🅰", "🅱", "🅾", "🅿", "🆎", "🆑", "🆒", "🆓", "🆔", "🆕", "🆖", "🆗", "🆘", "🆙", "🆚", "🈁",
@@ -159,9 +179,6 @@ function buildEmojiGroup(group: EmojiGroup): HTMLElement {
 }
 
 // --- недавние ---
-
-// в панели название не показывается, уходит в подпись для скринридера — как у остальных групп
-const RECENT_TITLE = "Недавние";
 
 const KNOWN_EMOJIS = new Set(EMOJIS);
 
@@ -233,7 +250,7 @@ export function refreshRecentEmojis(picker: HTMLElement): void {
 		return;
 	}
 
-	const group = buildEmojiGroup({ title: RECENT_TITLE, emojis: recent });
+	const group = buildEmojiGroup({ title: RICHEDITOR.TEXT.EMOJI_RECENT, emojis: recent });
 	group.classList.add(RICHEDITOR.CLASS.EMOJI.RECENT_GROUP);
 
 	if (existing) existing.replaceWith(group);
