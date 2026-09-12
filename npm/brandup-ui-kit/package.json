@@ -43,7 +43,7 @@
 		"./package.json": "./package.json"
 	},
 	"dependencies": {
-		"@brandup/ui-app": "^2.0.14"
+		"@brandup/ui-app": "^2.0.15"
 	},
 	"devDependencies": {
 		"less": "^4.9.1",
