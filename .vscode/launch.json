@@ -9,24 +9,14 @@
 			"type": "node-terminal",
 			"request": "launch",
 			"cwd": "${workspaceFolder}/npm/brandup-ui-example",
-			"command": "npm run serve",
-			"serverReadyAction": {
-				"pattern": "Server start https://localhost:([0-9]+)",
-				"uriFormat": "https://localhost:%s",
-				"action": "openExternally"
-			}
+			"command": "npm run serve"
 		},
 		{
 			"name": "Example: start (skip build)",
 			"type": "node-terminal",
 			"request": "launch",
 			"cwd": "${workspaceFolder}/npm/brandup-ui-example",
-			"command": "npm run start",
-			"serverReadyAction": {
-				"pattern": "Server start https://localhost:([0-9]+)",
-				"uriFormat": "https://localhost:%s",
-				"action": "openExternally"
-			}
+			"command": "npm run start"
 		},
 		{
 			"name": "Example: dev-server (live reload)",
@@ -36,11 +26,13 @@
 			"command": "npm run dev-server"
 		},
 		{
+			// Половина compound'а: браузер открывает dev-server (порт 8080), поэтому сервер
+			// просят молчать — иначе на каждый запуск открывалось бы две вкладки.
 			"name": "Example: API (no browser)",
 			"type": "node-terminal",
 			"request": "launch",
 			"cwd": "${workspaceFolder}/npm/brandup-ui-example",
-			"command": "npm run start"
+			"command": "npm run start -- --no-open"
 		}
 	],
 	"compounds": [
