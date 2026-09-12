@@ -36,8 +36,8 @@
 		"./package.json": "./package.json"
 	},
 	"dependencies": {
-		"@brandup/ui": "^2.0.12",
-		"@brandup/ui-helpers": "^2.0.12",
+		"@brandup/ui": "^2.0.14",
+		"@brandup/ui-helpers": "^2.0.14",
 		"@brandup/ui-input": "file:../brandup-ui-input",
 		"@brandup/ui-kit": "file:../brandup-ui-kit"
 	},
