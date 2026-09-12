@@ -1,5 +1,5 @@
 import { Page } from "./base";
-import html from "./richeditor.html";
+import { pickContent } from "../i18n";
 import "./richeditor.less";
 import RichEditor, {
 	ALL_FORMAT_TOOLS,
@@ -18,11 +18,14 @@ export default class RichEditorPage extends Page {
 		return "RichEditorPage";
 	}
 	get header(): string {
-		return "RichEditor";
+		return this.app.model.texts.t((m) => m.pages.richeditor);
 	}
 
 	protected async onRenderContent(container: HTMLElement) {
-		container.insertAdjacentHTML("beforeend", html);
+		container.insertAdjacentHTML(
+			"beforeend",
+			await pickContent({ ru: () => import("./richeditor.html"), en: () => import("./richeditor.en.html") })
+		);
 
 		container.querySelectorAll<HTMLElement>("[data-richeditor]").forEach((elem) => this.__create(elem));
 
@@ -47,7 +50,7 @@ export default class RichEditorPage extends Page {
 					editor.redo();
 					break;
 				case "reset":
-					editor.setValue("Текст с <b>жирным</b> и <i>курсивом</i>.");
+					editor.setValue(this.app.model.texts.t((m) => m.demo.richeditor.reset));
 					break;
 			}
 
@@ -93,11 +96,13 @@ export default class RichEditorPage extends Page {
 		const valueElem = elem.closest(".field")?.querySelector<HTMLElement>(".value");
 		if (!valueElem) return;
 
+		const texts = this.app.model.texts;
+		const flag = (value: boolean) =>
+			value ? texts.t((m) => m.demo.richeditor.yes) : texts.t((m) => m.demo.richeditor.no);
+
 		const print = () => {
-			const value = editor.getValue();
-			const undo = editor.canUndo ? "да" : "нет";
-			const redo = editor.canRedo ? "да" : "нет";
-			valueElem.textContent = `${value || "(пусто)"}\n\nundo: ${undo} · redo: ${redo}`;
+			const value = editor.getValue() || texts.t((m) => m.demo.richeditor.empty);
+			valueElem.textContent = `${value}\n\nundo: ${flag(editor.canUndo)} · redo: ${flag(editor.canRedo)}`;
 		};
 
 		editor.onChange(print);

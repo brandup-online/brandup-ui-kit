@@ -8,6 +8,7 @@
 		"@brandup/ui-app": "^2.0.9",
 		"@brandup/ui-dropdown": "file:../brandup-ui-dropdown",
 		"@brandup/ui-helpers": "^2.0.9",
+		"@brandup/ui-i18n": "^2.0.9",
 		"@brandup/ui-kit": "file:../brandup-ui-kit",
 		"@brandup/ui-messageeditor": "file:../brandup-ui-messageeditor",
 		"@brandup/ui-richeditor": "file:../brandup-ui-richeditor",

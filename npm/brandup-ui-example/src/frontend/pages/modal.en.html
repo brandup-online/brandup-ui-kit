@@ -1,0 +1,70 @@
+<section class="page-block modals">
+	<div class="example">
+		<p>
+			The window is filled by a descendant of <code>Modal</code> in its own constructor. The
+			title, the close cross and the backdrop are the frame of the window, and the kit draws
+			it itself.
+		</p>
+		<div class="row">
+			<button type="button" class="ui-button" data-command="open">Open the window</button>
+		</div>
+	</div>
+
+	<div class="example">
+		<p>
+			A window without the cross: <code>closeButton: false</code> and
+			<code>closeOnBackdrop: false</code>. It has to end with a choice made inside the body, so
+			the header is not drawn at all and closing is left to the buttons of the window and to
+			<kbd>Esc</kbd>. The choice arrives in <code>onClosed</code>.
+		</p>
+		<div class="row">
+			<button type="button" class="ui-button" data-command="confirm">Ask</button>
+			<span class="answer" data-answer>no answer yet</span>
+		</div>
+	</div>
+
+	<div class="example">
+		<p>
+			Layers. A popup button stands in the body of the window — the popup goes <em>above</em>
+			the window rather than instead of it, and <kbd>Esc</kbd> removes only the top layer:
+			first the popup, then the window. The counter shows the depth of the stack.
+		</p>
+		<div class="row">
+			<button type="button" class="ui-button" data-command="layers">A window with a popup</button>
+			<span class="answer" data-depth>layers open: 0</span>
+		</div>
+	</div>
+
+	<div class="example">
+		<p>
+			A layer of your own. The side panel is not a component of the kit but markup of this
+			page: <code>LayerManager.push</code> gives it the same things the window has —
+			<kbd>Esc</kbd>, the held page scroll, a focus trap and the focus returned to the button.
+		</p>
+		<div class="row">
+			<button type="button" class="ui-button" data-command="panel">Open the panel</button>
+		</div>
+		<aside class="side-panel" data-panel hidden aria-label="Side panel">
+			<p>The focus does not leave for the page under the panel: <kbd>Tab</kbd> goes round inside it.</p>
+			<p><input type="text" placeholder="A field inside the panel" /></p>
+			<p><button type="button" class="ui-button" data-command="panel-close">Close</button></p>
+		</aside>
+	</div>
+
+	<div class="example">
+		<p>
+			A scrollable area: the <code>ui-scrollable</code> class gives the same bar in every
+			component of the kit — thin, without arrows, not touching the edges of the box. It is on
+			the left, the browser bar is on the right. The size and the colour are configured by the
+			<code>--scrollbar-*</code> variables on the element itself.
+		</p>
+		<div class="scrollables">
+			<div class="ui-scrollable" data-filler>
+				<b>ui-scrollable</b>
+			</div>
+			<div class="plain" data-filler>
+				<b>browser bar</b>
+			</div>
+		</div>
+	</div>
+</section>

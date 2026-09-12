@@ -105,16 +105,22 @@ a:not(.ui-button) {
 		column-gap: calc(var(--content-padding-lr) * 2);
 	}
 
-	// The button in the header: its background is dark, while the kit's `--button-fill` is derived
-	// from `--surface` and is therefore light. It is recoloured with the same tokens any button is
-	// configured by, and only on this subtree.
-	& .theme-switch {
+	// The buttons in the header: the background behind them is dark, while the kit's `--button-fill`
+	// is derived from `--surface` and is therefore light. They are recoloured with the same tokens
+	// any button is configured by, and only on this subtree.
+	& .theme-switch,
+	& .language-switch {
 		flex: 0 0 auto;
-		margin-left: auto;
 		--button-fill: transparent;
 		--button-border-color: rgba(255, 255, 255, 0.45);
 		--button-color: #fff;
 		--focus-ring-color: #fff;
+	}
+
+	// Обе кнопки уходят вправо: отступ на первой из них, вторая встаёт следом через общий
+	// column-gap строки.
+	& .theme-switch {
+		margin-left: auto;
 	}
 
 	& a.logo {

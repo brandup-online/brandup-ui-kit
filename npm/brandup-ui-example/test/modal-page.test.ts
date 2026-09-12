@@ -6,15 +6,23 @@ import ModalPage from "../src/frontend/pages/modal";
 import type { NavigateContext } from "@brandup/ui-app";
 import type { ExampleApplication } from "../src/frontend/app";
 import type { PageNavigationData } from "../src/frontend/typings/app";
+import { LocaleNamespaceImpl } from "@brandup/ui-i18n";
+import ru from "../src/frontend/locale/ru.json";
 
 // Страница показывает окно, стек слоёв и свой слой — то, у чего в README кита есть описание,
 // но не было ни одного работающего примера. Проверяем её так, как её видит читатель: клик
 // по кнопке, разметка на экране, Escape.
 
-// Странице от контекста навигации нужны только `app` и `data`: первое она кладёт в поле,
-// второе — то, куда страница записывает себя. Полное приложение ради этого не поднимаем.
+// Странице от контекста навигации нужны `app` и `data`: первое она кладёт в поле, второе — то,
+// куда страница записывает себя. Полное приложение ради этого не поднимаем, но модель нужна:
+// из неё страница берёт свой заголовок и подписи (см. i18n.ts).
+const texts = new LocaleNamespaceImpl("app", ru, ru);
+
 const page = async () => {
-	const context = { app: {}, data: {} } as unknown as NavigateContext<ExampleApplication, PageNavigationData>;
+	const context = {
+		app: { model: { texts } },
+		data: {},
+	} as unknown as NavigateContext<ExampleApplication, PageNavigationData>;
 	const instance = new ModalPage(context);
 
 	document.body.appendChild(await instance.render());

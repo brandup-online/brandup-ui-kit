@@ -6,7 +6,7 @@ export default class NotFoundPage extends Page {
 		return "NotFoundPage";
 	}
 	get header(): string {
-		return "Not found";
+		return this.app.model.texts.t((m) => m.pages.notfound);
 	}
 
 	protected async onRenderContent(container: HTMLElement) {

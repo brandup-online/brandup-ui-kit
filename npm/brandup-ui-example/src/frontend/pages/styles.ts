@@ -7,7 +7,7 @@ export default class StylesPage extends Page {
 		return "StylesPage";
 	}
 	get header(): string {
-		return "Styles";
+		return this.app.model.texts.t((m) => m.pages.styles);
 	}
 
 	protected async onRenderContent(container: HTMLElement) {

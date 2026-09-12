@@ -17,18 +17,28 @@ import { FuncHelper } from "@brandup/ui-helpers";
 class PagesMiddlewareImpl implements Middleware, PagesMiddleware {
 	readonly name: string = "pages";
 	private _options: PagesOptions;
-	private _appContentElem: HTMLElement;
+	private _appContentElem: HTMLElement | null = null;
 	private _ajax: AjaxQueue;
 	private _page: Page | null = null;
 
 	constructor(options: PagesOptions) {
 		this._options = options;
 
-		const appContentElem = document.getElementById("app-content");
-		if (!appContentElem) throw new Error("Not found page content container.");
-		this._appContentElem = appContentElem;
-
 		this._ajax = new AjaxQueue();
+	}
+
+	/**
+	 * Контейнер страниц — ищется при первом обращении, а не в конструкторе: оболочку приложения
+	 * рисует само приложение (см. ExampleApplication), а оно к моменту создания middleware
+	 * ещё не построено — фабрики вызываются на регистрации, до `build()`.
+	 */
+	private get appContentElem(): HTMLElement {
+		if (!this._appContentElem) {
+			this._appContentElem = document.getElementById("app-content");
+			if (!this._appContentElem) throw new Error("Not found page content container.");
+		}
+
+		return this._appContentElem;
 	}
 
 	async start(context: StartContext, next: MiddlewareNext) {
@@ -112,7 +122,7 @@ class PagesMiddlewareImpl implements Middleware, PagesMiddleware {
 
 		// destroy current page
 		prevPage?.destroy();
-		this._appContentElem.appendChild(result.content);
+		this.appContentElem.appendChild(result.content);
 
 		await next();
 	}

@@ -1,0 +1,260 @@
+<section class="page-block richeditors">
+	<div class="part">
+		<h2>Action buttons</h2>
+		<p class="note">
+			The toolbar is shown on focus. Action buttons are added explicitly through <code>actions</code> and are disabled
+			when the action is unavailable: nothing to undo, nothing to redo, nothing to clear. The action
+			<code>emoji</code> opens the emoji panel.
+		</p>
+		<div class="example">
+			<div class="field">
+				<h5>Tools and every action</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-editor-actions="emoji erase undo redo"
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="Text with &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt; and &lt;u&gt;underline&lt;/u&gt;."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Emoji insertion only</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-format-tools=""
+					data-editor-actions="emoji"
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="The button opens the panel, the character is inserted at the caret."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Clearing the format only</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-editor-actions="erase"
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="Clearing removes &lt;b&gt;every format&lt;/b&gt; at once."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Undo and redo only</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-format-tools=""
+					data-editor-actions="undo redo"
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="A toolbar without formatting tools."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Without actions (the default)</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="There are no action buttons, the toolbar is as it was."
+				></div>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>Calling the methods from code</h2>
+		<p class="note">
+			The same operations are available without the toolbar: <code>clearFormat()</code>, <code>clearAllFormat()</code>,
+			<code>undo()</code>, <code>redo()</code>. The flags <code>canUndo</code> / <code>canRedo</code> show
+			whether undo is available.
+		</p>
+		<div class="example wide">
+			<div class="field">
+				<h5>An editor without an action toolbar</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="Select a word and press a button, or clear &lt;b&gt;the whole content&lt;/b&gt; at once."
+				></div>
+				<div class="buttons">
+					<button type="button" class="ui-button" data-command="editor-method" data-method="clear">
+						clearFormat()
+					</button>
+					<button type="button" class="ui-button" data-command="editor-method" data-method="clear-all">
+						clearAllFormat()
+					</button>
+					<button type="button" class="ui-button" data-command="editor-method" data-method="undo">
+						undo()
+					</button>
+					<button type="button" class="ui-button" data-command="editor-method" data-method="redo">
+						redo()
+					</button>
+					<button type="button" class="ui-button" data-command="editor-method" data-method="reset">
+						setValue()
+					</button>
+				</div>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>Storage format</h2>
+		<p class="note">
+			The value is serialized to HTML or to Markdown; the Markdown markers are configured per tool, which is how
+			the editor is fitted to the dialect of a particular messenger.
+		</p>
+		<div class="example">
+			<div class="field">
+				<h5>HTML (the default)</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-editor-actions="erase undo redo"
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="Text with &lt;b&gt;bold&lt;/b&gt; and &lt;s&gt;strikethrough&lt;/s&gt;."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Markdown (the default markers)</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-format-storage="markdown"
+					data-editor-actions="erase undo redo"
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="Text with **bold**, *italic*, ~~strikethrough~~ and ++underline++."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Markdown in the messenger dialect</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-format-storage="markdown"
+					data-format-md-bold="*"
+					data-format-md-italic="_"
+					data-format-md-strike="~"
+					data-format-md-underline="__"
+					data-editor-actions="erase undo redo"
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="Text with *bold*, _italic_ and ~strikethrough~."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Without formatting (plain)</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="Paragraphs are separated by an empty line."
+				></div>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>Modes</h2>
+		<div class="example">
+			<div class="field">
+				<h5>Single-line</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-editor-actions="erase undo redo"
+					data-placeholder="Enter text"
+					data-value="Enter does not start a paragraph."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Bold and italic only</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-format-tools="bold italic"
+					data-editor-actions="erase undo"
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="The rest of the tools are off."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Read-only</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-editor-actions="erase undo redo"
+					data-readonly
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="Edits are forbidden and there is no toolbar, but selecting and copying work."
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>Blocks: quote and code</h5>
+				<div
+					class="editor"
+					data-richeditor
+					data-format
+					data-blocks="quote code"
+					data-format-storage="markdown"
+					data-placeholder="Enter text"
+					data-multiline
+					data-value="An ordinary paragraph.&#10;&#10;&gt; A quote: Enter leaves the block,&#10;&gt; Shift+Enter breaks the line inside it.&#10;&#10;```&#10;code: markup is not parsed here&#10;```"
+				></div>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<h5>A toolbar inside a container</h5>
+				<div class="toolbar-host">
+					<div
+						class="editor"
+						data-richeditor
+						data-format
+						data-editor-actions="erase undo redo"
+						data-toolbar-container
+						data-placeholder="Enter text"
+						data-multiline
+						data-value="The toolbar is bound to this container rather than to the body."
+					></div>
+				</div>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+</section>

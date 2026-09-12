@@ -8,7 +8,7 @@ export default class InputsPage extends Page {
 		return "InputsModel";
 	}
 	get header(): string {
-		return "Input controls";
+		return this.app.model.texts.t((m) => m.pages.inputs);
 	}
 
 	protected async onRenderContent(container: HTMLElement) {

@@ -1,0 +1,79 @@
+<section class="page-block popups">
+	<div class="example">
+		<p>Open popup with command.</p>
+		<div class="menu">
+			<button type="button" class="ui-button" data-command="ui-popup-toggle">Menu1</button>
+			<div class="ui-popup">
+				<menu>
+					<li><a href="">Item menu 1</a></li>
+					<li><a href="">Item menu 2</a></li>
+				</menu>
+			</div>
+		</div>
+	</div>
+	<div class="example">
+		<p>Open popup with popup element.</p>
+		<div class="menu">
+			<button type="button" class="ui-button" data-command="open">Menu2</button>
+			<div class="ui-popup">
+				<menu>
+					<li><a href="">Item menu 1</a></li>
+					<li><a href="">Item menu 2</a></li>
+				</menu>
+			</div>
+		</div>
+	</div>
+	<div class="example">
+		<p>
+			Positioning against an anchor is done by the kit itself. The side and the alignment are
+			set by the <code>placement</code> option — the popup of the button on the right is
+			aligned to its right edge, otherwise it would hang outside.
+		</p>
+		<p>
+			The rest the kit decides on its own, and all of it is measured against the edges of the
+			<em>screen</em>, not of the block. <code>flip</code> (on by default) turns the popup to
+			the other side when it does not fit on its own; <code>flipAlign</code> does the same for
+			the alignment along the side; <code>fallback: "bestFit"</code> picks the side with more
+			room when it fits nowhere. All three are on here — narrow the window by width or by
+			height and press the buttons. It is recomputed on scrolling too: an open popup turns over
+			as the button travels to the bottom of the screen.
+		</p>
+		<div class="anchored">
+			<button data-command="anchored" class="ui-button mini">Top left</button>
+			<div class="ui-popup"><menu>
+				<li><a href="">bottom-start — by the left edge of the button</a></li>
+				<li><a href="">Second menu item</a></li>
+				<li><a href="">Third menu item</a></li>
+			</menu></div>
+
+			<button data-command="anchored" data-placement="bottom-end" class="ui-button mini at-right">Right</button>
+			<div class="ui-popup"><menu>
+				<li><a href="">bottom-end — by the right edge of the button</a></li>
+				<li><a href="">Second menu item</a></li>
+			</menu></div>
+
+			<button data-command="anchored" data-placement="top-start" class="ui-button mini at-bottom">Bottom of the block</button>
+			<div class="ui-popup"><menu>
+				<li><a href="">top-start — above the button</a></li>
+				<li><a href="">Second menu item</a></li>
+				<li><a href="">Third menu item</a></li>
+			</menu></div>
+		</div>
+	</div>
+	<div class="example">
+		<p>A nested popup: a button inside an open menu opens a submenu, the parent stays.</p>
+		<div class="menu">
+			<button data-command="anchored" class="ui-button mini">Menu with a submenu</button>
+			<div class="ui-popup"><menu>
+				<li><a href="">An ordinary item</a></li>
+				<li>
+					<button data-command="anchored-right" class="ui-button mini wide">Submenu →</button>
+					<div class="ui-popup"><menu>
+						<li><a href="">Submenu item 1</a></li>
+						<li><a href="">Submenu item 2</a></li>
+					</menu></div>
+				</li>
+			</menu></div>
+		</div>
+	</div>
+</section>

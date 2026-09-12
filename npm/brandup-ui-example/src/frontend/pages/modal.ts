@@ -1,20 +1,24 @@
 import { DOM } from "@brandup/ui";
-import { LayerManager, Modal, UIKIT, type Layer } from "@brandup/ui-kit";
+import { LayerManager, Modal, UIKIT, textTag, type Layer } from "@brandup/ui-kit";
 import { Page } from "./base";
-import html from "./modal.html";
+import { pickContent, type AppTexts } from "../i18n";
 import "./modal.less";
 
 class HelloModal extends Modal {
-	constructor() {
-		super({ title: "Окно кита" });
+	constructor(texts: AppTexts) {
+		super({ title: texts.t((m) => m.demo.modal.helloTitle) });
 
 		this.body.append(
-			DOM.tag("p", null, "Тело окна наполняет наследник — само окно знает только про рамку, слои и закрытие."),
+			textTag(
+				"p",
+				null,
+				texts.t((m) => m.demo.modal.helloBody)
+			),
 			DOM.tag("p", null, [
-				DOM.tag(
+				textTag(
 					"button",
 					{ type: "button", class: "ui-button", command: UIKIT.MODAL.COMMAND.CLOSE },
-					"Закрыть"
+					texts.t((m) => m.demo.modal.close)
 				),
 			])
 		);
@@ -34,13 +38,21 @@ class HelloModal extends Modal {
 class ConfirmModal extends Modal {
 	confirmed = false;
 
-	constructor(question: string) {
+	constructor(question: string, texts: AppTexts) {
 		super({ title: question, closeButton: false, closeOnBackdrop: false });
 
 		this.body.append(
 			DOM.tag("p", { class: "buttons" }, [
-				DOM.tag("button", { type: "button", class: "ui-button primary", command: "confirm-yes" }, "Да"),
-				DOM.tag("button", { type: "button", class: "ui-button", command: "confirm-no" }, "Нет"),
+				textTag(
+					"button",
+					{ type: "button", class: "ui-button primary", command: "confirm-yes" },
+					texts.t((m) => m.demo.modal.yes)
+				),
+				textTag(
+					"button",
+					{ type: "button", class: "ui-button", command: "confirm-no" },
+					texts.t((m) => m.demo.modal.no)
+				),
 			])
 		);
 
@@ -58,17 +70,41 @@ class ConfirmModal extends Modal {
 
 /** Окно с попапом внутри: кнопка в теле открывает попап, который встаёт над окном. */
 class LayersModal extends Modal {
-	constructor() {
-		super({ title: "Попап внутри окна" });
+	constructor(texts: AppTexts) {
+		super({ title: texts.t((m) => m.demo.modal.layersTitle) });
 
 		this.body.append(
-			DOM.tag("p", null, "Кнопка ниже открывает попап, не закрывая окна."),
+			textTag(
+				"p",
+				null,
+				texts.t((m) => m.demo.modal.layersBody)
+			),
 			DOM.tag("div", { class: "menu" }, [
-				DOM.tag("button", { type: "button", class: "ui-button", command: UIKIT.POPUP.COMMAND.TOGGLE }, "Меню"),
+				textTag(
+					"button",
+					{ type: "button", class: "ui-button", command: UIKIT.POPUP.COMMAND.TOGGLE },
+					texts.t((m) => m.demo.modal.menu)
+				),
 				DOM.tag("div", { class: UIKIT.POPUP.CLASS.ROOT }, [
 					DOM.tag("menu", null, [
-						DOM.tag("li", null, DOM.tag("a", { href: "" }, "Пункт 1")),
-						DOM.tag("li", null, DOM.tag("a", { href: "" }, "Пункт 2")),
+						DOM.tag(
+							"li",
+							null,
+							textTag(
+								"a",
+								{ href: "" },
+								texts.t((m) => m.demo.modal.item1)
+							)
+						),
+						DOM.tag(
+							"li",
+							null,
+							textTag(
+								"a",
+								{ href: "" },
+								texts.t((m) => m.demo.modal.item2)
+							)
+						),
 					]),
 				]),
 			])
@@ -87,20 +123,32 @@ export default class ModalPage extends Page {
 		return "ModalPage";
 	}
 	get header(): string {
-		return "Modal, слои и прокрутка";
+		return this.app.model.texts.t((m) => m.pages.modal);
 	}
 
 	protected async onRenderContent(container: HTMLElement) {
-		container.insertAdjacentHTML("beforeend", html);
+		const texts = this.app.model.texts;
+
+		container.insertAdjacentHTML(
+			"beforeend",
+			await pickContent({ ru: () => import("./modal.html"), en: () => import("./modal.en.html") })
+		);
 
 		const answer = container.querySelector("[data-answer]") as HTMLElement;
 		const depth = container.querySelector("[data-depth]") as HTMLElement;
 		const panel = container.querySelector("[data-panel]") as HTMLElement;
 
-		const showDepth = () => (depth.textContent = `слоёв открыто: ${LayerManager.count}`);
+		const showDepth = () => (depth.textContent = texts.t((m) => m.demo.modal.depth, { count: LayerManager.count }));
 
 		container.querySelectorAll("[data-filler]").forEach((elem) => {
-			for (let i = 1; i <= 30; i++) elem.appendChild(DOM.tag("p", null, `строка ${i}`));
+			for (let i = 1; i <= 30; i++)
+				elem.appendChild(
+					textTag(
+						"p",
+						null,
+						texts.t((m) => m.demo.modal.line, { number: i })
+					)
+				);
 		});
 
 		// Стек меняют не только кнопки этой страницы: попап внутри окна открывает кит, а Escape
@@ -114,17 +162,25 @@ export default class ModalPage extends Page {
 		showDepth();
 
 		this.registerCommand("open", () => {
-			new HelloModal();
+			new HelloModal(texts);
 		});
 
 		this.registerCommand("confirm", () => {
-			const modal = new ConfirmModal("Удалить запись?");
+			const modal = new ConfirmModal(
+				texts.t((m) => m.demo.modal.question),
+				texts
+			);
 
-			modal.onClosed(() => (answer.textContent = modal.confirmed ? "ответ: да" : "ответ: нет"));
+			modal.onClosed(
+				() =>
+					(answer.textContent = modal.confirmed
+						? texts.t((m) => m.demo.modal.answerYes)
+						: texts.t((m) => m.demo.modal.answerNo))
+			);
 		});
 
 		this.registerCommand("layers", () => {
-			new LayersModal();
+			new LayersModal(texts);
 		});
 
 		// Слой не закрывает себя сам: закрытие — дело того, кто его поставил, а `release` снимает

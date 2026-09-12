@@ -6,7 +6,7 @@ export default class ExceptionPage extends Page {
 		return "ExceptionPage";
 	}
 	get header(): string {
-		return "Error";
+		return this.app.model.texts.t((m) => m.pages.error);
 	}
 
 	protected async onRenderContent(container: HTMLElement) {

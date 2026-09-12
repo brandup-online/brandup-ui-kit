@@ -21,6 +21,24 @@ if (HAS_DOM) {
 	// closed by rules it had never subscribed to.
 	if (!(Element.prototype as any).scrollTo) (Element.prototype as any).scrollTo = function () {};
 
+	// jsdom does not implement matchMedia either, and the kit asks it about the pointer
+	// (`isCoarsePointer`) while the example asks it about the colour scheme — the latter at module
+	// load, so without this every suite that reaches that module fails before its first test.
+	// The stub answers "no match": the suites that care about a coarse pointer or a dark system
+	// replace it with their own.
+	if (!window.matchMedia) {
+		window.matchMedia = (query: string): MediaQueryList => <MediaQueryList>(<unknown>{
+				media: query,
+				matches: false,
+				onchange: null,
+				addEventListener: () => {},
+				removeEventListener: () => {},
+				addListener: () => {},
+				removeListener: () => {},
+				dispatchEvent: () => false,
+			});
+	}
+
 	// jsdom does not implement innerText — proxied to textContent. That is enough for UI logic
 	// (for single lines without breaks innerText and textContent are the same).
 	if (!Object.getOwnPropertyDescriptor(HTMLElement.prototype, "innerText")) {

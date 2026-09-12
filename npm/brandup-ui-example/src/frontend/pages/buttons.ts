@@ -1,5 +1,5 @@
 ﻿import { Page } from "./base";
-import html from "./buttons.html";
+import { pickContent } from "../i18n";
 import "./buttons.less";
 import { UIKIT } from "@brandup/ui-kit/names";
 
@@ -8,11 +8,14 @@ export default class ButtonsPage extends Page {
 		return "ButtonsPage";
 	}
 	get header(): string {
-		return "Buttons";
+		return this.app.model.texts.t((m) => m.pages.buttons);
 	}
 
 	protected async onRenderContent(container: HTMLElement) {
-		container.insertAdjacentHTML("beforeend", html);
+		container.insertAdjacentHTML(
+			"beforeend",
+			await pickContent({ ru: () => import("./buttons.html"), en: () => import("./buttons.en.html") })
+		);
 
 		// ожидание ответа: кнопка гаснет на две секунды и второго нажатия не принимает
 		this.registerCommand("submit", (context) => {

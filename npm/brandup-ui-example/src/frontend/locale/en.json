@@ -1,0 +1,66 @@
+{
+	"nav": {
+		"home": "Home"
+	},
+	"theme": {
+		"toDark": "Dark theme",
+		"toLight": "Light theme"
+	},
+	"language": {
+		"title": "Interface language",
+		"toRu": "Русский",
+		"toEn": "English"
+	},
+	"pages": {
+		"index": "Web interface UI kit",
+		"styles": "Styles and typography",
+		"inputs": "Input controls",
+		"buttons": "Buttons",
+		"popups": "Popups",
+		"modal": "Modal, layers and scrolling",
+		"textbox": "Textbox",
+		"richeditor": "Rich editor",
+		"messageeditor": "Message editor",
+		"dropdown": "Dropdown",
+		"notfound": "Page not found",
+		"error": "Error"
+	},
+	"demo": {
+		"modal": {
+			"helloTitle": "A window of the kit",
+			"helloBody": "The body of the window is filled by a descendant — the window itself knows only about the frame, the layers and closing.",
+			"close": "Close",
+			"question": "Delete the record?",
+			"yes": "Yes",
+			"no": "No",
+			"answerYes": "answer: yes",
+			"answerNo": "answer: no",
+			"layersTitle": "A popup inside the window",
+			"layersBody": "The button below opens a popup without closing the window.",
+			"menu": "Menu",
+			"item1": "Item 1",
+			"item2": "Item 2",
+			"depth": "layers open: {count}",
+			"line": "line {number}"
+		},
+		"richeditor": {
+			"reset": "Text with <b>bold</b> and <i>italic</i>.",
+			"yes": "yes",
+			"no": "no",
+			"empty": "(empty)"
+		},
+		"messageeditor": {
+			"empty": "(empty)",
+			"toCreate": "To create: {keys}",
+			"setup": "This is where the audience field setup screen would open.",
+			"nameKey": "NAME",
+			"nameTitle": "Subscriber name",
+			"surnameKey": "SURNAME",
+			"surnameTitle": "Subscriber surname",
+			"cityKey": "CITY",
+			"cityTitle": "City from the profile",
+			"companyKey": "COMPANY",
+			"companyTitle": "Company name"
+		}
+	}
+}

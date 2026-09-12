@@ -10,12 +10,8 @@ import { DOM } from "@brandup/ui";
  * and the dialog are all derived from it and follow along on their own.
  *
  * Until a choice is made, the page follows the system setting; a click makes the choice explicit
- * and remembers it. By the first paint all of this is applied by the script inlined into `<head>` —
- * otherwise the page would flash light for someone who wants dark.
+ * and remembers it. Applied by {@link applyStoredTheme} at the very start of the bundle.
  */
-// These three are repeated by the inline script in template.html, and cannot be shared with it: it
-// runs before the first paint, that is before this bundle exists at all. Changing one means
-// changing the other — that script reads the same key and understands the same two values.
 const STORAGE_KEY = "uikit-theme";
 const DARK = "dark";
 const LIGHT = "light";
@@ -42,8 +38,27 @@ const apply = (dark: boolean) => {
 	else document.documentElement.removeAttribute("data-theme");
 };
 
+export interface ThemeLabels {
+	/** Подписи кнопки: каждая называет тему, на которую переключает. */
+	toDark: string;
+	toLight: string;
+}
+
+/**
+ * Применяет сохранённый выбор темы к документу.
+ *
+ * Вызывается первой строкой приложения, до постройки чего бы то ни было: тема — это атрибут
+ * на `<html>`, и чем раньше он встанет, тем меньше страница успеет показать чужую палитру.
+ * Пока выбора нет, следуем системной настройке.
+ */
+export function applyStoredTheme(): void {
+	const saved = readChoice();
+
+	apply(saved ? saved === DARK : systemDark.matches);
+}
+
 /** Wires up the switch in the header. Called once at application start. */
-export function initThemeSwitch(): void {
+export function initThemeSwitch(labels: ThemeLabels): void {
 	const button = DOM.queryElement(document.body, "[data-theme-switch]");
 	if (!button) return;
 
@@ -55,7 +70,7 @@ export function initThemeSwitch(): void {
 		// The label is about where a click switches to, not about what is current: a button names
 		// the action. The state is read by a screen reader — that is what `aria-pressed` is for
 		// on a toggle.
-		if (label) label.textContent = dark ? "Светлая тема" : "Тёмная тема";
+		if (label) label.textContent = dark ? labels.toLight : labels.toDark;
 		button.setAttribute("aria-pressed", dark ? "true" : "false");
 	};
 

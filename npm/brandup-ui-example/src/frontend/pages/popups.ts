@@ -1,5 +1,5 @@
 ﻿import { Page } from "./base";
-import html from "./popups.html";
+import { pickContent } from "../i18n";
 import "./popups.less";
 import { PopupManager, type Placement } from "@brandup/ui-kit";
 
@@ -8,11 +8,14 @@ export default class PopupsPage extends Page {
 		return "PopupsPage";
 	}
 	get header(): string {
-		return "Popups";
+		return this.app.model.texts.t((m) => m.pages.popups);
 	}
 
 	protected async onRenderContent(container: HTMLElement) {
-		container.insertAdjacentHTML("beforeend", html);
+		container.insertAdjacentHTML(
+			"beforeend",
+			await pickContent({ ru: () => import("./popups.html"), en: () => import("./popups.en.html") })
+		);
 
 		this.registerCommand("open", (context) => {
 			PopupManager.toggle(context.target.nextElementSibling as HTMLElement, { initiator: context.target });

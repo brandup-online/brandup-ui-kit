@@ -1,0 +1,180 @@
+<section class="page-block messageeditors">
+	<div class="part">
+		<h2>The message bubble</h2>
+		<p class="note">
+			The field is styled as a chat message. It is built like <code>TextBox</code>: the value is held by a hidden field
+			of the form, the typing is done by <code>RichEditor</code>. The formatting toolbar with emoji insertion is shown above
+			the bubble on focus, <b>Enter</b> starts a new paragraph instead of submitting the form.
+		</p>
+		<div class="chat">
+			<div class="field">
+				<textarea data-content-script="messageeditor" placeholder="Write a message"></textarea>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>With a ready value</h2>
+		<p class="note">
+			The value is stored as messenger markup rather than HTML: <code>**bold**</code>, <code>_italic_</code>,
+			<code>~strikethrough~</code>, <code>__underline__</code>. <b>Enter</b> gives one line break
+			(<code>\n</code>), two presses give an empty line (<code>\n\n</code>). The spintax
+			<code>[one|two]</code> and the properties <code>{NAME}</code> are highlighted in the text but go into the value
+			as they are: the highlighting is ordinary <code>span</code>which serialization drops.
+		</p>
+		<div class="chat">
+			<div class="field">
+				<textarea data-content-script="messageeditor" placeholder="Write a message">
+Hello, {NAME}! This is **bold** and _italic_.
+A [10|15] percent discount, the variant is picked on sending.
+
+And that is an empty line above, two breaks.</textarea
+				>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>Properties from the markup</h2>
+		<p class="note">
+			Personalization is off by default: without it there is neither a toolbar button nor highlighting. It is turned on by
+			the option <code>personalization</code>, the attribute <code>data-personalization</code> or by the declaration of
+			the property list itself, which is how it is on in every field of this page. The list may be
+			declared by the attribute instead of the options:
+			<code>data-variables</code> of the value element, for markup given by a server. Two forms: keys separated by commas
+			(<code>data-variables="NAME, CITY"</code>) or a JSON array when the properties have names. A list given
+			in the options wins over the attribute. The second field has no properties at all, and the text in its window
+			is set by the attribute <code>data-variables-empty</code>: the reason for an empty list is known to the application. There too is
+			the setup link as the last line of the window: the option <code>variablesSetup</code> takes a function
+			(an SPA navigation or a window of your own; a stub here), and as a string it would be the address of an ordinary link, which can be
+			declared by an attribute as well <code>data-variables-setup</code>.
+		</p>
+		<div class="chat">
+			<div class="field">
+				<textarea
+					data-content-script="messageeditor"
+					placeholder="Write a message"
+					data-variables='[{"key":"ORDER NUMBER","name":"Number of the last order"},{"key":"AMOUNT","name":"Order amount"},"TRACK"]'
+				>
+Order {ORDER NUMBER} for {AMOUNT} has been [sent|handed to delivery].</textarea
+				>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<textarea
+					data-content-script="messageeditor"
+					placeholder="No properties yet"
+					data-variables-empty="The properties will appear once the audience is chosen."
+				></textarea>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>New properties</h2>
+		<p class="note">
+			By default the list is closed: a key outside it is an error of the value, the property is marked red
+			and stops the form from being submitted (the first field). The attribute <code>data-new-variables</code> (the option
+			<code>newVariables</code>) opens the list: such a key becomes a request for a property that
+			an external system will create (the second field). It is marked with its own colour, does not hold the submit back, and in the
+			personalization window it stands as an entry marked "new", from where it can be inserted again. A click on the
+			property itself opens the key editor: there is nothing to choose from, it was typed right here. The key is raised
+			to upper case, and at its edges only a letter, a digit or an underscore is allowed. What is left to
+			create is given by the property <code>unknownVariables</code>, printed under the field.
+		</p>
+		<div class="chat">
+			<div class="field">
+				<textarea
+					data-content-script="messageeditor"
+					placeholder="Write a message"
+					data-variables="NAME, CITY"
+				>
+Hello, {NAME}! The key {DISCOUNT} is not in the list, so the field will not be submitted.</textarea
+				>
+				<pre class="value"></pre>
+			</div>
+			<div class="field">
+				<textarea
+					data-content-script="messageeditor"
+					placeholder="Write a message"
+					data-variables="NAME, CITY"
+					data-new-variables
+				>
+Hello, {NAME}! And {DISCOUNT} with {ORDER DATE} will be created here on their own.</textarea
+				>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>A quote and a code block</h2>
+		<p class="note">
+			Blocks are off by default, not every channel understands them. Here they are declared by the attribute
+			<code>data-blocks="quote code"</code>. Monospace and the code block share one button: with
+			one line or a part of it selected it is monospace, with several lines (or nothing selected) it is a block.
+			<b>Enter</b> inside a block ends it,
+			<b>Shift+Enter</b> breaks the line inside it, <b>Backspace</b> at the start of a block returns plain
+			text. In the value a quote is <code>&gt;</code> at the start of every line, and a code block is a fence
+			of three backticks; inside the code the markup is not parsed and the indents are kept.
+		</p>
+		<div class="chat">
+			<div class="field">
+				<textarea data-content-script="messageeditor" placeholder="Write a message" data-blocks="quote code">
+Answering the question:
+&gt; How are blocks turned on?
+&gt; An example would be nice.
+By an attribute on the field:
+```
+&lt;textarea data-blocks="quote code"&gt;&lt;/textarea&gt;
+```</textarea
+				>
+				<pre class="value"></pre>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>Showing the output</h2>
+		<p class="note">
+			The switch above the bubble shows the value the way it goes into the form, as messenger
+			markup. By default there is none: whoever writes a message does not need the raw markup. It is turned on by
+			by the option <code>source</code> or by the attribute <code>data-source</code>. The panel is shown instead of
+			the bubble and only shows: its text can be selected and copied, while the message is still edited
+			in the bubble.
+		</p>
+		<div class="chat">
+			<div class="field">
+				<textarea data-content-script="messageeditor" placeholder="Write a message" data-source>
+Hello, {NAME}! This is **bold** and _italic_.
+A [10|15] percent discount.</textarea
+				>
+			</div>
+		</div>
+	</div>
+
+	<div class="part">
+		<h2>States</h2>
+		<p class="note">
+			<code>required</code>, <code>readonly</code> and <code>disabled</code> are taken from the value element, as in
+			the rest of the kit controls. The button checks the validation of the form.
+		</p>
+		<div class="chat">
+			<form class="field">
+				<textarea data-content-script="messageeditor" placeholder="A required field" required></textarea>
+				<button type="submit" class="ui-button">Submit</button>
+			</form>
+			<div class="field">
+				<textarea data-content-script="messageeditor" placeholder="Read-only" readonly>
+This message is read-only.</textarea
+				>
+			</div>
+			<div class="field">
+				<textarea data-content-script="messageeditor" placeholder="Disabled" disabled></textarea>
+			</div>
+		</div>
+	</div>
+</section>
