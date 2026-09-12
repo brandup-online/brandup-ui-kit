@@ -41,7 +41,7 @@
 		"./package.json": "./package.json"
 	},
 	"dependencies": {
-		"@brandup/ui": "^2.0.11",
+		"@brandup/ui": "^2.0.12",
 		"@brandup/ui-kit": "file:../brandup-ui-kit"
 	},
 	"devDependencies": {
