@@ -137,6 +137,26 @@ export interface MessageEditorOptions {
 	 */
 	newVariables?: boolean;
 	/**
+	 * Снимает проверку объявленности: ключ, которого нет в списке, перестаёт останавливать
+	 * отправку формы. По умолчанию выключено — необъявленный ключ считается ошибкой значения.
+	 *
+	 * Нужно там, где список неполон не по ошибке: свойства заводятся на стороне, набор приезжает
+	 * частями, а часть ключей приложение подставляет само. Всё остальное остаётся как было —
+	 * чужой ключ по-прежнему подсвечивается в тексте и по-прежнему перечислен
+	 * в {@link MessageEditor.unknownVariables}, так что показать предупреждение рядом с полем
+	 * приложение может и само. Снимается только запрет отправки.
+	 *
+	 * Не то же, что {@link newVariables}: тот объявляет необъявленный ключ *заявкой* и меняет
+	 * поведение — свой цвет пометки, запись в окне персонализации, окно правки ключа. Здесь
+	 * ничего этого нет, ключ просто перестаёт быть препятствием.
+	 *
+	 * Пока проверка снята, подпись невалидности на поле-носителе принадлежит приложению:
+	 * редактор её не ставит и не стирает.
+	 *
+	 * Без этой опции берётся из разметки: атрибут `data-allow-unknown-variables` поля-носителя.
+	 */
+	allowUnknownVariables?: boolean;
+	/**
 	 * Текст в окне персонализации, когда список пуст; по умолчанию — подпись `VARIABLES_EMPTY`
 	 * из реестра (см. `@brandup/ui-kit/i18n`).
 	 * Без него берётся из атрибута `data-variables-empty` поля-носителя.
@@ -242,6 +262,7 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	readonly variablesSetupText: string;
 	readonly personalization: boolean;
 	readonly newVariables: boolean;
+	readonly allowUnknownVariables: boolean;
 	readonly blocks: BlockType[];
 	readonly tools: FormatTool[];
 	readonly source: boolean;
@@ -328,6 +349,10 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 		this.variablesSetupText =
 			options.variablesSetupText ?? valueElem.dataset.variablesSetupText ?? TEXT.VARIABLES_SETUP;
 		this.newVariables = options.newVariables ?? dataFlag(valueElem.dataset, "newVariables");
+		// В список ниже не входит: это послабление проверки, а не заявление о том, что свойства
+		// вообще используются. Само по себе оно персонализацию не включает.
+		this.allowUnknownVariables =
+			options.allowUnknownVariables ?? dataFlag(valueElem.dataset, "allowUnknownVariables");
 		// Объявленный список — тоже согласие: иначе переданные свойства молча никуда не вели бы.
 		// Настройка полей — так же: объявленная, она обязана быть досягаемой, а живёт в окне.
 		// Режим новых свойств — тоже: он про свойства и без них не значит ничего.
@@ -545,14 +570,16 @@ export default class MessageEditor extends EditorInputControl<RichEditor, Change
 	}
 
 	/**
-	 * Останавливает ли необъявленное свойство отправку формы: в режиме новых свойств нет —
-	 * там оно заявка, а не ошибка, и заведёт его приложение.
+	 * Останавливает ли необъявленное свойство отправку формы. Не останавливает в двух случаях:
+	 * в режиме новых свойств — там оно заявка, а не ошибка, и заведёт его приложение, — и когда
+	 * проверка снята явно ({@link MessageEditorOptions.allowUnknownVariables}), потому что список
+	 * неполон не по ошибке.
 	 *
 	 * Он же признак того, что подпись невалидности на поле наша: пока проверять не по чему,
 	 * поле не трогаем вовсе — стёрли бы чужую подпись, выставленную приложением.
 	 */
 	private get __checksVariables(): boolean {
-		return this.__knowsVariables && !this.newVariables;
+		return this.__knowsVariables && !this.newVariables && !this.allowUnknownVariables;
 	}
 
 	/**

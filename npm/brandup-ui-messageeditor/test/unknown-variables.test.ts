@@ -207,3 +207,77 @@ describe("initial value", () => {
 		expect(valueElem.form!.checkValidity()).toBe(true);
 	});
 });
+
+// Список бывает неполон не по ошибке: свойства заводятся на стороне, набор приезжает частями,
+// часть ключей приложение подставляет само. Отправку в таком случае держать нечем — но всё
+// остальное про чужой ключ остаётся, приложению есть из чего сделать собственное предупреждение.
+describe("allowUnknownVariables", () => {
+	const relaxed: MessageEditorOptions = { ...declared, allowUnknownVariables: true };
+
+	it("does not hold the form back", () => {
+		const editor = setup("Привет, {ЧУЖАЯ}!", relaxed);
+		const valueElem = editor.element.querySelector("textarea")!;
+
+		expect(valueElem.validity.customError).toBe(false);
+		expect(valueElem.form!.checkValidity()).toBe(true);
+		expect(editor.element.classList.contains("invalid")).toBe(false);
+	});
+
+	// Снимается запрет отправки, и только он: пометка в тексте и перечень остаются — иначе
+	// приложению не из чего собрать своё предупреждение, а автору не видно, где именно ключ.
+	it("still marks the key and still lists it", () => {
+		const editor = setup("Привет, {ЧУЖАЯ}!", relaxed);
+		const span = editor.editor.editable.querySelector<HTMLElement>("span.variable")!;
+
+		expect(span.classList.contains("unknown")).toBe(true);
+		expect(editor.unknownVariables).toEqual(["ЧУЖАЯ"]);
+	});
+
+	// Пока проверка снята, подпись на поле принадлежит приложению — редактор в неё не лезет.
+	it("leaves the host's own message alone", () => {
+		const editor = setup("Привет, {ЧУЖАЯ}!", relaxed);
+		const valueElem = editor.element.querySelector("textarea")!;
+
+		valueElem.setCustomValidity("Своя проверка приложения.");
+		editor.validate();
+
+		expect(valueElem.validationMessage).toBe("Своя проверка приложения.");
+	});
+
+	// Разрушение снимает подпись невалидности, но только свою: с послаблением подпись на поле
+	// принадлежит приложению, и стереть её значило бы отменить чужую проверку заодно со своей.
+	it("does not wipe the host's message when it goes away", () => {
+		const editor = setup("Привет, {ЧУЖАЯ}!", relaxed);
+		const valueElem = editor.element.querySelector("textarea")!;
+		valueElem.setCustomValidity("Своя проверка приложения.");
+
+		editor.destroy();
+
+		expect(valueElem.validationMessage).toBe("Своя проверка приложения.");
+	});
+
+	it("reads the flag from the markup too", () => {
+		document.body.innerHTML = "";
+		const form = document.createElement("form");
+		const input = document.createElement("textarea");
+		input.value = "Привет, {ЧУЖАЯ}!";
+		input.dataset.variables = "ИМЯ";
+		input.dataset.allowUnknownVariables = "true";
+		form.appendChild(input);
+		document.body.appendChild(form);
+
+		const editor = new MessageEditor(input);
+
+		expect(editor.allowUnknownVariables).toBe(true);
+		expect(input.validity.customError).toBe(false);
+	});
+
+	// Само по себе послабление персонализацию не включает: это снятие проверки, а не заявление
+	// о том, что свойства вообще используются.
+	it("does not turn personalization on by itself", () => {
+		const editor = setup("{ЧУЖАЯ}", { allowUnknownVariables: true });
+
+		expect(editor.personalization).toBe(false);
+		expect(editor.unknownVariables).toEqual([]);
+	});
+});
