@@ -1,7 +1,7 @@
-﻿import { Page } from "./base";
+﻿import type { CommandContext } from "@brandup/ui";
+import { Page } from "./base";
 import { pickContent } from "../i18n";
 import "./buttons.less";
-import { UIKIT } from "@brandup/ui-kit/names";
 
 export default class ButtonsPage extends Page {
 	get typeName(): string {
@@ -17,16 +17,24 @@ export default class ButtonsPage extends Page {
 			await pickContent({ ru: () => import("./buttons.html"), en: () => import("./buttons.en.html") })
 		);
 
-		// ожидание ответа: кнопка гаснет на две секунды и второго нажатия не принимает
-		this.registerCommand("submit", (context) => {
+		// Ожидание ответа: кнопка гаснет на две секунды и второго нажатия не принимает. Класс
+		// ставить не нужно — пока Promise команды не завершился, @brandup/ui держит на кнопке
+		// executing, а кит рисует его как loading. Скринридеру о состоянии говорит сама команда.
+		//
+		// У каждой кнопки своя команда: повторный запуск @brandup/ui не пускает на уровне команды,
+		// а не элемента, и с одной общей вторая кнопка молча не нажималась бы, пока ждёт первая.
+		const submit = async (context: CommandContext) => {
 			const button = context.target;
-			button.classList.add(UIKIT.BUTTON.CLASS.STATE.LOADING);
 			button.setAttribute("aria-busy", "true");
 
-			setTimeout(() => {
-				button.classList.remove(UIKIT.BUTTON.CLASS.STATE.LOADING);
+			try {
+				await new Promise((resolve) => setTimeout(resolve, 2000));
+			} finally {
 				button.removeAttribute("aria-busy");
-			}, 2000);
-		});
+			}
+		};
+
+		this.registerCommand("submit-primary", submit);
+		this.registerCommand("submit-default", submit);
 	}
 }

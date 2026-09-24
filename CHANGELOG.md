@@ -29,6 +29,33 @@ CI build (`Build.BuildNumber` via `autonpm-version`).
 
 ### Changed
 
+- **A button shows the wait of its command by itself.** While an asynchronous
+  command runs — its handler returned a `Promise` — `@brandup/ui` keeps the
+  `executing` class on the command's element, and the kit drew nothing for it:
+  the ring existed only as `loading`, which the host has to set and clear by
+  hand. So every project whose buttons ran commands either wrote that code
+  around each of them or copied the ring into its own stylesheet under
+  `.ui-button.executing`, where it stopped following the kit. `executing` now
+  shares the rule of `loading`, the reduced-motion pulse included, so a
+  `.ui-button` with a `data-command` waits with no code in the project; a test
+  on the compiled sheet checks that the label goes transparent on every view
+  and that the ring is one rule, not two. `aria-busy` is still the host's: the
+  library does not set it.
+
+  This changes buttons that already exist, not only new ones: every
+  `.ui-button` whose command returns a `Promise` now hides its label and takes
+  no clicks until the promise settles — including a command that awaits
+  something other than a response, such as a confirmation window it opened or
+  a pause that shows a result. Such a command should not return the promise:
+  start the work without awaiting it (`() => { void work(); }`), and the button
+  stays as it is.
+
+  The example's «Отправка формы» now runs an asynchronous command instead of
+  toggling `loading` itself, and each of its two buttons has a command of its
+  own: `@brandup/ui` refuses a second run per command, not per element, so with
+  one shared command the second button silently ignored clicks while the first
+  was waiting.
+
 - **The linter is now `oxlint`, and the whole repository runs on TypeScript 7.**
   The packages had already moved to the native compiler; the root stayed on
   TypeScript 6 for one reason only — `typescript-eslint` refuses to load beside
