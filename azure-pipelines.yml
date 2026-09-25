@@ -78,22 +78,6 @@ stages:
                   condition: succeededOrFailed()
                   artifact: npm
 
-          - job: GitTag
-            displayName: "Add git tag"
-            dependsOn: [BuildNpm]
-            condition: succeeded()
-            steps:
-                - checkout: self
-                  clean: "true"
-                  persistCredentials: "true"
-
-                - script: |
-                      echo Tagging $(Build.Repository.Name) with $(Build.BuildNumber)
-                      git config user.name "AzureDevOps Agent"
-                      git tag "$(Build.BuildNumber)" --force
-                      git push origin "$(Build.BuildNumber)" --force
-                  displayName: set git tag
-
     - stage: Production
       displayName: Deploy stage
       dependsOn: Build
@@ -211,3 +195,19 @@ stages:
                             - script: npm publish --userconfig "$(Pipeline.Workspace)/.npmrc"
                               displayName: "publish brandup-ui-dropdown"
                               workingDirectory: "$(Pipeline.Workspace)/npmout/brandup-ui-dropdown/package"
+
+          - job: GitTag
+            displayName: "Add git tag"
+            dependsOn: [Production]
+            condition: succeeded()
+            steps:
+                - checkout: self
+                  clean: "true"
+                  persistCredentials: "true"
+
+                - script: |
+                      echo Tagging $(Build.Repository.Name) with $(Build.BuildNumber)
+                      git config user.name "AzureDevOps Agent"
+                      git tag "$(Build.BuildNumber)" --force
+                      git push origin "$(Build.BuildNumber)" --force
+                  displayName: set git tag
