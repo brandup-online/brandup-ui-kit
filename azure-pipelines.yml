@@ -46,56 +46,32 @@ stages:
                       version: 22.x
                       checkLatest: true
 
-                - task: "Npm@1"
+                - script: npm run i
                   displayName: "npm install"
-                  inputs:
-                      command: "custom"
-                      customCommand: "run i"
 
                 # Source checks run before the build: they are cheaper than it and fail more clearly,
                 # and digging into a type error in a built package while an uncleaned lint sits next to it
                 # takes longer than fixing the lint.
-                - task: "Npm@1"
+                - script: npm run lint
                   displayName: "lint"
-                  inputs:
-                      command: "custom"
-                      customCommand: "run lint"
 
-                - task: "Npm@1"
+                - script: npm run format:check
                   displayName: "format check"
-                  inputs:
-                      command: "custom"
-                      customCommand: "run format:check"
 
-                - task: "Npm@1"
+                - script: npm run build
                   displayName: "packages npm build"
-                  inputs:
-                      command: "custom"
-                      customCommand: "run build"
 
-                - task: "Npm@1"
+                - script: npm run test
                   displayName: "packages npm test"
-                  inputs:
-                      command: "custom"
-                      customCommand: "run test"
 
-                - task: "Npm@1"
+                - script: npm run npm:version $(Build.BuildNumber)
                   displayName: "packages npm version"
-                  inputs:
-                      command: "custom"
-                      customCommand: "run npm:version $(Build.BuildNumber)"
 
-                - task: "Npm@1"
+                - script: npm run npm:cleanup
                   displayName: "packages npm cleanup"
-                  inputs:
-                      command: "custom"
-                      customCommand: "run npm:cleanup"
 
-                - task: "Npm@1"
+                - script: npm run npm:pack --pack-destination "$(Build.ArtifactStagingDirectory)"
                   displayName: "packages npm pack"
-                  inputs:
-                      command: custom
-                      customCommand: "run npm:pack --pack-destination $(Build.ArtifactStagingDirectory)"
 
                 - publish: $(Build.ArtifactStagingDirectory)
                   displayName: publish artifact
@@ -184,56 +160,54 @@ stages:
                                   cleanDestinationFolder: true
                                   overwriteExistingFiles: true
 
+                            - task: UseNode@1
+                              displayName: use node 22.x
+                              inputs:
+                                  version: 22.x
+                                  checkLatest: true
+
+                            # npmAuthenticate adds the token of the service connection to this file.
+                            - script: echo registry=https://registry.npmjs.org/> "$(Pipeline.Workspace)/.npmrc"
+                              displayName: "create .npmrc"
+
+                            - task: npmAuthenticate@0
+                              displayName: "npm authenticate"
+                              inputs:
+                                  workingFile: "$(Pipeline.Workspace)/.npmrc"
+                                  customEndpoint: "$(publish-npm-credentials)"
+
                             # brandup-ui-kit
 
-                            - task: Npm@1
+                            - script: npm publish --userconfig "$(Pipeline.Workspace)/.npmrc"
                               displayName: "publish brandup-ui-kit"
-                              inputs:
-                                  command: publish
-                                  workingDir: "$(Pipeline.Workspace)/npmout/brandup-ui-kit/package"
-                                  publishEndpoint: "$(publish-npm-credentials)"
+                              workingDirectory: "$(Pipeline.Workspace)/npmout/brandup-ui-kit/package"
 
                             # brandup-ui-input
 
-                            - task: Npm@1
+                            - script: npm publish --userconfig "$(Pipeline.Workspace)/.npmrc"
                               displayName: "publish brandup-ui-input"
-                              inputs:
-                                  command: publish
-                                  workingDir: "$(Pipeline.Workspace)/npmout/brandup-ui-input/package"
-                                  publishEndpoint: "$(publish-npm-credentials)"
+                              workingDirectory: "$(Pipeline.Workspace)/npmout/brandup-ui-input/package"
 
                             # brandup-ui-richeditor
 
-                            - task: Npm@1
+                            - script: npm publish --userconfig "$(Pipeline.Workspace)/.npmrc"
                               displayName: "publish brandup-ui-richeditor"
-                              inputs:
-                                  command: publish
-                                  workingDir: "$(Pipeline.Workspace)/npmout/brandup-ui-richeditor/package"
-                                  publishEndpoint: "$(publish-npm-credentials)"
+                              workingDirectory: "$(Pipeline.Workspace)/npmout/brandup-ui-richeditor/package"
 
                             # brandup-ui-messageeditor
 
-                            - task: Npm@1
+                            - script: npm publish --userconfig "$(Pipeline.Workspace)/.npmrc"
                               displayName: "publish brandup-ui-messageeditor"
-                              inputs:
-                                  command: publish
-                                  workingDir: "$(Pipeline.Workspace)/npmout/brandup-ui-messageeditor/package"
-                                  publishEndpoint: "$(publish-npm-credentials)"
+                              workingDirectory: "$(Pipeline.Workspace)/npmout/brandup-ui-messageeditor/package"
 
                             # brandup-ui-textbox
 
-                            - task: Npm@1
+                            - script: npm publish --userconfig "$(Pipeline.Workspace)/.npmrc"
                               displayName: "publish brandup-ui-textbox"
-                              inputs:
-                                  command: publish
-                                  workingDir: "$(Pipeline.Workspace)/npmout/brandup-ui-textbox/package"
-                                  publishEndpoint: "$(publish-npm-credentials)"
+                              workingDirectory: "$(Pipeline.Workspace)/npmout/brandup-ui-textbox/package"
 
                             # brandup-ui-dropdown
 
-                            - task: Npm@1
+                            - script: npm publish --userconfig "$(Pipeline.Workspace)/.npmrc"
                               displayName: "publish brandup-ui-dropdown"
-                              inputs:
-                                  command: publish
-                                  workingDir: "$(Pipeline.Workspace)/npmout/brandup-ui-dropdown/package"
-                                  publishEndpoint: "$(publish-npm-credentials)"
+                              workingDirectory: "$(Pipeline.Workspace)/npmout/brandup-ui-dropdown/package"
