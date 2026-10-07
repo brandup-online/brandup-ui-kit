@@ -914,6 +914,19 @@ describe("TextBox implicit submission", () => {
 		expect(submit).not.toHaveBeenCalled();
 		expect(tb.editor.editable.querySelectorAll("p")).toHaveLength(2);
 	});
+
+	// поле заменяет textarea: строка — это строка значения, без отступов абзаца вокруг
+	it("treats a line of a multiline textbox as a line, not a spaced paragraph", () => {
+		const { input } = setup({ multiline: true });
+		const tb = new TextBox(input as HTMLTextAreaElement);
+
+		expect(tb.editor.paragraph).toBe("break");
+		expect(tb.editor.editable.classList.contains("breaks")).toBe(true);
+
+		tb.setValue("one\ntwo");
+		expect(tb.editor.editable.innerHTML).toBe("<p>one</p><p>two</p>");
+		expect(tb.getValue()).toBe("one\ntwo");
+	});
 });
 
 describe("TextBox focus caret", () => {

@@ -190,6 +190,9 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 			markers: formatMarkers,
 			placeholder,
 			multiline: multyline,
+			// Поле заменяет textarea: строка в нём — строка значения, а не абзац с отступами вокруг.
+			// Enter переносит строку одним \n, пустая строка — это пустая строка значения.
+			paragraph: "break",
 			blocks,
 			readonly,
 			// disabled редактор знает сам: запрет правок как в readonly, плюс снятый contenteditable —
@@ -441,7 +444,7 @@ export default class TextBox extends EditorInputControl<RichEditor, ChangeEventD
 			if (this.required && !value) isValid = false;
 
 			// длина — по видимому тексту (getLength), а не по сериализованному value:
-			// при format/html в value есть теги, в multiline — разделители абзацев \n\n
+			// при format/html в value есть теги, в multiline — переносы строк
 			if (this.maxlength > 0 && this.maxlength < this.__editor.getLength()) isValid = false;
 		}
 
