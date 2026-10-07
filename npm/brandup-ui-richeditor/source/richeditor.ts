@@ -28,7 +28,6 @@ import {
 	mapCharOffset,
 	normalizeBlockTypes,
 	editorText,
-	charLength,
 	paragraphsNormalized,
 	preserveCaret,
 	mergeAdjacentBlocks,
@@ -1779,6 +1778,10 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 	private __insertPasted(paras: HTMLElement[], selection: Selection): boolean {
 		if (!paras.length) return false;
 
+		// Чужие абзацы (<div>) приводим заранее: после вставки нормализация пересоздала бы абзац
+		// под концом вставки, и диапазон, отмечающий его, сбросился бы на уровень редактора.
+		if (this.multiline) this.__ensureParagraphs();
+
 		const range = selection.getRangeAt(0);
 		this.__history?.record("op");
 
@@ -1790,15 +1793,14 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		let caret: number;
 
 		if (this.multiline) {
-			// Длина вставки меряется по факту — разницей длины содержимого: ensureParagraphs
-			// подчищает вставленное (краевые <br>-заполнители), и посчитанная заранее длина
-			// уводила бы каретку за конец вставленного, в чужой текст.
-			const before = charLength(this.editable);
-
-			insertPastedParagraphs(this.editable, paras, range);
+			// Конец вставки держит живой диапазон, а не посчитанная длина: ensureParagraphs
+			// подчищает краевые <br>-заполнители — и вставленные, и заполнитель абзаца, в который
+			// вставляли. Разница длин содержимого их не различает, и каретка вставала на символ
+			// раньше конца вставленного (вставка в пустую строку) или за ним.
+			const end = insertPastedParagraphs(this.editable, paras, range);
 			ensureParagraphs(this.editable); // заполнить пустые абзацы, убрать краевые <br>
 
-			caret = start + (charLength(this.editable) - before);
+			caret = selectionCharBounds(this.editable, end)[0];
 		} else {
 			// инлайн: абзацы и переносы → пробелы, форматирование сохраняем
 			const doc = this.editable.ownerDocument;

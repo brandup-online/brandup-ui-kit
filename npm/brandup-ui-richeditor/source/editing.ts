@@ -435,21 +435,34 @@ export function collapseEmptyEdges(editable: HTMLElement, range: Range) {
 	range.collapse(true);
 }
 
-/** Вставляет санитизированные абзацы <p> в позицию каретки, разбивая текущий абзац. */
-export function insertPastedParagraphs(editable: HTMLElement, paras: HTMLElement[], range: Range) {
+/**
+ * Вставляет санитизированные абзацы <p> в позицию каретки, разбивая текущий абзац.
+ *
+ * Возвращает живой диапазон в конце вставленного (перед хвостом абзаца): DOM сам сдвигает его
+ * при дальнейших правках, и каретка встаёт ровно за вставкой после любой нормализации.
+ */
+export function insertPastedParagraphs(editable: HTMLElement, paras: HTMLElement[], range: Range): Range {
 	// Вставлять нечего — и содержимое трогать нельзя: ниже из абзаца выносится его хвост, а на
 	// пустом списке возвращать этот хвост было бы некуда. Разбор отдаёт пустой список на тексте
 	// из одних пустых строк (см. buildParagraphs), и без этой проверки текст после каретки
-	// исчезал бы ещё до того, как обращение к первому абзацу уронит вызов.
-	if (!paras.length) return;
+	// исчезал бы ещё до того, как обращение к первому абзацу уронит вызов. Конец вставки
+	// тогда — сама каретка.
+	const end = range.cloneRange();
+	end.collapse(true);
+	if (!paras.length) return end;
 
 	const block = blockOf(editable, range.startContainer);
+	const markEnd = (container: Node) => {
+		end.setStart(container, container.childNodes.length);
+		end.collapse(true);
+	};
 
 	// каретка не внутри абзаца (пустой редактор / уровень редактора) — вставляем абзацы как есть
 	if (!block) {
 		const ref = topLevelRef(editable, range);
 		for (const p of paras) editable.insertBefore(p, ref);
-		return;
+		markEnd(paras[paras.length - 1]);
+		return end;
 	}
 
 	// Вставка в цитату или код остаётся в них: разорвать блок посреди вставки — не то,
@@ -468,8 +481,9 @@ export function insertPastedParagraphs(editable: HTMLElement, paras: HTMLElement
 	while (paras[0].firstChild) block.appendChild(paras[0].firstChild);
 
 	if (paras.length === 1) {
+		markEnd(block);
 		block.appendChild(tail); // один абзац: содержимое-до + вставка + хвост в одном <p>
-		return;
+		return end;
 	}
 
 	// остальные абзацы — отдельными блоками того же типа после текущего; хвост — в конец последнего
@@ -479,7 +493,10 @@ export function insertPastedParagraphs(editable: HTMLElement, paras: HTMLElement
 		anchor.after(paras[i]);
 		anchor = paras[i];
 	}
-	paras[paras.length - 1].appendChild(tail);
+	markEnd(anchor);
+	anchor.appendChild(tail);
+
+	return end;
 }
 
 // Тот же блок, но другим тегом. Содержимое переносится как есть — правила типа к нему

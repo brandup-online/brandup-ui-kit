@@ -673,6 +673,52 @@ describe("RichEditor paste (formatted)", () => {
 		expect(editor.editable.querySelector("b")).toBeNull();
 	});
 
+	// Заполнитель пустого абзаца занимает позицию, но после вставки уходит: длина вставки,
+	// посчитанная разницей длины содержимого, выходила на единицу короче вставленного.
+	it("puts the caret right after the text pasted into an empty paragraph", () => {
+		const editor = makeEditor({ multiline: true, value: "foo" });
+		editor.editable.innerHTML = "<p>foo</p><p><br></p>"; // как после Enter в конце строки
+		caretAt(editor.editable.lastElementChild!, 0);
+
+		paste(editor, { plain: "bar" });
+
+		expect(editor.editable.innerHTML).toBe("<p>foo</p><p>bar</p>");
+		const range = window.getSelection()!.getRangeAt(0);
+		expect(range.collapsed).toBe(true);
+		expect(selectionCharBounds(editor.editable, range)[0]).toBe("foo\nbar".length);
+	});
+
+	it("puts the caret right after the text pasted into an empty editor", () => {
+		const editor = makeEditor({ multiline: true });
+		caretAt(editor.editable.firstElementChild ?? editor.editable, 0);
+
+		paste(editor, { plain: "bar" });
+
+		expect(editor.editable.innerHTML).toBe("<p>bar</p>");
+		expect(selectionCharBounds(editor.editable, window.getSelection()!.getRangeAt(0))[0]).toBe(3);
+	});
+
+	it("puts the caret right after the text pasted into a foreign <div> paragraph", () => {
+		const editor = makeEditor({ multiline: true, value: "foo" });
+		editor.editable.innerHTML = "<div>foo</div><p>baz</p>";
+		caretAt(editor.editable.firstChild!.firstChild!, 3);
+
+		paste(editor, { plain: "bar" });
+
+		expect(editor.editable.innerHTML).toBe("<p>foobar</p><p>baz</p>");
+		expect(selectionCharBounds(editor.editable, window.getSelection()!.getRangeAt(0))[0]).toBe(6);
+	});
+
+	it("puts the caret before the tail of the paragraph after a multi-paragraph paste", () => {
+		const editor = makeEditor({ multiline: true, value: "foobar" });
+		caretAt(editor.editable.querySelector("p")!.firstChild!, 3);
+
+		paste(editor, { html: "<p>A</p><p>B</p>", plain: "A\nB" });
+
+		expect(editor.editable.innerHTML).toBe("<p>fooA</p><p>Bbar</p>");
+		expect(selectionCharBounds(editor.editable, window.getSelection()!.getRangeAt(0))[0]).toBe("fooA\nB".length);
+	});
+
 	it("rejects via filterPaste (null) and inserts nothing", () => {
 		const onReject = jest.fn();
 		const editor = makeEditor({
