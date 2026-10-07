@@ -3,7 +3,8 @@
 // Форматирование и работа с абзацами выполняются ручными DOM-операциями (Selection/Range),
 // которые проходят мимо нативного стека истории браузера — нативный Ctrl+Z их не видит и,
 // хуже того, ломается при смешивании с ручными мутациями. Поэтому ведём свою историю снимков
-// (innerHTML + позиция выделения). Используется только при включённом форматировании.
+// (innerHTML + позиция выделения). Ведётся и без форматирования: вставка, Enter и переносы —
+// такие же ручные правки.
 
 import { documentSelection, innerSelection, restoreSelection, selectionCharBounds } from "./format";
 
@@ -83,6 +84,15 @@ export class EditorHistory {
 
 		while (this.__undo.length > MAX_DEPTH || (this.__chars > MAX_CHARS && this.__undo.length > 1))
 			this.__chars -= this.__undo.shift()!.html.length;
+	}
+
+	/** Забыть всю историю: содержимое заменено целиком, и прежние шаги к нему не относятся. */
+	clear(): void {
+		this.__undo = [];
+		this.__redo = [];
+		this.__chars = 0;
+		this.__redoChars = 0;
+		this.__lastKind = null;
 	}
 
 	/** Откатить на шаг назад. Возвращает false, если откатывать нечего. */

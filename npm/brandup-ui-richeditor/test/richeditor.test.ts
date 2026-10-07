@@ -861,12 +861,82 @@ describe("RichEditor history (undo/redo)", () => {
 		expect(editor.editable.innerHTML).toBe("barbaz"); // без второго отката
 	});
 
-	it("does not intercept history without formatting", () => {
-		const editor = makeEditor({ format: false, value: "abc" });
-		const e = undo(editor);
+	// Вставку редактор делает ручной правкой DOM, и нативная отмена её не видит: без своей
+	// истории вставленное в поле без форматирования не отменялось вовсе.
+	describe("without formatting", () => {
+		const paste = (editor: RichEditor, plain: string) => {
+			const e = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
+			e.clipboardData = { getData: (type: string) => (type === "text/plain" ? plain : "") };
+			editor.editable.dispatchEvent(e);
+		};
 
-		expect(e.defaultPrevented).toBe(false); // не перехватываем — отдаём браузеру
-		expect(editor.editable.textContent).toBe("abc");
+		it("undoes and redoes a paste into a single-line field", () => {
+			const editor = makeEditor({ format: false });
+			editor.focus(true);
+			paste(editor, "bar");
+			expect(editor.getValue()).toBe("bar");
+
+			expect(undo(editor).defaultPrevented).toBe(true);
+			expect(editor.getValue()).toBe("");
+
+			redoCtrlY(editor);
+			expect(editor.getValue()).toBe("bar");
+		});
+
+		it("undoes a paste into a multiline field", () => {
+			const editor = makeEditor({ format: false, multiline: true, value: "foo" });
+			caretAt(editor.editable.querySelector("p")!.firstChild!, 3);
+			paste(editor, "bar\nbaz");
+			expect(editor.getValue()).toBe("foobar\nbaz");
+
+			undo(editor);
+			expect(editor.getValue()).toBe("foo");
+		});
+
+		// нативная правка: beforeinput, затем браузер сам меняет DOM
+		const nativeEdit = (editor: RichEditor, inputType: string, text: string) => {
+			editor.editable.dispatchEvent(
+				new InputEvent("beforeinput", { inputType, cancelable: true, bubbles: true })
+			);
+			editor.editable.textContent = text;
+			editor.editable.dispatchEvent(new InputEvent("input", { inputType, bubbles: true }));
+		};
+
+		// Cmd+Backspace на Mac — не печать, но правка: без записи отмена перескакивала через неё
+		it("undoes a native edit outside of typing (deleting the line)", () => {
+			const editor = makeEditor({ format: false, value: "one" });
+			editor.focus(true);
+
+			nativeEdit(editor, "deleteSoftLineBackward", "");
+			undo(editor);
+
+			expect(editor.getValue()).toBe("one");
+		});
+
+		// как у нативного поля: значение из кода начинает историю заново
+		it("starts the history over on setValue", () => {
+			const editor = makeEditor({ format: false, value: "hello" });
+			editor.focus(true);
+			nativeEdit(editor, "insertText", "hello world");
+
+			editor.setValue("new");
+			expect(editor.canUndo).toBe(false);
+
+			undo(editor);
+			expect(editor.getValue()).toBe("new");
+		});
+
+		it("undoes Enter", () => {
+			const editor = makeEditor({ format: false, multiline: true, value: "abcd" });
+			caretAt(editor.editable.querySelector("p")!.firstChild!, 2);
+			editor.editable.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", cancelable: true, bubbles: true })
+			);
+			expect(editor.editable.querySelectorAll("p")).toHaveLength(2);
+
+			undo(editor);
+			expect(editor.editable.innerHTML).toBe("<p>abcd</p>");
+		});
 	});
 });
 
