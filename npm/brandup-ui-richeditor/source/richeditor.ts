@@ -1888,7 +1888,7 @@ export default class RichEditor extends UIElementBound<RichEditorEvents> {
 		// на вставляемый текст явно. Каретке без выделения это не нужно: там вставка и так попадает
 		// внутрь тега, а на его границе принадлежность неочевидна.
 		const range = selection.getRangeAt(0);
-		const inherited = range.collapsed ? [] : activeFormats(this.editable, range, this.formatTools);
+		const inherited: Iterable<FormatTool> = range.collapsed ? [] : activeFormats(this.editable, range, this.formatTools);
 		const formats = new Set([...this.__pendingFormats, ...inherited]);
 		// Адрес наследуемой ссылки читается до правки: после deleteContents исходный тег
 		// пустеет и убирается, и адреса взять уже неоткуда.
